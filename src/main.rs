@@ -22,7 +22,7 @@ struct Cli {
     /// 的输出格式面（细则见 R002 与模块文档）。
     #[arg(long, global = true)]
     format: Option<String>,
-    /// 打印紧凑版 agent 说明书（llms 风格命令速查；ADR-0005 后唯一机读手册面，从活命令树自适应渲染不落盘）后退出
+    /// 打印紧凑版 agent 说明书（llms 风格速查；命令表随活命令树自适应，功能面与输出契约为概览段；ADR-0005 后唯一机读手册面，不落盘）后退出
     #[arg(long)]
     llms: bool,
     #[command(subcommand)]
@@ -369,9 +369,10 @@ fn run() -> Result<(), String> {
     }
 }
 
-/// `hst --llms`：紧凑版 agent 说明书（llms 风格）。从 clap 活命令树自适应
-/// 渲染（新命令自动出现；不落盘、不装技能，ADR-0005 后唯一机读手册面）。
-/// 命令细则唯一权威在 R002，本面只做速查投影。
+/// `hst --llms`：紧凑版 agent 说明书（llms 风格）。命令表从 clap 活命令树
+/// 自适应渲染（新命令自动出现；功能面五条与输出契约是手写概览段，codex
+/// 评审 G1 口径）；不落盘、不装技能（ADR-0005 后唯一机读手册面）。命令
+/// 细则唯一权威在 R002，本面只做速查投影。
 fn render_llms(root: &clap::Command) -> String {
     let mut rows: Vec<(String, String)> = Vec::new();
     walk(root, String::new(), &mut rows);
@@ -385,7 +386,7 @@ fn render_llms(root: &clap::Command) -> String {
         table.push_str(&format!("| `{usage}` | {about} |\n"));
     }
     format!(
-        "# hst\n\n> HST（Hooks, Statusline, Trace）：agent 全平台部署配置与诊断 CLI。本手册由 `hst --llms` 从活命令树自适应渲染；命令细则唯一权威在仓库 docs/references/R002。\n\n## 功能面\n\n- 可用性诊断：`hst doctor`（零网络只读体检）、`hst agents`（四家检测）、`hst diagnose`（活性诊断）\n- hook 设置：`hst init`（部署，幂等）、`hst hook status`（状态落盘）\n- 状态栏设置：`hst statusline`（四家写入面）\n- 对话 trace：`hst trace` 六视图只读检索四家原生会话库\n- yolo 不阻塞设置：`hst init --yolo`\n\n## 命令表\n\n| 命令 | 说明 |\n| --- | --- |\n{table}\n## 输出契约\n\n全部命令支持 `--format kv|json|jsonl` 与 `--json` 信封（kv 是缺省 marker 行）；结构化错误 stderr 单行 JSON；doctor blocked 与 verify fail 退出 1，diagnose cache 探测错误退出 1。\n"
+        "# hst\n\n> HST（Hooks, Statusline, Trace）：agent 全平台部署配置与诊断 CLI。本手册命令表由 `hst --llms` 随活命令树自适应渲染（功能面与输出契约为概览段）；命令细则唯一权威在仓库 docs/references/R002。\n\n## 功能面\n\n- 可用性诊断：`hst doctor`（零网络只读体检）、`hst agents`（四家检测）、`hst diagnose`（活性诊断）\n- hook 设置：`hst init`（部署，幂等）、`hst hook status`（状态落盘）\n- 状态栏设置：`hst statusline`（四家写入面）\n- 对话 trace：`hst trace` 六视图只读检索四家原生会话库\n- yolo 不阻塞设置：`hst init --yolo`\n\n## 命令表\n\n| 命令 | 说明 |\n| --- | --- |\n{table}\n## 输出契约\n\n全部命令支持 `--format kv|json|jsonl` 与 `--json` 信封（kv 是缺省 marker 行）；结构化错误 stderr 单行 JSON；doctor blocked 与 verify fail 退出 1，diagnose cache 探测错误退出 1。\n"
     )
 }
 
@@ -432,16 +433,37 @@ fn synopsis(cmd: &clap::Command, path: &str) -> String {
                 s.push_str(&format!(" <{name}>"));
             }
         } else if let Some(long) = a.get_long() {
-            let val = a
+            let name = a
                 .get_value_names()
                 .and_then(|v| v.first())
-                .map(|n| format!(" <{n}>"))
-                .unwrap_or_default();
+                .map(|n| n.to_string());
             if matches!(
                 a.get_action(),
                 clap::ArgAction::Set | clap::ArgAction::Append
             ) {
-                opts.push(format!("[--{long}{val}]"));
+                // 裸旗标合法的取值旗标（num_args 下界 0，如 --yolo）出
+                // `[--yolo[=full|partial|off]]`（有枚举值列值集，codex 评审
+                // G2：与 R002 的裸旗标语义对齐）；必值旗标仍 `[--script <路径>]`。
+                let optional_value = a
+                    .get_num_args()
+                    .map(|r| r.min_values() == 0)
+                    .unwrap_or(false);
+                if optional_value {
+                    let possible = a.get_possible_values();
+                    let inner = if !possible.is_empty() {
+                        possible
+                            .iter()
+                            .map(|v| v.get_name().to_string())
+                            .collect::<Vec<_>>()
+                            .join("|")
+                    } else {
+                        name.clone().unwrap_or_else(|| long.to_string())
+                    };
+                    opts.push(format!("[--{long}[={inner}]]"));
+                } else {
+                    let val = name.map(|n| format!(" <{n}>")).unwrap_or_default();
+                    opts.push(format!("[--{long}{val}]"));
+                }
             } else {
                 opts.push(format!("[--{long}]"));
             }

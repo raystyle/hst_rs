@@ -29,14 +29,14 @@
 | `.tools\md-replace.py` | 中文与反斜杠路径安全的字面批量替换（规避 sed 坑 M023） |
 | `.tools\md-heading-scan.py` | 标题括号规范扫描（G001 标题干净的机检项；代码围栏内的注释不计） |
 | `.tools\mdcharlint.py` | 四类禁用字符检查（G005：破折号、箭头、emoji、非法全角；掩豁免区后逐字符扫） |
-| `src\main.rs` | CLI 入口与子命令分发（init/doctor/agents/hook/self/completions）；`--json` 信封出口；D49 skill --write 单名 hst 加旧牌幂等退役；D52 --project-yolo 家目录守卫） |
+| `src\main.rs` | CLI 入口与子命令分发（init/doctor/agents/hook/self/completions）；`--json` 信封出口与 `--llms` 紧凑手册面（命令表活命令树自适应渲染，ADR-0005；skill 子命令已退役）；D52 --project-yolo 家目录守卫） |
 | `src\lib.rs` | 模块声明 |
 | `src\archive.rs` | 通用归档工具：sha256 校验、zip / tar.gz 解包、目录复制、host os/arch（D15 自 rmux.rs 剥离） |
 | `src\hook.rs` | `hst hook`：事件到四态映射与用户级 session 分键 state 落盘（D28），加密钥拦截分流 |
 | `src\agents.rs` | `hst agents`：PATH / 环境变量 / 默认目录探测 |
 | `src\doctor.rs` | `hst doctor`：只读诊断（yolo / 信任 / 二进制 / 登录态 / hook 形态 / 状态栏 / 用户级与项目级状态面，D28；会话健康随 D15 移除；D50 yolo 面补 bypass 残余阻塞信号：项目层 local 优先读取、项目层 bypass-only 假阳性修正、yolo.ask 与 yolo.readblock 检查；D52 yolo.parse 显式报加 json_file BOM 容忍） |
 | `src\yolo.rs` | `hst init --yolo[=full|partial|off]`：四家分级落盘、ours 退役（用户级与项目级）与 pretrust（D33）；D52 full 落 blockReads=false 加 off 等值摘、read_json BOM 容忍） |
-| `src\deploy.rs` | `hst init` hook/skill 部署层：hook 注册四家用户级（D28：claude/codex/grok/kimi 用户层，codex trusted_hash 预种，kimi `[[hooks]]` 合并），项目级 ours 注册与 shim 退役，幂等合并（M059 无引号正斜杠形态，同形去重）；SKILL.md 由 COMMAND_MAP 命令图生成（标记覆写三态；D49 四处翻 skills/hst/ 加旧牌 ohmyagents 幂等退役；D52 家目录守卫：root==用户家目录时项目级退役趟整组跳过；D53 状态栏面并入全套部署） |
+| `src\deploy.rs` | `hst init` hook/skill 部署层：hook 注册四家用户级（D28：claude/codex/grok/kimi 用户层，codex trusted_hash 预种，kimi `[[hooks]]` 合并），项目级 ours 注册与 shim 退役，幂等合并（M059 无引号正斜杠形态，同形去重）；ours 技能目录幂等清扫（ADR-0005：四目录乘 hst 与 ohmyagents 两名加用户级四家根，marker 家族或生成签名判 ours，外科式）；D52 家目录守卫：root==用户家目录时项目级退役趟整组跳过；D53 状态栏面并入全套部署） |
 | `src\shim.rs` | D27 自包含状态 shim 加 D28 用户级常驻与 session 分键：hst-state.cmd（jq 首选加 findstr 回落，PATH 探 jq）、hst-state.ps1（D39 sh 兼容载体，Windows 注册指向）、hst-state.sh（bash 或 mac zsh）、grok baked 包装；落 `~/.hst/hooks/`，双写 agent 最新加 session 键，SessionEnd GC |
 | `src\install.rs` | hst 根解析（hst_home）加自管根存量探测（managed_binaries/version）加共享下载件 download_asset（self update 复用）；安装机器已随 D20 删除 |
 | `src\statusline.rs` | `hst statusline`：四家状态栏写入面幂等合并（S025 矩阵）；projKind 含 rust/node/python/zig/go/cpp（P0032）；脚本拆段拼装加用户级定制烘焙（~/.hst/statusline.toml 分层键加 --script 整替换，D18；D42 三行、D43 五点精修、D44 默认两行、D45 段名 hst；D46 agent 版本段：payload version 优先否则本地探加 mtime 键控缓存，标记两形 `agent[-<version>]:state`，codex 内置项 codex-version 并裁去 context-remaining 回十二项；D51 clock 段：第一行行尾年月日加当前时间分钟精度） |
@@ -44,7 +44,6 @@
 | `src\trace.rs` | `hst trace` 六视图：联邦读四家原生会话库归一检索（P0013/P0014，S018/S019/S020；D15 连坐删除，D19 全量恢复） |
 | `src\verify.rs` | `hst agents verify`：四家无头验收两层判据（D17，S033）；状态栏 mock 直跑（D46 标记两形判据加 HST_VER_CACHE_DIR 隔离）加 hook 用户级注册 byte 备份 Drop 还原与 env 隔离判据（D28）；grok trusted_folders 种子加 Drop 摘除 |
 | `src\diagnose.rs` | `hst diagnose cache\|agents`：活性诊断族（D21）：网关发现（env 覆盖大于 claude env 大于 codex provider）、缓存双连探测加 ds 特判、配置指向加在册加 key 活性加 thinking 对照；D52 claude env 读侧 BOM 容忍） |
-| `src\skillgen.rs` | `hst skill`：从 clap 活命令树自适应渲染 SKILL.md（D22；frontmatter 按 Agent Skills 标准，--write 落用户级技能目录；D49 名翻 hst 唯一名加旧牌幂等退役） |
 | `src\secretguard.rs` | `hst hook` 密钥拦截闸（S030）：模式表八层防误报、实值比对通道、PreToolUse/UserPromptSubmit 阻断 exit 2 |
 | `src\fmtio.rs` | 全局输出三态（kv/json/jsonl）与结构化错误出口（issue #1 契约，R011）；JSON 信封函数（D15 自 api.rs 迁入） |
 | `src\caps.rs` | CPU 指令集能力与探针退出形态分类（S021/P0018：is_x86_feature_detected 加 0xC000001D 识别） |

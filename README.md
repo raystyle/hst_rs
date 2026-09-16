@@ -49,13 +49,13 @@ hst self update          # 自更新：缺省 dev 滚动源；--stable 走正式
 ### 前置
 
 - 状态栏运行时是 pwsh（PowerShell 7）：装了才有状态栏，缺了只是不渲染，不影响其它命令
-- hst 自管数据根 `~/.hst`（旧 `~/.oma` 首启自动迁移）；hook 注册与 yolo 键写各家用户级配置，skill 落项目目录
+- hst 自管数据根 `~/.hst`（旧 `~/.oma` 首启自动迁移）；hook 注册与 yolo 键写各家用户级配置，AGENTS/CLAUDE 说明落项目目录（skill 面已退役 ADR-0005）
 
 ## 快速上手
 
 ```powershell
 cd D:\my\proj          # 进你的项目，后续命令都不用再带路径
-hst init               # 部署 hook / skill / yolo 键加旧数据根迁移 heal（幂等）
+hst init               # 部署 hook / 状态栏 / yolo 键加旧数据根迁移 heal（幂等）
 hst statusline         # 配置四家状态栏
 hst doctor             # 体检：有 block 级问题才退出 1
 ```
@@ -65,7 +65,7 @@ hst doctor             # 体检：有 block 级问题才退出 1
 ## 部署与信任
 
 ```powershell
-hst init                        # 全套：用户级 yolo 键加四家 hook/skill 加 heal 迁移
+hst init                        # 全套：用户级 yolo 键加四家 hook 注册与状态栏加 heal 迁移
 hst init --yolo                 # 仅用户级无阻塞键（全机生效，缺省 full 全 bypass）
 hst init --yolo=partial         # 分级：编辑自动过，危险操作仍确认
 hst init --yolo=off             # 全关：摘 hst 落的 yolo 键

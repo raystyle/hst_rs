@@ -7,7 +7,7 @@
 HST（Hooks, Statusline, Trace；原 Oh My Agents / oma，v0.6.0 更名过渡期，D29；版本线自 1.0.0 重开，D34；仓库名 `hst_rs`（`hst-rs` 为改名重定向别名），CLI 二进制 `hst`，数据根 `~/.hst`）是 **Agent 全平台部署配置与诊断工具**，专注五个功能（D20，2026-09-09 用户裁定）。
 
 - **agent 可用性诊断**：`hst doctor` 只读体检（yolo / 信任 / 二进制 / state / 登录态 / hook 形态 / 状态栏 / CPU 能力），warn 与 block 分层；`hst agents` 四源检测；`hst diagnose` 活性诊断打真网关（D21）。
-- **hook 设置**：`hst init` 部署 hook 注册（四家用户级常驻 `~/.hst/hooks/` shim，D28）与项目 skill，幂等合并；`hst hook` 状态落盘加密钥拦截。
+- **hook 设置**：`hst init` 部署 hook 注册（四家用户级常驻 `~/.hst/hooks/` shim，D28）与状态栏面，幂等合并（skill 面已退役 ADR-0005，ours 技能目录幂等清扫）；`hst hook` 状态落盘加密钥拦截。
 - **状态栏设置**：`hst statusline` 四家写入面加用户级定制（D18；`agents statusline` 隐藏别名）。
 - **对话 trace**：`hst trace` 六视图联邦读四家原生会话库（P0013/P0014），只读、与 rmux 零耦合；D15 曾连坐删除，D19（2026-09-08 用户裁定）全量恢复为只读检索面。
 - **yolo 不阻塞设置**：`hst init --yolo[=full|partial|off]` 分级无阻塞键（full 全 bypass / partial 危险操作仍确认 / off 全关，D33）与 `--pre-trust` 信任预写。
@@ -39,4 +39,4 @@ HST（Hooks, Statusline, Trace；原 Oh My Agents / oma，v0.6.0 更名过渡期
 
 ## 约束在一个项目
 
-启动 cwd 或 `--project` 就是唯一工作区。skill 与 AGENTS / CLAUDE.md 落项目目录；hook 注册与 shim 常驻用户级（`~/.hst/hooks/`，D28），状态按 session 分键写 `~/.hst/state/`（供状态栏 `agent:state` 机读标记消费，S025，未 init 项目也有状态数据），状态栏脚本释放 `~/.hst/statusline/`，agent 版本探针缓存 `~/.hst/cache/`（D46，按 agent 单文件 `agent-version-<agent>.json`）。信任库（各 agent 记在用户家）可以预写（`--pre-trust`）。
+启动 cwd 或 `--project` 就是唯一工作区。AGENTS / CLAUDE.md 说明落项目目录（skill 面已退役 ADR-0005）；hook 注册与 shim 常驻用户级（`~/.hst/hooks/`，D28），状态按 session 分键写 `~/.hst/state/`（供状态栏 `agent:state` 机读标记消费，S025，未 init 项目也有状态数据），状态栏脚本释放 `~/.hst/statusline/`，agent 版本探针缓存 `~/.hst/cache/`（D46，按 agent 单文件 `agent-version-<agent>.json`）。信任库（各 agent 记在用户家）可以预写（`--pre-trust`）。

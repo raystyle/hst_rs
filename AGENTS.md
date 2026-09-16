@@ -9,7 +9,7 @@
 - `uv run --script .tools/md-ref-scan.py` 断链回归（结构变更必跑）
 - `uv run --script .tools/md-heading-scan.py` 加 `uv run --script .tools/mdcharlint.py` 加 `rumdl check .` md 门禁
 - `cargo build --release --locked --target x86_64-pc-windows-gnu --bins` Windows 交叉构建
-- `PEVO_CHECK_ALLOW` 加 `uv run /mnt/d/ProjectEvo/plugins/project-evo/skills/dev-evo/scripts/check.py .` 骨架合规自检（豁免正则与标准命令见 docs/README 存量禁字债口径节；正则含 `^docs/aidoc/` 在册）
+- `PEVO_CHECK_ALLOW` 加 `uv run /mnt/wsl/repos/project-evo/plugins/evo-adr/skills/code-kit/scripts/check.py .` 骨架合规自检（豁免正则与标准命令见 docs/README 存量禁字债口径节；正则含 `^docs/aidoc/` 在册）
 - `./target/debug/hst doctor` 本机体检；`./target/debug/hst init` dogfood 部署
 - `pwsh -NoProfile -File <脚本>` 验收与运维脚本统一载体（五端 pwsh 7.6.6；非登录 shell PATH 兜底；仓内既有 bash 载体 cross-test.sh 属存量不强制迁移，新增验收运维面一律 pwsh，dev-evo env-platform 第十一节）
 - `bash .tools/cross-test.sh` 全平台实弹矩阵，**5端4机**基建原语（wsl 加 lan-win 加 lan-mac 加 lan-ubuntu 加 lan-linux 五端；wsl 与 lan-win 同宿主机，2026-09-16 用户定）：wsl 就地跑、windows-gnu 本地交叉构建、mac 取 dev release 资产、lan 三端 mesh、lan-win 走宿主 127.0.0.1 回环（REQ-007）
@@ -18,7 +18,7 @@
 
 ## Must
 
-- 改命令面两处同步：R002 行、docs README（agent 手册 `hst --llms` 随命令树自适应渲染，无生成物落盘，ADR-0005）
+- 改命令面两处同步：R002 行、docs README（agent 手册 `hst --llms` 命令表随命令树自适应渲染，无生成物落盘，ADR-0005）
 - 不可逆技术选择先立 `docs/adr/`；新需求先立 `docs/requirements/` REQ
 - 事实性断言标六态（`[实证]` 至 `[直觉]`，规范见 G002）；实证滥用即未完成
 - 踩坑当场记 `docs/mistakes/`（同根因聚合）；同型二犯升格 ADR 或 references

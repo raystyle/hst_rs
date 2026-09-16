@@ -17,7 +17,9 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{json, Value as Json};
 
-use crate::yolo::{ensure_parent, read_json, read_toml, toml_write, write_json, write_text};
+use crate::yolo::{read_json, read_toml, toml_write, write_json, write_text};
+#[cfg(test)]
+use crate::yolo::ensure_parent;
 
 #[derive(Default)]
 /// 部署报告：写入、跳过、形态与警告清单。
@@ -1405,6 +1407,16 @@ const USER_SKILL_SIGNATURE: &str = "活命令树自适应生成";
 
 const AGENTS_MD: &str = "# AGENTS\n\n本项目会话由 HST（Hooks, Statusline, Trace，原 Oh My Agents）治理：agent 状态写用户级 `~/.hst/state/`，诊断与部署经 hst CLI。\n";
 
+/// ours 判据（项目面与用户级共用，codex 评审 F1 收口）：init 生成标记
+/// 家族（hst 与 oma 两代）、旧静态版全文、或 `hst skill --write` 生成
+/// 签名，三者其一即 ours。
+fn skill_md_is_ours(md: &str) -> bool {
+    md.contains(SKILL_MARKER)
+        || md.contains(LEGACY_SKILL_MARKER_PREFIX)
+        || md == LEGACY_SKILL_MD
+        || md.contains(USER_SKILL_SIGNATURE)
+}
+
 /// ADR-0005（D54）：skill 面退役，项目级 fan-out 不再写，在位 ours 件由
 /// init 清扫。四目录（.agents/.claude/.grok/.kimi-code）乘两名（hst 与旧牌
 /// ohmyagents）逐一退役。
@@ -1417,17 +1429,13 @@ fn retire_skills(root: &Path, report: &mut DeployReport) {
     }
 }
 
-/// SKILL.md 属 ours（marker 家族或旧静态版）才退役；用户手改或他源内容
-/// 不动。外科式（codex F4）：先删 SKILL.md，目录仅在空时收（伴生资源
-/// 不连带删）。
+/// SKILL.md 属 ours 才退役；用户手改或他源内容不动。外科式（codex F4）：
+/// 先删 SKILL.md，目录仅在空时收（伴生资源不连带删）。
 fn retire_ours_skill_dir(dir: &Path, report: &mut DeployReport) {
     let Ok(md) = std::fs::read_to_string(dir.join("SKILL.md")) else {
         return;
     };
-    let ours = md.contains(SKILL_MARKER)
-        || md.contains(LEGACY_SKILL_MARKER_PREFIX)
-        || md == LEGACY_SKILL_MD;
-    if !ours {
+    if !skill_md_is_ours(&md) {
         return;
     }
     if std::fs::remove_file(dir.join("SKILL.md")).is_ok() {
@@ -1436,22 +1444,17 @@ fn retire_ours_skill_dir(dir: &Path, report: &mut DeployReport) {
     }
 }
 
-/// ADR-0005（D54）：用户级技能目录退役（`hst skill` 面已删，`~/.claude/
-/// skills/` 在位件由 init 清扫）。SKILL.md 带我们生成签名才退役；用户
-/// 手改或他源不动。外科式：先删 SKILL.md，目录仅在空时收。
+/// ADR-0005（D54）：用户级技能目录退役（`hst skill` 面已删）。四家用户级
+/// skills 根（.claude 加 .agents 加 .grok 加 .kimi-code）乘 hst 与旧牌
+/// ohmyagents 两名，历史两代产物都在清扫面（codex 评审 F1：home-root
+/// init fan-out 落的 marker 件加 `skill --write` 落的签名件）；判据同
+/// 项目面共用；用户手改或他源不动；外科式先删 SKILL.md，目录仅在空时
+/// 收。grok 自带 `~/.grok/bundled/skills/` 是另一父目录，不在扫描面。
 fn retire_user_skills(user_home: &Path, report: &mut DeployReport) {
-    let skills = user_home.join(".claude").join("skills");
-    for name in ["hst", "ohmyagents"] {
-        let dir = skills.join(name);
-        let Ok(md) = std::fs::read_to_string(dir.join("SKILL.md")) else {
-            continue;
-        };
-        if !md.contains(USER_SKILL_SIGNATURE) {
-            continue;
-        }
-        if std::fs::remove_file(dir.join("SKILL.md")).is_ok() {
-            let _ = std::fs::remove_dir(&dir);
-            report.wrote.push(format!("{} (retired)", dir.display()));
+    for target in [".claude", ".agents", ".grok", ".kimi-code"] {
+        let skills = user_home.join(target).join("skills");
+        for name in ["hst", "ohmyagents"] {
+            retire_ours_skill_dir(&skills.join(name), report);
         }
     }
 }
@@ -2669,19 +2672,26 @@ mod skill_tests {
 
     #[test]
     fn retire_user_skills_signature_only() {
-        // `hst skill --write` 在位件（生成签名，oma 与 hst 两代都含）退役；
-        // 用户手改或他源不动；外科式伴生资源保留。
+        // 用户级清扫面（codex 评审 F1）：四家 skills 根乘两名。`hst skill
+        // --write` 落的签名件（.claude）与 home-root init fan-out 落的
+        // marker 件（.agents/.grok 等）都要收；用户手改或他源不动；外科式
+        // 伴生资源保留。
         let home = tmp("user");
-        let skills = home.join(".claude").join("skills");
-        let ours = skills.join("hst");
-        std::fs::create_dir_all(&ours).unwrap();
+        let claude = home.join(".claude").join("skills").join("hst");
+        std::fs::create_dir_all(&claude).unwrap();
         std::fs::write(
-            &ours.join("SKILL.md"),
+            &claude.join("SKILL.md"),
             "> 本文件由 `hst skill` 从 hst 活命令树自适应生成。\n",
         )
         .unwrap();
-        std::fs::write(ours.join("notes.md"), "supporting resource\n").unwrap();
-        let legacy = skills.join("ohmyagents");
+        std::fs::write(claude.join("notes.md"), "supporting resource\n").unwrap();
+        let agents = home.join(".agents").join("skills").join("hst");
+        std::fs::create_dir_all(&agents).unwrap();
+        std::fs::write(&agents.join("SKILL.md"), format!("{SKILL_MARKER}\n")).unwrap();
+        let grok = home.join(".grok").join("skills").join("hst");
+        std::fs::create_dir_all(&grok).unwrap();
+        std::fs::write(&grok.join("SKILL.md"), format!("{SKILL_MARKER}\n")).unwrap();
+        let legacy = home.join(".kimi-code").join("skills").join("ohmyagents");
         std::fs::create_dir_all(&legacy).unwrap();
         std::fs::write(
             &legacy.join("SKILL.md"),
@@ -2690,16 +2700,18 @@ mod skill_tests {
         .unwrap();
         let mut r = DeployReport::default();
         retire_user_skills(&home, &mut r);
-        assert!(!ours.join("SKILL.md").exists());
-        assert!(ours.join("notes.md").exists(), "companion resource kept");
+        assert!(!claude.join("SKILL.md").exists());
+        assert!(claude.join("notes.md").exists(), "companion resource kept");
+        assert!(!agents.exists(), "home-root init fan-out marker swept");
+        assert!(!grok.exists(), "grok user-level ours swept");
         assert!(!legacy.exists(), "legacy ours dir removed (empty)");
-        assert_eq!(r.wrote.len(), 2);
+        assert_eq!(r.wrote.len(), 4);
         // 用户手改（签名被覆写）不动：种一份无签名内容再跑。
-        std::fs::create_dir_all(&ours).unwrap();
-        std::fs::write(&ours.join("SKILL.md"), "我的私货 skill\n").unwrap();
+        std::fs::create_dir_all(&claude).unwrap();
+        std::fs::write(&claude.join("SKILL.md"), "我的私货 skill\n").unwrap();
         let mut r2 = DeployReport::default();
         retire_user_skills(&home, &mut r2);
-        assert!(ours.join("SKILL.md").exists(), "user-owned untouched");
+        assert!(claude.join("SKILL.md").exists(), "user-owned untouched");
         assert!(r2.wrote.is_empty());
         let _ = std::fs::remove_dir_all(&home);
     }
