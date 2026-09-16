@@ -765,7 +765,7 @@
     {
       "path": "hst_cli::update::run",
       "kind": "function",
-      "docs": "自更新的读序面（细则见 R002 与模块文档）。\n失败（403 限流与网络类）自动回退镜像腿（默认基址）；空串镜像全关。"
+      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n`hst self update` entry: release path with git fallback.\n\n判新（D48 双通道）：dev 按 rolling digest（资产 sha256 对安装记录，滚动版\n版本号常不变）；latest 走 GitHub 时按版本 tag，走镜像腿时同 dev 按 digest。\n自更新的读序面（细则见 R002 与模块文档）。\n失败（403 限流与网络类）自动回退镜像腿（默认基址）；空串镜像全关。"
     },
     {
       "path": "hst_cli::update::self_replace",

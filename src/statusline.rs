@@ -2339,6 +2339,10 @@ mod tests {
         // 第三行去掉（tools 与 mcp 两计数、token 用量三段显式选用才出
         // 现）。codex D40 评审 G2 顺带钉 kimi 退化：同配置下 kimi 并一行。
         if !pwsh_on_path() {
+            // R004 闸门 skip；eprintln 标痕防无 pwsh 环境静默空跑（codex
+            // 评审 O3：CI 两岗带 pwsh 不空跑，本机缺位时四条判据全不跑
+            // 且无提示）。
+            eprintln!("skip: pwsh not on path (R004 gate)");
             return;
         }
         let home = scratch("tworow");
@@ -2413,11 +2417,12 @@ mod tests {
             out_grok.contains("grok-2.1.270:unknown") && out_grok.contains("195k/977k"),
             "grok single line keeps agent state and tokens: {out_grok}"
         );
+        // ASCII 面判据取全行 is_ascii（codex 评审 O3 加宽）：不只 PUA 私用
+        // 区，U+21E1 加 U+2718 加 U+00BB 类非 PUA nerd 符号漏进 grok 面
+        // 同样要红（M046）。
         assert!(
-            !out_grok
-                .chars()
-                .any(|c| matches!(u32::from(c), 0xE000..=0xF8FF)),
-            "grok ASCII path emits no Nerd PUA glyphs: {out_grok}"
+            out_grok.is_ascii(),
+            "grok ASCII path emits ASCII-only line (no Nerd glyphs of any block): {out_grok}"
         );
         let _ = std::fs::remove_dir_all(&home);
         // 显式选用面（D40 三要素段保留）：segments3 显式带 tools / mcp /

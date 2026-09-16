@@ -462,6 +462,20 @@ pub fn git_install(repo: &str) -> Result<(), String> {
     }
 }
 
+/// D48 读序回退守卫（REQ-003）：GitHub 失败后是否回退镜像腿。仅
+/// DefaultFallback（未设 HST_MIRROR）真；First 已试过镜像，再回退即回环
+/// 重试故不回；Off 显式全关。钉「不回环」性质（codex D48 评审 F3）。
+fn github_fail_falls_back_to_mirror(plan: &MirrorPlan) -> bool {
+    matches!(plan, MirrorPlan::DefaultFallback)
+}
+
+/// GitHub 失败后的回退基址（codex 评审 O1 收口）：仅 DefaultFallback 返回
+/// 默认镜像基址、其余态 None；run 据此单点决定回退腿，三态单测因此有
+/// 独立 oracle（不与 matches! 定义同源）。
+fn mirror_fallback_base(plan: &MirrorPlan) -> Option<&'static str> {
+    github_fail_falls_back_to_mirror(plan).then_some(DEFAULT_MIRROR_BASE)
+}
+
 /// # Errors
 ///
 /// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
@@ -469,13 +483,6 @@ pub fn git_install(repo: &str) -> Result<(), String> {
 ///
 /// 判新（D48 双通道）：dev 按 rolling digest（资产 sha256 对安装记录，滚动版
 /// 版本号常不变）；latest 走 GitHub 时按版本 tag，走镜像腿时同 dev 按 digest。
-/// D48 读序回退守卫（REQ-003 命名取参形）：GitHub 失败后是否回退镜像腿。
-/// 仅 DefaultFallback（未设 HST_MIRROR）回退；First 已试过镜像，再回退即
-/// 回环重试故不回；Off 显式全关。钉「不回环」性质（codex D48 评审 F3）。
-fn github_fail_falls_back_to_mirror(plan: &MirrorPlan) -> bool {
-    matches!(plan, MirrorPlan::DefaultFallback)
-}
-
 /// 自更新的读序面（细则见 R002 与模块文档）。
 /// 失败（403 限流与网络类）自动回退镜像腿（默认基址）；空串镜像全关。
 pub fn run(repo: &str, channel: Channel, git_mode: bool, force: bool) -> Result<(), String> {
@@ -501,10 +508,10 @@ pub fn run(repo: &str, channel: Channel, git_mode: bool, force: bool) -> Result<
         Err(e) => {
             // D48 回退腿：GitHub 失败自动落镜像段边车锚（救 api.github.com
             // 匿名 403 限流与断网）。mirror-first 已试过镜像的不回环重试。
-            if github_fail_falls_back_to_mirror(&plan) {
+            if let Some(base) = mirror_fallback_base(&plan) {
                 println!("update.release=unavailable detail={e}");
                 println!("update.fallback=mirror");
-                return match via_mirror(DEFAULT_MIRROR_BASE, channel.mirror_seg(), force)? {
+                return match via_mirror(base, channel.mirror_seg(), force)? {
                     MirrorStep::Done => Ok(()),
                     MirrorStep::Fallback(detail) => {
                         println!("update.mirror=failed detail={detail}");
@@ -700,7 +707,13 @@ mod tests {
         );
         assert_eq!(asset_keywords("macos"), &["apple-darwin", "darwin"]);
         assert_eq!(asset_keywords("linux"), &["linux-gnu", "linux"]);
-        // host 形零漂移：转发 env 常量，与取参形同源。
+        // host 形零漂移：转发 env 常量，与取参形同源；宿主 OS 必须在受测
+        // 三域内（codex 评审 O2：恢复旧测试的未测宿主守卫，_ 臂无判据时
+        // 至少本机域有卡）。
+        assert!(matches!(
+            std::env::consts::OS,
+            "windows" | "macos" | "linux"
+        ));
         assert_eq!(
             host_asset_name(),
             asset_name(std::env::consts::OS, std::env::consts::ARCH)
@@ -787,7 +800,9 @@ mod tests {
         // REQ-003 读序回退守卫三态（codex D48 评审 F3）：仅 DefaultFallback
         // 触发镜像回退；First 已试过镜像（再回退即回环重试）、Off 全关。
         // env 三态解析面另见 mirror_plan_three_states_from_env_raw；First
-        // 与 Off 的实腿接线见 tests/cli.rs 假基址集成断言。
+        // 与 Off 的实腿接线见 tests/cli.rs 假基址集成断言。回退基址面
+        //（codex 评审 O1）与 matches! 定义不同源：DefaultFallback 返默认
+        // 基址本体，另两态 None。
         assert!(github_fail_falls_back_to_mirror(
             &MirrorPlan::DefaultFallback
         ));
@@ -795,6 +810,15 @@ mod tests {
             "https://m.example.com".into()
         )));
         assert!(!github_fail_falls_back_to_mirror(&MirrorPlan::Off));
+        assert_eq!(
+            mirror_fallback_base(&MirrorPlan::DefaultFallback),
+            Some(DEFAULT_MIRROR_BASE)
+        );
+        assert_eq!(
+            mirror_fallback_base(&MirrorPlan::First("https://m.example.com".into())),
+            None
+        );
+        assert_eq!(mirror_fallback_base(&MirrorPlan::Off), None);
     }
 
     #[test]

@@ -17,7 +17,7 @@ GH_TOKEN 在位附 Bearer（D48，匿名 60 升 5000 次每时）。
 - `fetch_release` — # Errors
 - `git_install` — # Errors
 - `pick_asset` — Pick the hst asset for this host from a release's asset list.
-- `run` — 自更新的读序面（细则见 R002 与模块文档）。
+- `run` — # Errors
 - `self_replace` — # Errors
 - `version_newer` — Dotted-numeric compare: is `tag` (v-prefix tolerated) strictly newer than
 

@@ -21,16 +21,23 @@ jobs:
   docs-gate:
     # 三个 md 扫描进 CI（codex 验收 review 补：此前只在本地人工执行，
     # 标题括号类红两次溜过发布）。rumdl 需 Python 侧工具，走 uv。
+    # aidoc 漂移门禁进 CI（codex 评审 O8 收口：v1.3.0 封版时 aidoc 存量
+    # 漂移无人拦，本地 --check 绿过不了机器；ubuntu-latest 自带 Rust 工具链）。
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
+      - uses: dtolnay/rust-toolchain@stable
       - name: Markdown gates
         run: |
           uv run --script .tools/md-ref-scan.py
           uv run --script .tools/md-heading-scan.py
           uv run --script .tools/mdcharlint.py
           uvx rumdl check .
+      - name: aidoc drift gate
+        run: |
+          cargo install cargo-aidoc --locked
+          cargo aidoc --check --strict
 
   build:
     strategy:

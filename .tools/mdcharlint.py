@@ -83,9 +83,13 @@ def iter_targets(args):
 def main():
     allow = load_allow()
     hits = 0
+    # rel 基准 = 仓根（__file__ 推导，codex 评审 O7）：以 cwd 为基准时仓外
+    # cwd 全量扫描会让 SKIP_DIRS 与豁免清单全不命中（705 假阳）；仓根基准
+    # 在任意 cwd 下豁免层恒生效，真仓外文件回退绝对路径显示（M065）。
+    root = Path(__file__).resolve().parent.parent
     for path in iter_targets(sys.argv[1:]):
         try:
-            rel = path.relative_to(Path.cwd()).as_posix() if path.is_absolute() else path.as_posix()
+            rel = path.resolve().relative_to(root).as_posix()
         except ValueError:
             rel = path.as_posix()
         if any(rel.startswith(s) for s in SKIP_DIRS):

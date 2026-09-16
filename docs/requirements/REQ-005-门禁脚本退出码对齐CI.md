@@ -15,7 +15,7 @@ mdcharlint 与 md-heading-scan 本地违规退出码为 0，命令链拦不住�
 ## Criteria
 
 - [x] 两脚本违规时退出码为 1：初版即如此，无需改 `[实证: 2026-09-16 git -S 证 return 1 逻辑自首提交（2e1ce7b 加 17639a7）至今未变]`
-- [x] 本地链路复跑验证：假违规文件实测两链均拦停 `[实证: 2026-09-16 WSL bash 链 exit 1 未续行；Windows pwsh 7 回环 LASTEXITCODE 1 未续行；CI docs-gate 跑同命令]`
+- [x] 本地链路复跑验证：假违规文件实测两链均拦停 `[实证: 2026-09-16 WSL bash 链 exit 1 未续行；Windows pwsh 7 回环 LASTEXITCODE 1 未续行]`；CI docs-gate 同命令同 shell 语义 `[推断: dev-release.yml docs-gate 步骤命令与本地逐字同串，本批未推未实跑（codex 评审 O4 改标）]`
 
 ## 裁定
 

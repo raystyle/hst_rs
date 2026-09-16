@@ -11,3 +11,4 @@
 | REQ-005 | rejected | should | 门禁脚本退出码对齐CI | 三环境退出码实证（场景不复现，M033 同型） |
 | REQ-006 | implemented | must | aidoc投影强制重构 | aidoc --check --strict |
 | REQ-007 | implemented | should | 全平台SSH实测矩阵 | .tools/cross-test.sh |
+| REQ-008 | draft | should | 三扫描器缺省根统一仓根 | |
