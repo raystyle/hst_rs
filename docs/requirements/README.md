@@ -5,7 +5,7 @@
 | id | 状态 | 优先级 | 标题 | trace |
 |---|---|---|---|---|
 | REQ-001 | implemented | must | 文档体系迁移dev-evo | check.py 全项 |
-| REQ-002 | draft | should | 资产名与关键词取参纯函数重构 | |
+| REQ-002 | implemented | should | 资产名与关键词取参纯函数重构 | asset_name 加 asset_keywords 加 pick_asset_for 全平台表断言 |
 | REQ-003 | draft | should | self-update读序不回环集成断言 | |
 | REQ-004 | implemented | should | grok运行时退单排pwsh闸门断言 | default_layout pwsh 闸门行为测试 |
 | REQ-005 | rejected | should | 门禁脚本退出码对齐CI | 三环境退出码实证（场景不复现，M033 同型） |

@@ -126,27 +126,38 @@ pub fn fetch_release(repo: &str, channel: Channel) -> Result<Release, String> {
 
 /// Host target triple keywords for asset matching (keep in sync with the
 /// release asset naming convention: hst-<triple>.zip / .tar.gz).
-fn host_keywords() -> &'static [&'static str] {
-    if cfg!(target_os = "windows") {
+fn asset_keywords(os: &str) -> &'static [&'static str] {
+    match os {
         // D47（2026-09-14 用户裁）：构建切 gnu 交叉编译摆脱 VC。新源首选
         // gnu 资产；旧 release 仅 msvc 资产时按 msvc 词命中，通用 windows
         // 词保底旧 msvc 二进制升级。
-        &["windows-gnu", "windows-msvc", "windows"]
-    } else if cfg!(target_os = "macos") {
-        &["apple-darwin", "darwin"]
+        "windows" => &["windows-gnu", "windows-msvc", "windows"],
+        "macos" => &["apple-darwin", "darwin"],
+        _ => &["linux-gnu", "linux"],
+    }
+}
+
+/// 架构取参归一：`std::env::consts::ARCH` 形原样保 aarch64，其余归
+/// x86_64（与发布矩阵的资产名架构词一致）。
+fn asset_arch(arch: &str) -> &'static str {
+    if arch == "aarch64" {
+        "aarch64"
     } else {
-        &["linux-gnu", "linux"]
+        "x86_64"
     }
 }
 
 /// Pick the hst asset for this host from a release's asset list.
 pub fn pick_asset(assets: &[Asset]) -> Option<&Asset> {
-    let kws = host_keywords();
-    let arch = if cfg!(target_arch = "aarch64") {
-        "aarch64"
-    } else {
-        "x86_64"
-    };
+    pick_asset_for(assets, std::env::consts::OS, std::env::consts::ARCH)
+}
+
+/// pick_asset 的 (os, arch) 取参形（REQ-002）：D47 后 windows 测试岗已
+/// 裁，cfg! 形分支留 gnu 字面量笔误盲区（linux/mac 岗只编译不出本机臂
+/// 判据）；取参形让全平台选资产行为在任一 CI 岗可断言。
+fn pick_asset_for<'a>(assets: &'a [Asset], os: &str, arch: &str) -> Option<&'a Asset> {
+    let kws = asset_keywords(os);
+    let arch = asset_arch(arch);
     assets
         .iter()
         .find(|a| {
@@ -275,20 +286,21 @@ impl MirrorPlan {
 /// 本机 host 三元组的确定性资产名（与 dev-release.yml 命名约定一致：
 /// 资产名即编译目标三元组，windows 用 zip、其余 tar.gz）。
 fn host_asset_name() -> String {
-    let arch = if cfg!(target_arch = "aarch64") {
-        "aarch64"
-    } else {
-        "x86_64"
-    };
-    if cfg!(target_os = "windows") {
+    asset_name(std::env::consts::OS, std::env::consts::ARCH)
+}
+
+/// 资产名取参纯函数（REQ-002）：os 取 `std::env::consts::OS` 常量形
+/// （"windows" / "macos" / 其余按 linux），arch 经 `asset_arch` 归一；
+/// 全平台字面量在任一 CI 岗可断言（cfg! 形盲区见 pick_asset_for 注）。
+fn asset_name(os: &str, arch: &str) -> String {
+    let arch = asset_arch(arch);
+    match os {
         // D47（2026-09-14 用户裁）：构建切 gnu 交叉编译摆脱 VC，资产名随
         // CI 交叉岗改 pc-windows-gnu；stable 未封版前旧 release 仍为 msvc
-        // 名，取侧由 host_keywords 回落兜住。
-        format!("hst-{arch}-pc-windows-gnu.zip")
-    } else if cfg!(target_os = "macos") {
-        format!("hst-{arch}-apple-darwin.tar.gz")
-    } else {
-        format!("hst-{arch}-unknown-linux-gnu.tar.gz")
+        // 名，取侧由 asset_keywords 回落兜住。
+        "windows" => format!("hst-{arch}-pc-windows-gnu.zip"),
+        "macos" => format!("hst-{arch}-apple-darwin.tar.gz"),
+        _ => format!("hst-{arch}-unknown-linux-gnu.tar.gz"),
     }
 }
 
@@ -612,58 +624,80 @@ mod tests {
         // 期望来自命名约定（S028）：资产名即编译目标 hst-<triple>，
         // 本机平台与架构的 hst 包优先。D47 起 windows 新源为 gnu 资产
         //（同一 release 不与新 msvc 并存，旧 msvc-only 形态见下条回落）。
+        // REQ-002 取参形：三平台判据在任一 CI 岗全跑，不再跟本机走。
         let assets = mk(&[
             "hst-x86_64-unknown-linux-gnu.tar.gz",
             "hst-aarch64-apple-darwin.tar.gz",
             "hst-x86_64-pc-windows-gnu.zip",
             "notes.txt",
         ]);
-        let picked = pick_asset(&assets).unwrap();
-        if cfg!(windows) {
-            assert_eq!(picked.name, "hst-x86_64-pc-windows-gnu.zip");
-        } else if cfg!(target_os = "macos") {
-            assert_eq!(picked.name, "hst-aarch64-apple-darwin.tar.gz");
-        } else {
-            assert_eq!(picked.name, "hst-x86_64-unknown-linux-gnu.tar.gz");
-        }
+        assert_eq!(
+            pick_asset_for(&assets, "windows", "x86_64").unwrap().name,
+            "hst-x86_64-pc-windows-gnu.zip"
+        );
+        assert_eq!(
+            pick_asset_for(&assets, "macos", "aarch64").unwrap().name,
+            "hst-aarch64-apple-darwin.tar.gz"
+        );
+        assert_eq!(
+            pick_asset_for(&assets, "linux", "x86_64").unwrap().name,
+            "hst-x86_64-unknown-linux-gnu.tar.gz"
+        );
+        // host 形零漂移：转发 env 常量，与取参形同源选本机资产。
+        assert_eq!(
+            pick_asset(&assets).unwrap().name,
+            pick_asset_for(&assets, std::env::consts::OS, std::env::consts::ARCH)
+                .unwrap()
+                .name
+        );
         // 兜底：无平台匹配时拿任一 hst 资产（提示用户核对）。
         let fb_assets = mk(&["hst-any.bin", "x.txt"]);
         let fallback = pick_asset(&fb_assets).unwrap();
         assert_eq!(fallback.name, "hst-any.bin");
         // D47 回落：旧 release 仅 msvc 资产时 windows 命中 msvc 升级（stable
-        // 封版前的存量 release 形态）。
+        // 封版前的存量 release 形态；取参形在 linux/mac 岗同样可断）。
         let msvc_only = mk(&["hst-x86_64-pc-windows-msvc.zip"]);
-        if cfg!(windows) {
-            assert_eq!(
-                pick_asset(&msvc_only).unwrap().name,
-                "hst-x86_64-pc-windows-msvc.zip"
-            );
-        }
+        assert_eq!(
+            pick_asset_for(&msvc_only, "windows", "x86_64")
+                .unwrap()
+                .name,
+            "hst-x86_64-pc-windows-msvc.zip"
+        );
     }
 
     // ===== D16 镜像通道纯函数 =====
 
     #[test]
-    fn host_asset_name_matches_release_convention() {
-        // 期望值来自 dev-release.yml 命名约定（资产名即编译目标三元组，
-        // windows 用 zip、其余 tar.gz），字面量断言本机期望。
-        let name = host_asset_name();
-        if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
-            // D47：windows 资产名随 CI 交叉岗改 gnu。
-            assert_eq!(name, "hst-x86_64-pc-windows-gnu.zip");
-        } else if cfg!(all(target_os = "windows", target_arch = "aarch64")) {
-            assert_eq!(name, "hst-aarch64-pc-windows-gnu.zip");
-        } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
-            assert_eq!(name, "hst-aarch64-apple-darwin.tar.gz");
-        } else if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
-            assert_eq!(name, "hst-x86_64-apple-darwin.tar.gz");
-        } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-            assert_eq!(name, "hst-x86_64-unknown-linux-gnu.tar.gz");
-        } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
-            assert_eq!(name, "hst-aarch64-unknown-linux-gnu.tar.gz");
-        } else {
-            panic!("untested host target: {name}");
+    fn asset_name_and_keywords_cover_all_release_platforms() {
+        // REQ-002：取参纯函数全平台断言。D47 后 windows 测试岗已裁，cfg!
+        // 形断言在 linux/mac 岗只出本机臂判据，gnu 字面量笔误可过 CI
+        //（codex D47 评审 F3）；本表在任一岗全跑。资产名期望值来自
+        // dev-release.yml 命名约定（资产名即编译目标三元组，windows 用
+        // zip、其余 tar.gz）。
+        let names = [
+            ("windows", "x86_64", "hst-x86_64-pc-windows-gnu.zip"),
+            ("windows", "aarch64", "hst-aarch64-pc-windows-gnu.zip"),
+            ("macos", "x86_64", "hst-x86_64-apple-darwin.tar.gz"),
+            ("macos", "aarch64", "hst-aarch64-apple-darwin.tar.gz"),
+            ("linux", "x86_64", "hst-x86_64-unknown-linux-gnu.tar.gz"),
+            ("linux", "aarch64", "hst-aarch64-unknown-linux-gnu.tar.gz"),
+        ];
+        for (os, arch, want) in names {
+            assert_eq!(asset_name(os, arch), want, "asset_name({os}, {arch})");
         }
+        // 关键词梯子（S028 / D47）：windows-gnu 优先、msvc 回落、通用词
+        // 保底旧 msvc 二进制升级；mac 与 linux 各自双词。
+        assert_eq!(
+            asset_keywords("windows"),
+            &["windows-gnu", "windows-msvc", "windows"]
+        );
+        assert_eq!(asset_keywords("macos"), &["apple-darwin", "darwin"]);
+        assert_eq!(asset_keywords("linux"), &["linux-gnu", "linux"]);
+        // host 形零漂移：转发 env 常量，与取参形同源。
+        assert_eq!(
+            host_asset_name(),
+            asset_name(std::env::consts::OS, std::env::consts::ARCH)
+        );
     }
 
     #[test]
