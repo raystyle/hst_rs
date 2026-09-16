@@ -14,7 +14,7 @@
 | `../AGENTS.md` | 五节合同（Commands/Must/Must not/Read first/环境） | 每轮开工前 |
 | `adr/README.md` | 架构决策索引（ADR-NNNN，仍约束现状的决策择要） | 立不可逆选择前 |
 | `requirements/README.md` | 需求登记索引（REQ-NNN，draft 到 implemented 带 trace） | 立需求或查验收时 |
-| `guides/` | 任务指南（getting-started、旧四段协作规则留档） | 做事前查方法 |
+| `guides/` | 任务指南（getting-started、旧四段协作规则留档、dev-evo 终态对照自评） | 做事前查方法 |
 | `diary/` | YYYY-MM-DD 一天一篇过程与自省 | 查当天做了什么 |
 | `research/` + README | SNNN 研究档案（六态标注） | 找为什么时 |
 | `aidoc/` | Rust API 投影（生成物勿手改；llms.txt 入口加 hst_cli 分模块 md 加 api JSON） | 查公开项契约时 |
