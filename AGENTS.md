@@ -11,6 +11,7 @@
 - `cargo build --release --locked --target x86_64-pc-windows-gnu --bins` Windows 交叉构建
 - `PEVO_CHECK_ALLOW` 加 `uv run /mnt/d/ProjectEvo/plugins/project-evo/skills/dev-evo/scripts/check.py .` 骨架合规自检（豁免正则与标准命令见 docs/README 存量禁字债口径节）
 - `./target/debug/hst doctor` 本机体检；`./target/debug/hst init` dogfood 部署
+- 裁定：本仓 bin-only 无公开库面，cargo test --doc 与 missing_docs 不适用（示例与行为锁走集成测试 tests/ 承载）
 
 ## Must
 
