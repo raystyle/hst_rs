@@ -44,7 +44,7 @@
 
 - 三平台矩阵（Windows/Linux/macOS，CI 三岗含 gnu 交叉岗）；本仓双侧开发（Windows `D:\hst_rs` 加 WSL `~/repos/hst_rs`）
 - 评审闸门惯例：交付批经 herdr 右侧 codex 会话对齐后推 main
-- 跨仓：ark-rs `D:\ohmyenv-rs`、ohmycloud `D:\ohmycloud`、本地 dev-evo 指导仓 `D:\ProjectEvo`
+- 跨仓：ark-rs `D:\ohmyenv-rs`、ohmycloud `D:\ohmycloud`、本地 dev-evo 指导仓 `~/repos/project-evo`（WSL VHDX，旧 D 盘位已裁）
 - WSL 上 Windows 命令用 pwsh 7；md 与 Rust 源 UTF-8；需兼容 PS 5.1 的脚本带 UTF-8 BOM
 - 连接姿势：WSL 到宿主恒走 127.0.0.1 回环（ssh 加 interop 直调，不走宿主 mesh IP）；lan 三端（mac 与 ubuntu 与 linux）mesh 随时随地；口径全文见 dev-evo env-platform 第十节
 - 版本载体唯一权威：Cargo.toml（semver：修复与文档批 patch、能力与行为变化 minor、契约破裂 major；载体外版本号即第二真相，dev-evo flow-release 第七节）

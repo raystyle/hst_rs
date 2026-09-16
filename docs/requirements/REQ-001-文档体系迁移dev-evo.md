@@ -3,7 +3,7 @@ id: REQ-001
 title: 文档体系迁移dev-evo
 status: implemented
 priority: must
-trace: uv run /mnt/d/ProjectEvo/plugins/project-evo/skills/dev-evo/scripts/check.py /home/ray/hst_rs
+trace: PEVO_CHECK_ALLOW='^docs/aidoc/' uv run /mnt/wsl/repos/project-evo/plugins/evo-adr/skills/code-kit/scripts/check.py /mnt/wsl/repos/hst_rs（路径 2026-09-16 随二轮评审 G 修至现位，原录 /mnt/d/ProjectEvo 旧位与 /home/ray/hst_rs 旧根均已裁撤）
 ---
 
 # REQ-001:文档体系迁移dev-evo

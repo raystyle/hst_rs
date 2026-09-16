@@ -18,7 +18,7 @@ tags: ['skill', 'D54', 'llms.txt']
 
 ## Decision
 
-删 `hst skill` 子命令与 init 项目级 skill fan-out（COMMAND_MAP、skill_md、write_skill、deploy_skills、kimi skill 布局整层）；不再有任何 hst 技能安装面。agent 紧凑说明书以 `hst --llms` 一条命令出口：命令表从 clap 活命令树自适应渲染（功能面五条与输出契约是手写概览段，codex 评审 G1 口径），llms 风格直打 stdout（帮助面同款裸输出，不落盘不装技能）。init 幂等清扫 ours 技能目录（项目四目录乘 hst 与 ohmyagents 两名，加用户级 `~/.claude/skills/` 两名；marker 家族或生成签名判 ours，外来内容不动）；仓内细则唯一权威 R002，库面投影 aidoc llms.txt；AGENTS.md/CLAUDE.md 说明层（只增不覆写）保留。契约破裂升 major。
+删 `hst skill` 子命令与 init 项目级 skill fan-out（COMMAND_MAP、skill_md、write_skill、deploy_skills、kimi skill 布局整层）；不再有任何 hst 技能安装面。agent 紧凑说明书以 `hst --llms` 一条命令出口：命令表从 clap 活命令树自适应渲染（功能面五条与输出契约是手写概览段，codex 评审 G1 口径），llms 风格直打 stdout（帮助面同款裸输出，不落盘不装技能）。init 幂等清扫 ours 技能目录（项目四目录乘 hst 与 ohmyagents 两名，加用户级四家 skills 根（.claude/.agents/.grok/.kimi-code）乘两名；marker 家族或生成签名判 ours，外来内容不动）；仓内细则唯一权威 R002，库面投影 aidoc llms.txt；AGENTS.md/CLAUDE.md 说明层（只增不覆写）保留。契约破裂升 major。
 
 ## Consequences
 

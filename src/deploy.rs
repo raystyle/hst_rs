@@ -2671,7 +2671,7 @@ mod skill_tests {
     }
 
     #[test]
-    fn retire_user_skills_signature_only() {
+    fn retire_user_skills_sweeps_four_roots_marker_and_signature() {
         // 用户级清扫面（codex 评审 F1）：四家 skills 根乘两名。`hst skill
         // --write` 落的签名件（.claude）与 home-root init fan-out 落的
         // marker 件（.agents/.grok 等）都要收；用户手改或他源不动；外科式
