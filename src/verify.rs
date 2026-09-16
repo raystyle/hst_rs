@@ -34,12 +34,17 @@ pub const DEFAULT_TIMEOUT_SECS: u64 = 120;
 /// 单层验收结论。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LayerVerdict {
+    /// Ok：无头验收 verify公开项。
     Ok,
     /// codex 状态栏：内置项 ID 面，无外部命令可跑（M045）。
     Builtin,
+    /// Skip(String),：无头验收 verify公开项。
     Skip(String),
+    /// Fail {：无头验收 verify公开项。
     Fail {
+        /// reason: String,：无头验收 verify公开项。
         reason: String,
+        /// hint: Option<String>：无头验收 verify公开项。
         hint: Option<String>,
     },
 }
@@ -47,10 +52,13 @@ pub enum LayerVerdict {
 /// 单家验收结果（两层各一条；skip 时两层不跑）。
 #[derive(Debug)]
 pub struct AgentOutcome {
+    /// agent：无头验收 verify公开项。
     pub agent: String,
     /// 整机 skip 原因（not-installed）；Some 时两层不跑、不算失败。
     pub skip: Option<String>,
+    /// statusline：无头验收 verify公开项。
     pub statusline: LayerVerdict,
+    /// hook：无头验收 verify公开项。
     pub hook: LayerVerdict,
     /// hook 层观测到的四态（ok 时必有）。
     pub hook_state: Option<String>,

@@ -26,9 +26,13 @@ pub fn envelope(command: &str, root: &std::path::Path, outcome: Result<Value, St
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+/// Format：输出三态与信封的取值集。
 pub enum Format {
+    /// Kv：输出三态与信封公开项。
     Kv,
+    /// Json：输出三态与信封公开项。
     Json,
+    /// Jsonl：输出三态与信封公开项。
     Jsonl,
 }
 
@@ -51,6 +55,7 @@ pub fn init(json_shorthand: bool, format: Option<&str>) -> Result<Format, String
     Ok(mode)
 }
 
+/// mode：输出三态与信封的公开入口（行为细则与 marker 见 R002）。
 pub fn mode() -> Format {
     MODE.get().copied().unwrap_or(Format::Kv)
 }

@@ -1,3 +1,6 @@
+//! hst CLI 入口：子命令分发（init/doctor/agents/hook/self/skill/completions/
+//! trace/diagnose/statusline/verify）与 `--format`/`--json` 信封出口（R011）。
+
 use std::path::{Path, PathBuf};
 
 use clap::{CommandFactory, Parser, Subcommand};

@@ -12,16 +12,20 @@ use crate::pathutil::{abs_display, forward_slash, keys_match, native_slash};
 use crate::yolo::kimi_workspace_key;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Status：只读体检 doctor的取值集。
 pub enum Status {
+    /// Ok：只读体检 doctor公开项。
     Ok,
     /// Deploy-diagnosis gap that does not block an interactive run (login
     /// missing, statusline off): surfaced for `hst doctor`,
     /// never counted by `blocked()`.
     Warn,
+    /// Block：只读体检 doctor公开项。
     Block,
 }
 
 impl Status {
+    /// as_str：只读体检 doctor的公开入口（行为细则与 marker 见 R002）。
     pub fn as_str(self) -> &'static str {
         match self {
             Status::Ok => "ok",
@@ -32,24 +36,34 @@ impl Status {
 }
 
 #[derive(Debug)]
+/// Finding：只读体检 doctor的数据面。
 pub struct Finding {
+    /// agent：只读体检 doctor公开项。
     pub agent: String,
+    /// check：只读体检 doctor公开项。
     pub check: &'static str,
+    /// status：只读体检 doctor公开项。
     pub status: Status,
+    /// path：只读体检 doctor公开项。
     pub path: String,
+    /// detail：只读体检 doctor公开项。
     pub detail: String,
 }
 
 #[derive(Debug)]
+/// Diagnosis：只读体检 doctor的数据面。
 pub struct Diagnosis {
+    /// findings：只读体检 doctor公开项。
     pub findings: Vec<Finding>,
 }
 
 impl Diagnosis {
+    /// blocked：只读体检 doctor的公开入口（行为细则与 marker 见 R002）。
     pub fn blocked(&self) -> bool {
         self.findings.iter().any(|f| f.status == Status::Block)
     }
 
+    /// status：只读体检 doctor的公开入口（行为细则与 marker 见 R002）。
     pub fn status(&self, agent: &str, check: &str) -> Option<Status> {
         self.findings
             .iter()
@@ -1902,6 +1916,7 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
     Ok(Diagnosis { findings })
 }
 
+/// print_diagnosis：只读体检 doctor的公开入口（行为细则与 marker 见 R002）。
 pub fn print_diagnosis(d: &Diagnosis) {
     for f in &d.findings {
         println!(

@@ -9,9 +9,10 @@
 - `uv run --script .tools/md-ref-scan.py` 断链回归（结构变更必跑）
 - `uv run --script .tools/md-heading-scan.py` 加 `uv run --script .tools/mdcharlint.py` 加 `rumdl check .` md 门禁
 - `cargo build --release --locked --target x86_64-pc-windows-gnu --bins` Windows 交叉构建
-- `PEVO_CHECK_ALLOW` 加 `uv run /mnt/d/ProjectEvo/plugins/project-evo/skills/dev-evo/scripts/check.py .` 骨架合规自检（豁免正则与标准命令见 docs/README 存量禁字债口径节）
+- `PEVO_CHECK_ALLOW` 加 `uv run /mnt/d/ProjectEvo/plugins/project-evo/skills/dev-evo/scripts/check.py .` 骨架合规自检（豁免正则与标准命令见 docs/README 存量禁字债口径节；正则含 `^docs/aidoc/` 在册）
 - `./target/debug/hst doctor` 本机体检；`./target/debug/hst init` dogfood 部署
-- 裁定：本仓 bin-only 无公开库面，cargo test --doc 与 missing_docs 不适用（示例与行为锁走集成测试 tests/ 承载；对齐 dev-evo base-projection「无自有 API 面项目」范式：公开契约 = 生成物字节确定性，regenerate-and-diff 由 init_rerun_is_byte_idempotent 等测试钉）
+- `cargo aidoc` 后提交 `docs/aidoc/`（改 pub 项或文档后先重生成再提交；`cargo aidoc --check --strict` 漂移门禁）
+- `///` 契约注释覆盖公开项（missing_docs = deny，CI 必红）；doctest 走集成测试 tests/ 承载（dev-evo 第五十九批 ADR-0006：Rust 栈 aidoc 投影强制，bin-only 不豁免，受众是维护者与 agent）
 
 ## Must
 

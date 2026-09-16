@@ -37,8 +37,11 @@ fn thinking_cap(model: &str) -> Option<u64> {
 
 /// 网关凭据与入口。
 pub struct Gateway {
+    /// base_url：活性诊断族公开项。
     pub base_url: String,
+    /// key：活性诊断族公开项。
     pub key: String,
+    /// source：活性诊断族公开项。
     pub source: &'static str,
 }
 
@@ -47,6 +50,7 @@ fn read_env_nonempty(key: &str) -> Option<String> {
     std::env::var(key).ok().filter(|s| !s.is_empty())
 }
 
+/// discover_gateway：活性诊断族的公开入口（行为细则与 marker 见 R002）。
 pub fn discover_gateway() -> Result<Gateway, String> {
     // D45 oma 遗产清扫：旧 OMA_GATEWAY_* 兼容读已删（1.1.0 窗口已过）。
     let env_url = read_env_nonempty("HST_GATEWAY_URL");
@@ -211,8 +215,11 @@ pub fn line_of(alias: &str) -> Line {
     }
 }
 
+/// Line：活性诊断族的取值集。
 pub enum Line {
+    /// Claude：活性诊断族公开项。
     Claude,
+    /// Codex：活性诊断族公开项。
     Codex,
 }
 
@@ -225,22 +232,31 @@ impl Line {
     }
 }
 
+/// CacheVerdict：活性诊断族的取值集。
 pub enum CacheVerdict {
+    /// Hit {：活性诊断族公开项。
     Hit {
+        /// created: u64,：活性诊断族公开项。
         created: u64,
+        /// read: u64,：活性诊断族公开项。
         read: u64,
     },
+    /// WriteOnly {：活性诊断族公开项。
     WriteOnly {
+        /// created: u64,：活性诊断族公开项。
         created: u64,
     },
     /// ds 官方 anthropic 端点走全自动前缀匹配，usage 不透传缓存字段：
     /// 判「自动前缀（不可见）」而非「无缓存」（D21 用户科普修正）。
     AutoPrefix,
+    /// None：活性诊断族公开项。
     None,
+    /// Error(String),：活性诊断族公开项。
     Error(String),
 }
 
 impl CacheVerdict {
+    /// label：活性诊断族的公开入口（行为细则与 marker 见 R002）。
     pub fn label(&self) -> String {
         match self {
             CacheVerdict::Hit { created, read } => {

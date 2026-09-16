@@ -21,9 +21,12 @@ pub const DEFAULT_REPO: &str = "raystyle/hst_rs";
 const UA: &str = concat!("hst/", env!("CARGO_PKG_VERSION"));
 
 #[derive(Debug, Deserialize)]
+/// Release：self update 自更新的数据面。
 pub struct Release {
+    /// tag_name：self update 自更新公开项。
     pub tag_name: String,
     #[serde(default)]
+    /// assets：self update 自更新公开项。
     pub assets: Vec<Asset>,
     /// false for prereleases/drafts (latest already excludes them).
     #[serde(default = "default_true")]
@@ -35,8 +38,11 @@ fn default_true() -> bool {
 }
 
 #[derive(Debug, Deserialize)]
+/// Asset：self update 自更新的数据面。
 pub struct Asset {
+    /// name：self update 自更新公开项。
     pub name: String,
+    /// browser_download_url：self update 自更新公开项。
     pub browser_download_url: String,
     /// GitHub 资产摘要（新 API 形如 "sha256:<hex>"；旧响应可能缺省）。
     #[serde(default)]
@@ -47,11 +53,14 @@ pub struct Asset {
 /// latest = 正式封版后的 releases/latest。
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Channel {
+    /// Dev：self update 自更新公开项。
     Dev,
+    /// Latest：self update 自更新公开项。
     Latest,
 }
 
 impl Channel {
+    /// as_str：self update 自更新的公开入口（行为细则与 marker 见 R002）。
     pub fn as_str(self) -> &'static str {
         match self {
             Channel::Dev => "dev",
@@ -84,6 +93,7 @@ fn github_token() -> Option<String> {
     std::env::var("GH_TOKEN").ok()
 }
 
+/// fetch_release：self update 自更新的公开入口（行为细则与 marker 见 R002）。
 pub fn fetch_release(repo: &str, channel: Channel) -> Result<Release, String> {
     let url = match channel {
         Channel::Latest => format!("https://api.github.com/repos/{repo}/releases/latest"),

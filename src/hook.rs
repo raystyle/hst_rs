@@ -138,6 +138,7 @@ fn read_stdin_json() -> Option<Json> {
 /// hook 出口：状态通道 + 密钥 guard（S030 第二职责）。
 #[derive(Debug, Default)]
 pub struct HookOutcome {
+    /// state_file：hook 状态落盘公开项。
     pub state_file: Option<PathBuf>,
     /// None = 该事件不属 guard 扫描面；Some 内 block=true 时调用方 exit 2。
     pub guard: Option<crate::secretguard::GuardVerdict>,

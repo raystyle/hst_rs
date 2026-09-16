@@ -1,3 +1,6 @@
+[lints.rust]
+missing_docs = "deny"
+
 [package]
 name = "hst-cli"
 version = "1.2.0"

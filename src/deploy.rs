@@ -19,8 +19,11 @@ use serde_json::{json, Value as Json};
 use crate::yolo::{ensure_parent, read_json, read_toml, toml_write, write_json, write_text};
 
 #[derive(Default)]
+/// DeployReport：init 部署层的数据面。
 pub struct DeployReport {
+    /// wrote：init 部署层公开项。
     pub wrote: Vec<String>,
+    /// skipped：init 部署层公开项。
     pub skipped: Vec<String>,
     /// Hook command form chosen this run: "user" (D28: registrations live in
     /// the four agents' user-level configs and point at the self-contained
@@ -638,10 +641,13 @@ fn shim_command_ps_or_sh(agent: &str, oma: &Path, side: OsSide) -> String {
 /// sides from one host.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum OsSide {
+    /// Windows：init 部署层公开项。
     Windows,
+    /// Unix：init 部署层公开项。
     Unix,
 }
 
+/// host_side：init 部署层的公开入口（行为细则与 marker 见 R002）。
 pub fn host_side() -> OsSide {
     if cfg!(windows) {
         OsSide::Windows

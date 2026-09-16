@@ -17,6 +17,7 @@
 | `guides/` | 任务指南（getting-started、旧四段协作规则留档） | 做事前查方法 |
 | `diary/` | YYYY-MM-DD 一天一篇过程与自省 | 查当天做了什么 |
 | `research/` + README | SNNN 研究档案（六态标注） | 找为什么时 |
+| `aidoc/` | Rust API 投影（生成物勿手改；llms.txt 入口加 hst_cli 分模块 md 加 api JSON） | 查公开项契约时 |
 | `../CHANGELOG.md` 加 `../ROADMAP.md` | 版本成果与阶段 | 查历史与进度 |
 
 ## 历史体系
@@ -45,7 +46,7 @@ PRD 条目对应 REQ；PLAN/TODO 对应 REQ 的 Criteria 与 trace；GOAL 定位
 PE-11 历史档案豁免走 `PEVO_CHECK_ALLOW` 机制（分号分隔正则，匹配 `docs/` 下 `相对路径:行`，命中报 SKIP 带处数；根三件 AGENTS/README/CHANGELOG 永不受益）。本仓标准命令：
 
 ```bash
-PEVO_CHECK_ALLOW='^docs/diary/2026-08-31-;^docs/diary/2026-09-01-;^docs/diary/2026-09-02-;^docs/diary/2026-09-03-;^docs/proven/'   uv run /mnt/d/ProjectEvo/plugins/project-evo/skills/dev-evo/scripts/check.py .
+PEVO_CHECK_ALLOW='^docs/aidoc/;^docs/diary/2026-08-31-;^docs/diary/2026-09-01-;^docs/diary/2026-09-02-;^docs/diary/2026-09-03-;^docs/proven/'   uv run /mnt/d/ProjectEvo/plugins/project-evo/skills/dev-evo/scripts/check.py .
 ```
 
-覆盖历史档案面（diary 四篇加 proven 存量整目录；存量清偿后逐步收缩正则）；活跃面（AGENTS、adr、requirements、guides、research、根 README 与地图）零容忍，新文件违规即修。
+覆盖历史档案面（diary 四篇加 proven 存量整目录；存量清偿后逐步收缩正则）加 aidoc 投影渲染格式（条目分隔符 em dash 是 cargo-aidoc 输出格式无开关，漂移真门禁是 cargo aidoc --check --strict，沿 tool-rust 豁免实务）；活跃面（AGENTS、adr、requirements、guides、research、根 README 与地图）零容忍，新文件违规即修。

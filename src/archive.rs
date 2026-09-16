@@ -8,10 +8,12 @@ use std::path::Path;
 
 use sha2::{Digest, Sha256};
 
+/// host_os_arch：归档工具的公开入口（行为细则与 marker 见 R002）。
 pub fn host_os_arch() -> (&'static str, &'static str) {
     (std::env::consts::OS, std::env::consts::ARCH)
 }
 
+/// sha256_file：归档工具的公开入口（行为细则与 marker 见 R002）。
 pub fn sha256_file(path: &Path) -> Result<String, String> {
     let mut file = File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
     let mut hasher = Sha256::new();
@@ -28,6 +30,7 @@ pub fn sha256_file(path: &Path) -> Result<String, String> {
     Ok(format!("{:x}", hasher.finalize()))
 }
 
+/// extract_zip：归档工具的公开入口（行为细则与 marker 见 R002）。
 pub fn extract_zip(archive: &Path, dest: &Path) -> Result<(), String> {
     let file = File::open(archive).map_err(|e| format!("{}: {e}", archive.display()))?;
     let mut zip =
@@ -61,6 +64,7 @@ pub fn extract_zip(archive: &Path, dest: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// extract_tar_gz：归档工具的公开入口（行为细则与 marker 见 R002）。
 pub fn extract_tar_gz(archive: &Path, dest: &Path) -> Result<(), String> {
     let file = File::open(archive).map_err(|e| format!("{}: {e}", archive.display()))?;
     let gz = flate2::read::GzDecoder::new(file);
@@ -70,6 +74,7 @@ pub fn extract_tar_gz(archive: &Path, dest: &Path) -> Result<(), String> {
         .map_err(|e| format!("tar {}: {e}", dest.display()))
 }
 
+/// copy_dir：归档工具的公开入口（行为细则与 marker 见 R002）。
 pub fn copy_dir(from: &Path, to: &Path) -> io::Result<()> {
     fs::create_dir_all(to)?;
     for ent in fs::read_dir(from)? {

@@ -30,7 +30,7 @@ CJK_OK = set("，。：；？！、（）《》「」『』·")
 INLINE_CODE = re.compile(r"`[^`]*`")
 LINK_TARGET = re.compile(r"\]\([^)]*\)")
 BARE_URL = re.compile(r"https?://\S+")
-SKIP_DIRS = ("docs/diary/", "docs/proven/", "docs/web/share-src/node_modules/", "target/")
+SKIP_DIRS = ("docs/diary/", "docs/proven/", "docs/web/share-src/node_modules/", "target/", "docs/aidoc/")
 ALLOW_FILE = Path(__file__).parent / "md-char-allow.txt"
 
 

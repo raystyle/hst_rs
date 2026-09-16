@@ -1,0 +1,539 @@
+<!-- hst_cli/index.md -->
+# hst-cli 1.2.0
+
+hst-cli：HST（Hooks, Statusline, Trace）库面——四家 agent（claude、
+codex、grok、kimi）的部署配置与诊断内核。承载五功能：hook 状态落盘
+（用户级 session 分键）、状态栏部署与拆段拼装、只读 trace 六视图联邦
+检索、doctor 只读体检与 yolo 无阻塞键分级管理。自更新走 dev 滚动与
+stable 双通道（镜像腿带缺省回退）。命令面唯一权威见 R002；行为动机见
+docs/research 与 docs/adr；输出信封契约见 R011。
+
+## Modules
+
+- [`agents`](agents.md): 四家 agent 探测（PATH、env、hst 自管根、默认目录四源）。
+- [`archive`](archive.md): 通用归档工具：sha256 校验、zip/tar.gz 解包、目录复制、host os/arch。
+- [`caps`](caps.md): CPU 指令集能力与探针退出形态分类（S021/P0018）。
+- [`deploy`](deploy.md): `hst init` 部署层：hook 注册四家用户级、shim 落位、SKILL 命令图与状态栏面（D53）。
+- [`diagnose`](diagnose.md): `hst diagnose` 活性诊断族：网关缓存命中矩阵与配置活性（D21）。
+- [`doctor`](doctor.md): `hst doctor` 只读体检：yolo、信任、二进制、登录态、hook 形态、状态栏与状态面。
+- [`fmtio`](fmtio.md): 全局输出三态（kv/json/jsonl）与结构化错误出口（R011 契约）。
+- [`hook`](hook.md): `hst hook`：事件到四态映射、用户级 session 分键 state 落盘与密钥拦截分流（D28/S030）。
+- [`install`](install.md): hst 根解析与共享下载件（self update 复用）。
+- [`pathutil`](pathutil.md): 路径工具：家目录与 hst 根解析、跨侧键匹配（D28/D29）。
+- [`secretguard`](secretguard.md): 密钥拦截闸：模式表八层防误报、实值比对、block 级 exit 2（S030/D23）。
+- [`shim`](shim.md): shim 三形态自包含状态写入器：cmd/ps1/sh 加 grok 包装（D27/D28/D39）。
+- [`skillgen`](skillgen.md): `hst skill` 渲染器：从 clap 活命令树自适应生成 SKILL.md（D22/D49）。
+- [`statusline`](statusline.md): `hst statusline`：四家状态栏写入面幂等合并与拆段拼装（S025/D18/D42 至 D51）。
+- [`trace`](trace.md): trace 六视图：联邦读四家原生会话库归一检索（P0013/P0014，D19）。
+- [`update`](update.md): `hst self update`：dev 滚动与 stable 正式版自更新、镜像腿与缺省回退（S028/D16/D48）。
+- [`verify`](verify.md): `hst agents verify`：四家无头验收两层判据（D17/S033）。
+- [`yolo`](yolo.md): `hst init --yolo`：四家分级落盘、ours 退役与 pretrust（D33/D52）。
+
+
+<!-- hst_cli/agents.md -->
+# hst-cli::agents
+
+四家 agent 探测（PATH、env、hst 自管根、默认目录四源）。
+
+## Functions
+
+- `detect` — detect：四家 agent 探测的公开入口（行为细则与 marker 见 R002）。
+- `find` — find：四家 agent 探测的公开入口（行为细则与 marker 见 R002）。
+- `print_reports` — print_reports：四家 agent 探测的公开入口（行为细则与 marker 见 R002）。
+
+## Types
+
+- `Hit` — Hit：四家 agent 探测的数据面。
+- `Probe` — Search roots used by `detect`. Tests inject dirs instead of reading the process env.
+- `Report` — Report：四家 agent 探测的数据面。
+- `Source` — Source：四家 agent 探测的取值集。
+
+## Constants
+
+- `DEFAULT_AGENTS` — Default agents this orchestrator knows how to spawn.
+
+
+<!-- hst_cli/archive.md -->
+# hst-cli::archive
+
+通用归档工具：sha256 校验、zip/tar.gz 解包、目录复制、host os/arch。
+通用归档与文件工具：sha256 取证、zip / tar.gz 解压、递归复制、宿主
+os/arch 探测。原在 rmux.rs 的与 rmux 无关部分，D15 收窄后独立成模块
+供 install.rs / update.rs 复用。
+
+## Functions
+
+- `copy_dir` — copy_dir：归档工具的公开入口（行为细则与 marker 见 R002）。
+- `extract_tar_gz` — extract_tar_gz：归档工具的公开入口（行为细则与 marker 见 R002）。
+- `extract_zip` — extract_zip：归档工具的公开入口（行为细则与 marker 见 R002）。
+- `host_os_arch` — host_os_arch：归档工具的公开入口（行为细则与 marker 见 R002）。
+- `sha256_file` — sha256_file：归档工具的公开入口（行为细则与 marker 见 R002）。
+
+
+<!-- hst_cli/caps.md -->
+# hst-cli::caps
+
+CPU 指令集能力与探针退出形态分类（S021/P0018）。
+CPU 指令集能力与探针退出形态（S021 落地的 Windows 可测部分）。
+检测用 std 的 `is_x86_feature_detected!`：内部先 CPUID 再验 OS 使能面
+（OSXSAVE 与 XCR0），比 flags 筛查可靠；非 x86_64 目标返回 None（unknown）。
+退出形态分类覆盖 S021 问题类的两个崩溃面：Windows
+STATUS_ILLEGAL_INSTRUCTION（0xC000001D）与 Unix SIGILL（signal 4，
+cfg(unix) 分支待 P0012 Linux 实机编译验证）。
+
+## Functions
+
+- `caps_line` — marker 行形态：`x86_64 avx=true avx2=true avx512f=false`（unknown 时同形）。
+- `classify_probe_exit` — 探针退出形态分类。
+- `detect` — detect：CPU 指令集能力的公开入口（行为细则与 marker 见 R002）。
+
+## Types
+
+- `CpuCaps` — CpuCaps：CPU 指令集能力的数据面。
+
+
+<!-- hst_cli/deploy.md -->
+# hst-cli::deploy
+
+`hst init` 部署层：hook 注册四家用户级、shim 落位、SKILL 命令图与状态栏面（D53）。
+`hst init` hook/skill deployment（D28：hook 注册与 shim 常驻用户级）。
+用户级注册面（用户裁 2026-09-11「hook 应用户全局」，对齐 codex 用户层）：
+claude `~/.claude/settings.json`（settings 家族用户层生效，S015）、codex
+`~/.codex/hooks.json` 加 `~/.codex/config.toml` features 与 trusted_hash
+预种、grok `~/.grok/hooks/ohmyagents-state.json`（global 层）、kimi
+`~/.kimi-code/config.toml [[hooks]]`（kimi 仅用户级，S015）。shim 常驻
+`~/.hst/hooks/`，状态按 session 分键写 `~/.hst/state/`（D28）。项目级
+旧注册与 `.oma/hooks/` 由 init 迁移退役（未 init 项目零数据根因消除）。
+skills 与 AGENTS/CLAUDE 说明仍是项目级（项目内语义）。Schemas are
+first-hand verified in S015 (official docs + openai/codex, xai-org/grok-build,
+MoonshotAI/kimi-code sources).
+
+## Functions
+
+- `deploy_all` — Deploy the full init surface (D28)：用户级 hook 注册加 shim（真实家目录
+- `deploy_all_with` — Test seam：user_home 与 oma 根注入（不碰真实家目录），side 注入双测。
+- `deploy_user_hooks` — 生产入口：真实家目录 + hst 自管根。
+- `deploy_user_hooks_with` — 用户级部署总入口（可注入：测试传临时 user_home 与 oma 根；生产传真实
+- `host_side` — host_side：init 部署层的公开入口（行为细则与 marker 见 R002）。
+- `retire_project_hooks_with` — 项目面退役（D28）：摘除项目级 ours hook 注册（claude/codex/grok）、
+
+## Types
+
+- `DeployReport` — DeployReport：init 部署层的数据面。
+- `OsSide` — Which OS consumes a codex registration field: `command` on Unix,
+
+
+<!-- hst_cli/diagnose.md -->
+# hst-cli::diagnose
+
+`hst diagnose` 活性诊断族：网关缓存命中矩阵与配置活性（D21）。
+oma diagnose：活性诊断族（D21，hst-rs#8 / ohmycloud D45 配套）。
+与 doctor 的契约分家：这里打真 API（api 缓存回归测试端点，配置注入：
+`HST_GATEWAY_URL` / agent 侧配置，端点不落仓面明文）、烧最小
+token（每别名两条极短 prompt）、有网络延迟；doctor 保持零网络零 token。
+凭据只读 agent 侧原生配置（D45 模板下发形态），不新建存储（D20 口径）：
+claude `~/.claude/settings.json` env（ANTHROPIC_BASE_URL / AUTH_TOKEN）、
+codex `~/.codex/config.toml`（model_providers.base_url）加 auth.json
+（OPENAI_API_KEY）；`HST_GATEWAY_URL` / `HST_GATEWAY_KEY` 环境覆盖（联
+调与测试通道）。
+
+## Functions
+
+- `claude_env` — claude `~/.claude/settings.json` 的 env 表（整表读，diagnose agents 要多键）。
+- `codex_gateway` — codex 网关：config.toml 激活 provider 的 base_url（剥 /v1 尾）加 auth.json
+- `codex_key` — codex auth.json 的 key（活性单独探测用）。
+- `codex_view` — codex 激活模型与 provider base_url（diagnose agents 检测面）。
+- `discover_gateway` — discover_gateway：活性诊断族的公开入口（行为细则与 marker 见 R002）。
+- `line_of` — 别名线归属：`-codex` 尾走 /v1/responses，其余（`-claude` 尾或裸名）走
+- `list_models` — GET `<base>/v1/models`，返回别名 id 清单（同时就是 key 活性判据）。
+- `probe_alias` — 探测一个别名：同 payload 至多三连（网关两连可能异区只写不读——上游
+- `render_cache_rows` — kv 行渲染（`hst diagnose cache` 输出面）。
+- `run_agents` — `hst diagnose agents` 主流程：配置指向、别名在册、key 活性、thinking
+- `run_cache` — `hst diagnose cache` 主流程。aliases 为空 = /v1/models 全量。
+- `verdict_from_usages` — 纯函数：多连 usage 判 verdict（读到即 hit；只写不断连 = write-only，
+
+## Types
+
+- `CacheVerdict` — CacheVerdict：活性诊断族的取值集。
+- `Gateway` — 网关凭据与入口。
+- `Line` — Line：活性诊断族的取值集。
+
+
+<!-- hst_cli/doctor.md -->
+# hst-cli::doctor
+
+`hst doctor` 只读体检：yolo、信任、二进制、登录态、hook 形态、状态栏与状态面。
+
+## Functions
+
+- `diagnose` — Read-only. Does not attach, send-keys, or wait on TUI.
+- `print_diagnosis` — print_diagnosis：只读体检 doctor的公开入口（行为细则与 marker 见 R002）。
+
+## Types
+
+- `Diagnosis` — Diagnosis：只读体检 doctor的数据面。
+- `Finding` — Finding：只读体检 doctor的数据面。
+- `Status` — Status：只读体检 doctor的取值集。
+
+
+<!-- hst_cli/fmtio.md -->
+# hst-cli::fmtio
+
+全局输出三态（kv/json/jsonl）与结构化错误出口（R011 契约）。
+全局输出格式（issue #1 总台集成契约，与 ome S003 同构）：
+`--format kv|json|jsonl`，`--json` 为 json 简写（互斥）。kv 是人读
+marker 行（缺省）；json 出 `{ok,data|error,meta}` 信封（P0015 三传输
+同形——oma 与 ome 裸数据裁决的分道点，三传输复用优先，契约文档记档）；
+jsonl 是列表型数据的逐行对象（数据即数据，无信封）。
+
+结构化模式（json/jsonl）下错误走 stderr 单行 JSON `{"code":"error",
+"message":...}`，stdout 保持纯数据；kv 模式错误 `hst: <e>`。
+serde_json 开 preserve_order：JSON 字段序与 kv 行序一致（ome S003 实证
+教训——默认 BTreeMap 字母序会打乱）。
+
+## Functions
+
+- `envelope` — 响应信封（S016 吸收，原 api.rs；P0011 删除后归位本模块）：CLI `--json`
+- `error_exit` — main 错误出口：结构化模式 stderr 单行 JSON，kv 模式人称行；退出码 1。
+- `init` — 启动期设置一次（main 解析后、分派前）；`--json` 与 `--format` 的互斥
+- `mode` — mode：输出三态与信封的公开入口（行为细则与 marker 见 R002）。
+- `print_jsonl` — jsonl 模式：逐行对象（无信封）。列表型命令用；非列表命令 jsonl 视同
+- `structured` — 结构化模式（错误走单行 JSON、stdout 纯数据）。
+
+## Types
+
+- `Format` — Format：输出三态与信封的取值集。
+
+
+<!-- hst_cli/hook.md -->
+# hst-cli::hook
+
+`hst hook`：事件到四态映射、用户级 session 分键 state 落盘与密钥拦截分流（D28/S030）。
+
+## Functions
+
+- `map_event` — Map a hook event (already normalized) to a four-state label.
+- `run` — Hook entry: always exit-path friendly. `HST_STATE_FILE` 覆盖互斥
+- `state_for_payload` — Claude Notification is mixed (tips vs permission). Only permission-shaped
+
+## Types
+
+- `HookOutcome` — hook 出口：状态通道 + 密钥 guard（S030 第二职责）。
+
+
+<!-- hst_cli/install.md -->
+# hst-cli::install
+
+hst 根解析与共享下载件（self update 复用）。
+hst 自管根与共享下载件。agent 二进制安装 / 升级机器已随 D20 移除（归
+ome，D07 迁册）；本模块只留三件消费面共享的能力：hst 数据根解析、自管
+根存量安装的只读探测（`hst agents` 的 source=oma 面）、单文件下载
+（`hst self update` 复用）。
+
+## Functions
+
+- `agents_root` — hst 自管 agent 安装根（oma 纪元存量布局 `<根>/agents/<name>/<version>/`）。
+- `hst_home` — hst 应用数据根：`HST_ROOT` 环境变量 > `~/.hst`（D29；旧 `~/.oma` 与
+- `managed_binaries` — hst 自管安装的二进制清单（agents.rs 的 Probe 以 source=oma 消费）。
+- `managed_version` — hst 自管已装版本（manifest 的 version 字段；多个版本目录取最大）。
+
+
+<!-- hst_cli/pathutil.md -->
+# hst-cli::pathutil
+
+路径工具：家目录与 hst 根解析、跨侧键匹配（D28/D29）。
+
+## Functions
+
+- `abs_display` — Absolute path without Windows `\\?\` prefix. Agent trust stores use this shape.
+- `data_dir` — `<parent>/.hst`。旧名（`.oma` 加 `.ohmyagents`）仅旧在、新不在时**同卷
+- `find_on_path` — Resolve an executable name through PATH (`which` handles PATHEXT on
+- `forward_slash` — forward_slash：路径工具的公开入口（行为细则与 marker 见 R002）。
+- `keys_match` — keys_match：路径工具的公开入口（行为细则与 marker 见 R002）。
+- `native_slash` — native_slash：路径工具的公开入口（行为细则与 marker 见 R002）。
+- `norm_key` — norm_key：路径工具的公开入口（行为细则与 marker 见 R002）。
+- `project_dir` — 项目侧数据根：`<project>/.oma`（session / state / tasks）。
+- `same_location` — D52 铁证修复共享件：两路径是否同一位置（canonicalize 双侧归一符号
+- `user_home` — 用户家目录解析（D28）：`HST_USER_HOME` 覆盖优先（集成测试与 verify 的
+
+## Constants
+
+- `DIR` — 数据目录名（D29，2026-09-12 用户裁更名 HST）：`.hst`。
+- `LEGACY_DIR` — 2026-08-31 至 D14 的更旧名。仅旧在、新不在时改名迁过去。
+- `LEGACY_OMA_DIR` — D14 至 D29 的旧名（oma 纪元）。仅旧在、新不在时改名迁过去。
+
+
+<!-- hst_cli/secretguard.md -->
+# hst-cli::secretguard
+
+密钥拦截闸：模式表八层防误报、实值比对、block 级 exit 2（S030/D23）。
+密钥 hook 安全拦截（S030）：oma hook 的第二职责，接管 ohmypwsh
+secret-guard 的会话出口闸。误报八层防线（S030 误报策略节）：
+① 精确前缀硬阻断 ② 实值比对零误报通道 ③ 熵值门（通用赋值类）
+④ stopwords 占位符豁免 ⑤ 语料豁免（测试运行时拼接构造）⑥ warn-only
+分级出口 ⑦ 日志掩码 ⑧ fail-open（异常不挡活）。
+
+阻断语义对齐 ohmypwsh：PreToolUse / UserPromptSubmit 命中 block 级 →
+调用方 exit 2；PostToolUse 只观察不阻断。
+
+## Functions
+
+- `guard` — guard 主判定（fail-open：任何一步拿不到文本都放行）。
+- `mask` — 掩码（防线 7）：审计与 stderr 只见前 4 后 4。
+- `scan` — 扫描：命中列表（含 warn 级，调用方分级处置）。
+- `scan_text` — 从 hook payload 抽待扫描文本（claude/codex/kimi/grok 信封，snake_case
+
+## Types
+
+- `Finding` — Finding：密钥拦截闸的数据面。
+- `GuardVerdict` — guard 判定：`block` 为真时调用方 exit 2；`reasons` 面向 agent stderr。
+- `Tier` — Tier：密钥拦截闸的取值集。
+
+
+<!-- hst_cli/shim.md -->
+# hst-cli::shim
+
+shim 三形态自包含状态写入器：cmd/ps1/sh 加 grok 包装（D27/D28/D39）。
+用户级状态写入 shim（D27 自包含 + D28 用户级常驻）：hook 与 hst 二进制
+解耦，注册与 shim 常驻 `~/.hst/hooks/`（用户裁 2026-09-11「hook 应用户
+全局」，对齐 codex 用户层形态），各家 hook 注册指向 shim——state 通道
+零 hst 依赖，hst 可任意时刻无痛升级轮换，未 init 的项目也有状态数据。
+状态落 `~/.hst/state/` 按 session 分键（D28，防 herdr 多会话互踩）：
+默认双写 `<agent>.json`（agent 最新，供无 session 标识的消费面）加
+`<agent>-<session>.json`（session 键，状态栏按当前会话直读）；
+SessionEnd 删本 session 键文件（GC，崩溃残留由 hst hook 侧陈旧清扫）。
+`HST_STATE_FILE` 覆盖优先且互斥（单文件语义，verify 与测试用）。
+secretguard 由 shim fail-open 委托加 M060a 白名单：PreToolUse /
+UserPromptSubmit 时 hst 在位则转发 payload，仅「exit 2 且 stderr 带
+`hst secretguard:` 前缀」判定为自判 block 透传 2 并回放原因；hst 故障的其余非零（升级期坏二进制、CLI 契约漂移含 clap 用法错的 exit 2）一律
+fail-open 放行，不在位同放行（state 已写）——护无痛轮换。
+`hst hook` 保留为手动入口与委托目标（含完整 notification 形状解析）。
+cmd 形态两级（用户裁 2026-09-10：jq 归 ome 部署，shim 部署前探 PATH）：
+jq 在位用 jq 解析（转义免疫、ts 取 jq now），缺位回落 findstr 硬解析并
+warn 指向 `ark install jq`（ome 更名 Ark 随批）。sh 侧 sed 是 POSIX 基线不引依赖。
+session 标识三源：payload `session_id`（claude/codex）、`sessionId`
+（kimi）、grok runner 注入的 `GROK_SESSION_ID` env（payload 无该字段）。
+
+## Functions
+
+- `deploy_shims` — 部署 shim 文件集到 hst 自管根的 `hooks/`（D28 用户级常驻：
+- `deploy_shims_with` — Test seam（M060b）：shell 选择注入（zsh 变体在 Windows/WSL 编译期
+- `host_shell` — 宿主 shell 选择（M060b 抽出成映射）：macOS 落 zsh shebang（缺
+- `state_sh_for` — 部署时替换 shebang 行得到 zsh 变体（语义同 bash 形；zsh 无 bashisms 可用
+
+## Constants
+
+- `STATE_CMD` — Windows cmd shim，findstr 回落形态（jq 缺位时部署，warn 指向 ark install
+- `STATE_CMD_JQ` — Windows cmd shim，jq 形态（首选）。约定：`%1` = agent 名；stdin = hook
+- `STATE_GROK_CMD` — Windows grok 包装（M048 形态：grok 的 command 必须是可整串 spawn 的单
+- `STATE_PS1` — Windows PowerShell shim（D39，2026-09-13 宿主实弹）：claude 在 Windows
+- `STATE_SH` — POSIX sh shim（Linux = bash、mac = zsh 同一语义；shebang 由部署侧按宿主
+
+
+<!-- hst_cli/skillgen.md -->
+# hst-cli::skillgen
+
+`hst skill` 渲染器：从 clap 活命令树自适应生成 SKILL.md（D22/D49）。
+hst 自适应 SKILL 渲染（D22）：从 clap 活命令树生成 SKILL.md（Agent
+Skills 标准形态：frontmatter name 加 description 含何时用）。新命令/
+新旗标自动出现在生成物里，不需要手维护命令表；`hst skill` 打印、
+`hst skill --write` 落用户级 `~/.claude/skills/hst/`（D49 起技能名翻
+hst；旧牌 ohmyagents 不留兼容窗，第 2 轮用户裁定直接删除加幂等清扫）。
+项目级 init 生成物（deploy.rs COMMAND_MAP 加 marker 覆写语义）是另一
+层，不共用渲染器（lib 拿不到 bin 的 Cli 树，双层记档于 R002）。
+
+## Functions
+
+- `render_skill` — 渲染完整 SKILL.md（canonical，name = hst）。
+
+## Constants
+
+- `SKILL_NAME` — D49：canonical 技能名（第 2 轮裁定无兼容窗，唯一名）。
+
+
+<!-- hst_cli/statusline.md -->
+# hst-cli::statusline
+
+`hst statusline`：四家状态栏写入面幂等合并与拆段拼装（S025/D18/D42 至 D51）。
+agent 状态栏配置（用户定调 2026-09-01，参考 ohmypwsh 幂等合并形态）：
+- claude code：`~/.claude/settings.json` 合并 `statusLine` 块（serde_json
+  读改写，保留 env/permissions 等，只覆盖 statusLine 键）
+- codex：`~/.codex/config.toml` 顶层 `[tui]` 段整段替换（幂等），
+  `status_line` 为内置项 ID 数组（Codex 无外部命令面，S016）
+状态栏脚本本体（pwsh）随 hst 释放到 `~/.hst/statusline/`。
+用户定调 2026-09-02：渲染对齐用户 starship 配置风格（目录截断、git 旗标、
+包与工具链版本段、nerdfont 图标、Catppuccin 系 256 色）；hst 段 = 当前
+agent 名 + 实时四态（hook 状态通道 + 会话闸，机读标记见 S025），另探测
+agent 宿主 shell（macOS 走 ps 兜底）。
+
+## Functions
+
+- `custom_active` — 自备脚本当前是否在场（kv 面 statusline.custom 用）。
+- `deploy_custom_script` — 部署用户自备脚本（D18 整脚本替换）：拷到部署位，agent 配置命令行不动
+- `deploy_script` — 释放状态栏脚本（幂等覆写）。按 `~/.hst/statusline.toml` 生成时烘焙：
+- `merge_claude` — claude：settings.json 幂等合并 statusLine（只覆盖该键）。
+- `merge_codex` — Codex: replace the `[tui]` table with built-in item IDs (ohmypwsh S016).
+- `merge_grok` — grok：`~/.grok/config.toml` `[ui.status_line]` 幂等合并（type=command）。
+- `merge_kimi` — kimi：`~/.kimi-code/tui.toml` `[status_line]` 表幂等合并（command 串经
+- `pwsh_on_path` — pwsh is the statusline runtime on every platform. Advisory only: the
+- `read_config` — 读用户定制配置；文件不存在回落全默认（不是错误）。
+- `restore_builtin_script` — 还原内嵌脚本：删自备标记后重释放（`--builtin`）。
+
+## Types
+
+- `StatuslineConfig` — `~/.hst/statusline.toml` 用户级定制（D18）。键级缺省回落内嵌默认：
+
+## Constants
+
+- `EXAMPLE_TOML` — `hst statusline --example` 打印的带注释全量示例（存到
+
+
+<!-- hst_cli/trace.md -->
+# hst-cli::trace
+
+trace 六视图：联邦读四家原生会话库归一检索（P0013/P0014，D19）。
+hst trace：查询时联邦的四家会话日志检索（P0013，S019）。
+直接读各家原生会话库并归一化——零采集设施、可回溯 hst 部署前的历史。
+写库即归一化原则（S018 坑 3）：文件路径一律正斜杠；项目比较统一「正斜杠 + 小写」。
+
+## Functions
+
+- `apply_filter` — apply_filter：trace 六视图联邦检索的公开入口（行为细则与 marker 见 R002）。
+- `apply_filter_counted` — 过滤加窗口计数（D26）：返回（窗口内事件，过滤后总数）。事件流为时间
+- `claude_events` — claude transcript：父链近似为行序——tool_use 前最近的 assistant text 是操作意图、
+- `claude_project_slug` — `~/.claude/projects/<slug>/`：slug 规则是路径串里非字母数字一律换 `-`
+- `claude_sessions_in` — claude_sessions_in：trace 六视图联邦检索的公开入口（行为细则与 marker 见 R002）。
+- `codex_events` — codex rollout：编辑主源是 `event_msg/item_completed` 的 `FileChange` item（绝对路径 +
+- `codex_sessions_under` — codex rollout：首行 session_meta.payload.cwd 决定项目归属。
+- `file_matches` — 文件过滤：glob 有则用 glob 匹配，解析失败退回子串（S018：regex 非法退字面子串的同款姿态）。
+- `grok_events` — grok 双源分发（S020）：updates.jsonl 是权威日志，chat_history.jsonl 是派生缓存
+- `grok_sessions_in` — grok：`~/.grok/sessions/<百分号编码的项目路径>/<会话uuid>/`。
+- `group_blocks` — 按首次出现顺序聚合事件为块（一个 operation_id 一块）。
+- `kimi_events` — kimi wire.jsonl（协议 1.5，S019 源码核实）：`turn.prompt` 且 `origin.kind=="user"` 是
+- `kimi_sessions_in` — kimi：`~/.kimi-code/session_index.jsonl` 行 {sessionId, sessionDir, workDir}；
+- `list_sessions` — 四家环境入口：列指定项目的全部会话。
+- `ms_to_iso` — ms_to_iso：trace 六视图联邦检索的公开入口（行为细则与 marker 见 R002）。
+- `parse_apply_patch` — 解析 apply_patch 补丁头的 Add/Update/Delete File 行。
+- `search_matches` — 检索：query 按正则匹配 patch、file、双意图四域；非法正则退回字面子串。
+- `timeline` — 四家环境入口：项目内全部编辑事件，按统一 epoch ms 排序（无时间的排最后）。
+- `ts_to_ms` — "2026-08-31T09:24:32.851Z" 形（毫秒可选）→ epoch ms；纯数字串原样解析。
+
+## Types
+
+- `EditKind` — EditKind：trace 六视图联邦检索的取值集。
+- `TraceBlock` — 意图操作块：同一 operation_id（一次工具调用，可能多文件）的事件聚合。
+- `TraceEvent` — 归一化事件：四家 loader 的公共产出。operation_id = session_id:call_id（S018 核心设计）。
+- `TraceFilter` — TraceFilter：trace 六视图联邦检索的数据面。
+- `TraceSession` — TraceSession：trace 六视图联邦检索的数据面。
+
+## Constants
+
+- `DEFAULT_LIMIT` — 分页 clamp（S018 参数形状）。
+- `MAX_LIMIT` — MAX_LIMIT：trace 六视图联邦检索常量。
+
+
+<!-- hst_cli/update.md -->
+# hst-cli::update
+
+`hst self update`：dev 滚动与 stable 正式版自更新、镜像腿与缺省回退（S028/D16/D48）。
+hst 自更新（用户定调 2026-09-02：去 GitHub 升级新版本；封版前本地测试，
+releases 为空时走 `--git` 源码安装路径）。
+机制见 S028：releases/latest API、资产命名约定 `hst-<triple>.(zip|tar.gz)`、
+Windows 运行中自替换（rename 舞步）、Unix 原子 rename 覆盖。
+D16 起 `HST_MIRROR=<基址>` 走镜像通道；D48 扩到双通道与缺省回退：设值 =
+mirror-first（失败回落 GitHub）；未设 = GitHub 优先、失败自动回退镜像腿
+（默认基址 env.ohmygh.com）；空串 = 镜像全关。镜像判新走
+`<基址>/hst/<seg>/<资产名>.sha256` 边车对安装记录（段随通道，dev 禁落
+stable）。镜像侧仅网络类失败回落；哈希不符是安全问题，报错不回落。
+GH_TOKEN 在位附 Bearer（D48，匿名 60 升 5000 次每时）。
+
+## Functions
+
+- `fetch_release` — fetch_release：self update 自更新的公开入口（行为细则与 marker 见 R002）。
+- `git_install` — `cargo install --git` 源码安装（封版前的主路径）。
+- `pick_asset` — Pick the hst asset for this host from a release's asset list.
+- `run` — `hst self update` entry: release path with git fallback.
+- `self_replace` — Atomic-ish self replace: write the new binary beside the current exe, then
+- `version_newer` — Dotted-numeric compare: is `tag` (v-prefix tolerated) strictly newer than
+
+## Types
+
+- `Asset` — Asset：self update 自更新的数据面。
+- `Channel` — 更新通道：dev = 滚动预发布 tag `dev`（CI 每推覆盖，部署位缺省）；
+- `Release` — Release：self update 自更新的数据面。
+
+## Constants
+
+- `DEFAULT_REPO` — Default repo; `--repo owner/name` overrides. 更名史（2026-09-02）：
+
+
+<!-- hst_cli/verify.md -->
+# hst-cli::verify
+
+`hst agents verify`：四家无头验收两层判据（D17/S033）。
+`hst agents verify`（D17）：四家 agent 的 hook 与状态栏全平台无头验收。
+两层判据（S033 源码实证底座；D28 起注册面全量用户级）：
+- 状态栏：**验收已部署的面**（D37，2026-09-13 wsl 总台验收适配）：脚本
+  本体直跑（mock 空 JSON 喂 stdin，断言 stdout 任一行含 `agent:state`
+  机读标记（D42 三行布局起 agent 态在第二行；D46 起可带连字符版本形
+  `agent-<version>:state`），S025；脚本由 verify 按
+  需释放）；codex 无外部命令面（M045），断
+  `~/.codex/config.toml` 的 `[tui] status_line` 含内置项 ID。面未部署
+  （无 `[tui] status_line`）或可选运行时缺位（pwsh 不在 PATH）= skip
+  不计败、带 CTA（状态栏是可选面，doctor 另有 warn）；已部署但断链
+  （marker 缺、内置项缺 run-state 锚、脚本非零退出）仍 fail。
+- hook：临时目录起无头会话，判据只押 SessionStart / UserPromptSubmit
+  这类先于模型调用的事件——模型应答失败（无 token、网络错）不影响判
+  定，state 文件落盘即 ok。D28 判据隔离：子进程带
+  `HST_STATE_FILE` 指进临时目录（shim 与 hst hook 都认，env 经
+  agent 进程继承给 hook 子进程）；万一某家不透传 env，回落扫用户级
+  `~/.hst/state/` 里本轮窗口内新写的 `<agent>*.json`。注册走
+  **真实用户级面**（四家同一形态，即产品面本身）：byte 备份五件配置、
+  deploy、Drop 还原（kimi M058 实证全局触发面泛化到四家，2026-09-11）。
+
+## Functions
+
+- `any_fail` — 任一非跳过项失败即 true（进程退出 1 的判据）。
+- `codex_builtin_statusline_ok` — 纯函数：config.toml 的 `[tui]` 段 `status_line`（单行或多行数组）含
+- `headless_argv` — 各家的无头命令行（S033 取证）。codex 的 bypass 旗标必须：否则 hook
+- `parse_state` — 纯函数：state 文件 JSON 的 state 字段 ∈ 四态且 event 非空才作数。
+- `render` — kv marker 行渲染（风格对齐 statusline/install 等现有命令）。
+- `run` — 验收主流程：逐家两层，skip（未装）不算失败。
+- `statusline_marker_ok` — 纯函数：stdout 任一行含机读标记，两形兼容（D42 三行布局起 agent 态
+
+## Types
+
+- `AgentOutcome` — 单家验收结果（两层各一条；skip 时两层不跑）。
+- `LayerVerdict` — 单层验收结论。
+
+## Constants
+
+- `DEFAULT_TIMEOUT_SECS` — 单家无头会话缺省最长秒数。
+- `SUPPORTED` — verify 认识的四家（与 agents::SPECS 同集）。
+
+
+<!-- hst_cli/yolo.md -->
+# hst-cli::yolo
+
+`hst init --yolo`：四家分级落盘、ours 退役与 pretrust（D33/D52）。
+
+## Functions
+
+- `apply_pretrust` — Trust stores in the user home. Not hook registration.
+- `apply_project_yolo` — 项目级 yolo 与非阻塞键（D28 第 3 轮裁定 2026-09-11：yolo 命令分两级，
+- `apply_project_yolo_level` — 项目级分级落键（full / partial；off 调 retire_project_yolo）。
+- `apply_user_yolo` — 生产入口：真实家目录。
+- `apply_user_yolo_level` — 生产入口：真实家目录按级落键（full / partial）。
+- `apply_user_yolo_level_with` — 用户级分级落键（full / partial；off 调 retire_user_yolo_with）。
+- `apply_user_yolo_with` — 用户级 yolo 与非阻塞键（D28 第 2 轮裁定 2026-09-11：yolo 模式与非阻塞
+- `kimi_workspace_key` — kimi_workspace_key：yolo 键落盘的公开入口（行为细则与 marker 见 R002）。
+- `retire_project_yolo` — 项目级旧 yolo 键退役（D28 第 2 轮）：oma 写过的项目面键摘除（值等于
+- `retire_user_yolo` — 生产入口：真实家目录用户级退役（off）。
+- `retire_user_yolo_with` — 用户级 yolo 键退役（D33 off）：与 retire_project_yolo 同款 ours 等值
+
+## Types
+
+- `ApplyReport` — ApplyReport：yolo 键落盘的数据面。
+- `YoloLevel` — yolo 分级（D33，2026-09-13 ohmycloud 协调批）：full = 现行全 bypass；
+
+

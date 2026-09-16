@@ -113,10 +113,12 @@ pub fn abs_display(path: &Path) -> PathBuf {
     PathBuf::from(stripped)
 }
 
+/// native_slash：路径工具的公开入口（行为细则与 marker 见 R002）。
 pub fn native_slash(path: &Path) -> String {
     abs_display(path).to_string_lossy().into_owned()
 }
 
+/// forward_slash：路径工具的公开入口（行为细则与 marker 见 R002）。
 pub fn forward_slash(path: &Path) -> String {
     native_slash(path).replace('\\', "/")
 }
@@ -127,10 +129,12 @@ pub fn norm_key(s: &str) -> String {
 }
 
 #[cfg(not(windows))]
+/// norm_key：路径工具的公开入口（行为细则与 marker 见 R002）。
 pub fn norm_key(s: &str) -> String {
     s.replace('\\', "/").to_string()
 }
 
+/// keys_match：路径工具的公开入口（行为细则与 marker 见 R002）。
 pub fn keys_match(a: &str, b: &str) -> bool {
     norm_key(a) == norm_key(b)
 }

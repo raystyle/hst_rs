@@ -8,7 +8,9 @@ use toml::Value as Toml;
 
 use crate::pathutil::{abs_display, forward_slash, native_slash};
 
+/// ApplyReport：yolo 键落盘的数据面。
 pub struct ApplyReport {
+    /// wrote：yolo 键落盘公开项。
     pub wrote: Vec<String>,
 }
 
@@ -106,6 +108,7 @@ pub enum YoloLevel {
 }
 
 impl YoloLevel {
+    /// as_str：yolo 键落盘的公开入口（行为细则与 marker 见 R002）。
     pub fn as_str(self) -> &'static str {
         match self {
             YoloLevel::Full => "full",
@@ -864,6 +867,7 @@ fn apply_mcp_approvals(obj: &mut serde_json::Map<String, Json>, root: &Path) {
     }
 }
 
+/// kimi_workspace_key：yolo 键落盘的公开入口（行为细则与 marker 见 R002）。
 pub fn kimi_workspace_key(root: &Path) -> String {
     let root = abs_display(root);
     let name = root

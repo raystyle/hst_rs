@@ -9,14 +9,20 @@ use crate::pathutil::abs_display;
 pub const DEFAULT_AGENTS: &[&str] = &["claude", "codex", "grok", "kimi"];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Source：四家 agent 探测的取值集。
 pub enum Source {
+    /// Env：四家 agent 探测公开项。
     Env,
+    /// Path：四家 agent 探测公开项。
     Path,
+    /// Hst：四家 agent 探测公开项。
     Hst,
+    /// Default：四家 agent 探测公开项。
     Default,
 }
 
 impl Source {
+    /// as_str：四家 agent 探测的公开入口（行为细则与 marker 见 R002）。
     pub fn as_str(self) -> &'static str {
         match self {
             Source::Env => "env",
@@ -37,18 +43,28 @@ impl Source {
 }
 
 #[derive(Clone, Debug)]
+/// Hit：四家 agent 探测的数据面。
 pub struct Hit {
+    /// agent：四家 agent 探测公开项。
     pub agent: &'static str,
+    /// command：四家 agent 探测公开项。
     pub command: String,
+    /// path：四家 agent 探测公开项。
     pub path: PathBuf,
+    /// source：四家 agent 探测公开项。
     pub source: Source,
+    /// version：四家 agent 探测公开项。
     pub version: Option<String>,
+    /// extras：四家 agent 探测公开项。
     pub extras: Vec<PathBuf>,
 }
 
 #[derive(Clone, Debug)]
+/// Report：四家 agent 探测的数据面。
 pub struct Report {
+    /// agent：四家 agent 探测公开项。
     pub agent: &'static str,
+    /// hit：四家 agent 探测公开项。
     pub hit: Option<Hit>,
 }
 
@@ -83,16 +99,22 @@ const SPECS: &[Spec] = &[
 
 /// Search roots used by `detect`. Tests inject dirs instead of reading the process env.
 pub struct Probe {
+    /// env_bins：四家 agent 探测公开项。
     pub env_bins: BTreeMap<String, PathBuf>,
+    /// path_dirs：四家 agent 探测公开项。
     pub path_dirs: Vec<PathBuf>,
+    /// extra_dirs：四家 agent 探测公开项。
     pub extra_dirs: Vec<PathBuf>,
     /// hst 自管安装（oma 纪元存量布局 `<根>/agents/<name>/<ver>/`，manifest 指路）的精确二进制表。
     pub hst_files: Vec<(String, PathBuf)>,
+    /// default_files：四家 agent 探测公开项。
     pub default_files: Vec<(String, PathBuf)>,
+    /// probe_version：四家 agent 探测公开项。
     pub probe_version: bool,
 }
 
 impl Probe {
+    /// from_env：四家 agent 探测的公开入口（行为细则与 marker 见 R002）。
     pub fn from_env() -> Self {
         let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
         let local = dirs::data_local_dir();
@@ -121,10 +143,12 @@ impl Probe {
         }
     }
 
+    /// detect：四家 agent 探测的公开入口（行为细则与 marker 见 R002）。
     pub fn detect(&self) -> Vec<Report> {
         SPECS.iter().map(|spec| self.detect_one(spec)).collect()
     }
 
+    /// find：四家 agent 探测的公开入口（行为细则与 marker 见 R002）。
     pub fn find(&self, name: &str) -> Option<Hit> {
         SPECS
             .iter()
@@ -209,14 +233,17 @@ impl Probe {
     }
 }
 
+/// detect：四家 agent 探测的公开入口（行为细则与 marker 见 R002）。
 pub fn detect() -> Vec<Report> {
     Probe::from_env().detect()
 }
 
+/// find：四家 agent 探测的公开入口（行为细则与 marker 见 R002）。
 pub fn find(name: &str) -> Option<Hit> {
     Probe::from_env().find(name)
 }
 
+/// print_reports：四家 agent 探测的公开入口（行为细则与 marker 见 R002）。
 pub fn print_reports(reports: &[Report]) {
     let mut installed = 0u32;
     let mut missing = 0u32;

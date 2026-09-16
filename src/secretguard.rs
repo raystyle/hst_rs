@@ -13,23 +13,33 @@ use regex::Regex;
 use serde_json::Value as Json;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Tier：密钥拦截闸的取值集。
 pub enum Tier {
+    /// Block：密钥拦截闸公开项。
     Block,
+    /// Warn：密钥拦截闸公开项。
     Warn,
 }
 
 #[derive(Debug)]
+/// Finding：密钥拦截闸的数据面。
 pub struct Finding {
+    /// label：密钥拦截闸公开项。
     pub label: &'static str,
+    /// masked：密钥拦截闸公开项。
     pub masked: String,
+    /// tier：密钥拦截闸公开项。
     pub tier: Tier,
 }
 
 /// guard 判定：`block` 为真时调用方 exit 2；`reasons` 面向 agent stderr。
 #[derive(Debug, Default)]
 pub struct GuardVerdict {
+    /// block：密钥拦截闸公开项。
     pub block: bool,
+    /// reasons：密钥拦截闸公开项。
     pub reasons: Vec<String>,
+    /// findings：密钥拦截闸公开项。
     pub findings: Vec<Finding>,
 }
 

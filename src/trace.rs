@@ -10,25 +10,37 @@ use std::path::{Path, PathBuf};
 const MAX_INTENT_CHARS: usize = 200;
 /// 分页 clamp（S018 参数形状）。
 pub const DEFAULT_LIMIT: usize = 100;
+/// MAX_LIMIT：trace 六视图联邦检索常量。
 pub const MAX_LIMIT: usize = 1000;
 
 #[derive(Debug, Clone)]
+/// TraceSession：trace 六视图联邦检索的数据面。
 pub struct TraceSession {
+    /// agent：trace 六视图联邦检索公开项。
     pub agent: String,
+    /// id：trace 六视图联邦检索公开项。
     pub id: String,
+    /// project：trace 六视图联邦检索公开项。
     pub project: PathBuf,
+    /// file：trace 六视图联邦检索公开项。
     pub file: PathBuf,
+    /// started_at：trace 六视图联邦检索公开项。
     pub started_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// EditKind：trace 六视图联邦检索的取值集。
 pub enum EditKind {
+    /// Create：trace 六视图联邦检索公开项。
     Create,
+    /// Modify：trace 六视图联邦检索公开项。
     Modify,
+    /// Delete：trace 六视图联邦检索公开项。
     Delete,
 }
 
 impl EditKind {
+    /// as_str：trace 六视图联邦检索的公开入口（行为细则与 marker 见 R002）。
     pub fn as_str(self) -> &'static str {
         match self {
             EditKind::Create => "create",
@@ -41,14 +53,23 @@ impl EditKind {
 /// 归一化事件：四家 loader 的公共产出。operation_id = session_id:call_id（S018 核心设计）。
 #[derive(Debug, Clone)]
 pub struct TraceEvent {
+    /// agent：trace 六视图联邦检索公开项。
     pub agent: String,
+    /// session_id：trace 六视图联邦检索公开项。
     pub session_id: String,
+    /// call_id：trace 六视图联邦检索公开项。
     pub call_id: Option<String>,
+    /// tool：trace 六视图联邦检索公开项。
     pub tool: Option<String>,
+    /// file：trace 六视图联邦检索公开项。
     pub file: Option<String>,
+    /// kind：trace 六视图联邦检索公开项。
     pub kind: EditKind,
+    /// user_intent：trace 六视图联邦检索公开项。
     pub user_intent: Option<String>,
+    /// op_intent：trace 六视图联邦检索公开项。
     pub op_intent: Option<String>,
+    /// ts：trace 六视图联邦检索公开项。
     pub ts: Option<String>,
     /// 排序用统一 epoch ms（四家时间源不同：claude/codex ISO、kimi 原生 ms、grok 会话 uuidv7 近似）。
     pub ts_ms: Option<u64>,
@@ -57,6 +78,7 @@ pub struct TraceEvent {
 }
 
 impl TraceEvent {
+    /// operation_id：trace 六视图联邦检索的公开入口（行为细则与 marker 见 R002）。
     pub fn operation_id(&self) -> String {
         format!(
             "{}:{}",
@@ -69,15 +91,25 @@ impl TraceEvent {
 /// 意图操作块：同一 operation_id（一次工具调用，可能多文件）的事件聚合。
 #[derive(Debug, Clone)]
 pub struct TraceBlock {
+    /// op：trace 六视图联邦检索公开项。
     pub op: String,
+    /// agent：trace 六视图联邦检索公开项。
     pub agent: String,
+    /// session_id：trace 六视图联邦检索公开项。
     pub session_id: String,
+    /// files：trace 六视图联邦检索公开项。
     pub files: Vec<String>,
+    /// edits：trace 六视图联邦检索公开项。
     pub edits: usize,
+    /// kinds：trace 六视图联邦检索公开项。
     pub kinds: Vec<String>,
+    /// first_ts：trace 六视图联邦检索公开项。
     pub first_ts: Option<String>,
+    /// last_ts：trace 六视图联邦检索公开项。
     pub last_ts: Option<String>,
+    /// user_intent：trace 六视图联邦检索公开项。
     pub user_intent: Option<String>,
+    /// op_intent：trace 六视图联邦检索公开项。
     pub op_intent: Option<String>,
 }
 
@@ -121,9 +153,13 @@ pub fn group_blocks(events: &[TraceEvent]) -> Vec<TraceBlock> {
     order.into_iter().filter_map(|op| map.remove(&op)).collect()
 }
 
+/// TraceFilter：trace 六视图联邦检索的数据面。
 pub struct TraceFilter<'a> {
+    /// agent：trace 六视图联邦检索公开项。
     pub agent: Option<&'a str>,
+    /// file_glob：trace 六视图联邦检索公开项。
     pub file_glob: Option<&'a str>,
+    /// limit：trace 六视图联邦检索公开项。
     pub limit: usize,
     /// 翻页偏移（D26）：按视图输出序跳过前 offset 条（timeline / search /
     /// file 的窗口从最新往旧走，offset 即往更早翻页）。缺省 0。
@@ -131,6 +167,7 @@ pub struct TraceFilter<'a> {
 }
 
 impl<'a> TraceFilter<'a> {
+    /// clamp_limit：trace 六视图联邦检索的公开入口（行为细则与 marker 见 R002）。
     pub fn clamp_limit(&self) -> usize {
         self.limit.clamp(1, MAX_LIMIT)
     }
@@ -214,6 +251,7 @@ pub fn ts_to_ms(s: &str) -> Option<u64> {
     Some((days as u64 * 86_400 + h * 3600 + mi * 60 + se) * 1000 + ms)
 }
 
+/// ms_to_iso：trace 六视图联邦检索的公开入口（行为细则与 marker 见 R002）。
 pub fn ms_to_iso(ms: u64) -> String {
     let days = (ms / 86_400_000) as i64;
     let rem = ms % 86_400_000;
@@ -265,6 +303,7 @@ pub fn claude_project_slug(project: &Path) -> String {
         .collect()
 }
 
+/// claude_sessions_in：trace 六视图联邦检索的公开入口（行为细则与 marker 见 R002）。
 pub fn claude_sessions_in(dir: &Path, project: &Path) -> Vec<TraceSession> {
     let mut out = Vec::new();
     let Ok(rd) = fs::read_dir(dir) else {
@@ -1095,6 +1134,7 @@ fn concat_text_parts(v: Option<&serde_json::Value>) -> String {
 
 // ---- 过滤与检索 ----
 
+/// apply_filter：trace 六视图联邦检索的公开入口（行为细则与 marker 见 R002）。
 pub fn apply_filter(events: Vec<TraceEvent>, filter: &TraceFilter) -> Vec<TraceEvent> {
     apply_filter_counted(events, filter).0
 }
