@@ -1,19 +1,19 @@
 # hst-cli::pathutil
 
-路径工具：家目录与 hst 根解析、跨侧键匹配（D28/D29）。
+的路径工具面（细则见 R002 与模块文档）。
 
 ## Functions
 
 - `abs_display` — Absolute path without Windows `\\?\` prefix. Agent trust stores use this shape.
 - `data_dir` — `<parent>/.hst`。旧名（`.oma` 加 `.ohmyagents`）仅旧在、新不在时**同卷
 - `find_on_path` — Resolve an executable name through PATH (`which` handles PATHEXT on
-- `forward_slash` — forward_slash：路径工具的公开入口（行为细则与 marker 见 R002）。
-- `keys_match` — keys_match：路径工具的公开入口（行为细则与 marker 见 R002）。
-- `native_slash` — native_slash：路径工具的公开入口（行为细则与 marker 见 R002）。
-- `norm_key` — norm_key：路径工具的公开入口（行为细则与 marker 见 R002）。
-- `project_dir` — 项目侧数据根：`<project>/.oma`（session / state / tasks）。
+- `forward_slash` — 正斜杠形（跨侧键匹配用）。
+- `keys_match` — 跨侧配置键匹配（原生与正斜杠双形、Windows 大小写不敏感）。
+- `native_slash` — 平台原生斜杠形。
+- `norm_key` — Windows 配置键归一：反斜杠加小写（跨侧键匹配）。
+- `project_dir` — 路径的项目侧数据根面（细则见 R002 与模块文档）。
 - `same_location` — D52 铁证修复共享件：两路径是否同一位置（canonicalize 双侧归一符号
-- `user_home` — 用户家目录解析（D28）：`HST_USER_HOME` 覆盖优先（集成测试与 verify 的
+- `user_home` — # Errors
 
 ## Constants
 

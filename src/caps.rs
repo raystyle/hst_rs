@@ -25,19 +25,19 @@ pub fn classify_probe_exit(code: Option<i32>) -> &'static str {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// CpuCaps：CPU 指令集能力的数据面。
+/// 指令集能力的CpuCaps面（细则见 R002 与模块文档）。
 pub struct CpuCaps {
-    /// arch：CPU 指令集能力公开项。
+    /// 该字段承载指令集能力的arch数据。
     pub arch: &'static str,
     /// None = 非 x86_64 目标或检测不可用。
     pub avx: Option<bool>,
-    /// avx2：CPU 指令集能力公开项。
+    /// 该字段承载指令集能力的avx2数据。
     pub avx2: Option<bool>,
-    /// avx512f：CPU 指令集能力公开项。
+    /// 该字段承载指令集能力的avx512f数据。
     pub avx512f: Option<bool>,
 }
 
-/// detect：CPU 指令集能力的公开入口（行为细则与 marker 见 R002）。
+/// 指令集能力的detect面（细则见 R002 与模块文档）。
 pub fn detect() -> CpuCaps {
     #[cfg(target_arch = "x86_64")]
     {

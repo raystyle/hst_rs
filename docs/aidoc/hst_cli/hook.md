@@ -5,7 +5,7 @@
 ## Functions
 
 - `map_event` — Map a hook event (already normalized) to a four-state label.
-- `run` — Hook entry: always exit-path friendly. `HST_STATE_FILE` 覆盖互斥
+- `run` — # Errors
 - `state_for_payload` — Claude Notification is mixed (tips vs permission). Only permission-shaped
 
 ## Types

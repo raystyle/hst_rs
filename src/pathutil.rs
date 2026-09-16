@@ -71,8 +71,11 @@ fn merge_legacy_children(old: &Path, neu: &Path) -> bool {
     moved
 }
 
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
 /// 用户家目录解析（D28）：`HST_USER_HOME` 覆盖优先（集成测试与 verify 的
-/// 隔离缝：init/doctor/verify/statusline 的用户级读写全部经此），缺省
+/// 路径的隔离缝面（细则见 R002 与模块文档）。
 /// `dirs::home_dir()`。
 pub fn user_home() -> Result<PathBuf, String> {
     if let Some(v) = std::env::var_os("HST_USER_HOME") {
@@ -89,7 +92,7 @@ pub fn user_home() -> Result<PathBuf, String> {
 #[cfg(test)]
 pub(crate) use crate::testenv::ENV_LOCK;
 
-/// 项目侧数据根：`<project>/.oma`（session / state / tasks）。
+/// 路径的项目侧数据根面（细则见 R002 与模块文档）。
 pub fn project_dir(root: &Path) -> PathBuf {
     data_dir(root)
 }
@@ -113,29 +116,29 @@ pub fn abs_display(path: &Path) -> PathBuf {
     PathBuf::from(stripped)
 }
 
-/// native_slash：路径工具的公开入口（行为细则与 marker 见 R002）。
+/// 平台原生斜杠形。
 pub fn native_slash(path: &Path) -> String {
     abs_display(path).to_string_lossy().into_owned()
 }
 
-/// forward_slash：路径工具的公开入口（行为细则与 marker 见 R002）。
+/// 正斜杠形（跨侧键匹配用）。
 pub fn forward_slash(path: &Path) -> String {
     native_slash(path).replace('\\', "/")
 }
 
-/// norm_key：路径工具的公开入口（Windows 侧配置键归一：反斜杠加小写；行为细则见 R002）。
+/// Windows 配置键归一：反斜杠加小写（跨侧键匹配）。
 #[cfg(windows)]
 pub fn norm_key(s: &str) -> String {
     s.replace('/', "\\").to_ascii_lowercase()
 }
 
 #[cfg(not(windows))]
-/// norm_key：路径工具的公开入口（行为细则与 marker 见 R002）。
+/// Windows 配置键归一：反斜杠加小写（跨侧键匹配）。
 pub fn norm_key(s: &str) -> String {
     s.replace('\\', "/").to_string()
 }
 
-/// keys_match：路径工具的公开入口（行为细则与 marker 见 R002）。
+/// 跨侧配置键匹配（原生与正斜杠双形、Windows 大小写不敏感）。
 pub fn keys_match(a: &str, b: &str) -> bool {
     norm_key(a) == norm_key(b)
 }

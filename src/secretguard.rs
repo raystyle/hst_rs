@@ -13,33 +13,33 @@ use regex::Regex;
 use serde_json::Value as Json;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-/// Tier：密钥拦截闸的取值集。
+/// 密钥拦截的Tier面（细则见 R002 与模块文档）。
 pub enum Tier {
-    /// Block：密钥拦截闸公开项。
+    /// 该字段承载密钥拦截的Block数据。
     Block,
-    /// Warn：密钥拦截闸公开项。
+    /// 该字段承载密钥拦截的Warn数据。
     Warn,
 }
 
 #[derive(Debug)]
-/// Finding：密钥拦截闸的数据面。
+/// 密钥拦截的Finding面（细则见 R002 与模块文档）。
 pub struct Finding {
-    /// label：密钥拦截闸公开项。
+    /// 该字段承载密钥拦截的label数据。
     pub label: &'static str,
-    /// masked：密钥拦截闸公开项。
+    /// 该字段承载密钥拦截的masked数据。
     pub masked: String,
-    /// tier：密钥拦截闸公开项。
+    /// 该字段承载密钥拦截的tier数据。
     pub tier: Tier,
 }
 
 /// guard 判定：`block` 为真时调用方 exit 2；`reasons` 面向 agent stderr。
 #[derive(Debug, Default)]
 pub struct GuardVerdict {
-    /// block：密钥拦截闸公开项。
+    /// 该字段承载密钥拦截的block数据。
     pub block: bool,
-    /// reasons：密钥拦截闸公开项。
+    /// 该字段承载密钥拦截的reasons数据。
     pub reasons: Vec<String>,
-    /// findings：密钥拦截闸公开项。
+    /// 该字段承载密钥拦截的findings数据。
     pub findings: Vec<Finding>,
 }
 
@@ -48,7 +48,7 @@ struct PatternSpec {
     label: &'static str,
     ignore_case: bool,
     tier: Tier,
-    /// 通用赋值类：命中后过 stopword 与熵值门（防线 3/4），低置信放行。
+    /// 密钥拦截的通用赋值类面（细则见 R002 与模块文档）。
     /// 正则带 1 号捕获组圈住值部，熵值按组算。
     generic: bool,
 }
@@ -259,7 +259,7 @@ const SECRET_ENV_NAMES: &[&str] = &[
     "DEEPSEEK_API_KEY",
 ];
 
-/// 实值比对条目：`value` 只在本模块内做子串比对，出口一律掩码。
+/// 密钥拦截的实值比对条目面（细则见 R002 与模块文档）。
 struct RealSecret {
     label: &'static str,
     display: String,
@@ -284,7 +284,7 @@ fn real_secret_values() -> Vec<RealSecret> {
     out
 }
 
-/// 扫描：命中列表（含 warn 级，调用方分级处置）。
+/// 密钥拦截的扫描面（细则见 R002 与模块文档）。
 pub fn scan(text: &str) -> Vec<Finding> {
     let mut out = Vec::new();
     if text.len() < 8 {
@@ -348,7 +348,7 @@ pub fn scan(text: &str) -> Vec<Finding> {
     out
 }
 
-/// 标识符字符类：值命中要求两侧都不是该类字符（完整 token 形态）。
+/// 密钥拦截的标识符字符类面（细则见 R002 与模块文档）。
 /// 杀「值是更长标识符的真子串」误报族（#9：模型别名作为更长别名后缀的
 /// 一段时被裸 contains 误拦；连字符属于标识符类，超集形态不命中）。
 fn is_ident_edge(c: Option<char>) -> bool {
@@ -410,7 +410,7 @@ pub fn scan_text(event: &str, payload: &Json) -> Option<(&'static str, String)> 
 
 /// guard 主判定（fail-open：任何一步拿不到文本都放行）。
 /// PreToolUse / UserPromptSubmit：block 级命中 → block=true；
-/// PostToolUse：只观察不阻断（Codex 路的输出替换不属本层）。
+/// 密钥拦截的PostToolUse面（细则见 R002 与模块文档）。
 pub fn guard(event: &str, payload: Option<&Json>) -> GuardVerdict {
     let mut v = GuardVerdict::default();
     let Some(payload) = payload else {

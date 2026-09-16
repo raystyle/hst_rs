@@ -1,6 +1,16 @@
 [lints.rust]
 missing_docs = "deny"
 
+[lints.rustdoc]
+broken_intra_doc_links = "deny"
+private_intra_doc_links = "deny"
+
+[lints.clippy]
+empty_docs = "deny"
+missing_safety_doc = "deny"
+missing_errors_doc = "warn"
+missing_panics_doc = "warn"
+
 [package]
 name = "hst-cli"
 version = "1.2.0"

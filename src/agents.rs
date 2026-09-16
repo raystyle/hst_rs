@@ -9,20 +9,20 @@ use crate::pathutil::abs_display;
 pub const DEFAULT_AGENTS: &[&str] = &["claude", "codex", "grok", "kimi"];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-/// Source：四家 agent 探测的取值集。
+/// agent 探测的Source面（细则见 R002 与模块文档）。
 pub enum Source {
-    /// Env：四家 agent 探测公开项。
+    /// 该字段承载agent 探测的Env数据。
     Env,
-    /// Path：四家 agent 探测公开项。
+    /// 该字段承载agent 探测的Path数据。
     Path,
-    /// Hst：四家 agent 探测公开项。
+    /// 该字段承载agent 探测的Hst数据。
     Hst,
-    /// Default：四家 agent 探测公开项。
+    /// 该字段承载agent 探测的Default数据。
     Default,
 }
 
 impl Source {
-    /// as_str：四家 agent 探测的公开入口（行为细则与 marker 见 R002）。
+    /// agent 探测的as_str面（细则见 R002 与模块文档）。
     pub fn as_str(self) -> &'static str {
         match self {
             Source::Env => "env",
@@ -43,28 +43,28 @@ impl Source {
 }
 
 #[derive(Clone, Debug)]
-/// Hit：四家 agent 探测的数据面。
+/// agent 探测的Hit面（细则见 R002 与模块文档）。
 pub struct Hit {
-    /// agent：四家 agent 探测公开项。
+    /// 该字段承载agent 探测的agent数据。
     pub agent: &'static str,
-    /// command：四家 agent 探测公开项。
+    /// 该字段承载agent 探测的command数据。
     pub command: String,
-    /// path：四家 agent 探测公开项。
+    /// 该字段承载agent 探测的path数据。
     pub path: PathBuf,
-    /// source：四家 agent 探测公开项。
+    /// 该字段承载agent 探测的source数据。
     pub source: Source,
-    /// version：四家 agent 探测公开项。
+    /// 该字段承载agent 探测的version数据。
     pub version: Option<String>,
-    /// extras：四家 agent 探测公开项。
+    /// 该字段承载agent 探测的extras数据。
     pub extras: Vec<PathBuf>,
 }
 
 #[derive(Clone, Debug)]
-/// Report：四家 agent 探测的数据面。
+/// agent 探测的Report面（细则见 R002 与模块文档）。
 pub struct Report {
-    /// agent：四家 agent 探测公开项。
+    /// 该字段承载agent 探测的agent数据。
     pub agent: &'static str,
-    /// hit：四家 agent 探测公开项。
+    /// 该字段承载agent 探测的hit数据。
     pub hit: Option<Hit>,
 }
 
@@ -99,22 +99,22 @@ const SPECS: &[Spec] = &[
 
 /// Search roots used by `detect`. Tests inject dirs instead of reading the process env.
 pub struct Probe {
-    /// env_bins：四家 agent 探测公开项。
+    /// 该字段承载agent 探测的env_bins数据。
     pub env_bins: BTreeMap<String, PathBuf>,
-    /// path_dirs：四家 agent 探测公开项。
+    /// 该字段承载agent 探测的path_dirs数据。
     pub path_dirs: Vec<PathBuf>,
-    /// extra_dirs：四家 agent 探测公开项。
+    /// 该字段承载agent 探测的extra_dirs数据。
     pub extra_dirs: Vec<PathBuf>,
     /// hst 自管安装（oma 纪元存量布局 `<根>/agents/<name>/<ver>/`，manifest 指路）的精确二进制表。
     pub hst_files: Vec<(String, PathBuf)>,
-    /// default_files：四家 agent 探测公开项。
+    /// 该字段承载agent 探测的default_files数据。
     pub default_files: Vec<(String, PathBuf)>,
-    /// probe_version：四家 agent 探测公开项。
+    /// 该字段承载agent 探测的probe_version数据。
     pub probe_version: bool,
 }
 
 impl Probe {
-    /// from_env：四家 agent 探测的公开入口（行为细则与 marker 见 R002）。
+    /// agent 探测的from_env面（细则见 R002 与模块文档）。
     pub fn from_env() -> Self {
         let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
         let local = dirs::data_local_dir();
@@ -143,12 +143,12 @@ impl Probe {
         }
     }
 
-    /// detect：四家 agent 探测的公开入口（行为细则与 marker 见 R002）。
+    /// agent 探测的detect面（细则见 R002 与模块文档）。
     pub fn detect(&self) -> Vec<Report> {
         SPECS.iter().map(|spec| self.detect_one(spec)).collect()
     }
 
-    /// find：四家 agent 探测的公开入口（行为细则与 marker 见 R002）。
+    /// 按名探测一家 agent：PATH、`HST_AGENT_PATH`、`HST_<AGENT>_BIN`、hst 自管根与默认目录五源；命中即返回安装位与版本。
     pub fn find(&self, name: &str) -> Option<Hit> {
         SPECS
             .iter()
@@ -233,17 +233,17 @@ impl Probe {
     }
 }
 
-/// detect：四家 agent 探测的公开入口（行为细则与 marker 见 R002）。
+/// agent 探测的detect面（细则见 R002 与模块文档）。
 pub fn detect() -> Vec<Report> {
     Probe::from_env().detect()
 }
 
-/// find：四家 agent 探测的公开入口（行为细则与 marker 见 R002）。
+/// 按名探测一家 agent：PATH、`HST_AGENT_PATH`、`HST_<AGENT>_BIN`、hst 自管根与默认目录五源；命中即返回安装位与版本。
 pub fn find(name: &str) -> Option<Hit> {
     Probe::from_env().find(name)
 }
 
-/// print_reports：四家 agent 探测的公开入口（行为细则与 marker 见 R002）。
+/// agent 探测的print_reports面（细则见 R002 与模块文档）。
 pub fn print_reports(reports: &[Report]) {
     let mut installed = 0u32;
     let mut missing = 0u32;

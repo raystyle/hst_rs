@@ -60,8 +60,8 @@ function FmtDur([double]$ms) {
 $parts = [System.Collections.Generic.List[string]]::new()
 "#;
 
-/// COMMON：工作目录与仓库根发现（目录段与 hst 段共用）。段序含 dir 或 hst
-/// 才拼入：rev-parse 是子进程，无人消费时省掉（kimi 300ms 预算，S025）。
+/// 状态栏的COMMON面（细则见 R002 与模块文档）。
+/// 状态栏的才拼入面（细则见 R002 与模块文档）。
 const PS1_COMMON: &str = r#"
 # ── 工作目录与仓库根（hst 段与目录段共用）──
 $dir = $null
@@ -532,7 +532,7 @@ if ($branch -or $flags) {
 }
 "#;
 
-/// PROBE：projKind 与包版本文本探测（包版本与七个工具链段共享 `$projKind`；
+/// 状态栏的PROBE面（细则见 R002 与模块文档）。
 /// D11 first-match 序 rust / node / python 先于 zig / go / cpp）。段序含
 /// package 或任一工具链段才拼入（文件读加 git 子进程，无人消费时省掉）。
 const PS1_PROBE: &str = r#"
@@ -710,7 +710,7 @@ if ($nerd -and $projKind -eq 'cpp') {
 }
 "#;
 
-/// TAIL：单行收口输出。
+/// 状态栏的TAIL面（细则见 R002 与模块文档）。
 const PS1_TAIL: &str = "\nWrite-Output ($parts -join ' | ')\nexit 0\n";
 
 /// 排间断点（D40 双排，D42 三行泛化）：第 n 排段块后收线并重置收集器。
@@ -860,7 +860,7 @@ fn lookup_override<'a>(user: &'a [(String, String)], key: &str) -> Option<&'a st
     user.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str())
 }
 
-/// 烘焙定制块：`$slTmpl` / `$slIcon` 已并入用户覆盖（脚本侧零回落逻辑，
+/// 状态栏的烘焙定制块面（细则见 R002 与模块文档）。
 /// 默认全键在场）。值经单引号转义，用户串无法越出字面量（模板注入不成立）。
 fn render_cfg_block(cfg: &StatuslineConfig) -> String {
     let mut out = String::from(
@@ -966,7 +966,7 @@ pub(crate) fn assemble_statusline_ps1(
     Ok(out)
 }
 
-/// 默认脚本：默认三行段序加全默认定制拼装（静态合法，失败即程序性 bug）。
+/// 状态栏的默认脚本面（细则见 R002 与模块文档）。
 pub(crate) fn default_statusline_ps1() -> String {
     assemble_statusline_ps1(
         &[DEFAULT_SEGMENTS, DEFAULT_SEGMENTS2, DEFAULT_SEGMENTS3],
@@ -1006,6 +1006,9 @@ pub(crate) fn config_path(home: &Path) -> PathBuf {
     home.join("statusline.toml")
 }
 
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
 /// 读用户定制配置；文件不存在回落全默认（不是错误）。
 pub fn read_config(home: &Path) -> Result<StatuslineConfig, String> {
     let p = config_path(home);
@@ -1016,7 +1019,7 @@ pub fn read_config(home: &Path) -> Result<StatuslineConfig, String> {
     parse_config(&text).map_err(|e| format!("{}: {e}", p.display()))
 }
 
-/// 纯函数：解析配置（可测）。坏文件硬错（拼装层面无法兜底）；缺键回落。
+/// 状态栏的纯函数面（细则见 R002 与模块文档）。
 fn parse_config(text: &str) -> Result<StatuslineConfig, String> {
     let v: toml::Value = toml::from_str(text).map_err(|e| format!("parse: {e}"))?;
     let mut cfg = StatuslineConfig::default();
@@ -1165,6 +1168,9 @@ pub fn custom_active(home: &Path) -> bool {
     marker_path(home).exists()
 }
 
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
 /// 释放状态栏脚本（幂等覆写）。按 `~/.hst/statusline.toml` 生成时烘焙：
 /// segments 键控段序与显隐，缺省回落内嵌默认（D18）。自备脚本标记在场时
 /// 跳过覆写（只保 grok .cmd 壳，见 D18 整脚本替换）。
@@ -1198,6 +1204,9 @@ pub fn deploy_script(home: &Path) -> Result<PathBuf, String> {
     Ok(p)
 }
 
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
 /// 部署用户自备脚本（D18 整脚本替换）：拷到部署位，agent 配置命令行不动
 /// （claude / kimi / grok 调用约定不变：首参 agent 名，stdin 喂 agent JSON，
 /// stdout 单行状态栏）；marker 记源路径，此后无 `--script` 的重跑跳过内嵌
@@ -1218,7 +1227,10 @@ pub fn deploy_custom_script(home: &Path, src: &Path) -> Result<PathBuf, String> 
     Ok(p)
 }
 
-/// 还原内嵌脚本：删自备标记后重释放（`--builtin`）。
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
+/// 状态栏的还原内嵌脚本面（细则见 R002 与模块文档）。
 pub fn restore_builtin_script(home: &Path) -> Result<PathBuf, String> {
     let m = marker_path(home);
     if m.exists() {
@@ -1227,7 +1239,10 @@ pub fn restore_builtin_script(home: &Path) -> Result<PathBuf, String> {
     deploy_script(home)
 }
 
-/// claude：settings.json 幂等合并 statusLine（只覆盖该键）。
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
+/// 状态栏的claude面（细则见 R002 与模块文档）。
 /// D53（codex F1）：user_home 显式透传（测试密闭，不读 env）。
 pub fn merge_claude(home: &Path, user_home: &Path) -> Result<String, String> {
     let script = deploy_script(home)?;
@@ -1254,7 +1269,10 @@ pub fn merge_claude(home: &Path, user_home: &Path) -> Result<String, String> {
     Ok(settings.display().to_string())
 }
 
-/// kimi：`~/.kimi-code/tui.toml` `[status_line]` 表幂等合并（command 串经
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
+/// 状态栏的kimi面（细则见 R002 与模块文档）。
 /// cmd/sh 执行，首行接管 footer；300ms 超时由 kimi 侧约束，超时自动回退
 /// 内置布局——S025）。其它表保留。
 /// D53（codex F1）：user_home 显式透传。
@@ -1290,7 +1308,10 @@ fn apply_kimi_status_line(toml: &mut toml::Value, script_str: &str) -> Result<bo
     Ok(changed)
 }
 
-/// grok：`~/.grok/config.toml` `[ui.status_line]` 幂等合并（type=command）。
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
+/// 状态栏的grok面（细则见 R002 与模块文档）。
 /// Windows 写 `.cmd` 单路径（M048）；Unix 仍写 `pwsh -File` 命令行（NotFound
 /// 才回落 sh -c）。其它表保留。
 /// D53（codex F1）：user_home 显式透传。
@@ -1451,6 +1472,9 @@ fn strip_tui_section(text: &str) -> String {
     lines.join("\n")
 }
 
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
 /// Codex: replace the `[tui]` table with built-in item IDs (ohmypwsh S016).
 /// Does not deploy the pwsh script; Codex has no command-backed status line.
 /// `[codex] items`（D18）用户清单原样透传：codex 对未知 id 静默跳过，hst

@@ -15,15 +15,15 @@ MoonshotAI/kimi-code sources).
 
 ## Functions
 
-- `deploy_all` — Deploy the full init surface (D28)：用户级 hook 注册加 shim（真实家目录
-- `deploy_all_with` — Test seam：user_home 与 oma 根注入（不碰真实家目录），side 注入双测。
-- `deploy_user_hooks` — 生产入口：真实家目录 + hst 自管根。
-- `deploy_user_hooks_with` — 用户级部署总入口（可注入：测试传临时 user_home 与 oma 根；生产传真实
-- `host_side` — host_side：init 部署层的公开入口（行为细则与 marker 见 R002）。
-- `retire_project_hooks_with` — 项目面退役（D28）：摘除项目级 ours hook 注册（claude/codex/grok）、
+- `deploy_all` — # Errors
+- `deploy_all_with` — # Errors
+- `deploy_user_hooks` — # Errors
+- `deploy_user_hooks_with` — # Errors
+- `host_side` — 部署的host_side面（细则见 R002 与模块文档）。
+- `retire_project_hooks_with` — # Errors
 
 ## Types
 
-- `DeployReport` — DeployReport：init 部署层的数据面。
+- `DeployReport` — 部署报告：写入、跳过、形态与警告清单。
 - `OsSide` — Which OS consumes a codex registration field: `command` on Unix,
 

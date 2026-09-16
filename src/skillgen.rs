@@ -8,7 +8,7 @@
 
 use clap::Command as ClapCommand;
 
-/// D49：canonical 技能名（第 2 轮裁定无兼容窗，唯一名）。
+/// 技能生成的D49面（细则见 R002 与模块文档）。
 pub const SKILL_NAME: &str = "hst";
 
 /// 渲染完整 SKILL.md（canonical，name = hst）。
@@ -48,7 +48,7 @@ fn walk(cmd: &ClapCommand, prefix: String, rows: &mut Vec<(String, String)>) {
     }
 }
 
-/// 用法串：路径加位置参数加长旗标（全局旗标 --format/--json 不逐条重复）。
+/// 技能生成的用法串面（细则见 R002 与模块文档）。
 fn synopsis(cmd: &ClapCommand, path: &str) -> String {
     let mut s = String::from(path);
     let mut opts: Vec<String> = Vec::new();

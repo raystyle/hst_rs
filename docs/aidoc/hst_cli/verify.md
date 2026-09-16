@@ -24,12 +24,12 @@
 ## Functions
 
 - `any_fail` — 任一非跳过项失败即 true（进程退出 1 的判据）。
-- `codex_builtin_statusline_ok` — 纯函数：config.toml 的 `[tui]` 段 `status_line`（单行或多行数组）含
+- `codex_builtin_statusline_ok` — 无头验收的纯函数面（细则见 R002 与模块文档）。
 - `headless_argv` — 各家的无头命令行（S033 取证）。codex 的 bypass 旗标必须：否则 hook
-- `parse_state` — 纯函数：state 文件 JSON 的 state 字段 ∈ 四态且 event 非空才作数。
+- `parse_state` — # Errors
 - `render` — kv marker 行渲染（风格对齐 statusline/install 等现有命令）。
-- `run` — 验收主流程：逐家两层，skip（未装）不算失败。
-- `statusline_marker_ok` — 纯函数：stdout 任一行含机读标记，两形兼容（D42 三行布局起 agent 态
+- `run` — # Errors
+- `statusline_marker_ok` — 无头验收的纯函数面（细则见 R002 与模块文档）。
 
 ## Types
 

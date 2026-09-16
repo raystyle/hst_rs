@@ -8,12 +8,15 @@ use std::path::Path;
 
 use sha2::{Digest, Sha256};
 
-/// host_os_arch：归档工具的公开入口（行为细则与 marker 见 R002）。
+/// 归档的host_os_arch面（细则见 R002 与模块文档）。
 pub fn host_os_arch() -> (&'static str, &'static str) {
     (std::env::consts::OS, std::env::consts::ARCH)
 }
 
-/// sha256_file：归档工具的公开入口（行为细则与 marker 见 R002）。
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
+/// 算文件 sha256（下载校验与判新共用）。
 pub fn sha256_file(path: &Path) -> Result<String, String> {
     let mut file = File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
     let mut hasher = Sha256::new();
@@ -30,7 +33,10 @@ pub fn sha256_file(path: &Path) -> Result<String, String> {
     Ok(format!("{:x}", hasher.finalize()))
 }
 
-/// extract_zip：归档工具的公开入口（行为细则与 marker 见 R002）。
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
+/// 解 zip 到目录（self update 资产面）。
 pub fn extract_zip(archive: &Path, dest: &Path) -> Result<(), String> {
     let file = File::open(archive).map_err(|e| format!("{}: {e}", archive.display()))?;
     let mut zip =
@@ -64,7 +70,10 @@ pub fn extract_zip(archive: &Path, dest: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// extract_tar_gz：归档工具的公开入口（行为细则与 marker 见 R002）。
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
+/// 解 tar.gz 到目录。
 pub fn extract_tar_gz(archive: &Path, dest: &Path) -> Result<(), String> {
     let file = File::open(archive).map_err(|e| format!("{}: {e}", archive.display()))?;
     let gz = flate2::read::GzDecoder::new(file);
@@ -74,7 +83,10 @@ pub fn extract_tar_gz(archive: &Path, dest: &Path) -> Result<(), String> {
         .map_err(|e| format!("tar {}: {e}", dest.display()))
 }
 
-/// copy_dir：归档工具的公开入口（行为细则与 marker 见 R002）。
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
+/// 目录递归复制。
 pub fn copy_dir(from: &Path, to: &Path) -> io::Result<()> {
     fs::create_dir_all(to)?;
     for ent in fs::read_dir(from)? {

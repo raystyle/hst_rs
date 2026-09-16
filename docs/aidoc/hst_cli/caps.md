@@ -12,9 +12,9 @@ cfg(unix) 分支待 P0012 Linux 实机编译验证）。
 
 - `caps_line` — marker 行形态：`x86_64 avx=true avx2=true avx512f=false`（unknown 时同形）。
 - `classify_probe_exit` — 探针退出形态分类。
-- `detect` — detect：CPU 指令集能力的公开入口（行为细则与 marker 见 R002）。
+- `detect` — 指令集能力的detect面（细则见 R002 与模块文档）。
 
 ## Types
 
-- `CpuCaps` — CpuCaps：CPU 指令集能力的数据面。
+- `CpuCaps` — 指令集能力的CpuCaps面（细则见 R002 与模块文档）。
 

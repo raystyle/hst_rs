@@ -4,16 +4,16 @@
 
 ## Functions
 
-- `detect` — detect：四家 agent 探测的公开入口（行为细则与 marker 见 R002）。
-- `find` — find：四家 agent 探测的公开入口（行为细则与 marker 见 R002）。
-- `print_reports` — print_reports：四家 agent 探测的公开入口（行为细则与 marker 见 R002）。
+- `detect` — agent 探测的detect面（细则见 R002 与模块文档）。
+- `find` — 按名探测一家 agent：PATH、`HST_AGENT_PATH`、`HST_<AGENT>_BIN`、hst 自管根与默认目录五源；命中即返回安装位与版本。
+- `print_reports` — agent 探测的print_reports面（细则见 R002 与模块文档）。
 
 ## Types
 
-- `Hit` — Hit：四家 agent 探测的数据面。
+- `Hit` — agent 探测的Hit面（细则见 R002 与模块文档）。
 - `Probe` — Search roots used by `detect`. Tests inject dirs instead of reading the process env.
-- `Report` — Report：四家 agent 探测的数据面。
-- `Source` — Source：四家 agent 探测的取值集。
+- `Report` — agent 探测的Report面（细则见 R002 与模块文档）。
+- `Source` — agent 探测的Source面（细则见 R002 与模块文档）。
 
 ## Constants
 

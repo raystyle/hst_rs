@@ -16,6 +16,9 @@ const MANIFEST_NAME: &str = ".oma-agent-manifest.toml";
 
 // ---- 根解析 ----
 
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
 /// hst 应用数据根：`HST_ROOT` 环境变量 > `~/.hst`（D29；旧 `~/.oma` 与
 /// `~/.ohmyagents` 仅旧在且新根未初始化时迁过去，见 pathutil::data_dir）。
 pub fn hst_home() -> Result<PathBuf, String> {

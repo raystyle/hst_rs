@@ -9,7 +9,7 @@ ome，D07 迁册）；本模块只留三件消费面共享的能力：hst 数据
 ## Functions
 
 - `agents_root` — hst 自管 agent 安装根（oma 纪元存量布局 `<根>/agents/<name>/<version>/`）。
-- `hst_home` — hst 应用数据根：`HST_ROOT` 环境变量 > `~/.hst`（D29；旧 `~/.oma` 与
+- `hst_home` — # Errors
 - `managed_binaries` — hst 自管安装的二进制清单（agents.rs 的 Probe 以 source=oma 消费）。
 - `managed_version` — hst 自管已装版本（manifest 的 version 字段；多个版本目录取最大）。
 

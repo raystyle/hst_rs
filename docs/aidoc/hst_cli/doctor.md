@@ -4,12 +4,12 @@
 
 ## Functions
 
-- `diagnose` — Read-only. Does not attach, send-keys, or wait on TUI.
-- `print_diagnosis` — print_diagnosis：只读体检 doctor的公开入口（行为细则与 marker 见 R002）。
+- `diagnose` — # Errors
+- `print_diagnosis` — 体检的print_diagnosis面（细则见 R002 与模块文档）。
 
 ## Types
 
-- `Diagnosis` — Diagnosis：只读体检 doctor的数据面。
-- `Finding` — Finding：只读体检 doctor的数据面。
-- `Status` — Status：只读体检 doctor的取值集。
+- `Diagnosis` — 体检结果集：findings 列表与阻断判定。
+- `Finding` — 单条体检发现：agent、检查名、状态、路径与明细。
+- `Status` — 体检结论三态：ok、warn（部署缺口不计败）与 block（退出 1）。
 

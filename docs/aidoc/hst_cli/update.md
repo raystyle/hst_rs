@@ -14,18 +14,18 @@ GH_TOKEN 在位附 Bearer（D48，匿名 60 升 5000 次每时）。
 
 ## Functions
 
-- `fetch_release` — fetch_release：self update 自更新的公开入口（行为细则与 marker 见 R002）。
-- `git_install` — `cargo install --git` 源码安装（封版前的主路径）。
+- `fetch_release` — # Errors
+- `git_install` — # Errors
 - `pick_asset` — Pick the hst asset for this host from a release's asset list.
-- `run` — `hst self update` entry: release path with git fallback.
-- `self_replace` — Atomic-ish self replace: write the new binary beside the current exe, then
+- `run` — # Errors
+- `self_replace` — # Errors
 - `version_newer` — Dotted-numeric compare: is `tag` (v-prefix tolerated) strictly newer than
 
 ## Types
 
-- `Asset` — Asset：self update 自更新的数据面。
-- `Channel` — 更新通道：dev = 滚动预发布 tag `dev`（CI 每推覆盖，部署位缺省）；
-- `Release` — Release：self update 自更新的数据面。
+- `Asset` — release 资产条目：名、下载直链与可选 digest（判新锚）。
+- `Channel` — 自更新的更新通道面（细则见 R002 与模块文档）。
+- `Release` — GitHub release 元数据（tag 与资产清单），self update 的查询面。
 
 ## Constants
 

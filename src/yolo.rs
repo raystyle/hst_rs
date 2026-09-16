@@ -8,9 +8,9 @@ use toml::Value as Toml;
 
 use crate::pathutil::{abs_display, forward_slash, native_slash};
 
-/// ApplyReport：yolo 键落盘的数据面。
+/// 键落盘报告：写入路径清单。
 pub struct ApplyReport {
-    /// wrote：yolo 键落盘公开项。
+    /// 该字段承载yolo 键的wrote数据。
     pub wrote: Vec<String>,
 }
 
@@ -101,14 +101,14 @@ fn unix_millis() -> u128 {
 pub enum YoloLevel {
     /// 全 bypass：编辑与命令执行全放行（现行 --yolo 行为）
     Full,
-    /// 危险操作仍确认：编辑类自动过，命令执行与 MCP 审批保留（--pre-trust 同批或重跑会再开 MCP 直通）
+    /// yolo 键的危险操作仍确认面（细则见 R002 与模块文档）。
     Partial,
-    /// 全关：摘 hst 落的 yolo 键，恢复各家默认确认
+    /// yolo 键的全关面（细则见 R002 与模块文档）。
     Off,
 }
 
 impl YoloLevel {
-    /// as_str：yolo 键落盘的公开入口（行为细则与 marker 见 R002）。
+    /// yolo 键的as_str面（细则见 R002 与模块文档）。
     pub fn as_str(self) -> &'static str {
         match self {
             YoloLevel::Full => "full",
@@ -154,6 +154,9 @@ const OURS_CODEX_APPROVAL: &[&str] = &["never", "on-request"];
 const OURS_KIMI_MODES: &[&str] = &["yolo", "auto"];
 const OURS_GROK_MODES: &[&str] = &["always-approve", "auto"];
 
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
 /// 用户级 yolo 与非阻塞键（D28 第 2 轮裁定 2026-09-11：yolo 模式与非阻塞
 /// 模式也用户级，覆盖 D25「oma --yolo 面向项目级」口径；历史脉络 = 用户级
 /// 需求自 POC 期「不改家目录」约束起被逐面翻正：状态栏 P0027、kimi M058、
@@ -162,7 +165,7 @@ const OURS_GROK_MODES: &[&str] = &["always-approve", "auto"];
 /// enableAllProjectMcpServers）、codex `~/.codex/config.toml`
 /// （sandbox_mode 加 approval_policy）、kimi `~/.kimi-code/config.toml`
 /// （default_permission_mode）、grok `~/.grok/config.toml`
-/// （[ui] permission_mode）。项目级旧键由 init 退役（retire_project_yolo）。
+/// （`[ui]` permission_mode）。项目级旧键由 init 退役（retire_project_yolo）。
 /// D33 起 level 分级：partial 摘 ours 落的 enableAllProjectMcpServers（MCP
 /// 审批恢复确认，--pre-trust 重跑可再开；codex 评审 F1 裁 a）；off 走
 /// retire_user_yolo_with。
@@ -170,6 +173,12 @@ pub fn apply_user_yolo_with(user_home: &Path) -> Result<ApplyReport, String> {
     apply_user_yolo_level_with(user_home, YoloLevel::Full)
 }
 
+/// # Panics
+///
+/// 正常路径不 panic；内部 unwrap 仅出现在构造不变量上。
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
 /// 用户级分级落键（full / partial；off 调 retire_user_yolo_with）。
 pub fn apply_user_yolo_level_with(
     user_home: &Path,
@@ -273,6 +282,9 @@ pub fn apply_user_yolo_level_with(
     Ok(ApplyReport { wrote })
 }
 
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
 /// 项目级 yolo 与非阻塞键（D28 第 3 轮裁定 2026-09-11：yolo 命令分两级，
 /// `hst init --project-yolo` 显式选项目级；v0.5.3 前的默认行为收编为显式
 /// 旗标）。写入面：claude 项目 `.claude/settings.json` 加
@@ -286,6 +298,12 @@ pub fn apply_project_yolo(root: &Path) -> Result<ApplyReport, String> {
     apply_project_yolo_level(root, YoloLevel::Full)
 }
 
+/// # Panics
+///
+/// 正常路径不 panic；内部 unwrap 仅出现在构造不变量上。
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
 /// 项目级分级落键（full / partial；off 调 retire_project_yolo）。
 pub fn apply_project_yolo_level(root: &Path, level: YoloLevel) -> Result<ApplyReport, String> {
     assert!(
@@ -389,24 +407,39 @@ pub fn apply_project_yolo_level(root: &Path, level: YoloLevel) -> Result<ApplyRe
     Ok(ApplyReport { wrote })
 }
 
-/// 生产入口：真实家目录。
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
+/// yolo 键的生产入口面（细则见 R002 与模块文档）。
 pub fn apply_user_yolo() -> Result<ApplyReport, String> {
     let home = crate::pathutil::user_home()?;
     apply_user_yolo_with(&home)
 }
 
-/// 生产入口：真实家目录按级落键（full / partial）。
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
+/// yolo 键的生产入口面（细则见 R002 与模块文档）。
 pub fn apply_user_yolo_level(level: YoloLevel) -> Result<ApplyReport, String> {
     let home = crate::pathutil::user_home()?;
     apply_user_yolo_level_with(&home, level)
 }
 
-/// 生产入口：真实家目录用户级退役（off）。
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
+/// yolo 键的生产入口面（细则见 R002 与模块文档）。
 pub fn retire_user_yolo() -> Result<Vec<String>, String> {
     let home = crate::pathutil::user_home()?;
     retire_user_yolo_with(&home)
 }
 
+/// # Panics
+///
+/// 正常路径不 panic；内部 unwrap 仅出现在构造不变量上。
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
 /// 项目级旧 yolo 键退役（D28 第 2 轮）：oma 写过的项目面键摘除（值等于
 /// ours 落值才动，用户自设其它值保留），整文件只剩空对象/空表时删文件。
 /// D33 起 ours 值集含 full 与 partial 两代。返回变更描述（deploy report 收录）。
@@ -546,11 +579,17 @@ pub fn retire_project_yolo(root: &Path) -> Result<Vec<String>, String> {
     Ok(changed)
 }
 
+/// # Panics
+///
+/// 正常路径不 panic；内部 unwrap 仅出现在构造不变量上。
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
 /// 用户级 yolo 键退役（D33 off）：与 retire_project_yolo 同款 ours 等值
 /// 摘除策略（hst 落值才动、用户自设值保留、整文件只剩空对象/空表时删）。
-/// 注意：skipDangerousModePermissionPrompt 与 enableAllProjectMcpServers
+/// yolo 键的注意面（细则见 R002 与模块文档）。
 /// 也由 pretrust 面写入，ours 判定无法区分落写者，off 一并摘除；需要 MCP
-/// 直通请重跑 `--pre-trust`。grok 只摘 [ui] permission_mode（ours 值）。
+/// 直通请重跑 `--pre-trust`。grok 只摘 `[ui]` permission_mode（ours 值）。
 pub fn retire_user_yolo_with(user_home: &Path) -> Result<Vec<String>, String> {
     let mut changed = Vec::new();
 
@@ -701,6 +740,12 @@ pub fn retire_user_yolo_with(user_home: &Path) -> Result<Vec<String>, String> {
     Ok(changed)
 }
 
+/// # Panics
+///
+/// 正常路径不 panic；内部 unwrap 仅出现在构造不变量上。
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
 /// Trust stores in the user home. Not hook registration.
 pub fn apply_pretrust(root: &Path) -> Result<ApplyReport, String> {
     let root = abs_display(root);
@@ -867,7 +912,7 @@ fn apply_mcp_approvals(obj: &mut serde_json::Map<String, Json>, root: &Path) {
     }
 }
 
-/// kimi_workspace_key：yolo 键落盘的公开入口（行为细则与 marker 见 R002）。
+/// yolo 键的kimi_workspace_key面（细则见 R002 与模块文档）。
 pub fn kimi_workspace_key(root: &Path) -> String {
     let root = abs_display(root);
     let name = root

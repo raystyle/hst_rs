@@ -26,18 +26,21 @@ pub fn envelope(command: &str, root: &std::path::Path, outcome: Result<Value, St
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-/// Format：输出三态与信封的取值集。
+/// 输出与信封的Format面（细则见 R002 与模块文档）。
 pub enum Format {
-    /// Kv：输出三态与信封公开项。
+    /// 该字段承载输出与信封的Kv数据。
     Kv,
-    /// Json：输出三态与信封公开项。
+    /// 该字段承载输出与信封的Json数据。
     Json,
-    /// Jsonl：输出三态与信封公开项。
+    /// 该字段承载输出与信封的Jsonl数据。
     Jsonl,
 }
 
 static MODE: std::sync::OnceLock<Format> = std::sync::OnceLock::new();
 
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
 /// 启动期设置一次（main 解析后、分派前）；`--json` 与 `--format` 的互斥
 /// 由 clap `conflicts_with` 保证。
 pub fn init(json_shorthand: bool, format: Option<&str>) -> Result<Format, String> {
@@ -55,7 +58,7 @@ pub fn init(json_shorthand: bool, format: Option<&str>) -> Result<Format, String
     Ok(mode)
 }
 
-/// mode：输出三态与信封的公开入口（行为细则与 marker 见 R002）。
+/// 输出与信封的mode面（细则见 R002 与模块文档）。
 pub fn mode() -> Format {
     MODE.get().copied().unwrap_or(Format::Kv)
 }

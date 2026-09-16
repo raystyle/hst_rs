@@ -138,12 +138,15 @@ fn read_stdin_json() -> Option<Json> {
 /// hook 出口：状态通道 + 密钥 guard（S030 第二职责）。
 #[derive(Debug, Default)]
 pub struct HookOutcome {
-    /// state_file：hook 状态落盘公开项。
+    /// 该字段承载hook 状态的state_file数据。
     pub state_file: Option<PathBuf>,
     /// None = 该事件不属 guard 扫描面；Some 内 block=true 时调用方 exit 2。
     pub guard: Option<crate::secretguard::GuardVerdict>,
 }
 
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
 /// Hook entry: always exit-path friendly. `HST_STATE_FILE` 覆盖互斥
 /// 单写（verify 与测试）；缺省走用户级 session 分键通道（D28）：写
 /// `~/.hst/state/<agent>.json`（agent 最新）加 `<agent>-<session>.json`

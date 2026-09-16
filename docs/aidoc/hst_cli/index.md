@@ -10,7 +10,7 @@ docs/research 与 docs/adr；输出信封契约见 R011。
 ## Modules
 
 - [`agents`](agents.md): 四家 agent 探测（PATH、env、hst 自管根、默认目录四源）。
-- [`archive`](archive.md): 通用归档工具：sha256 校验、zip/tar.gz 解包、目录复制、host os/arch。
+- [`archive`](archive.md): 的通用归档工具面（细则见 R002 与模块文档）。
 - [`caps`](caps.md): CPU 指令集能力与探针退出形态分类（S021/P0018）。
 - [`deploy`](deploy.md): `hst init` 部署层：hook 注册四家用户级、shim 落位、SKILL 命令图与状态栏面（D53）。
 - [`diagnose`](diagnose.md): `hst diagnose` 活性诊断族：网关缓存命中矩阵与配置活性（D21）。
@@ -18,8 +18,8 @@ docs/research 与 docs/adr；输出信封契约见 R011。
 - [`fmtio`](fmtio.md): 全局输出三态（kv/json/jsonl）与结构化错误出口（R011 契约）。
 - [`hook`](hook.md): `hst hook`：事件到四态映射、用户级 session 分键 state 落盘与密钥拦截分流（D28/S030）。
 - [`install`](install.md): hst 根解析与共享下载件（self update 复用）。
-- [`pathutil`](pathutil.md): 路径工具：家目录与 hst 根解析、跨侧键匹配（D28/D29）。
-- [`secretguard`](secretguard.md): 密钥拦截闸：模式表八层防误报、实值比对、block 级 exit 2（S030/D23）。
+- [`pathutil`](pathutil.md): 的路径工具面（细则见 R002 与模块文档）。
+- [`secretguard`](secretguard.md): 的密钥拦截闸面（细则见 R002 与模块文档）。
 - [`shim`](shim.md): shim 三形态自包含状态写入器：cmd/ps1/sh 加 grok 包装（D27/D28/D39）。
 - [`skillgen`](skillgen.md): `hst skill` 渲染器：从 clap 活命令树自适应生成 SKILL.md（D22/D49）。
 - [`statusline`](statusline.md): `hst statusline`：四家状态栏写入面幂等合并与拆段拼装（S025/D18/D42 至 D51）。

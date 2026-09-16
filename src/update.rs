@@ -21,12 +21,12 @@ pub const DEFAULT_REPO: &str = "raystyle/hst_rs";
 const UA: &str = concat!("hst/", env!("CARGO_PKG_VERSION"));
 
 #[derive(Debug, Deserialize)]
-/// Release：self update 自更新的数据面。
+/// GitHub release 元数据（tag 与资产清单），self update 的查询面。
 pub struct Release {
-    /// tag_name：self update 自更新公开项。
+    /// 该字段承载自更新的tag_name数据。
     pub tag_name: String,
     #[serde(default)]
-    /// assets：self update 自更新公开项。
+    /// 该字段承载自更新的assets数据。
     pub assets: Vec<Asset>,
     /// false for prereleases/drafts (latest already excludes them).
     #[serde(default = "default_true")]
@@ -38,29 +38,29 @@ fn default_true() -> bool {
 }
 
 #[derive(Debug, Deserialize)]
-/// Asset：self update 自更新的数据面。
+/// release 资产条目：名、下载直链与可选 digest（判新锚）。
 pub struct Asset {
-    /// name：self update 自更新公开项。
+    /// 该字段承载自更新的name数据。
     pub name: String,
-    /// browser_download_url：self update 自更新公开项。
+    /// 该字段承载自更新的browser_download_url数据。
     pub browser_download_url: String,
     /// GitHub 资产摘要（新 API 形如 "sha256:<hex>"；旧响应可能缺省）。
     #[serde(default)]
     pub digest: Option<String>,
 }
 
-/// 更新通道：dev = 滚动预发布 tag `dev`（CI 每推覆盖，部署位缺省）；
+/// 自更新的更新通道面（细则见 R002 与模块文档）。
 /// latest = 正式封版后的 releases/latest。
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Channel {
-    /// Dev：self update 自更新公开项。
+    /// 该字段承载自更新的Dev数据。
     Dev,
-    /// Latest：self update 自更新公开项。
+    /// 该字段承载自更新的Latest数据。
     Latest,
 }
 
 impl Channel {
-    /// as_str：self update 自更新的公开入口（行为细则与 marker 见 R002）。
+    /// 自更新的as_str面（细则见 R002 与模块文档）。
     pub fn as_str(self) -> &'static str {
         match self {
             Channel::Dev => "dev",
@@ -93,7 +93,10 @@ fn github_token() -> Option<String> {
     std::env::var("GH_TOKEN").ok()
 }
 
-/// fetch_release：self update 自更新的公开入口（行为细则与 marker 见 R002）。
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
+/// 向 GitHub API 拉取指定通道的 release 元数据；未发布返回 Err 提示 `--git` 路径。
 pub fn fetch_release(repo: &str, channel: Channel) -> Result<Release, String> {
     let url = match channel {
         Channel::Latest => format!("https://api.github.com/repos/{repo}/releases/latest"),
@@ -186,7 +189,7 @@ pub fn version_newer(tag: &str, current: &str) -> bool {
     false
 }
 
-/// 上次安装记录：`~/.hst/selfupdate.json`（资产 digest 为判据——
+/// 自更新的上次安装记录面（细则见 R002 与模块文档）。
 /// digest 是压缩包哈希，与 exe 哈希不可比）。
 fn record_path() -> Result<PathBuf, String> {
     Ok(crate::install::hst_home()?.join("selfupdate.json"))
@@ -211,7 +214,7 @@ fn write_record(digest: &str, tag: &str) {
     }
 }
 
-/// 判据纯函数：记录 digest 与资产 digest 一致即已最新（缺任一侧 = 需更新）。
+/// 自更新的判据纯函数面（细则见 R002 与模块文档）。
 fn digest_matches(record: Option<&str>, asset: Option<&str>) -> bool {
     match (record, asset) {
         (Some(r), Some(a)) => r.eq_ignore_ascii_case(a),
@@ -395,6 +398,9 @@ fn via_mirror(base: &str, seg: &str, force: bool) -> Result<MirrorStep, String> 
     Ok(MirrorStep::Done)
 }
 
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
 /// Atomic-ish self replace: write the new binary beside the current exe, then
 /// swap. Windows cannot overwrite a running exe but CAN rename it away.
 pub fn self_replace(new_bin: &Path) -> Result<PathBuf, String> {
@@ -423,6 +429,9 @@ pub fn self_replace(new_bin: &Path) -> Result<PathBuf, String> {
     Ok(cur)
 }
 
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
 /// `cargo install --git` 源码安装（封版前的主路径）。
 pub fn git_install(repo: &str) -> Result<(), String> {
     let cargo = crate::pathutil::find_on_path("cargo")
@@ -441,11 +450,14 @@ pub fn git_install(repo: &str) -> Result<(), String> {
     }
 }
 
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
 /// `hst self update` entry: release path with git fallback.
 ///
 /// 判新（D48 双通道）：dev 按 rolling digest（资产 sha256 对安装记录，滚动版
 /// 版本号常不变）；latest 走 GitHub 时按版本 tag，走镜像腿时同 dev 按 digest。
-/// 读序：`HST_MIRROR` 设值 mirror-first（失败回落 GitHub）；未设 GitHub 优先、
+/// 自更新的读序面（细则见 R002 与模块文档）。
 /// 失败（403 限流与网络类）自动回退镜像腿（默认基址）；空串镜像全关。
 pub fn run(repo: &str, channel: Channel, git_mode: bool, force: bool) -> Result<(), String> {
     println!("update.current={}", env!("CARGO_PKG_VERSION"));

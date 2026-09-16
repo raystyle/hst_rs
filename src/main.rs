@@ -19,7 +19,7 @@ struct Cli {
     /// JSON 信封输出（--format json 简写）
     #[arg(long, global = true, conflicts_with = "format")]
     json: bool,
-    /// 输出格式：kv（marker 行，缺省）| json（信封）| jsonl（列表逐行对象）
+    /// 的输出格式面（细则见 R002 与模块文档）。
     #[arg(long, global = true)]
     format: Option<String>,
     #[command(subcommand)]
@@ -117,7 +117,7 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum DiagnoseCmd {
-    /// 网关缓存探测：逐别名双连同 payload 判前缀缓存命中矩阵（claude 线 /v1/messages 加 codex 线 /v1/responses；ds 线自动前缀不可见特判）
+    /// 的网关缓存探测面（细则见 R002 与模块文档）。
     Cache {
         /// 只测这些别名；缺省 = 网关 /v1/models 全量
         #[arg(value_name = "别名")]
@@ -168,7 +168,7 @@ enum TraceCmd {
         /// 条数上限（1-1000）
         #[arg(long, default_value_t = 100)]
         limit: usize,
-        /// 翻页偏移：跳过最新 offset 条再取窗口（往更早翻页）
+        /// 的翻页偏移面（细则见 R002 与模块文档）。
         #[arg(long, default_value_t = 0)]
         offset: usize,
         /// 项目根；默认当前目录
@@ -185,7 +185,7 @@ enum TraceCmd {
         /// 条数上限（1-1000）
         #[arg(long, default_value_t = 100)]
         limit: usize,
-        /// 翻页偏移：跳过最新 offset 条再取窗口（往更早翻页）
+        /// 的翻页偏移面（细则见 R002 与模块文档）。
         #[arg(long, default_value_t = 0)]
         offset: usize,
         /// 项目根；默认当前目录
@@ -203,14 +203,14 @@ enum TraceCmd {
         /// 条数上限（1-1000）
         #[arg(long, default_value_t = 100)]
         limit: usize,
-        /// 翻页偏移：跳过最新 offset 条再取窗口（往更早翻页）
+        /// 的翻页偏移面（细则见 R002 与模块文档）。
         #[arg(long, default_value_t = 0)]
         offset: usize,
         /// 项目根；默认当前目录
         #[arg(long)]
         project: Option<PathBuf>,
     },
-    /// 意图操作块视图：一个 operation_id 一块（一次工具调用，可能多文件）
+    /// 的意图操作块视图面（细则见 R002 与模块文档）。
     Blocks {
         /// 只看某家 agent
         #[arg(long)]
@@ -218,7 +218,7 @@ enum TraceCmd {
         /// 条数上限（1-1000，取最新 N 块）
         #[arg(long, default_value_t = 100)]
         limit: usize,
-        /// 翻页偏移：跳过最新 offset 块再取窗口（往更早翻页）
+        /// 的翻页偏移面（细则见 R002 与模块文档）。
         #[arg(long, default_value_t = 0)]
         offset: usize,
         /// 项目根；默认当前目录
@@ -232,7 +232,7 @@ enum TraceCmd {
         /// 条数上限（1-1000，取最新 N 块）
         #[arg(long, default_value_t = 100)]
         limit: usize,
-        /// 翻页偏移：跳过最新 offset 块再取窗口（往更早翻页）
+        /// 的翻页偏移面（细则见 R002 与模块文档）。
         #[arg(long, default_value_t = 0)]
         offset: usize,
         /// 项目根；默认当前目录
@@ -249,7 +249,7 @@ enum HookCmd {
         #[arg(long)]
         project: Option<PathBuf>,
     },
-    /// 状态写入入口：读事件写用户级 `~/.hst/state/`（session 分键），加 secretguard 拦截
+    /// 的状态写入入口面（细则见 R002 与模块文档）。
     Status {
         /// 事件名或四态（idle/working/blocked/unknown）；省略则读 stdin JSON
         #[arg(value_name = "事件")]
@@ -368,7 +368,7 @@ fn run() -> Result<(), String> {
 }
 
 /// `hst skill [--write]`：从 clap 活命令树自适应渲染 SKILL.md（D22）。
-/// D49：技能名翻 hst 唯一名；旧牌 ohmyagents 目录幂等退役（第 2 轮裁定
+/// 的D49面（细则见 R002 与模块文档）。
 /// 直接删除，用户手改跳过）。
 fn cmd_skill(write: bool) -> Result<(), String> {
     let body = hst::skillgen::render_skill(&Cli::command());
@@ -391,7 +391,7 @@ fn cmd_skill(write: bool) -> Result<(), String> {
     }
 }
 
-/// 旧牌用户级技能目录退役：SKILL.md 带我们生成签名（活命令树自适应
+/// 的旧牌用户级技能目录退役面（细则见 R002 与模块文档）。
 /// 生成行，oma 与 hst 两代都含）才退役；用户手改或他源不动。外科式
 ///（codex F4）：先删 SKILL.md，目录仅在空时收（伴生资源不连带删）。
 fn retire_user_skill(dir: &std::path::Path) -> Option<&std::path::Path> {
@@ -446,7 +446,7 @@ fn print_json(command: &str, root: &Path, outcome: Result<Value, String>) -> Res
     }
 }
 
-/// completions：clap_complete 生成，stdout 直接吐脚本。
+/// 的completions面（细则见 R002 与模块文档）。
 fn cmd_completions(shell: clap_complete::Shell) -> Result<(), String> {
     let mut cmd = Cli::command();
     clap_complete::generate(shell, &mut cmd, "hst", &mut std::io::stdout());
@@ -1006,7 +1006,7 @@ fn emit_trace(count_key: &str, rows: Vec<TraceRow>, total: usize, offset: usize,
     }
 }
 
-/// 操作块时间线：窗口从最新端取 `[n-offset-limit, n-offset)`，窗内时间
+/// 的操作块时间线面（细则见 R002 与模块文档）。
 /// 正序（与 timeline 的窗口语义一致，offset 向更早翻页）。
 fn print_block_timeline(
     project: &std::path::Path,

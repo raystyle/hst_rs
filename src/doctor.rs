@@ -12,20 +12,20 @@ use crate::pathutil::{abs_display, forward_slash, keys_match, native_slash};
 use crate::yolo::kimi_workspace_key;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-/// Status：只读体检 doctor的取值集。
+/// 体检结论三态：ok、warn（部署缺口不计败）与 block（退出 1）。
 pub enum Status {
-    /// Ok：只读体检 doctor公开项。
+    /// 该字段承载体检的Ok数据。
     Ok,
     /// Deploy-diagnosis gap that does not block an interactive run (login
     /// missing, statusline off): surfaced for `hst doctor`,
     /// never counted by `blocked()`.
     Warn,
-    /// Block：只读体检 doctor公开项。
+    /// 该字段承载体检的Block数据。
     Block,
 }
 
 impl Status {
-    /// as_str：只读体检 doctor的公开入口（行为细则与 marker 见 R002）。
+    /// 状态的 kv 标记取值（ok/warn/block）。
     pub fn as_str(self) -> &'static str {
         match self {
             Status::Ok => "ok",
@@ -36,34 +36,34 @@ impl Status {
 }
 
 #[derive(Debug)]
-/// Finding：只读体检 doctor的数据面。
+/// 单条体检发现：agent、检查名、状态、路径与明细。
 pub struct Finding {
-    /// agent：只读体检 doctor公开项。
+    /// 该字段承载体检的agent数据。
     pub agent: String,
-    /// check：只读体检 doctor公开项。
+    /// 该字段承载体检的check数据。
     pub check: &'static str,
-    /// status：只读体检 doctor公开项。
+    /// 按 agent 与检查名取状态（消费面查单项）。
     pub status: Status,
-    /// path：只读体检 doctor公开项。
+    /// 该字段承载体检的path数据。
     pub path: String,
-    /// detail：只读体检 doctor公开项。
+    /// 该字段承载体检的detail数据。
     pub detail: String,
 }
 
 #[derive(Debug)]
-/// Diagnosis：只读体检 doctor的数据面。
+/// 体检结果集：findings 列表与阻断判定。
 pub struct Diagnosis {
-    /// findings：只读体检 doctor公开项。
+    /// 该字段承载体检的findings数据。
     pub findings: Vec<Finding>,
 }
 
 impl Diagnosis {
-    /// blocked：只读体检 doctor的公开入口（行为细则与 marker 见 R002）。
+    /// 任一发现为 block 即真（doctor 退出码判据）。
     pub fn blocked(&self) -> bool {
         self.findings.iter().any(|f| f.status == Status::Block)
     }
 
-    /// status：只读体检 doctor的公开入口（行为细则与 marker 见 R002）。
+    /// 按 agent 与检查名取状态（消费面查单项）。
     pub fn status(&self, agent: &str, check: &str) -> Option<Status> {
         self.findings
             .iter()
@@ -78,7 +78,7 @@ fn json_file(path: &Path) -> Option<Json> {
     serde_json::from_str(text.trim_start_matches('\u{feff}')).ok()
 }
 
-/// D52：区分「文件不在 / 解析失败 / 解析成功」——解析失败显式报，不再
+/// 体检的D52面（细则见 R002 与模块文档）。
 /// 假报 missing（宿主实弹：带 BOM 的 settings.json 被 doctor 报 missing
 /// 误导排障）。
 enum JsonFileState {
@@ -280,7 +280,7 @@ fn kimi_trust_ok(home: &Path, root: &Path) -> bool {
 // ===== 登录态（S026 判据）与部署诊断扩展 =====
 
 /// grok 登录态：`~/.grok/auth.json` 是 scope → 凭据 map。判据来自 S026
-/// 源码取证加本机文件结构实证：条目有 `key` 或 `refresh_token` 即有凭据；
+/// 体检的源码取证加本机文件结构实证面（细则见 R002 与模块文档）。
 /// 过期看 `expires_at`（RFC3339），缺省按 `create_time + 30 天`兜底，提前
 /// 300s 视过期；过期但 refresh_token 在则 agent 下次运行自动刷新。
 fn grok_login_state(v: Option<&Json>, now: OffsetDateTime) -> (Status, String) {
@@ -339,7 +339,7 @@ fn grok_login_state(v: Option<&Json>, now: OffsetDateTime) -> (Status, String) {
 }
 
 /// kimi 登录态：`~/.kimi-code/credentials/kimi-code.json`。判据来自 S026
-/// 源码取证：`hasToken()` 只看 access_token 非空（不看过期，刷新按动态
+/// 体检的源码取证面（细则见 R002 与模块文档）。
 /// 阈值自动做）；空串是 401/403 墓碑（吊销态，需重登）；expires_at 是
 /// Unix 秒。
 fn kimi_login_state(v: Option<&Json>, now_secs: i64) -> (Status, String) {
@@ -396,7 +396,7 @@ pub(crate) fn login_state(agent: &str) -> Option<(Status, String)> {
 
 // ===== 状态栏形态（S025 落位） =====
 
-/// 状态栏脚本标记：hst 现行名加 oma 历史名（heal 残留识别）双匹配。
+/// 体检的状态栏脚本标记面（细则见 R002 与模块文档）。
 const STATUSLINE_MARKER: &str = "hst-statusline";
 const STATUSLINE_MARKER_LEGACY: &str = "oma-statusline";
 
@@ -574,8 +574,8 @@ fn command_target(c: &str) -> std::path::PathBuf {
 }
 
 /// JSON 形 hook 注册（claude settings、grok ohmyagents-state.json）的 oma
-/// 形态：shim（D27 自包含状态写入且脚本在位）/ shim-dead（指向 shim 但脚本
-/// 缺失：项目搬迁或 shim 被删）/ bare（PATH 解析，D27 前跨环境形态）/
+/// 体检的形态面（细则见 R002 与模块文档）。
+/// 体检的缺失面（细则见 R002 与模块文档）。
 /// absolute（单环境）/ args（M047 病理）/ none。
 fn json_hooks_form(v: Option<&Json>) -> &'static str {
     let Some(events) = v.and_then(|v| v.get("hooks")).and_then(|h| h.as_object()) else {
@@ -853,6 +853,9 @@ fn push_project_residue(out: &mut Vec<Finding>, agent: &str, ours: bool, path: &
     }
 }
 
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
 /// Read-only. Does not attach, send-keys, or wait on TUI.
 pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
     let root = abs_display(root);
@@ -1916,7 +1919,7 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
     Ok(Diagnosis { findings })
 }
 
-/// print_diagnosis：只读体检 doctor的公开入口（行为细则与 marker 见 R002）。
+/// 体检的print_diagnosis面（细则见 R002 与模块文档）。
 pub fn print_diagnosis(d: &Diagnosis) {
     for f in &d.findings {
         println!(

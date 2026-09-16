@@ -12,7 +12,7 @@ use std::io::Read;
 
 use serde_json::{json, Value};
 
-/// 探测用长文本：需超过缓存最小前缀阈值（claude ephemeral 1024 token 起），
+/// 活性诊断的探测用长文本面（细则见 R002 与模块文档）。
 /// 确定性生成（同 payload 双连才能命中前缀缓存）。
 fn cache_text() -> String {
     let para = "oma cache probe deterministic filler block. prefix caching requires a stable long system prefix repeated verbatim across two connections. ";
@@ -37,20 +37,23 @@ fn thinking_cap(model: &str) -> Option<u64> {
 
 /// 网关凭据与入口。
 pub struct Gateway {
-    /// base_url：活性诊断族公开项。
+    /// 该字段承载活性诊断的base_url数据。
     pub base_url: String,
-    /// key：活性诊断族公开项。
+    /// 该字段承载活性诊断的key数据。
     pub key: String,
-    /// source：活性诊断族公开项。
+    /// 该字段承载活性诊断的source数据。
     pub source: &'static str,
 }
 
-/// 网关发现：env 覆盖 > claude 配置 > codex 配置；都无则带 CTA 硬错。
+/// 活性诊断的网关发现面（细则见 R002 与模块文档）。
 fn read_env_nonempty(key: &str) -> Option<String> {
     std::env::var(key).ok().filter(|s| !s.is_empty())
 }
 
-/// discover_gateway：活性诊断族的公开入口（行为细则与 marker 见 R002）。
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
+/// 活性诊断的discover_gateway面（细则见 R002 与模块文档）。
 pub fn discover_gateway() -> Result<Gateway, String> {
     // D45 oma 遗产清扫：旧 OMA_GATEWAY_* 兼容读已删（1.1.0 窗口已过）。
     let env_url = read_env_nonempty("HST_GATEWAY_URL");
@@ -183,6 +186,9 @@ fn parse_body(resp: ureq::Response) -> Result<Value, String> {
     serde_json::from_str(&buf).map_err(|e| format!("decode body: {e}"))
 }
 
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
 /// GET `<base>/v1/models`，返回别名 id 清单（同时就是 key 活性判据）。
 pub fn list_models(gw: &Gateway) -> Result<Vec<String>, String> {
     let req = ureq::get(&format!("{}/v1/models", gw.base_url)).timeout(Duration::from_secs(30));
@@ -205,7 +211,7 @@ pub fn list_models(gw: &Gateway) -> Result<Vec<String>, String> {
     Ok(out)
 }
 
-/// 别名线归属：`-codex` 尾走 /v1/responses，其余（`-claude` 尾或裸名）走
+/// 活性诊断的别名线归属面（细则见 R002 与模块文档）。
 /// /v1/messages。
 pub fn line_of(alias: &str) -> Line {
     if alias.ends_with("-codex") {
@@ -215,11 +221,11 @@ pub fn line_of(alias: &str) -> Line {
     }
 }
 
-/// Line：活性诊断族的取值集。
+/// 活性诊断的Line面（细则见 R002 与模块文档）。
 pub enum Line {
-    /// Claude：活性诊断族公开项。
+    /// 该字段承载活性诊断的Claude数据。
     Claude,
-    /// Codex：活性诊断族公开项。
+    /// 该字段承载活性诊断的Codex数据。
     Codex,
 }
 
@@ -232,7 +238,7 @@ impl Line {
     }
 }
 
-/// CacheVerdict：活性诊断族的取值集。
+/// 活性诊断的CacheVerdict面（细则见 R002 与模块文档）。
 pub enum CacheVerdict {
     /// Hit {：活性诊断族公开项。
     Hit {
@@ -249,14 +255,14 @@ pub enum CacheVerdict {
     /// ds 官方 anthropic 端点走全自动前缀匹配，usage 不透传缓存字段：
     /// 判「自动前缀（不可见）」而非「无缓存」（D21 用户科普修正）。
     AutoPrefix,
-    /// None：活性诊断族公开项。
+    /// 该字段承载活性诊断的None数据。
     None,
     /// Error(String),：活性诊断族公开项。
     Error(String),
 }
 
 impl CacheVerdict {
-    /// label：活性诊断族的公开入口（行为细则与 marker 见 R002）。
+    /// 活性诊断的label面（细则见 R002 与模块文档）。
     pub fn label(&self) -> String {
         match self {
             CacheVerdict::Hit { created, read } => {
@@ -291,7 +297,7 @@ fn post_json(url: &str, key: &str, claude_line: bool, body: &Value) -> Result<Va
     parse_body(resp)
 }
 
-/// 探测一个别名：同 payload 至多三连（网关两连可能异区只写不读——上游
+/// 活性诊断的探测一个别名面（细则见 R002 与模块文档）。
 /// geo 漂移实测；读到即停，判前缀缓存）。
 pub fn probe_alias(gw: &Gateway, alias: &str, line: &Line) -> CacheVerdict {
     let text = cache_text();
@@ -336,7 +342,7 @@ pub fn probe_alias(gw: &Gateway, alias: &str, line: &Line) -> CacheVerdict {
     verdict_from_usages(alias, line, &usages)
 }
 
-/// 纯函数：多连 usage 判 verdict（读到即 hit；只写不断连 = write-only，
+/// 活性诊断的纯函数面（细则见 R002 与模块文档）。
 /// 网关异区只写不读的实测形态；ds 特判只落在 claude 线）。
 pub fn verdict_from_usages(alias: &str, line: &Line, usages: &[Value]) -> CacheVerdict {
     let is_ds = alias.starts_with("ds");
@@ -392,6 +398,9 @@ pub fn verdict_from_usages(alias: &str, line: &Line, usages: &[Value]) -> CacheV
     }
 }
 
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
 /// `hst diagnose cache` 主流程。aliases 为空 = /v1/models 全量。
 pub fn run_cache(aliases: &[String]) -> Result<Vec<(String, Line, CacheVerdict)>, String> {
     let gw = discover_gateway()?;
@@ -409,6 +418,9 @@ pub fn run_cache(aliases: &[String]) -> Result<Vec<(String, Line, CacheVerdict)>
     Ok(out)
 }
 
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
 /// `hst diagnose agents` 主流程：配置指向、别名在册、key 活性、thinking
 /// 对照。返回 kv 行（已排序的 (key, value) 对）。
 pub fn run_agents() -> Result<Vec<(String, String)>, String> {

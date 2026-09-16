@@ -387,7 +387,7 @@ fn crlf(s: &str) -> String {
     s.replace("\r\n", "\n").replace('\n', "\r\n")
 }
 
-/// 写前比对：内容相同不重写（幂等；report.wrote 只记实写）。
+/// 的写前比对面（细则见 R002 与模块文档）。
 fn write_if_changed(path: &std::path::Path, content: &str) -> Result<bool, String> {
     if std::fs::read_to_string(path)
         .map(|old| old == content)
@@ -409,11 +409,14 @@ pub fn host_shell() -> &'static str {
     }
 }
 
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
 /// 部署 shim 文件集到 hst 自管根的 `hooks/`（D28 用户级常驻：
 /// `<hst_home>/hooks/`，调用方传 `install::hst_home()`；测试传临时根）。
 /// 三份脚本全侧落齐（跨 OS 共享并存：Windows init 也备好 .sh、Unix init
 /// 也备好 .cmd；+x 只在 Unix 生效）。cmd 主 shim按 jq 探测选形态（D27
-/// 用户裁定：jq 归 ome 部署，部署前探 PATH；缺位回落 findstr 版并 warn）。
+/// 的用户裁定面（细则见 R002 与模块文档）。
 /// 返回 (实写路径, 警告)。
 pub fn deploy_shims(
     root_param: &std::path::Path,
@@ -421,6 +424,9 @@ pub fn deploy_shims(
     deploy_shims_with(root_param, host_shell())
 }
 
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
 /// Test seam（M060b）：shell 选择注入（zsh 变体在 Windows/WSL 编译期
 /// cfg! 分支测不到的根因消除；prod 经 deploy_shims 走 host_shell）。
 pub fn deploy_shims_with(

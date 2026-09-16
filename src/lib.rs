@@ -7,7 +7,7 @@
 
 /// 四家 agent 探测（PATH、env、hst 自管根、默认目录四源）。
 pub mod agents;
-/// 通用归档工具：sha256 校验、zip/tar.gz 解包、目录复制、host os/arch。
+/// 的通用归档工具面（细则见 R002 与模块文档）。
 pub mod archive;
 /// CPU 指令集能力与探针退出形态分类（S021/P0018）。
 pub mod caps;
@@ -23,9 +23,9 @@ pub mod fmtio;
 pub mod hook;
 /// hst 根解析与共享下载件（self update 复用）。
 pub mod install;
-/// 路径工具：家目录与 hst 根解析、跨侧键匹配（D28/D29）。
+/// 的路径工具面（细则见 R002 与模块文档）。
 pub mod pathutil;
-/// 密钥拦截闸：模式表八层防误报、实值比对、block 级 exit 2（S030/D23）。
+/// 的密钥拦截闸面（细则见 R002 与模块文档）。
 pub mod secretguard;
 /// shim 三形态自包含状态写入器：cmd/ps1/sh 加 grok 包装（D27/D28/D39）。
 pub mod shim;

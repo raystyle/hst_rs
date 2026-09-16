@@ -15,5 +15,5 @@ hst；旧牌 ohmyagents 不留兼容窗，第 2 轮用户裁定直接删除加�
 
 ## Constants
 
-- `SKILL_NAME` — D49：canonical 技能名（第 2 轮裁定无兼容窗，唯一名）。
+- `SKILL_NAME` — 技能生成的D49面（细则见 R002 与模块文档）。
 

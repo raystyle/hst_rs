@@ -23,8 +23,8 @@ session 标识三源：payload `session_id`（claude/codex）、`sessionId`
 
 ## Functions
 
-- `deploy_shims` — 部署 shim 文件集到 hst 自管根的 `hooks/`（D28 用户级常驻：
-- `deploy_shims_with` — Test seam（M060b）：shell 选择注入（zsh 变体在 Windows/WSL 编译期
+- `deploy_shims` — # Errors
+- `deploy_shims_with` — # Errors
 - `host_shell` — 宿主 shell 选择（M060b 抽出成映射）：macOS 落 zsh shebang（缺
 - `state_sh_for` — 部署时替换 shebang 行得到 zsh 变体（语义同 bash 形；zsh 无 bashisms 可用
 
