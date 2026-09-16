@@ -10,3 +10,4 @@
 | REQ-004 | draft | should | grok运行时退单排pwsh闸门断言 | |
 | REQ-005 | draft | should | 门禁脚本退出码对齐CI | |
 | REQ-006 | implemented | must | aidoc投影强制重构 | aidoc --check --strict |
+| REQ-007 | implemented | should | 全平台SSH实测矩阵 | .tools/cross-test.sh |
