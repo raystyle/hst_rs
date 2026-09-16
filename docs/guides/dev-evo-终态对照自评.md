@@ -4,6 +4,8 @@
 
 ## 十七篇逐面自评
 
+> 对照 references 十七篇（README 快速路由加场景索引全集）。
+
 | 参考 | 判定 | 依据 |
 | --- | --- | --- |
 | base-init | 已落 | REQ-001 存量迁移（五节合同、ADR/REQ、地图承接 INDEX） |
@@ -24,7 +26,9 @@
 | exp-sedimentation | 已落 | AGENTS Must 沉淀条款（旧 G004 对应）；proven 择要升 ADR 四件实证 |
 | tool-project | 已落 | .tools 归档带 README 清单（cross-test.sh 随批登记） |
 
-## agent CLI 面对照（tool-cli-agents 第十一节）
+## agent CLI 面对照
+
+> 对照 tool-cli-agents 第十一节（输出面增量与三栈落位）。
 
 | 面 | 判定 | 依据 |
 | --- | --- | --- |
