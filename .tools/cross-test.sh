@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # 全平台实弹测试矩阵（REQ-007）：本地构建各平台产物，scp 到 SSH 端，跑
-# --version 与 doctor 冒烟，汇总矩阵。linux 端就地跑（本机即 linux）；
+# --version 与 doctor 冒烟，汇总矩阵。wsl 端就地跑（本机即 linux）；
 # Windows 宿主恒走 127.0.0.1 回环（口径见 dev-evo env-platform 第十节）。
-# 五端（2026-09-16 用户令）：local-linux 加 lan-ubuntu 加 lan-linux 加
-# lan-mac 加 lan-win。
+# 5端4机（全平台测试基建原语，2026-09-16 用户定）：wsl 加 lan-ubuntu 加
+# lan-linux 加 lan-mac 加 lan-win；wsl 与 lan-win 同宿主机共一机。
 # 用法：.tools/cross-test.sh [版本标签]；版本标签缺省取 Cargo.toml。
 # 依赖：ssh BatchMode 已配好 lan-mac / lan-ubuntu / lan-linux；宿主 sshd 监听回环。
 set -euo pipefail
@@ -51,7 +51,7 @@ build x86_64-unknown-linux-gnu hst hst-linux
 build x86_64-pc-windows-gnu hst.exe hst.exe
 fetch_mac
 
-echo "-- local-linux"
+echo "-- wsl"
 "$OUT/hst-linux" --version
 { "$OUT/hst-linux" doctor | tail -1 || true; }
 run_remote lan-ubuntu hst-linux
