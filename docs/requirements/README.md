@@ -8,6 +8,6 @@
 | REQ-002 | draft | should | 资产名与关键词取参纯函数重构 | |
 | REQ-003 | draft | should | self-update读序不回环集成断言 | |
 | REQ-004 | draft | should | grok运行时退单排pwsh闸门断言 | |
-| REQ-005 | draft | should | 门禁脚本退出码对齐CI | |
+| REQ-005 | rejected | should | 门禁脚本退出码对齐CI | 三环境退出码实证（场景不复现，M033 同型） |
 | REQ-006 | implemented | must | aidoc投影强制重构 | aidoc --check --strict |
 | REQ-007 | implemented | should | 全平台SSH实测矩阵 | .tools/cross-test.sh |
