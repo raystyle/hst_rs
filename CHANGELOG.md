@@ -112,6 +112,10 @@
 
 - **断源自救与诊断正名 v1.2.0**（D48 至 D51 攒批，用户裁「要新封版」）：**D48 stable 镜像腿与限流自救**（ohmycloud 舰队撞 api.github.com 匿名 403 断源转需求）：`HST_MIRROR` 未设改 GitHub 优先、失败自动回退镜像腿默认基址（ark 三层读序参照，段随通道、dev 禁落 stable）、设值扩到 stable 通道 mirror-first、`GH_TOKEN` 在位附 Bearer（匿名 60 升 5000 次每时）；真网 e2e 两轮（mirror-first stable 腿下载替换与幂等 already-latest）；顺带根修 stable 通道镜像整段跳过的老缺口。**D49 技能名翻 hst**（两轮：先兼容窗、后用户令旧牌直接删除）：技能唯一名 `hst`，旧牌 `ohmyagents` 目录由 `skill --write`（`skill.retired=`）与 `init` 四处（`(retired)`）幂等退役，ours 识别（marker 家族或生成签名）用户手改不动，外科式只删 SKILL.md 目录空才收。**D50 doctor bypass 残余阻塞面**（S029 追记分类学落地）：新检查 `yolo.ask`（ask 规则 bypass 下照弹，三层）与 `yolo.readblock`（读沙箱键，不可静态分析命令即使 bypass 也问人，三层），既有 yolo 检查补 `settings.local.json` 层并修项目层 bypass-only 假阳性（claude 2.1.257 起项目层被忽略）。**D51 状态栏 clock 段**：第一行行尾年月日加当前时间（`yyyy-MM-dd HH:mm` 分钟精度，渲染事件重绘即活钟；`{datetime}` 占位与 `clock` 图标键可定制，冒号转义钉 ASCII 免区域文化替换）。S029 追记 bypass 残余阻塞分类学（官方七页文档加 changelog 取证，证伪 resume 还原旧记）与 S035 herdr 共存实证同窗落档。
 
+### 里程碑 2026-09-16
+
+- **治理迁移与四端实弹 v1.3.0**（D52 铁证根修至 REQ-007 攒批，总台统一封版令）：**D52 家目录守卫**（宿主反例三轮归因收敛：裸 init 于家目录 cwd 时项目级退役趟洗用户键，deploy_all 守卫 + --project-yolo 同罩，三端 fleet 实弹验）；读侧 BOM 容忍全覆盖（json 与 toml 五路）加 yolo full 双面落 blockReads=false 加 doctor yolo.parse 显式报。**D53 状态栏面并入 init**（fleet 实测脚本停旧版：deploy_script 加四家 merge 随全套部署，内容判等幂等，marker 保护自备）。**文档体系迁移 dev-evo**（REQ-001：AGENTS 五节合同、ADR 四件、REQ 登记、docs/README 地图承接 INDEX、PE-11 豁免机制化 PEVO_CHECK_ALLOW）。**aidoc 投影强制**（REQ-006：missing_docs deny 加 /// 契约注释 163 处加格式纪律 337 处补注、23 artifact 进 Git、--check --strict 漂移门禁、clippy 四 lint）。**全平台四端实弹矩阵**（REQ-007：cross-test.sh，linux 加 ubuntu 加 mac 加 win 回环，连接姿势 WSL 到宿主恒走 127.0.0.1）。S029 追记 bypass 残余阻塞分类学（归因三次反转教训入档）加 D50 doctor 诊断面（yolo.ask 与 yolo.readblock）随 v1.2.0 已发。
+
 ### 排后
 
 - Linux/mac 接管（P0012 跨平台面）：资产与代码路径就绪；指令集 SIGILL 预备检测研究已备（S021）。
