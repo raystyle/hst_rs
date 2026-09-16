@@ -1147,3 +1147,71 @@ fn structured_error_goes_to_stderr_as_single_line_json() {
     assert_eq!(v["code"], serde_json::json!("error"));
     assert!(v["message"].as_str().is_some());
 }
+
+#[test]
+fn self_update_mirror_first_does_not_loop_back() {
+    // REQ-003（codex D48 评审 F3）假基址集成断言：mirror-first 两腿全失败
+    // （假基址连接拒收加不存在的仓）时读序收束不回环——镜像腿只试一次、
+    // GitHub 失败后不再回镜像（无 update.fallback=mirror 标记），按源码安
+    // 装提示收尾退出 0。GitHub 腿任何失败形（404 加 403 加断网）都收在
+    // 同一 Err 分支，断言只看标记不看 detail。
+    let out = hst()
+        .env("HST_MIRROR", "http://127.0.0.1:9/req003")
+        .args([
+            "self",
+            "update",
+            "--stable",
+            "--repo",
+            "req003/no-such-repo",
+        ])
+        .timeout(std::time::Duration::from_secs(120))
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let s = String::from_utf8_lossy(&out);
+    assert!(s.contains("update.mirror=http://127.0.0.1:9/req003"), "{s}");
+    assert_eq!(
+        s.matches("update.mirror=failed").count(),
+        1,
+        "镜像腿只试一次：{s}"
+    );
+    assert!(s.contains("update.fallback=github"), "{s}");
+    assert!(s.contains("update.source=github"), "{s}");
+    assert!(s.contains("update.release=unavailable"), "{s}");
+    assert!(s.contains("update.hint="), "{s}");
+    assert!(
+        !s.contains("update.fallback=mirror"),
+        "不回环：First 态 GitHub 失败后不得回退镜像：{s}"
+    );
+}
+
+#[test]
+fn self_update_mirror_off_runs_github_only() {
+    // REQ-003 三态之 Off：HST_MIRROR 空串全关——GitHub 失败即收束（源码
+    // 安装提示），全程无任何镜像腿标记（不尝试、不回退）。
+    let out = hst()
+        .env("HST_MIRROR", "")
+        .args([
+            "self",
+            "update",
+            "--stable",
+            "--repo",
+            "req003/no-such-repo",
+        ])
+        .timeout(std::time::Duration::from_secs(120))
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let s = String::from_utf8_lossy(&out);
+    assert!(s.contains("update.mirror=off"), "{s}");
+    assert!(s.contains("update.source=github"), "{s}");
+    assert!(s.contains("update.release=unavailable"), "{s}");
+    assert!(s.contains("update.hint="), "{s}");
+    assert!(!s.contains("update.mirror=failed"), "{s}");
+    assert!(!s.contains("update.fallback=mirror"), "{s}");
+    assert!(!s.contains("update.fallback=github"), "{s}");
+}

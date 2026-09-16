@@ -469,6 +469,13 @@ pub fn git_install(repo: &str) -> Result<(), String> {
 ///
 /// 判新（D48 双通道）：dev 按 rolling digest（资产 sha256 对安装记录，滚动版
 /// 版本号常不变）；latest 走 GitHub 时按版本 tag，走镜像腿时同 dev 按 digest。
+/// D48 读序回退守卫（REQ-003 命名取参形）：GitHub 失败后是否回退镜像腿。
+/// 仅 DefaultFallback（未设 HST_MIRROR）回退；First 已试过镜像，再回退即
+/// 回环重试故不回；Off 显式全关。钉「不回环」性质（codex D48 评审 F3）。
+fn github_fail_falls_back_to_mirror(plan: &MirrorPlan) -> bool {
+    matches!(plan, MirrorPlan::DefaultFallback)
+}
+
 /// 自更新的读序面（细则见 R002 与模块文档）。
 /// 失败（403 限流与网络类）自动回退镜像腿（默认基址）；空串镜像全关。
 pub fn run(repo: &str, channel: Channel, git_mode: bool, force: bool) -> Result<(), String> {
@@ -494,7 +501,7 @@ pub fn run(repo: &str, channel: Channel, git_mode: bool, force: bool) -> Result<
         Err(e) => {
             // D48 回退腿：GitHub 失败自动落镜像段边车锚（救 api.github.com
             // 匿名 403 限流与断网）。mirror-first 已试过镜像的不回环重试。
-            if matches!(plan, MirrorPlan::DefaultFallback) {
+            if github_fail_falls_back_to_mirror(&plan) {
                 println!("update.release=unavailable detail={e}");
                 println!("update.fallback=mirror");
                 return match via_mirror(DEFAULT_MIRROR_BASE, channel.mirror_seg(), force)? {
@@ -773,6 +780,21 @@ mod tests {
         // D48：段随通道（dev 与 stable 各回各段，dev 禁回落 stable）。
         assert_eq!(Channel::Dev.mirror_seg(), "dev");
         assert_eq!(Channel::Latest.mirror_seg(), "stable");
+    }
+
+    #[test]
+    fn github_fail_fallback_guard_covers_three_read_states() {
+        // REQ-003 读序回退守卫三态（codex D48 评审 F3）：仅 DefaultFallback
+        // 触发镜像回退；First 已试过镜像（再回退即回环重试）、Off 全关。
+        // env 三态解析面另见 mirror_plan_three_states_from_env_raw；First
+        // 与 Off 的实腿接线见 tests/cli.rs 假基址集成断言。
+        assert!(github_fail_falls_back_to_mirror(
+            &MirrorPlan::DefaultFallback
+        ));
+        assert!(!github_fail_falls_back_to_mirror(&MirrorPlan::First(
+            "https://m.example.com".into()
+        )));
+        assert!(!github_fail_falls_back_to_mirror(&MirrorPlan::Off));
     }
 
     #[test]
