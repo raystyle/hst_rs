@@ -11,7 +11,7 @@
 - `cargo build --release --locked --target x86_64-pc-windows-gnu --bins` Windows 交叉构建
 - `PEVO_CHECK_ALLOW` 加 `uv run /mnt/d/ProjectEvo/plugins/project-evo/skills/dev-evo/scripts/check.py .` 骨架合规自检（豁免正则与标准命令见 docs/README 存量禁字债口径节；正则含 `^docs/aidoc/` 在册）
 - `./target/debug/hst doctor` 本机体检；`./target/debug/hst init` dogfood 部署
-- `bash .tools/cross-test.sh` 全平台实弹矩阵（linux 加 windows-gnu 本地构建、mac 取 dev release 资产、scp lan-ubuntu 与 lan-mac 冒烟；lan-win 待宿主 sshd，REQ-007）
+- `bash .tools/cross-test.sh` 全平台四端实弹矩阵（linux 加 windows-gnu 本地构建、mac 取 dev release 资产、lan-ubuntu 与 lan-mac mesh、宿主 127.0.0.1 回环，REQ-007）
 - `cargo aidoc` 后提交 `docs/aidoc/`（改 pub 项或文档后先重生成再提交；`cargo aidoc --check --strict` 漂移门禁）
 - `///` 契约注释覆盖公开项（missing_docs = deny，CI 必红）；doctest 走集成测试 tests/ 承载（dev-evo 第五十九批 ADR-0006：Rust 栈 aidoc 投影强制，bin-only 不豁免，受众是维护者与 agent）
 
@@ -45,3 +45,4 @@
 - 评审闸门惯例：交付批经 herdr 右侧 codex 会话对齐后推 main
 - 跨仓：ark-rs `D:\ohmyenv-rs`、ohmycloud `D:\ohmycloud`、本地 dev-evo 指导仓 `D:\ProjectEvo`
 - WSL 上 Windows 命令用 pwsh 7；md 与 Rust 源 UTF-8；需兼容 PS 5.1 的脚本带 UTF-8 BOM
+- 连接姿势：WSL 到宿主恒走 127.0.0.1 回环（ssh 加 interop 直调，不走宿主 mesh IP）；lan 三端（mac 与 ubuntu 与 linux）mesh 随时随地；口径全文见 dev-evo env-platform 第十节

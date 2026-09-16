@@ -23,4 +23,4 @@
 
 - 两个首发工具由 2026-08-31 文档整编与全量 REVIEW 中验证过的内联脚本正式化（断链扫描器当轮扫出 21 处断链并修复）。
 - D15（2026-09-08）去编排后删除两件编排时代工具：`review-round.py`（agent 轮换接力 review，消费面 `oma send/task` 已移除）与 `share-view-probe.py`（rmux web-share 探针）。历史见 git。
-- `cross-test.sh`：全平台实弹测试矩阵（REQ-007）——本地构建 linux/mac/windows-gnu 三产物，scp 到 lan-ubuntu 与 lan-mac 跑 --version 加 doctor 冒烟（lan-win 待宿主 sshd）。用法 `bash .tools/cross-test.sh`。
+- `cross-test.sh`：全平台实弹测试矩阵（REQ-007）——本地构建 linux/mac/windows-gnu 三产物，scp 到 lan-ubuntu 与 lan-mac 跑 --version 加 doctor 冒烟；Windows 宿主走 127.0.0.1 回环 powershell 冒烟。用法 `bash .tools/cross-test.sh`。

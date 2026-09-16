@@ -14,7 +14,7 @@ WSL 内可 ssh lan-mac（Darwin arm64）与 lan-ubuntu（Linux x86_64），Windo
 
 ## Criteria
 
-- [x] SSH 连通性探测（lan-mac 与 lan-ubuntu BatchMode 实证 OK；lan-win 22 拒绝，通道待宿主开 OpenSSH Server 后启用）
+- [x] SSH 连通性探测（lan-mac 与 lan-ubuntu mesh 实证 OK；lan-win 走 127.0.0.1 回环实证 OK，第六十三批连接姿势口径：WSL 到宿主恒走回环不走 mesh IP）
 - [x] .tools/cross-test.sh：本地构建目标平台产物、scp 到各端、跑 --version 与 doctor 冒烟、汇总矩阵
-- [x] 实测一轮三端绿（linux 本机加 mac 加 ubuntu）
+- [x] 实测一轮四端绿（linux 本机加 ubuntu 加 mac 加 win 回环，win 端 powershell 冒烟 --version 与 doctor）
 - [x] AGENTS Commands 与 .tools/README 登记
