@@ -36,6 +36,9 @@ jobs:
           uvx rumdl check .
       - name: aidoc drift gate
         run: |
+          # cargo-aidoc 钉 nightly-2026-07-07 跑 rustdoc（首弹红因：runner
+          # 只有 stable，rustup run 找不到工具链）。
+          rustup toolchain install nightly-2026-07-07 --profile minimal
           cargo install cargo-aidoc --locked
           cargo aidoc --check --strict
 
