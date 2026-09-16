@@ -2396,6 +2396,29 @@ mod tests {
             out_kimi.contains("kimi-2.1.270:unknown") && out_kimi.contains("195k/977k"),
             "kimi single line keeps agent state and tokens: {out_kimi}"
         );
+        // grok 退化（REQ-004，codex D40 G2 收尾）：同配置并一行，agent 态与
+        // token 绝对值仍可见；且走 ASCII 面（$nerd 假路径，M046）：全行无
+        // Nerd PUA 图标字形。
+        let out_grok = run_statusline(&p, "grok", &home, stdin);
+        let grok_lines = out_grok
+            .lines()
+            .filter(|l| !l.trim().is_empty())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            grok_lines.len(),
+            1,
+            "grok merges rows to one line: {out_grok}"
+        );
+        assert!(
+            out_grok.contains("grok-2.1.270:unknown") && out_grok.contains("195k/977k"),
+            "grok single line keeps agent state and tokens: {out_grok}"
+        );
+        assert!(
+            !out_grok
+                .chars()
+                .any(|c| matches!(u32::from(c), 0xE000..=0xF8FF)),
+            "grok ASCII path emits no Nerd PUA glyphs: {out_grok}"
+        );
         let _ = std::fs::remove_dir_all(&home);
         // 显式选用面（D40 三要素段保留）：segments3 显式带 tools / mcp /
         // tokens 时第三行回来、三段照常渲染（transcript 夹具 3 次
