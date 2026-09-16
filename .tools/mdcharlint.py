@@ -84,7 +84,10 @@ def main():
     allow = load_allow()
     hits = 0
     for path in iter_targets(sys.argv[1:]):
-        rel = path.relative_to(Path.cwd()).as_posix() if path.is_absolute() else path.as_posix()
+        try:
+            rel = path.relative_to(Path.cwd()).as_posix() if path.is_absolute() else path.as_posix()
+        except ValueError:
+            rel = path.as_posix()
         if any(rel.startswith(s) for s in SKIP_DIRS):
             continue
         if rel in allow:
