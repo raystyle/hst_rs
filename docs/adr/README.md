@@ -8,3 +8,4 @@
 | ADR-0002 | accepted | hook注册与状态通道常驻用户级 | |
 | ADR-0003 | accepted | Windows构建切gnu交叉编译摆脱VC | |
 | ADR-0004 | accepted | self-update镜像腿与缺省回退 | |
+| ADR-0005 | accepted | skill面退役发现通道收敛llms | 替代 D22/D49 两级 skill 面 |
