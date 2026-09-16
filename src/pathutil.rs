@@ -123,6 +123,7 @@ pub fn forward_slash(path: &Path) -> String {
     native_slash(path).replace('\\', "/")
 }
 
+/// norm_key：路径工具的公开入口（Windows 侧配置键归一：反斜杠加小写；行为细则见 R002）。
 #[cfg(windows)]
 pub fn norm_key(s: &str) -> String {
     s.replace('/', "\\").to_ascii_lowercase()
