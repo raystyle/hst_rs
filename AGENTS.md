@@ -42,7 +42,7 @@
 
 ## 环境
 
-- 三平台矩阵（Windows/Linux/macOS，CI 三岗含 gnu 交叉岗）；本仓双侧开发（Windows `D:\hst_rs` 加 WSL `/home/ray/hst_rs`）
+- 三平台矩阵（Windows/Linux/macOS，CI 三岗含 gnu 交叉岗）；本仓双侧开发（Windows `D:\hst_rs` 加 WSL `~/repos/hst_rs`）
 - 评审闸门惯例：交付批经 herdr 右侧 codex 会话对齐后推 main
 - 跨仓：ark-rs `D:\ohmyenv-rs`、ohmycloud `D:\ohmycloud`、本地 dev-evo 指导仓 `D:\ProjectEvo`
 - WSL 上 Windows 命令用 pwsh 7；md 与 Rust 源 UTF-8；需兼容 PS 5.1 的脚本带 UTF-8 BOM
