@@ -11,7 +11,7 @@ pub mod agents;
 pub mod archive;
 /// CPU 指令集能力与探针退出形态分类（S021/P0018）。
 pub mod caps;
-/// `hst init` 部署层：hook 注册四家用户级、shim 落位、SKILL 命令图与状态栏面（D53）。
+/// `hst init` 部署层：hook 注册四家用户级、shim 落位、状态栏面与 ours 技能目录清扫（D53/ADR-0005）。
 pub mod deploy;
 /// `hst diagnose` 活性诊断族：网关缓存命中矩阵与配置活性（D21）。
 pub mod diagnose;
@@ -29,8 +29,6 @@ pub mod pathutil;
 pub mod secretguard;
 /// shim 三形态自包含状态写入器：cmd/ps1/sh 加 grok 包装（D27/D28/D39）。
 pub mod shim;
-/// `hst skill` 渲染器：从 clap 活命令树自适应生成 SKILL.md（D22/D49）。
-pub mod skillgen;
 /// `hst statusline`：四家状态栏写入面幂等合并与拆段拼装（S025/D18/D42 至 D51）。
 pub mod statusline;
 /// trace 六视图：联邦读四家原生会话库归一检索（P0013/P0014，D19）。

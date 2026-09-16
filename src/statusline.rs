@@ -1191,8 +1191,8 @@ pub fn deploy_script(home: &Path) -> Result<PathBuf, String> {
                 e
             }
         })?;
-        // D53：内容判等幂等（init 全套并入后重跑不搅 mtime；同 write_skill
-        // 语义，只在内容变化时落盘）。
+        // D53：内容判等幂等（init 全套并入后重跑不搅 mtime；只在内容
+        // 变化时落盘）。
         if std::fs::read_to_string(&p).ok().as_deref() != Some(script.as_str()) {
             std::fs::write(&p, script).map_err(|e| format!("{}: {e}", p.display()))?;
         }

@@ -18,7 +18,7 @@
 
 ## Must
 
-- 改命令面四处同步：R002 行、重跑 `hst init` 重生 SKILL、COMMAND_MAP、INDEX/docs README
+- 改命令面两处同步：R002 行、docs README（agent 手册 `hst --llms` 随命令树自适应渲染，无生成物落盘，ADR-0005）
 - 不可逆技术选择先立 `docs/adr/`；新需求先立 `docs/requirements/` REQ
 - 事实性断言标六态（`[实证]` 至 `[直觉]`，规范见 G002）；实证滥用即未完成
 - 踩坑当场记 `docs/mistakes/`（同根因聚合）；同型二犯升格 ADR 或 references
@@ -27,7 +27,7 @@
 
 ## Must not
 
-- 手改生成物（SKILL.md、状态栏脚本、COMMAND_MAP 生成面）
+- 手改生成物（状态栏脚本、docs/aidoc 生成面）
 - 另写第二真相（命令细则唯一权威在 R002，标记契约在 S025/R011）
 - emoji、破折号、Unicode 箭头、非法全角（G005 四类禁字，豁免区外零容忍）
 - 未经指示推远端；编排面与 token 注入面回流（ADR-0001）

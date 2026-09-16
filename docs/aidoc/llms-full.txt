@@ -1,5 +1,5 @@
 <!-- hst_cli/index.md -->
-# hst-cli 1.3.0
+# hst-cli 2.0.0
 
 hst-cli：HST（Hooks, Statusline, Trace）库面——四家 agent（claude、
 codex、grok、kimi）的部署配置与诊断内核。承载五功能：hook 状态落盘
@@ -13,7 +13,7 @@ docs/research 与 docs/adr；输出信封契约见 R011。
 - [`agents`](agents.md): 四家 agent 探测（PATH、env、hst 自管根、默认目录四源）。
 - [`archive`](archive.md): 的通用归档工具面（细则见 R002 与模块文档）。
 - [`caps`](caps.md): CPU 指令集能力与探针退出形态分类（S021/P0018）。
-- [`deploy`](deploy.md): `hst init` 部署层：hook 注册四家用户级、shim 落位、SKILL 命令图与状态栏面（D53）。
+- [`deploy`](deploy.md): `hst init` 部署层：hook 注册四家用户级、shim 落位、状态栏面与 ours 技能目录清扫（D53/ADR-0005）。
 - [`diagnose`](diagnose.md): `hst diagnose` 活性诊断族：网关缓存命中矩阵与配置活性（D21）。
 - [`doctor`](doctor.md): `hst doctor` 只读体检：yolo、信任、二进制、登录态、hook 形态、状态栏与状态面。
 - [`fmtio`](fmtio.md): 全局输出三态（kv/json/jsonl）与结构化错误出口（R011 契约）。
@@ -22,7 +22,6 @@ docs/research 与 docs/adr；输出信封契约见 R011。
 - [`pathutil`](pathutil.md): 的路径工具面（细则见 R002 与模块文档）。
 - [`secretguard`](secretguard.md): 的密钥拦截闸面（细则见 R002 与模块文档）。
 - [`shim`](shim.md): shim 三形态自包含状态写入器：cmd/ps1/sh 加 grok 包装（D27/D28/D39）。
-- [`skillgen`](skillgen.md): `hst skill` 渲染器：从 clap 活命令树自适应生成 SKILL.md（D22/D49）。
 - [`statusline`](statusline.md): `hst statusline`：四家状态栏写入面幂等合并与拆段拼装（S025/D18/D42 至 D51）。
 - [`trace`](trace.md): trace 六视图：联邦读四家原生会话库归一检索（P0013/P0014，D19）。
 - [`update`](update.md): `hst self update`：dev 滚动与 stable 正式版自更新、镜像腿与缺省回退（S028/D16/D48）。
@@ -95,8 +94,8 @@ cfg(unix) 分支待 P0012 Linux 实机编译验证）。
 <!-- hst_cli/deploy.md -->
 # hst-cli::deploy
 
-`hst init` 部署层：hook 注册四家用户级、shim 落位、SKILL 命令图与状态栏面（D53）。
-`hst init` hook/skill deployment（D28：hook 注册与 shim 常驻用户级）。
+`hst init` 部署层：hook 注册四家用户级、shim 落位、状态栏面与 ours 技能目录清扫（D53/ADR-0005）。
+`hst init` hook deployment（D28：hook 注册与 shim 常驻用户级）。
 用户级注册面（用户裁 2026-09-11「hook 应用户全局」，对齐 codex 用户层）：
 claude `~/.claude/settings.json`（settings 家族用户层生效，S015）、codex
 `~/.codex/hooks.json` 加 `~/.codex/config.toml` features 与 trusted_hash
@@ -104,7 +103,8 @@ claude `~/.claude/settings.json`（settings 家族用户层生效，S015）、co
 `~/.kimi-code/config.toml [[hooks]]`（kimi 仅用户级，S015）。shim 常驻
 `~/.hst/hooks/`，状态按 session 分键写 `~/.hst/state/`（D28）。项目级
 旧注册与 `.oma/hooks/` 由 init 迁移退役（未 init 项目零数据根因消除）。
-skills 与 AGENTS/CLAUDE 说明仍是项目级（项目内语义）。Schemas are
+skill 面已退役（ADR-0005/D54）：两级生成面删，在位 ours 技能目录由
+init 幂等清扫；AGENTS/CLAUDE 说明仍是项目级（项目内语义）。Schemas are
 first-hand verified in S015 (official docs + openai/codex, xai-org/grok-build,
 MoonshotAI/kimi-code sources).
 
@@ -328,27 +328,6 @@ session 标识三源：payload `session_id`（claude/codex）、`sessionId`
 - `STATE_GROK_CMD` — Windows grok 包装（M048 形态：grok 的 command 必须是可整串 spawn 的单
 - `STATE_PS1` — Windows PowerShell shim（D39，2026-09-13 宿主实弹）：claude 在 Windows
 - `STATE_SH` — POSIX sh shim（Linux = bash、mac = zsh 同一语义；shebang 由部署侧按宿主
-
-
-<!-- hst_cli/skillgen.md -->
-# hst-cli::skillgen
-
-`hst skill` 渲染器：从 clap 活命令树自适应生成 SKILL.md（D22/D49）。
-hst 自适应 SKILL 渲染（D22）：从 clap 活命令树生成 SKILL.md（Agent
-Skills 标准形态：frontmatter name 加 description 含何时用）。新命令/
-新旗标自动出现在生成物里，不需要手维护命令表；`hst skill` 打印、
-`hst skill --write` 落用户级 `~/.claude/skills/hst/`（D49 起技能名翻
-hst；旧牌 ohmyagents 不留兼容窗，第 2 轮用户裁定直接删除加幂等清扫）。
-项目级 init 生成物（deploy.rs COMMAND_MAP 加 marker 覆写语义）是另一
-层，不共用渲染器（lib 拿不到 bin 的 Cli 树，双层记档于 R002）。
-
-## Functions
-
-- `render_skill` — 渲染完整 SKILL.md（canonical，name = hst）。
-
-## Constants
-
-- `SKILL_NAME` — 技能生成的D49面（细则见 R002 与模块文档）。
 
 
 <!-- hst_cli/statusline.md -->

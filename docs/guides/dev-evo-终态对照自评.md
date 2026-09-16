@@ -32,9 +32,9 @@
 
 | 面 | 判定 | 依据 |
 | --- | --- | --- |
-| 发现通道 skills 自生成 | 已落 | `hst skill` 从 clap 活命令树派生 SKILL.md（D22，同源派生思想） |
+| 发现通道 skills 自生成 | 已退役 | ADR-0005/D54：不装技能，`hst --llms` 从 clap 活命令树派生紧凑手册（同源派生思想保留，安装面删除） |
 | 发现通道 mcp add | 不适用 | D15 编排面移除（ADR-0001）；hst 是部署配置工具非数据 CLI |
-| 发现通道 --llms 清单 | 已承载 | aidoc llms.txt 入口索引（23 artifact 之一，ADR-0006 强制面） |
+| 发现通道 --llms 清单 | 已承载 | 双面：装机侧 `hst --llms` 自适应手册（ADR-0005）加仓内 aidoc llms.txt 入口索引（ADR-0006 强制面） |
 | 输出信封 {ok,data,meta} 同构 | 已落 | `--format kv/json/jsonl` 加 stderr 单行 JSON 错误（R011；第十一节原文引 hst 为跨栈同构样板） |
 | CTA | 已落 | doctor warn 行自带处置提示是产品惯例（hooks.form、yolo.parse 等） |
 | token 计量与分页 | 不适用（裁定） | 输出面是配置诊断 marker 行无大输出截断场景；trace 六视图自有 --limit/--offset 分页已落 |

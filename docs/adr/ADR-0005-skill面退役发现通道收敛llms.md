@@ -18,9 +18,9 @@ tags: ['skill', 'D54', 'llms.txt']
 
 ## Decision
 
-删 `hst skill` 子命令与 init 项目级 skill fan-out（COMMAND_MAP、skill_md、write_skill、deploy_skills、kimi skill 布局整层）；init 幂等清扫 ours 技能目录（项目四目录乘 hst 与 ohmyagents 两名，加用户级 `~/.claude/skills/` 两名；marker 家族或生成签名判 ours，外来内容不动）；agent 说明书收敛 docs 体系与 aidoc llms.txt；AGENTS.md/CLAUDE.md 说明层（只增不覆写）保留。契约破裂升 major。
+删 `hst skill` 子命令与 init 项目级 skill fan-out（COMMAND_MAP、skill_md、write_skill、deploy_skills、kimi skill 布局整层）；不再有任何 hst 技能安装面。agent 紧凑说明书以 `hst --llms` 一条命令出口：从 clap 活命令树自适应渲染 llms 风格命令速查直打 stdout（帮助面同款裸输出，不落盘不装技能）。init 幂等清扫 ours 技能目录（项目四目录乘 hst 与 ohmyagents 两名，加用户级 `~/.claude/skills/` 两名；marker 家族或生成签名判 ours，外来内容不动）；仓内细则唯一权威 R002，库面投影 aidoc llms.txt；AGENTS.md/CLAUDE.md 说明层（只增不覆写）保留。契约破裂升 major。
 
 ## Consequences
 
-- 好：命令面与四处同步链收缩（SKILL 重生与 COMMAND_MAP 两步摘除）；说明书单一口径（R002 细则加 llms.txt 投影），无双份生成面。
-- 坏：仓外装机侧无 agent 速查（非部署项目里的会话不再经技能清单发现 hst，靠项目 AGENTS 说明或用户口述）；升 2.0.0，旧装机重跑 init 清扫在位技能件。
+- 好：命令面与四处同步链收缩（SKILL 重生与 COMMAND_MAP 两步摘除）；说明书单一口径（R002 细则加 llms 投影），无双份生成面、零安装件维护。
+- 坏：仓外装机侧不再经技能清单被动发现 hst（agent 需主动跑 `hst --llms` 或经项目 AGENTS 说明）；升 2.0.0，旧装机重跑 init 清扫在位技能件。

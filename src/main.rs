@@ -1,4 +1,4 @@
-//! hst CLI 入口：子命令分发（init/doctor/agents/hook/self/skill/completions/
+//! hst CLI 入口：子命令分发（init/doctor/agents/hook/self/completions/
 //! trace/diagnose/statusline/verify）与 `--format`/`--json` 信封出口（R011）。
 
 use std::path::{Path, PathBuf};
@@ -22,15 +22,18 @@ struct Cli {
     /// 的输出格式面（细则见 R002 与模块文档）。
     #[arg(long, global = true)]
     format: Option<String>,
+    /// 打印紧凑版 agent 说明书（llms 风格命令速查；ADR-0005 后唯一机读手册面，从活命令树自适应渲染不落盘）后退出
+    #[arg(long)]
+    llms: bool,
     #[command(subcommand)]
     command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
 enum Commands {
-    /// 用户级 yolo 与非阻塞键落盘（默认全套：yolo 键加 hook/skill 注册）
+    /// 用户级 yolo 与非阻塞键落盘（默认全套：yolo 键加 hook 注册加状态栏面；skill 面已退役，ours 技能目录幂等清扫，ADR-0005）
     Init {
-        /// 写用户级无阻塞键（仅 yolo，不落 hook/skill；D28 第 3 轮起两级显式；
+        /// 写用户级无阻塞键（仅 yolo，不落 hook；D28 第 3 轮起两级显式；
         /// D33 起取值式分级 full|partial|off，缺省 full，裸旗标兼容）
         #[arg(
             long,
@@ -106,12 +109,6 @@ enum Commands {
     Diagnose {
         #[command(subcommand)]
         cmd: DiagnoseCmd,
-    },
-    /// 生成 hst 自身 SKILL.md（从活命令树自适应渲染；--write 落用户级 ~/.claude/skills/hst/，旧牌 ohmyagents 目录幂等退役）
-    Skill {
-        /// 写入用户级技能目录后退出（缺省打印到 stdout）
-        #[arg(long)]
-        write: bool,
     },
 }
 
@@ -245,7 +242,7 @@ enum TraceCmd {
 enum HookCmd {
     /// hook 注册部署与 shim 落位（init 的 hook 面，含 ~/.oma 迁 ~/.hst 的 heal 改写）
     Init {
-        /// 项目根（skill 面部署用；hook 注册本身用户级）
+        /// 项目根（项目面退役与说明层部署用；hook 注册本身用户级）
         #[arg(long)]
         project: Option<PathBuf>,
     },
@@ -290,6 +287,12 @@ fn main() {
 
 fn run() -> Result<(), String> {
     let cli = Cli::parse();
+    // `hst --llms`：帮助面同款裸输出（markdown 直打 stdout，不走信封），
+    // 供 agent 一条命令取紧凑说明书（ADR-0005/D54）。
+    if cli.llms {
+        println!("{}", render_llms(&Cli::command()));
+        return Ok(());
+    }
     hst::fmtio::init(cli.json, cli.format.as_deref())?;
     let Some(command) = cli.command else {
         // 裸 hst：无命令时打印帮助，打印帮助退出。
@@ -363,45 +366,92 @@ fn run() -> Result<(), String> {
         Commands::Completions { shell } => cmd_completions(shell),
         Commands::Trace { cmd } => cmd_trace(cmd),
         Commands::Diagnose { cmd } => cmd_diagnose(cmd),
-        Commands::Skill { write } => cmd_skill(write),
     }
 }
 
-/// `hst skill [--write]`：从 clap 活命令树自适应渲染 SKILL.md（D22）。
-/// 的D49面（细则见 R002 与模块文档）。
-/// 直接删除，用户手改跳过）。
-fn cmd_skill(write: bool) -> Result<(), String> {
-    let body = hst::skillgen::render_skill(&Cli::command());
-    if write {
-        let skills = hst::pathutil::user_home()?.join(".claude").join("skills");
-        let dir = skills.join(hst::skillgen::SKILL_NAME);
-        std::fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-        let path = dir.join("SKILL.md");
-        std::fs::write(&path, &body).map_err(|e| format!("{}: {e}", path.display()))?;
-        println!("skill.wrote={}", path.display());
-        // D49 第 2 轮：旧牌用户级目录退役（内容带我们生成签名才删）。
-        let legacy = skills.join("ohmyagents");
-        if let Some(p) = retire_user_skill(&legacy) {
-            println!("skill.retired={}", p.display());
+/// `hst --llms`：紧凑版 agent 说明书（llms 风格）。从 clap 活命令树自适应
+/// 渲染（新命令自动出现；不落盘、不装技能，ADR-0005 后唯一机读手册面）。
+/// 命令细则唯一权威在 R002，本面只做速查投影。
+fn render_llms(root: &clap::Command) -> String {
+    let mut rows: Vec<(String, String)> = Vec::new();
+    walk(root, String::new(), &mut rows);
+    let mut table = String::new();
+    for (usage, about) in &rows {
+        let about = if about.is_empty() {
+            "（见子命令）".into()
+        } else {
+            about.clone()
+        };
+        table.push_str(&format!("| `{usage}` | {about} |\n"));
+    }
+    format!(
+        "# hst\n\n> HST（Hooks, Statusline, Trace）：agent 全平台部署配置与诊断 CLI。本手册由 `hst --llms` 从活命令树自适应渲染；命令细则唯一权威在仓库 docs/references/R002。\n\n## 功能面\n\n- 可用性诊断：`hst doctor`（零网络只读体检）、`hst agents`（四家检测）、`hst diagnose`（活性诊断）\n- hook 设置：`hst init`（部署，幂等）、`hst hook status`（状态落盘）\n- 状态栏设置：`hst statusline`（四家写入面）\n- 对话 trace：`hst trace` 六视图只读检索四家原生会话库\n- yolo 不阻塞设置：`hst init --yolo`\n\n## 命令表\n\n| 命令 | 说明 |\n| --- | --- |\n{table}\n## 输出契约\n\n全部命令支持 `--format kv|json|jsonl` 与 `--json` 信封（kv 是缺省 marker 行）；结构化错误 stderr 单行 JSON；doctor blocked 与 verify fail 退出 1，diagnose cache 探测错误退出 1。\n"
+    )
+}
+
+/// 递归收集 (usage, about)。父命令可裸调（如 `hst agents`）时也记一行。
+fn walk(cmd: &clap::Command, prefix: String, rows: &mut Vec<(String, String)>) {
+    for sub in cmd.get_subcommands() {
+        if sub.get_name() == "help" {
+            continue;
         }
-        Ok(())
-    } else {
-        println!("{body}");
-        Ok(())
+        let path = if prefix.is_empty() {
+            format!("hst {}", sub.get_name())
+        } else {
+            format!("{prefix} {}", sub.get_name())
+        };
+        let about = sub.get_about().map(|s| s.to_string()).unwrap_or_default();
+        rows.push((synopsis(sub, &path), about));
+        if sub.has_subcommands() {
+            walk(sub, path, rows);
+        }
     }
 }
 
-/// 的旧牌用户级技能目录退役面（细则见 R002 与模块文档）。
-/// 生成行，oma 与 hst 两代都含）才退役；用户手改或他源不动。外科式
-///（codex F4）：先删 SKILL.md，目录仅在空时收（伴生资源不连带删）。
-fn retire_user_skill(dir: &std::path::Path) -> Option<&std::path::Path> {
-    let md = std::fs::read_to_string(dir.join("SKILL.md")).ok()?;
-    if !md.contains("活命令树自适应生成") {
-        return None;
+/// 命令表用法串拼装面（细则见 R002 与模块文档）。
+fn synopsis(cmd: &clap::Command, path: &str) -> String {
+    let mut s = String::from(path);
+    let mut opts: Vec<String> = Vec::new();
+    for a in cmd.get_arguments() {
+        if a.is_global_set() || a.is_hide_set() {
+            continue;
+        }
+        let id = a.get_id().as_str();
+        if id == "help" || id == "version" {
+            continue;
+        }
+        if a.is_positional() {
+            let name = a
+                .get_value_names()
+                .and_then(|v| v.first())
+                .map(|n| n.to_string())
+                .unwrap_or_else(|| id.to_string());
+            if matches!(a.get_action(), clap::ArgAction::Append) {
+                s.push_str(&format!(" [{name}]..."));
+            } else {
+                s.push_str(&format!(" <{name}>"));
+            }
+        } else if let Some(long) = a.get_long() {
+            let val = a
+                .get_value_names()
+                .and_then(|v| v.first())
+                .map(|n| format!(" <{n}>"))
+                .unwrap_or_default();
+            if matches!(
+                a.get_action(),
+                clap::ArgAction::Set | clap::ArgAction::Append
+            ) {
+                opts.push(format!("[--{long}{val}]"));
+            } else {
+                opts.push(format!("[--{long}]"));
+            }
+        }
     }
-    std::fs::remove_file(dir.join("SKILL.md")).ok()?;
-    let _ = std::fs::remove_dir(dir);
-    Some(dir)
+    for o in opts {
+        s.push(' ');
+        s.push_str(&o);
+    }
+    s
 }
 
 /// `hst diagnose cache|agents`：活性诊断族（D21）。打真 API、烧最小 token。
@@ -549,8 +599,8 @@ fn cmd_agents_verify(
     Ok(())
 }
 
-/// `hst hook init`：hook 面部署（注册加 shim 加 heal 迁移改写）；skill 与
-/// 说明面不在此（那是 `hst init` 全套的事）。
+/// `hst hook init`：hook 面部署（注册加 shim 加 heal 迁移改写）；说明面
+/// 与技能目录清扫不在此（那是 `hst init` 全套的事）。
 fn cmd_hook_init(project: Option<PathBuf>) -> Result<(), String> {
     let root = project_root(project)?;
     std::fs::create_dir_all(&root).map_err(|e| format!("{}: {e}", root.display()))?;
@@ -623,8 +673,9 @@ fn cmd_init(
     let root = project_root(project)?;
     std::fs::create_dir_all(&root).map_err(|e| format!("{}: {e}", root.display()))?;
     // Default init is the full deployment: user-level yolo keys plus user-level
-    // hook registration and project skills (D28 round 2: yolo keys are
-    // user-level too). Round 3: yolo scope is explicit — `--yolo` = user-level
+    // hook registration, statusline and ours skill-dir retirement (D28 round 2:
+    // yolo keys are user-level too; ADR-0005: skill face retired). Round 3:
+    // yolo scope is explicit — `--yolo` = user-level
     // keys only, `--project-yolo` = project-level keys only (project overrides
     // user where the agent supports layering). D33: both yolo flags are
     // level-taking (full|partial|off, bare flag = full); off retires ours keys
