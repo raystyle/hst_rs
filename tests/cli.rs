@@ -1384,7 +1384,8 @@ fn self_update_mirror_off_runs_github_only() {
 #[test]
 fn help_root_face_header_and_global_options_sections() {
     // 根帮助面：头行 name@version 连一句定位（版本从载体 manifest 注入）；
-    // Options 与 Global Options 分节且 Global Options 在后；尾带 --llms 发现指引。
+    // Options 与 Global Options 分节且 Global Options 在后；Global Options
+    // 节内字典序且 --format 取值枚举全值（codex 评审 G1）；尾带 --llms 发现指引。
     let out = hst()
         .arg("--help")
         .assert()
@@ -1403,9 +1404,22 @@ fn help_root_face_header_and_global_options_sections() {
         panic!("Options 与 Global Options 分节齐备");
     };
     assert!(opts < global, "Options 先于 Global Options");
+    let global_section = &s[global..];
+    let order = [
+        global_section.find("--filter-output"),
+        global_section.find("--format"),
+        global_section.find("--json"),
+    ];
     assert!(
-        s.contains("--filter-output"),
-        "旗标七件之 --filter-output 在册"
+        order.iter().all(Option::is_some),
+        "Global Options 三旗标在册"
+    );
+    let mut sorted = order;
+    sorted.sort();
+    assert_eq!(order, sorted, "Global Options 节内字典序");
+    assert!(
+        global_section.contains("--format <kv|json|jsonl>"),
+        "--format 取值枚举全值"
     );
     assert!(s.contains("hst --llms"), "尾行 --llms 发现指引");
 }
@@ -1480,7 +1494,9 @@ fn filter_output_missing_key_is_structured_error() {
     let v: serde_json::Value = serde_json::from_str(line).expect("stderr 单行 JSON");
     assert_eq!(v["code"], serde_json::json!("error"));
     assert!(
-        v["message"].as_str().is_some_and(|m| m.contains("未命中")),
+        v["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("键不存在")),
         "错误信息指未命中：{line}"
     );
     let stdout: serde_json::Value =
@@ -1491,12 +1507,39 @@ fn filter_output_missing_key_is_structured_error() {
 
 #[test]
 fn llms_manual_covers_command_tree_and_flags() {
-    // 漂移守卫（cli-docs 第四节）：以 --llms --json 机器形为活命令树真源，
-    // 每条命令路径出现在 markdown 手册；逐命令 --help 提取长旗标，断言每
-    // 个旗标名出现在手册（防新增参数漏登记；同时锁 通用旗标 手写节不漂）。
+    // 漂移守卫（cli-docs 第四节，codex 评审 G3/G4 收口）：以 --llms --json
+    // 机器形为活命令树真源；命令路径只在「子命令表」节域断言（防读序与常
+    // 用例的提法遮蔽表格缺行）；旗标按帮助面的节归属分域断言（Global
+    // Options 节旗标对「通用旗标」节域、叶 Options 节旗标对「子命令表」节
+    // 域、根专属旗标如 --llms 对「通用旗标」节域）；根帮助纳入遍历，叶形
+    // 节序（头行、Options 先于 Global Options）随守卫。
     let manual =
         String::from_utf8_lossy(&hst().arg("--llms").assert().success().get_output().stdout)
             .into_owned();
+    let section = |title: &str| -> String {
+        let start = manual
+            .find(&format!("## {title}"))
+            .unwrap_or_else(|| panic!("手册缺节 {title}"));
+        let rest = &manual[start..];
+        let end = rest[3..]
+            .find("\n## ")
+            .map(|i| start + 3 + i)
+            .unwrap_or(manual.len());
+        manual[start..end].to_string()
+    };
+    for title in [
+        "读序",
+        "子命令表",
+        "通用旗标",
+        "退出码",
+        "输出契约",
+        "常用例",
+    ] {
+        let _ = section(title);
+    }
+    let cmd_table = section("子命令表");
+    let common_flags = section("通用旗标");
+
     let machine: serde_json::Value = serde_json::from_slice(
         &hst()
             .args(["--llms", "--json"])
@@ -1529,10 +1572,54 @@ fn llms_manual_covers_command_tree_and_flags() {
     collect(&machine, "", &mut paths);
     assert!(paths.len() >= 20, "命令树遍历到叶：{} 条", paths.len());
     for p in &paths {
-        assert!(manual.contains(p.as_str()), "手册含命令 {p}");
+        assert!(
+            cmd_table.contains(p.as_str()),
+            "子命令表含命令 {p}（节域断言，防遮蔽）"
+        );
     }
 
+    // flag 名提取：劈 [ = < , /（clap 冲突注记连写形如 --yolo/--project-yolo）。
+    let flag_names = |text: &str| -> Vec<String> {
+        let mut out = Vec::new();
+        for token in text.split_whitespace() {
+            let Some(name) = token.strip_prefix("--") else {
+                continue;
+            };
+            let name: String = name
+                .chars()
+                .take_while(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || *c == '-')
+                .collect();
+            if !name.is_empty() {
+                out.push(format!("--{name}"));
+            }
+        }
+        out
+    };
+
     let mut checked = 0usize;
+    // 根帮助：根专属旗标（Options 节，如 --llms）与全局旗标都登记在手册
+    // 「通用旗标」节。
+    let root_help =
+        String::from_utf8_lossy(&hst().arg("--help").assert().success().get_output().stdout)
+            .into_owned();
+    let root_split = root_help
+        .find("Global Options:")
+        .expect("根帮助有 Global Options 节");
+    for f in flag_names(&root_help[..root_split]) {
+        assert!(
+            common_flags.contains(&f),
+            "通用旗标节含根专属旗标 {f}（节域断言）"
+        );
+        checked += 1;
+    }
+    for f in flag_names(&root_help[root_split..]) {
+        assert!(
+            common_flags.contains(&f),
+            "通用旗标节含全局旗标 {f}（节域断言）"
+        );
+        checked += 1;
+    }
+
     for p in &paths {
         let args: Vec<&str> = p.split_whitespace().skip(1).collect();
         let help = String::from_utf8_lossy(
@@ -1545,19 +1632,39 @@ fn llms_manual_covers_command_tree_and_flags() {
                 .stdout,
         )
         .into_owned();
-        for token in help.split_whitespace() {
-            let Some(name) = token.strip_prefix("--") else {
-                continue;
-            };
-            let name = name
-                .split(|c| c == '[' || c == '=' || c == '<' || c == ',' || c == '/')
-                .next()
-                .unwrap_or_default();
-            if name.is_empty() {
-                continue;
+        // 叶/组形节序守卫（G4）：头行非空且不以 Usage 开头；Options 先于
+        // Global Options。
+        let first = help.lines().next().unwrap_or_default();
+        assert!(
+            !first.is_empty() && !first.starts_with("Usage:"),
+            "{p} 头行在位"
+        );
+        let (Some(opts), Some(global)) = (help.find("Options:"), help.find("Global Options:"))
+        else {
+            panic!("{p} 帮助缺 Options 或 Global Options 节");
+        };
+        assert!(opts < global, "{p} Options 先于 Global Options");
+        // 叶 Options 节旗标对子命令表节域；Global Options 节旗标对通用旗标
+        // 节域；内建 --help/--version 恒对通用旗标节（手册登记位）。
+        for f in flag_names(&help[opts..global]) {
+            if f == "--help" || f == "--version" {
+                assert!(
+                    common_flags.contains(&f),
+                    "通用旗标节含内建旗标 {f}（命令 {p}）"
+                );
+            } else {
+                assert!(
+                    cmd_table.contains(&f),
+                    "子命令表节含 {p} 的旗标 {f}（节域断言）"
+                );
             }
-            let flag = format!("--{name}");
-            assert!(manual.contains(&flag), "手册含旗标 {flag}（命令 {p}）");
+            checked += 1;
+        }
+        for f in flag_names(&help[global..]) {
+            assert!(
+                common_flags.contains(&f),
+                "通用旗标节含全局旗标 {f}（命令 {p}）"
+            );
             checked += 1;
         }
     }

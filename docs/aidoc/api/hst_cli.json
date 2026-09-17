@@ -260,7 +260,7 @@
     {
       "path": "hst_cli::fmtio",
       "kind": "module",
-      "docs": "全局输出三态（kv/json/jsonl）与结构化错误出口契约。\n全局输出格式（issue #1 总台集成契约，与 ome S003 同构）：\n`--format kv|json|jsonl`，`--json` 为 json 简写（互斥）。kv 是人读\nmarker 行（缺省）；json 出 `{ok,data|error,meta}` 信封（P0015 三传输\n同形——oma 与 ome 裸数据裁决的分道点，三传输复用优先，契约文档记档）；\njsonl 是列表型数据的逐行对象（数据即数据，无信封）。\n\n结构化模式（json/jsonl）下错误走 stderr 单行 JSON `{\"code\":\"error\",\n\"message\":...}`，stdout 保持纯数据；kv 模式错误 `hst: <e>`。\nserde_json 开 preserve_order：JSON 字段序与 kv 行序一致（ome S003 实证\n教训——默认 BTreeMap 字母序会打乱）。"
+      "docs": "全局输出三态（kv/json/jsonl）与结构化错误出口契约。\n全局输出格式（issue #1 总台集成契约，与 ome S003 同构）：\n`--format kv|json|jsonl`，`--json` 为 json 简写（互斥）。kv 是人读\nmarker 行（缺省）；json 出 `{ok,data|error,meta}` 信封（P0015 三传输\n同形——oma 与 ome 裸数据裁决的分道点，三传输复用优先，契约文档记档）；\njsonl 是列表型数据的逐行对象（数据即数据，无信封）。\n\n结构化模式（json/jsonl）下的失败回执双道：stdout 吐 ok:false 信封（业务\n失败与 `--filter-output` 响错同形），stderr 补单行 JSON `{\"code\":\"error\",\n\"message\":...}`，退出码 1；kv 模式错误 `hst: <e>`。\nserde_json 开 preserve_order：JSON 字段序与 kv 行序一致（ome S003 实证\n教训——默认 BTreeMap 字母序会打乱）。"
     },
     {
       "path": "hst_cli::fmtio::Format",
@@ -280,7 +280,7 @@
     {
       "path": "hst_cli::fmtio::filter_output",
       "kind": "function",
-      "docs": "`--filter-output <keys>`：json 信封 data 的键路径过滤（cli-docs 采纳轮，\n必选旗标七件之一）。keys 逗号分隔多路径，路径点号嵌套，段可带数组下标\n（`items[0]` 单下标取元素、`items[0,2]` 多下标取数组）。返回对象以原\n路径串为键、命中值为值；任一路径未命中返回 Err（结构化错误出口承接）。\n仅作用于 json 信封 data；kv 与 jsonl 面不变。\n\n# Errors\n\n路径为空、格式非法（如 `a[`）或在 data 中未命中时返回 `String` 错误。"
+      "docs": "`--filter-output <keys>`：json 信封 data 的键路径过滤（cli-docs 采纳轮）。\nkeys 逗号分隔多路径（括号感知，下标集内逗号不切分），路径点号嵌套，段可\n带数组下标（`items[0]` 单下标取元素、`items[0,2]` 多下标集成数组且为\n路径终点）。返回对象以原路径串为键、命中值为值。响错即 Err（不静默截\n断、不静默跳过；错误文案按类分道：键不存在、不是数组、下标越界带长度、\n多下标不可续导航），经信封错误出口承接。仅对出 json 信封的命令生效\n（无信封命令面忽略）；kv 与 jsonl 模式在 init 期即拒。\n\n# Errors\n\n路径为空、格式非法（如 `a[`）、键不存在或下标越界时返回 `String` 错误。"
     },
     {
       "path": "hst_cli::fmtio::init",

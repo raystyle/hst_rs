@@ -4,8 +4,9 @@
 //! 同形——oma 与 ome 裸数据裁决的分道点，三传输复用优先，契约文档记档）；
 //! jsonl 是列表型数据的逐行对象（数据即数据，无信封）。
 //!
-//! 结构化模式（json/jsonl）下错误走 stderr 单行 JSON `{"code":"error",
-//! "message":...}`，stdout 保持纯数据；kv 模式错误 `hst: <e>`。
+//! 结构化模式（json/jsonl）下的失败回执双道：stdout 吐 ok:false 信封（业务
+//! 失败与 `--filter-output` 响错同形），stderr 补单行 JSON `{"code":"error",
+//! "message":...}`，退出码 1；kv 模式错误 `hst: <e>`。
 //! serde_json 开 preserve_order：JSON 字段序与 kv 行序一致（ome S003 实证
 //! 教训——默认 BTreeMap 字母序会打乱）。
 
@@ -43,30 +44,26 @@ pub fn envelope(command: &str, root: &std::path::Path, outcome: Result<Value, St
     v
 }
 
-/// `--filter-output <keys>`：json 信封 data 的键路径过滤（cli-docs 采纳轮，
-/// 必选旗标七件之一）。keys 逗号分隔多路径，路径点号嵌套，段可带数组下标
-/// （`items[0]` 单下标取元素、`items[0,2]` 多下标取数组）。返回对象以原
-/// 路径串为键、命中值为值；任一路径未命中返回 Err（结构化错误出口承接）。
-/// 仅作用于 json 信封 data；kv 与 jsonl 面不变。
+/// `--filter-output <keys>`：json 信封 data 的键路径过滤（cli-docs 采纳轮）。
+/// keys 逗号分隔多路径（括号感知，下标集内逗号不切分），路径点号嵌套，段可
+/// 带数组下标（`items[0]` 单下标取元素、`items[0,2]` 多下标集成数组且为
+/// 路径终点）。返回对象以原路径串为键、命中值为值。响错即 Err（不静默截
+/// 断、不静默跳过；错误文案按类分道：键不存在、不是数组、下标越界带长度、
+/// 多下标不可续导航），经信封错误出口承接。仅对出 json 信封的命令生效
+/// （无信封命令面忽略）；kv 与 jsonl 模式在 init 期即拒。
 ///
 /// # Errors
 ///
-/// 路径为空、格式非法（如 `a[`）或在 data 中未命中时返回 `String` 错误。
+/// 路径为空、格式非法（如 `a[`）、键不存在或下标越界时返回 `String` 错误。
 pub fn filter_output(data: &Value, keys: &str) -> Result<Value, String> {
     let mut out = serde_json::Map::new();
     for path in split_paths(keys) {
         let mut segs: Vec<Seg> = Vec::new();
         for raw in path.split('.') {
-            let seg = parse_seg(raw)?;
-            segs.push(seg);
+            segs.push(parse_seg(raw)?);
         }
-        if segs.is_empty() {
-            return Err(format!("--filter-output 空路径：{path}"));
-        }
-        match pick(data, &segs) {
-            Some(v) => out.insert(path.to_string(), v),
-            None => return Err(format!("--filter-output 键路径未命中：{path}")),
-        };
+        let v = pick(data, &segs, &path)?;
+        out.insert(path.to_string(), v);
     }
     if out.is_empty() {
         return Err("--filter-output 未给出任何键路径".into());
@@ -108,30 +105,49 @@ fn split_paths(keys: &str) -> Vec<String> {
     paths
 }
 
-/// 递归取路径值：多下标段命中集合成数组，单下标取元素，未命中 None。
-fn pick(v: &Value, segs: &[Seg]) -> Option<Value> {
-    let (seg, rest) = segs.split_first()?;
-    let base = v.get(&seg.name)?;
+/// 递归取路径值：单下标取元素可续导航，多下标集合成数组且为终点；响错
+/// （键缺、非数组、越界、多下标续导航）返回带因的错误（codex 评审 F2/G5：
+/// 不静默截断不静默跳过，错误按类分道）。
+fn pick(v: &Value, segs: &[Seg], path: &str) -> Result<Value, String> {
+    let Some((seg, rest)) = segs.split_first() else {
+        return Ok(v.clone());
+    };
+    let name = &seg.name;
+    let Some(base) = v.get(name) else {
+        return Err(format!("--filter-output 键不存在：{name}（路径 {path}）"));
+    };
     let val: Value = match &seg.idx {
         None => base.clone(),
         Some(idx) => {
-            let arr = base.as_array()?;
-            if idx.len() == 1 {
-                arr.get(idx[0])?.clone()
-            } else {
-                // 多下标：命中集合成数组（越界下标跳过，全越界算未命中）。
-                let picked: Vec<Value> = idx.iter().filter_map(|i| arr.get(*i)).cloned().collect();
-                if picked.is_empty() {
-                    return None;
+            let Some(arr) = base.as_array() else {
+                return Err(format!(
+                    "--filter-output 段 {name} 不是数组，不能带下标（路径 {path}）"
+                ));
+            };
+            for i in idx {
+                if *i >= arr.len() {
+                    return Err(format!(
+                        "--filter-output 下标 {i} 越界（段 {name} 长度 {}，路径 {path}）",
+                        arr.len()
+                    ));
                 }
-                Value::Array(picked)
+            }
+            if idx.len() == 1 {
+                arr[idx[0]].clone()
+            } else {
+                if !rest.is_empty() {
+                    return Err(format!(
+                        "--filter-output 多下标段 {name} 是终点，不可续导航（路径 {path}）"
+                    ));
+                }
+                Value::Array(idx.iter().map(|i| arr[*i].clone()).collect())
             }
         }
     };
     if rest.is_empty() {
-        Some(val)
+        Ok(val)
     } else {
-        pick(&val, rest)
+        pick(&val, rest, path)
     }
 }
 
@@ -159,15 +175,15 @@ fn parse_seg(raw: &str) -> Result<Seg, String> {
         return Err(format!("--filter-output 路径段名为空：{raw}"));
     }
     let inner = &raw[open + 1..raw.len() - 1];
+    if inner.trim().is_empty() {
+        return Err(format!("--filter-output 下标集为空：{raw}"));
+    }
     let mut idx = Vec::new();
     for i in inner.split(',').map(str::trim) {
         let n: usize = i
             .parse()
             .map_err(|_| format!("--filter-output 下标非数字：{i}"))?;
         idx.push(n);
-    }
-    if idx.is_empty() {
-        return Err(format!("--filter-output 下标集为空：{raw}"));
     }
     Ok(Seg {
         name: name.to_string(),
@@ -289,14 +305,33 @@ mod tests {
     #[test]
     fn filter_output_misses_and_bad_paths_error() {
         let data = json!({ "ok": true });
-        assert!(run(&data, "nope").is_err());
-        assert!(
-            run(&data, "items[9]").is_err() || run(&json!({ "items": [] }), "items[9]").is_err()
-        );
-        assert!(run(&data, "a[b").is_err());
-        assert!(run(&data, "a[-1]").is_err());
+        // 错误按类分道（codex 评审 F2/G5）：不静默截断，文案指因。
+        let e = run(&data, "nope").unwrap_err();
+        assert!(e.contains("键不存在"), "{e}");
+        let e = run(&data, "ok[0]").unwrap_err();
+        assert!(e.contains("不是数组"), "{e}");
+        let e = run(&data, "a[b").unwrap_err();
+        assert!(e.contains("缺右括号"), "{e}");
+        let e = run(&data, "a[]").unwrap_err();
+        assert!(e.contains("下标集为空"), "{e}");
+        let e = run(&data, "a[-1]").unwrap_err();
+        assert!(e.contains("下标非数字"), "{e}");
         assert!(run(&data, " , ").is_err());
         // 空格容错：路径两侧空格被 trim。
         assert!(run(&data, " ok ").unwrap()["ok"] == json!(true));
+    }
+
+    #[test]
+    fn filter_output_out_of_bounds_is_loud() {
+        // 多下标部分越界不静默截短（codex 评审 F2 实弹反例：findings[0,99]）。
+        let data = json!({ "items": [10, 20, 30] });
+        let e = run(&data, "items[0,99]").unwrap_err();
+        assert!(e.contains("越界") && e.contains("99"), "{e}");
+        let e = run(&data, "items[9]").unwrap_err();
+        assert!(e.contains("越界"), "{e}");
+        // 多下标是终点，续导航响错不折「未命中」。
+        let nested = json!({ "a": { "b": [{ "c": 1 }, { "c": 2 }] } });
+        let e = run(&nested, "a.b[0,1].c").unwrap_err();
+        assert!(e.contains("不可续导航"), "{e}");
     }
 }

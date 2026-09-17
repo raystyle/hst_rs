@@ -15,3 +15,4 @@
 | REQ-009 | implemented | must | 项目级yolo干扰一键清除 | clear_project_yolo_interference 单测加 cli 集成 init --clear-project-yolo |
 | REQ-010 | implemented | must | 统一issue入口集成 | hst issue new/list/show 实弹（issues.ohmygh.com，契约 = 总台 REQ-057） |
 | REQ-011 | draft | should | 输出协议可选件评估 | 待回填 |
+| REQ-012 | draft | should | 库面残破描述清算 | 待回填 |

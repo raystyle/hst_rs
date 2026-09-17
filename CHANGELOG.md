@@ -125,7 +125,7 @@
 
 ### 里程碑 2026-09-18
 
-- **cli-docs 采纳轮 v2.3.0**（总台 2026-09-18 全仓采纳令，标准 = evo-adr cli-docs 技能）：帮助面节序对齐（根头行 `hst@<版本>` 一句定位经 help_template 从载体 manifest 注入、Options 与 Global Options 分节经 help_heading 派生、尾行 `--llms` 发现指引；叶形 Arguments、Options、Global Options 节序随派生到位）；输出协议补 `--filter-output <keys>`（必选旗标七件收口：json 信封 data 键路径过滤，括号感知逗号分隔、点号嵌套、单下标取元素多下标集成数组，未命中折信封错误走 stderr 单行加退出 1；kv 与 jsonl 配对直接报错）加信封 meta 补 duration_ms；`--llms` 手册补读序与退出码两节（71 行仍小于 120，退出码 0/1/2 口径入册）；残破描述六处修复（「的X面（细则见）」型，`--format`、`--offset`、hook status、trace blocks、diagnose cache 等）；漂移守卫集成测试（机器形遍历命令树，逐命令 --help 提取长旗标，断言全部出现在手册，防新增参数漏登记）；README 甲面补徽章三枚（CI、Release、MIT）加特性一览七条加环境变量缺省列加 sha256 边车校验行加许可尾节；协议余件（--schema、类型化 CTA、细分错误码）立 REQ-011 评估不静默丢。fmtio 单测三件加 cli 集成五件新，197 加 39 绿、clippy 基线 13 无新增、aidoc strict 0。
+- **cli-docs 采纳轮 v2.3.0**（总台 2026-09-18 全仓采纳令，标准 = evo-adr cli-docs 技能）：帮助面节序对齐（根头行 `hst@<版本>` 一句定位经 help_template 从载体 manifest 注入、Options 与 Global Options 分节经 help_heading 派生、尾行 `--llms` 发现指引；叶形 Arguments、Options、Global Options 节序随派生到位）；输出协议补 `--filter-output <keys>`（必选旗标七件本仓五件在册：json 信封 data 键路径过滤，括号感知逗号分隔、点号嵌套、单下标取元素可续导航、多下标集成数组且为终点，响错按类分道不静默截断，走 stderr 单行加退出 1；kv 与 jsonl 配对直接报错；`--schema` 与 `--full-output` 与类型化 CTA 等余件登记 REQ-011 不冒领）加信封 meta 补 duration_ms；`--llms` 手册补读序与退出码两节（71 行仍小于 120，退出码 0/1/2 口径入册）；残破描述六处修复（「的X面（细则见）」型，`--format`、`--offset`、hook status、trace blocks、diagnose cache 等）；漂移守卫集成测试（机器形遍历命令树，逐命令 --help 提取长旗标，断言全部出现在手册，防新增参数漏登记）；README 甲面补徽章三枚（CI、Release、MIT）加特性一览七条加环境变量缺省列加 sha256 边车校验行加许可尾节；协议余件（--schema、类型化 CTA、细分错误码）立 REQ-011 评估不静默丢。fmtio 单测三件加 cli 集成五件新，197 加 39 绿、clippy 基线 13 无新增、aidoc strict 0。
 
 ### 排后
 
