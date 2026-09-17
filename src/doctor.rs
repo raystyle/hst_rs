@@ -907,6 +907,18 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
     let claude_shared = root.join(".claude").join("settings.json");
     let claude_local_settings = root.join(".claude").join("settings.local.json");
     let claude_user_yolo = home.join(".claude").join("settings.json");
+    // codex 二轮 G1（D52 同型）：root 即家目录时 claude_shared 与用户级
+    // settings.json 同一体，作项目层重复遍历会同文件报 project 加 user 两
+    // 行（ask 与 readblock 与 parse 同罩）；跳过 shared 由 user 层覆盖，
+    // settings.local.json 是另一文件保留独立层。
+    let claude_layers: Vec<(&Path, &str)> = {
+        let mut v: Vec<(&Path, &str)> = vec![(&claude_local_settings, "project-local")];
+        if !home_is_root {
+            v.push((&claude_shared, "project"));
+        }
+        v.push((&claude_user_yolo, "user"));
+        v
+    };
     let claude_mode_at = |p: &Path| -> Option<String> {
         json_file(p)
             .as_ref()
@@ -916,11 +928,7 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
             .map(str::to_string)
     };
     // D52：解析失败显式报（BOM 已容忍后的残余防线：真坏文件点名）。
-    for p in [
-        &claude_local_settings,
-        &claude_shared,
-        &home.join(".claude").join("settings.json"),
-    ] {
+    for p in claude_layers.iter().map(|(p, _)| *p) {
         if matches!(json_file_state(p), JsonFileState::Bad) {
             push_status(
                 &mut findings,
@@ -1044,13 +1052,9 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
             .and_then(|a| a.as_array())
             .map_or(0, |a: &Vec<Json>| a.len())
     };
-    for (path, layer) in [
-        (&claude_local_settings, "project-local"),
-        (&claude_shared, "project"),
-        // codex F4：用户级 ask 同样 bypass 下照弹，口径与 readblock 对齐
-        //（三层全查）。
-        (&claude_user_yolo, "user"),
-    ] {
+    // codex F4：用户级 ask 同样 bypass 下照弹，口径与 readblock 对齐
+    //（层清单全查）。
+    for (path, layer) in &claude_layers {
         let n = ask_count(path);
         if n > 0 {
             push_status(
@@ -1077,7 +1081,7 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
             .and_then(|b| b.as_bool())
             .unwrap_or(false)
     };
-    for path in [&claude_local_settings, &claude_shared, &claude_user_yolo] {
+    for path in claude_layers.iter().map(|(p, _)| *p) {
         if read_block(path) {
             push_status(
                 &mut findings,

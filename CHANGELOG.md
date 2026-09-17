@@ -115,8 +115,11 @@
 ### 里程碑 2026-09-16
 
 - **治理迁移与四端实弹 v1.3.0**（D52 铁证根修至 REQ-007 攒批，总台统一封版令）：**D52 家目录守卫**（宿主反例三轮归因收敛：裸 init 于家目录 cwd 时项目级退役趟洗用户键，deploy_all 守卫 + --project-yolo 同罩，三端 fleet 实弹验）；读侧 BOM 容忍全覆盖（json 与 toml 五路）加 yolo full 双面落 blockReads=false 加 doctor yolo.parse 显式报。**D53 状态栏面并入 init**（fleet 实测脚本停旧版：deploy_script 加四家 merge 随全套部署，内容判等幂等，marker 保护自备）。**文档体系迁移 dev-evo**（REQ-001：AGENTS 五节合同、ADR 四件、REQ 登记、docs/README 地图承接 INDEX、PE-11 豁免机制化 PEVO_CHECK_ALLOW）。**aidoc 投影强制**（REQ-006：missing_docs deny 加 /// 契约注释 163 处加格式纪律 337 处补注、23 artifact 进 Git、--check --strict 漂移门禁、clippy 四 lint）。**全平台四端实弹矩阵**（REQ-007：cross-test.sh，linux 加 ubuntu 加 mac 加 win 回环，连接姿势 WSL 到宿主恒走 127.0.0.1）。S029 追记 bypass 残余阻塞分类学（归因三次反转教训入档）加 D50 doctor 诊断面（yolo.ask 与 yolo.readblock）随 v1.2.0 已发。
-- **项目级 yolo 干扰一键清除 v2.1.0**（REQ-009/D55，2026-09-17）：`hst init --clear-project-yolo` 摘一切项目级干扰键（ours 与外来都收，D50 三键加 codex/kimi 项目键；allow/deny 不动；家目录守卫），doctor 三处冲突 CTA 扩指；doctor 补 D52 同型家目录守卫（root 为家目录时 yolo 项目层置 None，修 `--project $HOME` 把用户键误判 project level 的舰队对账伪影，2026-09-17 ark 工位实证）。
 - **skill 面全退役与 llms 手册面 v2.0.0**（ADR-0005/D54，用户裁「有 --llms 就不需要 skill 参数命令」「不再有 hst SKILL 安装」）：删 `hst skill` 子命令、skillgen 自适应渲染器与 init 项目级 COMMAND_MAP fan-out，不再有任何技能安装面；agent 紧凑说明书收敛根级 `hst --llms`（活命令树自适应渲染 llms 风格功能面加命令表加输出契约，直打 stdout 不落盘）；init 幂等清扫 ours 技能目录（项目四目录乘 hst 与 ohmyagents 两名加用户级四家 skills 根（.claude/.agents/.grok/.kimi-code）乘两名，marker 家族与生成签名判 ours，外科式伴生资源保留、外来内容不动）；仓内发现通道收敛 aidoc llms.txt 投影；五端四机在位件清扫（lan-win 外来技能保留实证）；契约破裂升 major。
+
+### 里程碑 2026-09-17
+
+- **项目级 yolo 干扰一键清除 v2.1.0**（REQ-009/D55）：`hst init --clear-project-yolo` 摘一切项目级干扰键（ours 与外来都收，D50 三键加 codex/kimi 项目键；allow/deny 不动；家目录守卫），doctor 三处冲突 CTA 扩指。**doctor 家目录守卫（D52 同型二连修）**：root 为家目录时 claude/codex/kimi 三面 yolo 项目层置 None、claude 层清单跳过同体 shared 层（ask/readblock/parse 同罩），修 `--project $HOME` 把用户键误判 project level 与同文件双行的舰队对账伪影（2026-09-17 ark 工位跨工位实证）。**文档体系完整重构（ADR-0006/D56）**：老文档层删除出仓（references 的 R 系、guide 的 G 系、mistakes 的 M 系、proven 的 P 系、根目录旧四原语簇、web），契约权威回归 clap help 加 `///` 加 tests 加投影双面（`hst --llms` 与 aidoc，漂移门禁），AGENTS 收紧 43 行检索阶梯，六态与禁字一句话进 docs/README。
 
 ### 排后
 
