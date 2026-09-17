@@ -18,7 +18,7 @@ tags: ['release', 'build-release', 'D57']
 
 ## Decision
 
-批 A 产地迁移：本地编译打包走 `.tools/release.ps1`（wsl 交叉 linux 加 win-gnu、lan-mac 实机 ssh 构建；测试闸先行；包形 = 单顶层目录二进制加 README 加 LICENSE，win 形 zip 他形 tar.gz，逐包 sha256 边车；版本一致性闸加解包三端冒烟内置），正式版 `gh release create <tag> --latest` 本地直发禁 draft；`dev-release.yml` 瘦身：CI 面保留 docs-gate 与测试岗与 dev 轻岗（push main 建 dev prerelease，豁免在册），tag 推送不再触发 CI 构建，播种从 Release 资产拉（stable 走 release published 事件，dev 轻岗链内触发因 GITHUB_TOKEN 建档不触发 release 事件）。批 B：播种段制补 `hst/<版本>/` immutable 段（copy 加长缓存头，版本号 bare 无 v 前缀，与存量 `hst/2.0.0/` 同形）加 stable 滚动段 sync --delete-excluded；零上传红灯两段报数（版本段与 stable 段分别清点，零对象即红）。批 C：播种 workflow 挂 workflow_dispatch 带 tag 入参补推口（从 Release 重灌不依赖重跑链）；digest 钉死：GitHub 腿 digest 归一（bare hex 或 sha256:hex 统一 sha256:hex）加缺省时取 Release 边车资产判新加安装后按下载件实算哈希写记录。
+批 A 产地迁移：本地编译打包走 `.tools/release.ps1`（wsl 交叉 linux 加 win-gnu、lan-mac 实机 ssh 构建；测试闸先行；包形 = 单顶层目录二进制加 README 加 LICENSE，win 形 zip 他形 tar.gz，逐包 sha256 边车；版本一致性闸加解包三端冒烟内置），正式版 `gh release create <tag> --latest` 本地直发禁 draft；`dev-release.yml` 瘦身：CI 面保留 docs-gate 与测试岗与 dev 轻岗（push main 建 dev prerelease，豁免在册），tag 推送不再触发 CI 构建，播种从 Release 资产拉（stable 走 release published 事件，dev 轻岗链内触发因 GITHUB_TOKEN 建档不触发 release 事件）。批 B：播种段制补 `hst/<版本>/` immutable 段（copy 加长缓存头，版本号 bare 无 v 前缀，与存量 `hst/2.0.0/` 同形；--immutable 保护的判据依赖远端单段上传的 MD5 ETag，资产量级不到 rclone S3 分片阈值（约 200MiB）前有效）加 stable 滚动段 sync --delete-excluded；零上传红灯两段报数（版本段与 stable 段分别清点，零对象即红）。批 C：播种 workflow 挂 workflow_dispatch 带 tag 入参补推口（从 Release 重灌不依赖重跑链）；digest 钉死：GitHub 腿 digest 归一（bare hex 或 sha256:hex 统一 sha256:hex）加缺省时取 Release 边车资产判新加安装后按下载件实算哈希写记录。
 
 ## Consequences
 

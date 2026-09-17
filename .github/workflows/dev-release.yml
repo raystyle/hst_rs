@@ -164,6 +164,7 @@ jobs:
           cd dist-hst && sha256sum -c ./*.sha256
       - name: Seed mirror segments (ADR-0007 批 B)
         run: |
+          set -o pipefail
           tag="${{ steps.rel.outputs.tag }}"
           seg="${{ steps.rel.outputs.seg }}"
           if [[ "$GITHUB_EVENT_NAME" == "release" ]]; then
