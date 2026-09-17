@@ -12,6 +12,11 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'ADR-0007 批 C 补推口：从该 tag 的 Release 重灌镜像段（如 v2.0.0）；留空走 push-main 流程'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -128,8 +133,9 @@ jobs:
   seed:
     # release 事件时 dev-release 被 if 跳过，always() 防连带跳过；push 时仍要
     # dev-release 成功（资产在场）才播种。G1：release 臂排除 prerelease（人为
-    # 重发 dev prerelease 不得灌 stable 段）。dispatch 臂空转至批 C 补推口。
-    if: always() && ((github.event_name == 'release' && !github.event.release.prerelease) || (github.event_name == 'push' && needs.dev-release.result == 'success'))
+    # 重发 dev prerelease 不得灌 stable 段）。批 C：dispatch 带 tag 入参 = 补推口
+    # （从该 Release 重灌版本段与 stable 段，不依赖重跑任何链）。
+    if: always() && ((github.event_name == 'release' && !github.event.release.prerelease) || (github.event_name == 'workflow_dispatch' && inputs.tag != '') || (github.event_name == 'push' && needs.dev-release.result == 'success'))
     needs: [dev-release]
     runs-on: ubuntu-latest
     env:
@@ -150,11 +156,16 @@ jobs:
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "release" ]]; then
             tag="${GITHUB_REF#refs/tags/}"
-            case "$tag" in v[0-9]*) ;; *) echo "bad tag shape: $tag" >&2; exit 1;; esac
+            seg="stable"
+          elif [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && -n "${{ inputs.tag }}" ]]; then
+            tag="${{ inputs.tag }}"
             seg="stable"
           else
             tag="dev"
             seg="dev"
+          fi
+          if [[ "$seg" == "stable" ]]; then
+            case "$tag" in v[0-9]*) ;; *) echo "bad stable tag shape: $tag" >&2; exit 1;; esac
           fi
           echo "seg=$seg" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"

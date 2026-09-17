@@ -233,12 +233,52 @@ fn digest_matches(record: Option<&str>, asset: Option<&str>) -> bool {
     }
 }
 
+/// digest 归一（批 C 钉死，ADR-0007）：GitHub API 的 digest 新形 `sha256:<hex>`
+/// 与旧响应裸 hex 统一为 `sha256:<hex>`，与镜像腿 parse_sidecar 同形态；非法
+/// 串回 None 走保守面。
+fn normalize_digest(raw: &str) -> Option<String> {
+    let lower = raw.trim().to_ascii_lowercase();
+    let hex = lower.strip_prefix("sha256:").unwrap_or(&lower);
+    if hex.len() == 64 && hex.chars().all(|c| c.is_ascii_hexdigit()) {
+        Some(format!("sha256:{hex}"))
+    } else {
+        None
+    }
+}
+
+/// GitHub 腿判新 digest 取值（批 C 钉死）：API digest 归一优先；缺省或非法时
+/// 回落取同 Release 的 `<资产名>.sha256` 边车资产内容（发布器与升级器同锚，
+/// 旧 API 响应不再降级成每跑必重装）；边车也取不到回 None（保守更新）。
+fn github_asset_digest(release: &Release, asset: &Asset) -> Option<String> {
+    if let Some(d) = asset.digest.as_deref().and_then(normalize_digest) {
+        return Some(d);
+    }
+    let sidecar = release
+        .assets
+        .iter()
+        .find(|a| a.name == format!("{}.sha256", asset.name))?;
+    let text = http_get_string(&sidecar.browser_download_url).ok()?;
+    parse_sidecar(&text).ok()
+}
+
+/// 文件 sha256 摘要（批 C 钉死：API digest 缺省时安装后按下载件实算写记录）。
+fn file_sha256(path: &std::path::Path) -> Result<String, String> {
+    use sha2::{Digest, Sha256};
+    let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let mut h = Sha256::new();
+    h.update(&bytes);
+    Ok(format!("sha256:{:x}", h.finalize()))
+}
+
 /// dev 通道判新：滚动源资产 digest 与上次安装记录一致即已最新。
 fn dev_is_current(release: &Release) -> bool {
     let Some(asset) = pick_asset(&release.assets) else {
         return false;
     };
-    digest_matches(read_record_digest().as_deref(), asset.digest.as_deref())
+    let Some(d) = github_asset_digest(release, &asset) else {
+        return false;
+    };
+    digest_matches(read_record_digest().as_deref(), Some(&d))
 }
 
 // ===== 镜像通道（D16 起 HST_MIRROR；D48 双通道与缺省回退） =====
@@ -567,8 +607,13 @@ pub fn run(repo: &str, channel: Channel, git_mode: bool, force: bool) -> Result<
     };
     let final_path = self_replace(&extracted)?;
     println!("update.replaced={}", final_path.display());
-    if let Some(d) = asset.digest.as_deref() {
-        write_record(d, &release.tag_name);
+    let digest = asset
+        .digest
+        .as_deref()
+        .and_then(normalize_digest)
+        .or_else(|| file_sha256(&tmp).ok());
+    if let Some(d) = digest {
+        write_record(&d, &release.tag_name);
     }
     println!("update.ok=true");
     Ok(())
@@ -863,5 +908,52 @@ mod tests {
             Some(&format!("sha256:{}", hex.to_ascii_uppercase())),
             Some(&parsed)
         ));
+    }
+
+    #[test]
+    fn normalize_digest_unifies_bare_and_prefixed_forms() {
+        // 批 C 钉死：新旧 API 形归一为 sha256:hex，非法串回 None。
+        let hex = "a".repeat(64);
+        assert_eq!(
+            normalize_digest(&format!("sha256:{hex}")),
+            Some(format!("sha256:{hex}"))
+        );
+        assert_eq!(normalize_digest(&hex), Some(format!("sha256:{hex}")));
+        assert_eq!(
+            normalize_digest(&hex.to_uppercase()),
+            Some(format!("sha256:{hex}"))
+        );
+        assert_eq!(normalize_digest("not-a-digest"), None);
+        assert_eq!(normalize_digest(""), None);
+    }
+
+    #[test]
+    fn github_asset_digest_prefers_api_over_sidecar_shape() {
+        // API digest 在位（归一形）优先；缺省且边车不可达回 None（保守更新，
+        // 不再降级成每跑必重装）。边车回落面由 http 层承载（集成面锚边车）。
+        let hex = "b".repeat(64);
+        let release = Release {
+            tag_name: "dev".into(),
+            draft: false,
+            assets: vec![Asset {
+                name: "hst-x.tar.gz".into(),
+                browser_download_url: "https://example.invalid/hst-x.tar.gz".into(),
+                digest: Some(format!("sha256:{hex}")),
+            }],
+        };
+        assert_eq!(
+            github_asset_digest(&release, &release.assets[0]),
+            Some(format!("sha256:{hex}"))
+        );
+        let bare = Release {
+            tag_name: "dev".into(),
+            draft: false,
+            assets: vec![Asset {
+                name: "hst-x.tar.gz".into(),
+                browser_download_url: "https://example.invalid/hst-x.tar.gz".into(),
+                digest: None,
+            }],
+        };
+        assert_eq!(github_asset_digest(&bare, &bare.assets[0]), None);
     }
 }
