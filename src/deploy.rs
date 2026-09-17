@@ -17,9 +17,9 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{json, Value as Json};
 
-use crate::yolo::{read_json, read_toml, toml_write, write_json, write_text};
 #[cfg(test)]
 use crate::yolo::ensure_parent;
+use crate::yolo::{read_json, read_toml, toml_write, write_json, write_text};
 
 #[derive(Default)]
 /// 部署报告：写入、跳过、形态与警告清单。

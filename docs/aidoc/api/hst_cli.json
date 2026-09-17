@@ -1,6 +1,6 @@
 {
   "crate": "hst-cli",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "items": [
     {
       "path": "hst_cli::agents",
@@ -873,6 +873,11 @@
       "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n用户级 yolo 与非阻塞键（D28 第 2 轮裁定 2026-09-11：yolo 模式与非阻塞\n模式也用户级，覆盖 D25「oma --yolo 面向项目级」口径；历史脉络 = 用户级\n需求自 POC 期「不改家目录」约束起被逐面翻正：状态栏 P0027、kimi M058、\nhook D28、本面）。四家写入面：claude `~/.claude/settings.json`\n（permissions.defaultMode 加 skipDangerousModePermissionPrompt 加\nenableAllProjectMcpServers）、codex `~/.codex/config.toml`\n（sandbox_mode 加 approval_policy）、kimi `~/.kimi-code/config.toml`\n（default_permission_mode）、grok `~/.grok/config.toml`\n（`[ui]` permission_mode）。项目级旧键由 init 退役（retire_project_yolo）。\nD33 起 level 分级：partial 摘 ours 落的 enableAllProjectMcpServers（MCP\n审批恢复确认，--pre-trust 重跑可再开；codex 评审 F1 裁 a）；off 走\nretire_user_yolo_with。"
     },
     {
+      "path": "hst_cli::yolo::clear_project_yolo_interference",
+      "kind": "function",
+      "docs": "# Panics\n\n正常路径不 panic；内部 unwrap 仅出现在构造不变量上。\n# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n项目级 yolo 干扰一键清除（REQ-009/D55，`hst init --clear-project-yolo`）：\n与 retire_project_yolo 的 ours 等值摘除不同，本面摘**一切**项目级干扰键\n（ours 与外来都收，典型外来源是 Claude Code 界面自写 acceptEdits 进\nsettings.local.json），让用户级 yolo 生效。干扰面按 D50 分类学：claude\n两层 settings 的 `permissions.defaultMode`（任意值，项目层遮蔽用户层）、\n`permissions.ask`（bypass 下照弹）、`permissions.blockReadsOutside\nWorkingDirectories=true`（读沙箱照问）；codex 项目 config 顶层\n`sandbox_mode` 加 `approval_policy`（任意值，覆盖用户层）；kimi 项目\nconfig `default_permission_mode`（任意值）。`permissions.allow`/`deny`\n与其余非干扰键不动（deny 是安全 carve-out）；permissions 空则摘键、\n整文件空对象/空表则删文件；grok 无项目级面。返回变更描述\n（`<路径> (cleared-yolo)` 行族）。"
+    },
+    {
       "path": "hst_cli::yolo::kimi_workspace_key",
       "kind": "function",
       "docs": "yolo 键的kimi_workspace_key面（细则见 R002 与模块文档）。"
@@ -880,7 +885,7 @@
     {
       "path": "hst_cli::yolo::retire_project_yolo",
       "kind": "function",
-      "docs": "# Panics\n\n正常路径不 panic；内部 unwrap 仅出现在构造不变量上。\n# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n项目级旧 yolo 键退役（D28 第 2 轮）：oma 写过的项目面键摘除（值等于\nours 落值才动，用户自设其它值保留），整文件只剩空对象/空表时删文件。\nD33 起 ours 值集含 full 与 partial 两代。返回变更描述（deploy report 收录）。"
+      "docs": "# Panics\n\n正常路径不 panic；内部 unwrap 仅出现在构造不变量上。\n# Errors\n\n失败返回 `String` 错误（路径与解析类见模块文档）。\n项目级旧 yolo 键退役（D28 第 2 轮）：oma 写过的项目面键摘除（值等于\nours 落值才动，用户自设其它值保留），整文件只剩空对象/空表时删文件。\nD33 起 ours 值集含 full 与 partial 两代。返回变更描述（deploy report 收录）。"
     },
     {
       "path": "hst_cli::yolo::retire_user_yolo",

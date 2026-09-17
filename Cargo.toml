@@ -13,7 +13,7 @@ missing_panics_doc = "warn"
 
 [package]
 name = "hst-cli"
-version = "2.0.0"
+version = "2.1.0"
 edition = "2021"
 description = "HST（Hooks, Statusline, Trace）：Claude/Codex/Grok/Kimi 四家 hook 落盘、状态栏、只读 trace、doctor 与 yolo 部署配置工具"
 license = "MIT"

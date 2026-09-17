@@ -12,3 +12,4 @@
 | REQ-006 | implemented | must | aidoc投影强制重构 | aidoc --check --strict |
 | REQ-007 | implemented | should | 全平台SSH实测矩阵 | .tools/cross-test.sh |
 | REQ-008 | draft | should | 三扫描器缺省根统一仓根 | |
+| REQ-009 | implemented | must | 项目级yolo干扰一键清除 | clear_project_yolo_interference 单测加 cli 集成 init --clear-project-yolo |

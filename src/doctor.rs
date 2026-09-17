@@ -960,8 +960,9 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
             ppath,
             format!(
                 "conflict: project defaultMode={p} shadows user {u} (silent \
-                 downgrade, S029); align via `hst init --project-yolo=<level>` \
-                 or drop one level (D28 r4)"
+                 downgrade, S029); align via `hst init --clear-project-yolo` \
+                 (one-click strip of project-level interference, REQ-009) or `hst init \
+                 --project-yolo=<level>` or drop one level (D28 r4)"
             ),
         ),
         (Some((p, ppath)), Some(_)) => push(
@@ -1296,7 +1297,9 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
             &codex_proj,
             format!(
                 "conflict: project sandbox/approval={p:?} shadows user {u:?}; align via \
-                 `hst init --project-yolo=<level>` or drop one level (D28 r4)"
+                 `hst init --clear-project-yolo` (one-click strip of project-level \
+                 interference, REQ-009) or `hst init --project-yolo=<level>` or drop one \
+                 level (D28 r4)"
             ),
         ),
         (Some(p), _) => push(
@@ -1538,7 +1541,9 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
             &kimi_proj,
             format!(
                 "conflict: project default_permission_mode={p} shadows user {u}; align via \
-                 `hst init --project-yolo=<level>` or drop one level (D28 r4)"
+                 `hst init --clear-project-yolo` (one-click strip of project-level \
+                 interference, REQ-009) or `hst init --project-yolo=<level>` or drop one \
+                 level (D28 r4)"
             ),
         ),
         (Some(p), _) => push(

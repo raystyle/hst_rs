@@ -634,6 +634,67 @@ fn init_pretrust_canonical_parses_and_legacy_alias_is_removed() {
 }
 
 #[test]
+fn init_clear_project_yolo_strips_interference() {
+    // REQ-009/D55：--clear-project-yolo 一键清项目级干扰键（ours 与外来
+    // 都收），keys-only 不部署 hook；与 --yolo 互斥。
+    let tmp = std::env::temp_dir().join(format!(
+        "hst-cli-init-clear-{}-{}",
+        std::process::id(),
+        NEXT_TEST_DIR.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    let user = tmp.join("fake-user-home");
+    let hst_root = tmp.join("fake-hst-home");
+    let proj = tmp.join("proj");
+    std::fs::create_dir_all(&user).unwrap();
+    std::fs::create_dir_all(&hst_root).unwrap();
+    std::fs::create_dir_all(proj.join(".claude")).unwrap();
+    std::fs::write(
+        proj.join(".claude").join("settings.json"),
+        r#"{"permissions": {"defaultMode": "acceptEdits", "ask": ["Bash*"], "allow": ["Read*"]}, "env": {"K": "v"}}"#,
+    )
+    .unwrap();
+    std::fs::create_dir_all(proj.join(".codex")).unwrap();
+    std::fs::write(
+        proj.join(".codex").join("config.toml"),
+        "sandbox_mode = \"read-only\"
+",
+    )
+    .unwrap();
+    // 互斥：与 --yolo 组合 clap 退出 2。
+    hst()
+        .args(["init", "--yolo", "--clear-project-yolo", "--project"])
+        .arg(&proj)
+        .env("HST_USER_HOME", &user)
+        .env("HST_ROOT", &hst_root)
+        .assert()
+        .failure()
+        .code(2);
+    hst()
+        .args(["init", "--clear-project-yolo", "--project"])
+        .arg(&proj)
+        .env("HST_USER_HOME", &user)
+        .env("HST_ROOT", &hst_root)
+        .assert()
+        .success()
+        .stdout(contains("init.flag.clear_project_yolo=true"))
+        .stdout(contains("(cleared-yolo)"))
+        .stdout(contains("init.hooks=skipped"));
+    let v: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(proj.join(".claude").join("settings.json")).unwrap(),
+    )
+    .unwrap();
+    assert!(v["permissions"].get("defaultMode").is_none());
+    assert!(v["permissions"].get("ask").is_none());
+    assert_eq!(v["permissions"]["allow"][0], "Read*", "allow kept");
+    assert_eq!(v["env"]["K"], "v");
+    assert!(
+        !proj.join(".codex").join("config.toml").exists(),
+        "empty codex config removed"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
 fn init_yolo_partial_and_off_level_markers() {
     // D33：--yolo=<full|partial|off> 取值式分级；off 摘 hst 落键。
     let tmp = std::env::temp_dir().join(format!(

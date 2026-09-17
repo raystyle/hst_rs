@@ -440,6 +440,112 @@ pub fn retire_user_yolo() -> Result<Vec<String>, String> {
 /// # Errors
 ///
 /// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
+/// 项目级 yolo 干扰一键清除（REQ-009/D55，`hst init --clear-project-yolo`）：
+/// 与 retire_project_yolo 的 ours 等值摘除不同，本面摘**一切**项目级干扰键
+/// （ours 与外来都收，典型外来源是 Claude Code 界面自写 acceptEdits 进
+/// settings.local.json），让用户级 yolo 生效。干扰面按 D50 分类学：claude
+/// 两层 settings 的 `permissions.defaultMode`（任意值，项目层遮蔽用户层）、
+/// `permissions.ask`（bypass 下照弹）、`permissions.blockReadsOutside
+/// WorkingDirectories=true`（读沙箱照问）；codex 项目 config 顶层
+/// `sandbox_mode` 加 `approval_policy`（任意值，覆盖用户层）；kimi 项目
+/// config `default_permission_mode`（任意值）。`permissions.allow`/`deny`
+/// 与其余非干扰键不动（deny 是安全 carve-out）；permissions 空则摘键、
+/// 整文件空对象/空表则删文件；grok 无项目级面。返回变更描述
+/// （`<路径> (cleared-yolo)` 行族）。
+pub fn clear_project_yolo_interference(root: &Path) -> Result<Vec<String>, String> {
+    let root = abs_display(root);
+    let mut changed = Vec::new();
+
+    // claude 项目两层（local 优先于 shared，两层都可能是干扰源）。
+    for rel in [".claude/settings.json", ".claude/settings.local.json"] {
+        let path = root.join(rel);
+        if !path.exists() {
+            continue;
+        }
+        let mut v = read_json(&path)?;
+        let Some(obj) = v.as_object_mut() else {
+            continue;
+        };
+        let mut dirty = false;
+        if let Some(p) = obj.get_mut("permissions").and_then(|p| p.as_object_mut()) {
+            // defaultMode 任意值都摘（bypass 在 2.1.257 起项目层本就被忽略，
+            // 非 bypass 是静默降级）；ask 任意形态都摘；blockReads 只摘 true
+            //（false 是放行键不构成干扰）。两个 remove 各自执行（`||` 短路
+            // 会让 ask 漏摘）。
+            if p.remove("defaultMode").is_some() {
+                dirty = true;
+            }
+            if p.remove("ask").is_some() {
+                dirty = true;
+            }
+            if p.get("blockReadsOutsideWorkingDirectories")
+                .and_then(|x| x.as_bool())
+                == Some(true)
+            {
+                p.remove("blockReadsOutsideWorkingDirectories");
+                dirty = true;
+            }
+            if p.is_empty() {
+                obj.remove("permissions");
+            }
+        }
+        if dirty {
+            if obj.is_empty() {
+                fs::remove_file(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+            } else {
+                write_json(&path, &v)?;
+            }
+            changed.push(format!("{} (cleared-yolo)", path.display()));
+        }
+    }
+
+    // codex 项目 config.toml：顶层两键任意值都摘（项目信任键不动）。
+    let codex = root.join(".codex").join("config.toml");
+    if codex.exists() {
+        let mut t = read_toml(&codex)?;
+        if let Toml::Table(map) = &mut t {
+            let mut dirty = false;
+            for k in ["sandbox_mode", "approval_policy"] {
+                if map.remove(k).is_some() {
+                    dirty = true;
+                }
+            }
+            if dirty {
+                if map.is_empty() {
+                    fs::remove_file(&codex).map_err(|e| format!("{}: {e}", codex.display()))?;
+                } else {
+                    write_toml(&codex, &t)?;
+                }
+                changed.push(format!("{} (cleared-yolo)", codex.display()));
+            }
+        }
+    }
+
+    // kimi 项目 config.toml：default_permission_mode 任意值摘。
+    let kimi = root.join(".kimi-code").join("config.toml");
+    if kimi.exists() {
+        let mut t = read_toml(&kimi)?;
+        if let Toml::Table(map) = &mut t {
+            if map.remove("default_permission_mode").is_some() {
+                if map.is_empty() {
+                    fs::remove_file(&kimi).map_err(|e| format!("{}: {e}", kimi.display()))?;
+                } else {
+                    write_toml(&kimi, &t)?;
+                }
+                changed.push(format!("{} (cleared-yolo)", kimi.display()));
+            }
+        }
+    }
+
+    Ok(changed)
+}
+
+/// # Panics
+///
+/// 正常路径不 panic；内部 unwrap 仅出现在构造不变量上。
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与解析类见模块文档）。
 /// 项目级旧 yolo 键退役（D28 第 2 轮）：oma 写过的项目面键摘除（值等于
 /// ours 落值才动，用户自设其它值保留），整文件只剩空对象/空表时删文件。
 /// D33 起 ours 值集含 full 与 partial 两代。返回变更描述（deploy report 收录）。
@@ -1382,5 +1488,90 @@ model = \"gpt\"
         assert!(retire_project_yolo(&root).unwrap().is_empty());
 
         let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn clear_project_yolo_strips_foreign_interference_keeps_rest() {
+        // REQ-009/D55：一键清除收外来干扰键（Claude Code 自写 acceptEdits、
+        // ask 规则、blockReads=true、codex/kimi 项目覆盖值），allow/deny 与
+        // 其余键不动；空文件删；幂等零写入。
+        let proj = fresh_dir();
+        std::fs::create_dir_all(proj.join(".claude")).unwrap();
+        std::fs::write(
+            proj.join(".claude").join("settings.json"),
+            r#"{"permissions": {"defaultMode": "acceptEdits", "ask": ["Bash*"], "allow": ["Read*"], "deny": ["rm -rf*"], "blockReadsOutsideWorkingDirectories": true}, "env": {"K": "v"}}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            proj.join(".claude").join("settings.local.json"),
+            r#"{"permissions": {"defaultMode": "default", "blockReadsOutsideWorkingDirectories": false}}"#,
+        )
+        .unwrap();
+        std::fs::create_dir_all(proj.join(".codex")).unwrap();
+        std::fs::write(
+            proj.join(".codex").join("config.toml"),
+            "sandbox_mode = \"read-only\"
+approval_policy = \"untrusted\"
+",
+        )
+        .unwrap();
+        std::fs::create_dir_all(proj.join(".kimi-code")).unwrap();
+        std::fs::write(
+            proj.join(".kimi-code").join("config.toml"),
+            "default_permission_mode = \"ask\"
+",
+        )
+        .unwrap();
+
+        let changed = clear_project_yolo_interference(&proj).unwrap();
+        assert_eq!(changed.len(), 4, "four files touched: {changed:?}");
+
+        let v: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(proj.join(".claude").join("settings.json")).unwrap(),
+        )
+        .unwrap();
+        assert!(
+            v["permissions"].get("defaultMode").is_none(),
+            "foreign acceptEdits stripped"
+        );
+        assert!(v["permissions"].get("ask").is_none(), "ask rules stripped");
+        assert!(
+            v["permissions"]
+                .get("blockReadsOutsideWorkingDirectories")
+                .is_none(),
+            "readblock true stripped"
+        );
+        assert_eq!(v["permissions"]["allow"][0], "Read*", "allow kept");
+        assert_eq!(
+            v["permissions"]["deny"][0], "rm -rf*",
+            "deny kept (safety carve-out)"
+        );
+        assert_eq!(v["env"]["K"], "v", "foreign top-level keys kept");
+
+        // local：defaultMode 摘后 blockReads=false 是放行键保留。
+        let lv: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(proj.join(".claude").join("settings.local.json")).unwrap(),
+        )
+        .unwrap();
+        assert!(lv["permissions"].get("defaultMode").is_none());
+        assert_eq!(
+            lv["permissions"]["blockReadsOutsideWorkingDirectories"], false,
+            "false is enabling, kept"
+        );
+
+        // codex 与 kimi 只剩被摘键 → 整文件删。
+        assert!(
+            !proj.join(".codex").join("config.toml").exists(),
+            "empty codex config removed"
+        );
+        assert!(
+            !proj.join(".kimi-code").join("config.toml").exists(),
+            "empty kimi config removed"
+        );
+
+        // 幂等：再跑零变更。
+        let again = clear_project_yolo_interference(&proj).unwrap();
+        assert!(again.is_empty(), "idempotent: {again:?}");
+        let _ = std::fs::remove_dir_all(&proj);
     }
 }

@@ -40,7 +40,7 @@ enum Commands {
             value_enum,
             num_args = 0..=1,
             default_missing_value = "full",
-            conflicts_with = "project_yolo"
+            conflicts_with_all = ["project_yolo", "clear_project_yolo"]
         )]
         yolo: Option<yolo::YoloLevel>,
         /// 写项目级无阻塞键（仅 yolo，项目覆盖用户级；与 --yolo 互斥；D33 分级同款）
@@ -48,9 +48,13 @@ enum Commands {
             long = "project-yolo",
             value_enum,
             num_args = 0..=1,
-            default_missing_value = "full"
+            default_missing_value = "full",
+            conflicts_with_all = ["yolo", "clear_project_yolo"]
         )]
         project_yolo: Option<yolo::YoloLevel>,
+        /// 一键清除项目级对用户级 yolo 的干扰键（ours 与外来都摘，让用户级生效；REQ-009/D55；与 --yolo/--project-yolo 互斥）
+        #[arg(long, conflicts_with_all = ["yolo", "project_yolo"])]
+        clear_project_yolo: bool,
         /// 预写用户家目录信任库（claude/codex/kimi/grok）
         #[arg(long = "pre-trust")]
         pretrust: bool,
@@ -305,9 +309,10 @@ fn run() -> Result<(), String> {
         Commands::Init {
             yolo,
             project_yolo,
+            clear_project_yolo,
             pretrust,
             project,
-        } => cmd_init(yolo, project_yolo, pretrust, project),
+        } => cmd_init(yolo, project_yolo, clear_project_yolo, pretrust, project),
         Commands::Doctor { project } => cmd_doctor(project),
         Commands::Agents { cmd } => match cmd {
             None => {
@@ -689,6 +694,7 @@ fn project_root(project: Option<PathBuf>) -> Result<PathBuf, String> {
 fn cmd_init(
     yolo: Option<yolo::YoloLevel>,
     project_yolo: Option<yolo::YoloLevel>,
+    clear_project_yolo: bool,
     pretrust: bool,
     project: Option<PathBuf>,
 ) -> Result<(), String> {
@@ -703,6 +709,25 @@ fn cmd_init(
     // level-taking (full|partial|off, bare flag = full); off retires ours keys
     // at the chosen scope instead of writing.
     let keys_only = yolo.is_some();
+    // REQ-009/D55：--clear-project-yolo = 项目级干扰一键清除（keys-only，
+    // 与两级 yolo 旗标互斥由 clap 保证）。家目录守卫同 --project-yolo
+    //（D52）：root 是家目录时项目层即用户层文件本体，整支跳过打点。
+    if clear_project_yolo {
+        println!("init.flag.clear_project_yolo=true");
+        let home = hst::pathutil::user_home()?;
+        if hst::pathutil::same_location(&root, &home) {
+            println!(
+                "init.warn=clear-project-yolo skipped: root is the user home \
+                 (home is not a project; user-level keys stay)"
+            );
+        } else {
+            for p in hst::yolo::clear_project_yolo_interference(&root)? {
+                println!("init.retired={p}");
+            }
+        }
+        println!("init.hooks=skipped");
+        return Ok(());
+    }
     if let Some(level) = project_yolo {
         println!("init.flag.project_yolo=true");
         println!("init.yolo.level={}", level.as_str());
