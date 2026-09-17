@@ -38,7 +38,7 @@
 - 命令行为细则：`docs/references/R002`（唯一权威）到 `R007`（怎么做）到 `docs/research/S00x`（为什么）
 - 文档地图：`docs/README.md`（全仓索引，承接旧 INDEX 职责）；历史定位与方案：`docs/adr/` 与 `docs/proven/`
 - 代码定位：先 docs/README 代码表再 `ast-grep` 符号；抽文档节用 mq
-- 需求与队列：`docs/requirements/README.md`；旧四段协作规则全文：`docs/guides/agents-legacy-four-sections.md`
+- 需求与队列：`docs/requirements/README.md`
 
 ## 环境
 

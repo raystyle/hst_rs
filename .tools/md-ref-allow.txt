@@ -18,3 +18,10 @@
 ^docs.web.share-src.
 ^docs/specs/web-share-e2ee-protocol-v1\.md$
 ^docs/user-guide/.*\.md$
+
+# ADR-0006 清退批（2026-09-17）：历史档案（diary、research）指向已删除出仓件的当时路径
+^GOAL\.md$
+^INDEX\.md$
+^docs\\references\\R004-测试标准细则-分层断言与门禁流程\.md$
+^docs\\references\\R005-选型研究细则-cratesio与github双通道\.md$
+^docs\\proven\\P0027-四环境部署自适应-hook形态与状态栏\.md$

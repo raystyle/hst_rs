@@ -122,5 +122,5 @@ hst trace agent claude      # 某家 agent 的操作块时间线
 
 ## 更多文档
 
-- 命令手册细则：`docs\references\R002-常用命令与管理流程-从项目init到部署诊断.md`
-- 需求与设计：`docs/requirements/`（REQ 登记）与 `docs/adr/`（架构决策）；文档地图 `docs/README.md`（历史 PRD 与 INDEX 为迁移留档）
+- 命令手册：`hst --llms`（CLI 紧凑手册，随命令树自适应）；库面契约：`docs/aidoc/` 投影
+- 需求与设计：`docs/requirements/`（REQ 登记）与 `docs/adr/`（架构决策）；文档地图 `docs/README.md`
