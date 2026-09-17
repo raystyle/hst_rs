@@ -16,12 +16,13 @@ serde_json 开 preserve_order：JSON 字段序与 kv 行序一致（ome S003 实
 
 - `envelope` — 响应信封（S016 吸收，原 api.rs；P0011 删除后归位本模块）：CLI `--json`
 - `error_exit` — main 错误出口：结构化模式 stderr 单行 JSON，kv 模式人称行；退出码 1。
+- `filter_output` — `--filter-output <keys>`：json 信封 data 的键路径过滤（cli-docs 采纳轮，
 - `init` — # Errors
-- `mode` — 输出与信封的mode面（细则见模块文档与集成测试）。
+- `mode` — 当前输出格式（kv 缺省）。
 - `print_jsonl` — jsonl 模式：逐行对象（无信封）。列表型命令用；非列表命令 jsonl 视同
 - `structured` — 结构化模式（错误走单行 JSON、stdout 纯数据）。
 
 ## Types
 
-- `Format` — 输出与信封的Format面（细则见模块文档与集成测试）。
+- `Format` — 输出格式三态：kv 人读 marker 行、json 信封、jsonl 逐行对象。
 

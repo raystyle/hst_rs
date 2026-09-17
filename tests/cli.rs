@@ -1378,3 +1378,188 @@ fn self_update_mirror_off_runs_github_only() {
     assert!(!s.contains("update.fallback=mirror"), "{s}");
     assert!(!s.contains("update.fallback=github"), "{s}");
 }
+
+// ===== cli-docs 采纳轮（2026-09-18）：帮助面节序、裸调用、--filter-output、漂移守卫 =====
+
+#[test]
+fn help_root_face_header_and_global_options_sections() {
+    // 根帮助面：头行 name@version 连一句定位（版本从载体 manifest 注入）；
+    // Options 与 Global Options 分节且 Global Options 在后；尾带 --llms 发现指引。
+    let out = hst()
+        .arg("--help")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let s = String::from_utf8_lossy(&out);
+    let first = s.lines().next().unwrap_or_default();
+    assert!(first.starts_with("hst@"), "头行 name@version：{first}");
+    assert!(
+        first.contains(env!("CARGO_PKG_VERSION")),
+        "版本注入非手写：{first}"
+    );
+    let (Some(opts), Some(global)) = (s.find("Options:"), s.find("Global Options:")) else {
+        panic!("Options 与 Global Options 分节齐备");
+    };
+    assert!(opts < global, "Options 先于 Global Options");
+    assert!(
+        s.contains("--filter-output"),
+        "旗标七件之 --filter-output 在册"
+    );
+    assert!(s.contains("hst --llms"), "尾行 --llms 发现指引");
+}
+
+#[test]
+fn bare_call_prints_help_and_exits_zero() {
+    // 裸调用面（cli-docs 第五节）：无参 = 导航事件，全貌形（帮助体含命令
+    // 表与 --llms 指引），exit 恒 0。
+    let out = hst().assert().success().get_output().stdout.clone();
+    let s = String::from_utf8_lossy(&out);
+    assert!(s.contains("Usage:"), "裸调用打印帮助体");
+    assert!(s.contains("Commands:"), "帮助体含命令表");
+    assert!(s.contains("--llms"), "帮助体含 --llms 发现指引");
+}
+
+#[test]
+fn filter_output_shapes_envelope_data() {
+    let tmp = std::env::temp_dir().join(format!(
+        "hst-filter-ok-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis()
+    ));
+    std::fs::create_dir_all(&tmp).unwrap();
+    let out = hst()
+        .args([
+            "--json",
+            "--filter-output",
+            "blocked",
+            "doctor",
+            "--project",
+        ])
+        .arg(&tmp)
+        .assert()
+        .code(1)
+        .get_output()
+        .stdout
+        .clone();
+    let v: serde_json::Value = serde_json::from_slice(&out).expect("envelope parses");
+    assert_eq!(v["ok"], serde_json::json!(true));
+    assert_eq!(v["data"]["blocked"], serde_json::json!(true));
+    assert_eq!(v["data"].as_object().unwrap().len(), 1, "data 只留过滤键");
+    assert!(
+        v["meta"]["duration_ms"].as_u64().is_some(),
+        "meta 带 duration_ms"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
+fn filter_output_missing_key_is_structured_error() {
+    let tmp = std::env::temp_dir().join(format!(
+        "hst-filter-miss-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis()
+    ));
+    std::fs::create_dir_all(&tmp).unwrap();
+    let output = hst()
+        .args(["--json", "--filter-output", "nope", "doctor", "--project"])
+        .arg(&tmp)
+        .assert()
+        .code(1)
+        .get_output()
+        .clone();
+    let err = String::from_utf8_lossy(&output.stderr);
+    let line = err.lines().last().unwrap_or_default();
+    let v: serde_json::Value = serde_json::from_str(line).expect("stderr 单行 JSON");
+    assert_eq!(v["code"], serde_json::json!("error"));
+    assert!(
+        v["message"].as_str().is_some_and(|m| m.contains("未命中")),
+        "错误信息指未命中：{line}"
+    );
+    let stdout: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("stdout 信封仍可解析");
+    assert_eq!(stdout["ok"], serde_json::json!(false));
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
+fn llms_manual_covers_command_tree_and_flags() {
+    // 漂移守卫（cli-docs 第四节）：以 --llms --json 机器形为活命令树真源，
+    // 每条命令路径出现在 markdown 手册；逐命令 --help 提取长旗标，断言每
+    // 个旗标名出现在手册（防新增参数漏登记；同时锁 通用旗标 手写节不漂）。
+    let manual =
+        String::from_utf8_lossy(&hst().arg("--llms").assert().success().get_output().stdout)
+            .into_owned();
+    let machine: serde_json::Value = serde_json::from_slice(
+        &hst()
+            .args(["--llms", "--json"])
+            .assert()
+            .success()
+            .get_output()
+            .stdout,
+    )
+    .expect("machine form parses");
+
+    fn collect(node: &serde_json::Value, prefix: &str, paths: &mut Vec<String>) {
+        // 根层键名 commands，嵌套层键名 subcommands（llm_machine_form 契约）。
+        let empty = vec![];
+        let cmds = node["commands"]
+            .as_array()
+            .or_else(|| node["subcommands"].as_array())
+            .unwrap_or(&empty);
+        for c in cmds {
+            let name = c["name"].as_str().unwrap_or_default();
+            let path = if prefix.is_empty() {
+                format!("hst {name}")
+            } else {
+                format!("{prefix} {name}")
+            };
+            paths.push(path.clone());
+            collect(c, &path, paths);
+        }
+    }
+    let mut paths = Vec::new();
+    collect(&machine, "", &mut paths);
+    assert!(paths.len() >= 20, "命令树遍历到叶：{} 条", paths.len());
+    for p in &paths {
+        assert!(manual.contains(p.as_str()), "手册含命令 {p}");
+    }
+
+    let mut checked = 0usize;
+    for p in &paths {
+        let args: Vec<&str> = p.split_whitespace().skip(1).collect();
+        let help = String::from_utf8_lossy(
+            &hst()
+                .args(&args)
+                .arg("--help")
+                .assert()
+                .success()
+                .get_output()
+                .stdout,
+        )
+        .into_owned();
+        for token in help.split_whitespace() {
+            let Some(name) = token.strip_prefix("--") else {
+                continue;
+            };
+            let name = name
+                .split(|c| c == '[' || c == '=' || c == '<' || c == ',' || c == '/')
+                .next()
+                .unwrap_or_default();
+            if name.is_empty() {
+                continue;
+            }
+            let flag = format!("--{name}");
+            assert!(manual.contains(&flag), "手册含旗标 {flag}（命令 {p}）");
+            checked += 1;
+        }
+    }
+    assert!(checked >= 40, "旗标核对量足够：{checked}");
+}

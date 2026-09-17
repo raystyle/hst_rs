@@ -1,6 +1,6 @@
 {
   "crate": "hst-cli",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "items": [
     {
       "path": "hst_cli::agents",
@@ -265,12 +265,12 @@
     {
       "path": "hst_cli::fmtio::Format",
       "kind": "enum",
-      "docs": "输出与信封的Format面（细则见模块文档与集成测试）。"
+      "docs": "输出格式三态：kv 人读 marker 行、json 信封、jsonl 逐行对象。"
     },
     {
       "path": "hst_cli::fmtio::envelope",
       "kind": "function",
-      "docs": "响应信封（S016 吸收，原 api.rs；P0011 删除后归位本模块）：CLI `--json`\n吐它。形：`{ok, data|error, meta:{command, project}}`。"
+      "docs": "响应信封（S016 吸收，原 api.rs；P0011 删除后归位本模块）：CLI `--json`\n吐它。形：`{ok, data|error, meta:{command, project, duration_ms}}`；\nduration_ms 自 fmtio::init 起计（cli-docs 采纳轮补，注入非手写）。"
     },
     {
       "path": "hst_cli::fmtio::error_exit",
@@ -278,14 +278,19 @@
       "docs": "main 错误出口：结构化模式 stderr 单行 JSON，kv 模式人称行；退出码 1。"
     },
     {
+      "path": "hst_cli::fmtio::filter_output",
+      "kind": "function",
+      "docs": "`--filter-output <keys>`：json 信封 data 的键路径过滤（cli-docs 采纳轮，\n必选旗标七件之一）。keys 逗号分隔多路径，路径点号嵌套，段可带数组下标\n（`items[0]` 单下标取元素、`items[0,2]` 多下标取数组）。返回对象以原\n路径串为键、命中值为值；任一路径未命中返回 Err（结构化错误出口承接）。\n仅作用于 json 信封 data；kv 与 jsonl 面不变。\n\n# Errors\n\n路径为空、格式非法（如 `a[`）或在 data 中未命中时返回 `String` 错误。"
+    },
+    {
       "path": "hst_cli::fmtio::init",
       "kind": "function",
-      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n启动期设置一次（main 解析后、分派前）；`--json` 与 `--format` 的互斥\n由 clap `conflicts_with` 保证。"
+      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n启动期设置一次（main 解析后、分派前）；`--json` 与 `--format` 的互斥\n由 clap `conflicts_with` 保证；`--filter-output` 只配 json 信封面，\n配 kv 或 jsonl 直接报错（静默忽略是 agent 陷阱）。"
     },
     {
       "path": "hst_cli::fmtio::mode",
       "kind": "function",
-      "docs": "输出与信封的mode面（细则见模块文档与集成测试）。"
+      "docs": "当前输出格式（kv 缺省）。"
     },
     {
       "path": "hst_cli::fmtio::print_jsonl",

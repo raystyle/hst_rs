@@ -14,14 +14,35 @@ use hst::trace;
 use hst::yolo;
 
 #[derive(Parser)]
-#[command(name = "hst", version)]
+#[command(
+    name = "hst",
+    version,
+    about = "HST（Hooks, Statusline, Trace）：agent 全平台部署配置与诊断 CLI",
+    // 帮助面头行（cli-docs 采纳轮）：name@version 连接一句定位，版本由
+    // {version} 从载体 manifest 注入，禁手写第二份。
+    help_template = "{name}@{version} {about}\n\n{usage-heading} {usage}\n\n{all-args}{after-help}",
+    after_help = "agent 手册面：hst --llms（markdown 手册）；hst --llms --json（机器形）"
+)]
 struct Cli {
-    /// JSON 信封输出（--format json 简写）
-    #[arg(long, global = true, conflicts_with = "format")]
-    json: bool,
-    /// 的输出格式面（细则见模块文档与集成测试）。
-    #[arg(long, global = true)]
+    /// 输出格式（kv|json|jsonl；kv 为缺省 marker 行，json 出信封，jsonl 逐行对象）
+    #[arg(long, global = true, help_heading = "Global Options")]
     format: Option<String>,
+    /// JSON 信封输出（--format json 简写）
+    #[arg(
+        long,
+        global = true,
+        conflicts_with = "format",
+        help_heading = "Global Options"
+    )]
+    json: bool,
+    /// json 信封 data 的键路径过滤（逗号分隔，点号嵌套，数组下标如 items[0]；缺 data 键报错）
+    #[arg(
+        long = "filter-output",
+        value_name = "keys",
+        global = true,
+        help_heading = "Global Options"
+    )]
+    filter_output: Option<String>,
     /// 打印紧凑版 agent 说明书（REQ-060 更正后族标准名 --llms：裸出 markdown 手册，配 --json 出机器形；命令表随活命令树自适应，禁手维护双份）后退出
     #[arg(long)]
     llms: bool,
@@ -152,7 +173,7 @@ enum IssueCmd {
 
 #[derive(Subcommand)]
 enum DiagnoseCmd {
-    /// 的网关缓存探测面（细则见模块文档与集成测试）。
+    /// 网关缓存探测（打真 API、烧最小 token；探测错误退出 1）
     Cache {
         /// 只测这些别名；缺省 = 网关 /v1/models 全量
         #[arg(value_name = "别名")]
@@ -203,7 +224,7 @@ enum TraceCmd {
         /// 条数上限（1-1000）
         #[arg(long, default_value_t = 100)]
         limit: usize,
-        /// 的翻页偏移面（细则见模块文档与集成测试）。
+        /// 翻页偏移（向更早翻页）
         #[arg(long, default_value_t = 0)]
         offset: usize,
         /// 项目根；默认当前目录
@@ -220,7 +241,7 @@ enum TraceCmd {
         /// 条数上限（1-1000）
         #[arg(long, default_value_t = 100)]
         limit: usize,
-        /// 的翻页偏移面（细则见模块文档与集成测试）。
+        /// 翻页偏移（向更早翻页）
         #[arg(long, default_value_t = 0)]
         offset: usize,
         /// 项目根；默认当前目录
@@ -238,14 +259,14 @@ enum TraceCmd {
         /// 条数上限（1-1000）
         #[arg(long, default_value_t = 100)]
         limit: usize,
-        /// 的翻页偏移面（细则见模块文档与集成测试）。
+        /// 翻页偏移（向更早翻页）
         #[arg(long, default_value_t = 0)]
         offset: usize,
         /// 项目根；默认当前目录
         #[arg(long)]
         project: Option<PathBuf>,
     },
-    /// 的意图操作块视图面（细则见模块文档与集成测试）。
+    /// 意图操作块视图（按 operation_id 归组的操作块清单）
     Blocks {
         /// 只看某家 agent
         #[arg(long)]
@@ -253,7 +274,7 @@ enum TraceCmd {
         /// 条数上限（1-1000，取最新 N 块）
         #[arg(long, default_value_t = 100)]
         limit: usize,
-        /// 的翻页偏移面（细则见模块文档与集成测试）。
+        /// 翻页偏移（向更早翻页）
         #[arg(long, default_value_t = 0)]
         offset: usize,
         /// 项目根；默认当前目录
@@ -267,7 +288,7 @@ enum TraceCmd {
         /// 条数上限（1-1000，取最新 N 块）
         #[arg(long, default_value_t = 100)]
         limit: usize,
-        /// 的翻页偏移面（细则见模块文档与集成测试）。
+        /// 翻页偏移（向更早翻页）
         #[arg(long, default_value_t = 0)]
         offset: usize,
         /// 项目根；默认当前目录
@@ -284,7 +305,7 @@ enum HookCmd {
         #[arg(long)]
         project: Option<PathBuf>,
     },
-    /// 的状态写入入口面（细则见模块文档与集成测试）。
+    /// 状态写入入口（事件参数或 stdin JSON，落 ~/.hst/state/）
     Status {
         /// 事件名或四态（idle/working/blocked/unknown）；省略则读 stdin JSON
         #[arg(value_name = "事件")]
@@ -327,8 +348,13 @@ fn run() -> Result<(), String> {
     let cli = Cli::parse();
     // `hst --llms`（REQ-060 更正后族标准名）：裸出 markdown 手册（帮助面
     // 同款直打 stdout）；配 --json 出机器形态 {name,version,description,
-    // commands[]}。活命令树渲染，禁手维护双份（ADR-0005/D54）。
+    // commands[]}。活命令树渲染，禁手维护双份（ADR-0005/D54）。filter 与
+    // llms 的互斥不能走 clap conflicts_with（global 参数在子命令面无对端
+    // 可指，debug_asserts 必炸），在此单点守卫。
     if cli.llms {
+        if cli.filter_output.is_some() {
+            return Err("--filter-output 只作用于 json 信封，不配 --llms".into());
+        }
         if cli.json {
             println!(
                 "{}",
@@ -340,7 +366,11 @@ fn run() -> Result<(), String> {
         }
         return Ok(());
     }
-    hst::fmtio::init(cli.json, cli.format.as_deref())?;
+    hst::fmtio::init(
+        cli.json,
+        cli.format.as_deref(),
+        cli.filter_output.as_deref(),
+    )?;
     let Some(command) = cli.command else {
         // 裸 hst：无命令时打印帮助，打印帮助退出。
         let mut cmd = Cli::command();
@@ -419,10 +449,10 @@ fn run() -> Result<(), String> {
 }
 
 /// `hst --llms`：紧凑版 agent 说明书（REQ-060 族标准面，总长至多 120 行）。
-/// 名加版本加一句定位、子命令表（组递归到叶）、通用旗标、常用例；命令表从
-/// clap 活命令树自适应渲染（新命令自动出现，禁手维护双份）；不落盘、不装
-/// 技能（ADR-0005 后唯一机读手册面）。本面是速查投影，契约在 clap 帮助与
-/// 集成测试。
+/// 名加版本加一句定位、读序、子命令表（组递归到叶）、通用旗标、退出码、
+/// 输出契约、常用例；命令表从 clap 活命令树自适应渲染（新命令自动出现，
+/// 禁手维护双份）；不落盘、不装技能（ADR-0005 后唯一机读手册面）。本面
+/// 是速查投影，契约在 clap 帮助与集成测试。
 fn render_llms(root: &clap::Command) -> String {
     let mut rows: Vec<(String, String)> = Vec::new();
     walk(root, String::new(), &mut rows);
@@ -436,7 +466,7 @@ fn render_llms(root: &clap::Command) -> String {
         table.push_str(&format!("| `{usage}` | {about} |\n"));
     }
     format!(
-        "# hst {ver}\n\n> HST（Hooks, Statusline, Trace）：agent 全平台部署配置与诊断 CLI（四家 hook 落盘、状态栏、只读对话 trace、可用性诊断、yolo 分级）。手册由活命令树渲染；契约以 clap 帮助与集成测试为准。\n\n## 子命令表\n\n| 命令 | 说明 |\n| --- | --- |\n{table}\n## 通用旗标\n\n| 旗标 | 说明 |\n| --- | --- |\n| `--format kv\\|json\\|jsonl` | 输出三态（kv 是缺省 marker 行）；`--json` 信封简写 |\n| `--llms` | 本手册；配 `--json` 出机器形态（REQ-060 族标准） |\n| `--help` / `--version` | 帮助与版本 |\n\n## 输出契约\n\n结构化错误 stderr 单行 JSON；doctor blocked 与 verify fail 退出 1，diagnose cache 探测错误退出 1。\n\n## 常用例\n\n```bash\nhst init                     # 全套部署（幂等）：yolo 键加 hook 加状态栏\nhst doctor                   # 零网络只读体检（block 才退 1）\nhst trace file src/main.rs   # 单文件谁改的、为什么\nhst --llms --json            # 机器形手册（agent 面）\nhst issue new \"发现缺陷\" --body \"复现步骤\"   # 一键反馈（issues.ohmygh.com）\n```\n",
+        "# hst {ver}\n\n> HST（Hooks, Statusline, Trace）：agent 全平台部署配置与诊断 CLI（四家 hook 落盘、状态栏、只读对话 trace、可用性诊断、yolo 分级）。手册由活命令树渲染；契约以 clap 帮助与集成测试为准。\n\n## 读序\n\n常见任务直达：部署 `hst init`、体检 `hst doctor`、查文件谁改的 `hst trace file <文件>`。本手册机器形：`hst --llms --json`。契约权威：`hst --help` 与集成测试。\n\n## 子命令表\n\n| 命令 | 说明 |\n| --- | --- |\n{table}\n## 通用旗标\n\n| 旗标 | 说明 |\n| --- | --- |\n| `--format kv\\|json\\|jsonl` | 输出三态（kv 是缺省 marker 行）；`--json` 信封简写 |\n| `--filter-output <keys>` | json 信封 data 键路径过滤（点号嵌套、数组下标如 items[0,2]） |\n| `--llms` | 本手册；配 `--json` 出机器形态（REQ-060 族标准） |\n| `--help` / `--version` | 帮助与版本 |\n\n## 退出码\n\n| 码 | 义 |\n| --- | --- |\n| 0 | 成功（裸 hst 打印帮助亦退 0） |\n| 1 | 业务失败：doctor blocked、verify 失败、运行错误 |\n| 2 | 用法错误；secretguard 拦截（hook 面） |\n\n## 输出契约\n\n结构化错误 stderr 单行 JSON；json 信封 meta 带 duration_ms。\n\n## 常用例\n\n```bash\nhst init                     # 全套部署（幂等）：yolo 键加 hook 加状态栏\nhst doctor                   # 零网络只读体检（block 才退 1）\nhst trace file src/main.rs   # 单文件谁改的、为什么\nhst --json --filter-output blocked doctor   # 信封只留 blocked 键\nhst --llms --json            # 机器形手册（agent 面）\nhst issue new \"发现缺陷\" --body \"复现步骤\"   # 一键反馈（issues.ohmygh.com）\n```\n",
         ver = env!("CARGO_PKG_VERSION"),
         table = table,
     )
@@ -689,7 +719,7 @@ fn print_json(command: &str, root: &Path, outcome: Result<Value, String>) -> Res
     }
 }
 
-/// 的completions面（细则见模块文档与集成测试）。
+/// completions 面：生成 shell 补全脚本到 stdout。
 fn cmd_completions(shell: clap_complete::Shell) -> Result<(), String> {
     let mut cmd = Cli::command();
     clap_complete::generate(shell, &mut cmd, "hst", &mut std::io::stdout());
@@ -1266,11 +1296,21 @@ fn emit_trace(count_key: &str, rows: Vec<TraceRow>, total: usize, offset: usize,
             let env = hst::fmtio::envelope(count_key, project, Ok(data));
             let text = serde_json::to_string_pretty(&env).unwrap_or_default();
             println!("{text}");
+            // --filter-output 未命中时信封折成错误：与 print_json 同道走
+            // stderr 单行加退出 1（emit_trace 无返回值，就地收口）。
+            if !env.get("ok").and_then(|v| v.as_bool()).unwrap_or(true) {
+                let msg = env
+                    .get("error")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("command failed")
+                    .to_string();
+                hst::fmtio::error_exit(msg);
+            }
         }
     }
 }
 
-/// 的操作块时间线面（细则见模块文档与集成测试）。
+/// 操作块时间线面：按 operation_id 归组渲染，正序翻页。
 /// 正序（与 timeline 的窗口语义一致，offset 向更早翻页）。
 fn print_block_timeline(
     project: &std::path::Path,
