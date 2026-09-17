@@ -36,7 +36,7 @@
 
 ## Read first
 
-- 检索阶梯（渐进披露，不整读）：`hst --llm`（CLI 手册投影，REQ-060 标准面）到 `docs/aidoc/llms.txt`（库投影）到模块 `///` 与源码；ADR 仅在改对应决策时读
+- 检索阶梯（渐进披露，不整读）：`hst --llms`（CLI 手册投影，REQ-060 族标准）到 `docs/aidoc/llms.txt`（库投影）到模块 `///` 与源码；ADR 仅在改对应决策时读
 - 文档地图：`docs/README.md`；需求队列：`docs/requirements/README.md`；平台矩阵与连接姿势：`docs/guides/环境事实.md`
 
 ## 环境

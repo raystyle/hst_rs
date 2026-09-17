@@ -20,13 +20,30 @@ pub fn base_url() -> String {
     std::env::var("HST_ISSUES_API").unwrap_or_else(|_| "https://issues.ohmygh.com".into())
 }
 
-fn truncate(s: &str, n: usize) -> String {
-    s.chars().take(n).collect()
+/// 契约长度单位 = UTF-16 code units（真源 JS .length；codex 三面评审 G2：
+/// chars().count() 对 emoji 类会计少，服务端拒 400 而客户端自以为过）。
+fn utf16_len(s: &str) -> usize {
+    s.encode_utf16().count()
+}
+
+/// 按 UTF-16 上限截断（取不切裂代理对的最大前缀）。
+fn truncate_utf16(s: &str, max: usize) -> String {
+    let mut out = String::new();
+    let mut n = 0;
+    for c in s.chars() {
+        let u = c.len_utf16();
+        if n + u > max {
+            break;
+        }
+        n += u;
+        out.push(c);
+    }
+    out
 }
 
 /// 平台串（os-arch 形，契约至多 64 字符，客户端先截断）。
 fn platform_string() -> String {
-    truncate(
+    truncate_utf16(
         &format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH),
         64,
     )
@@ -37,35 +54,53 @@ fn host_string() -> String {
     let h = std::env::var("HOSTNAME")
         .or_else(|_| std::env::var("COMPUTERNAME"))
         .unwrap_or_else(|_| "unknown".to_string());
-    truncate(&h, 64)
+    truncate_utf16(&h, 64)
 }
 
+/// 非 2xx 统一透传：读体取服务端 error 文案（G1：ureq2 对非 2xx 直接返
+/// Err，不读体会丢 429 限速与 400 校验的中文文案），体不可解析回落截断原文。
+fn status_error(code: u16, resp: ureq::Response) -> String {
+    let body = resp.into_string().unwrap_or_default();
+    let err = serde_json::from_str::<Value>(&body)
+        .ok()
+        .and_then(|v| v["error"].as_str().map(String::from))
+        .unwrap_or_else(|| body.chars().take(200).collect());
+    format!("status={code} error={err}")
+}
+
+/// 提交面（new）：title trim 后 1 至 200、body 至多 20000、version 至多 40
+/// （客户端先截断，长度单位 UTF-16）；201 回 {ok,id,url}；429 每 IP 限速；
+/// 400 校验不过（服务端 error 文案透传）。
 /// # Errors
 ///
 /// 失败返回 `String` 错误（校验不过、网络与解析类、服务端 error 透传）。
-/// 提交面（new）：title trim 后 1 至 200、body 至多 20000、version 至多 40
-/// （客户端先截断）；201 回 {ok,id,url}；429 每 IP 限速；400 校验不过
-/// （服务端 error 文案透传）。
 pub fn file_issue(title: &str, body: &str) -> Result<Filed, String> {
     let title = title.trim();
-    let n = title.chars().count();
+    let n = utf16_len(title);
     if n == 0 || n > 200 {
-        return Err(format!("title must be 1-200 chars after trim, got {n}"));
+        return Err(format!(
+            "title must be 1-200 UTF-16 units after trim, got {n}"
+        ));
     }
     let payload = json!({
         "tool": "hst",
         "title": title,
-        "body": truncate(body, 20_000),
-        "version": truncate(env!("CARGO_PKG_VERSION"), 40),
+        "body": truncate_utf16(body, 20_000),
+        "version": truncate_utf16(env!("CARGO_PKG_VERSION"), 40),
         "platform": platform_string(),
         "host": host_string(),
     });
     let url = format!("{}/api/issues", base_url());
-    let resp = ureq::post(&url)
+    let resp = match ureq::post(&url)
         .set("User-Agent", "hst-issue")
+        .set("Content-Type", "application/json")
         .timeout(std::time::Duration::from_secs(20))
         .send_string(&payload.to_string())
-        .map_err(|e| format!("post {url}: {e}"))?;
+    {
+        Ok(r) => r,
+        Err(ureq::Error::Status(code, r)) => return Err(status_error(code, r)),
+        Err(e) => return Err(format!("post {url}: {e}")),
+    };
     let status = resp.status();
     let text = resp
         .into_string()
@@ -95,11 +130,15 @@ pub fn list_issues(tool: &str, status: Option<&str>, limit: u32) -> Result<Vec<V
     if let Some(s) = status {
         url.push_str(&format!("&status={s}"));
     }
-    let resp = ureq::get(&url)
+    let resp = match ureq::get(&url)
         .set("User-Agent", "hst-issue")
         .timeout(std::time::Duration::from_secs(20))
         .call()
-        .map_err(|e| format!("get {url}: {e}"))?;
+    {
+        Ok(r) => r,
+        Err(ureq::Error::Status(code, r)) => return Err(status_error(code, r)),
+        Err(e) => return Err(format!("get {url}: {e}")),
+    };
     let status_code = resp.status();
     let text = resp
         .into_string()
@@ -127,11 +166,15 @@ pub fn show_issue(id: &str) -> Result<Value, String> {
         return Err(format!("issue id must be numeric, got '{id}'"));
     }
     let url = format!("{}/api/issues/{id}", base_url());
-    let resp = ureq::get(&url)
+    let resp = match ureq::get(&url)
         .set("User-Agent", "hst-issue")
         .timeout(std::time::Duration::from_secs(20))
         .call()
-        .map_err(|e| format!("get {url}: {e}"))?;
+    {
+        Ok(r) => r,
+        Err(ureq::Error::Status(code, r)) => return Err(status_error(code, r)),
+        Err(e) => return Err(format!("get {url}: {e}")),
+    };
     let status_code = resp.status();
     let text = resp
         .into_string()
@@ -174,6 +217,17 @@ mod tests {
             r.is_err(),
             "invalid base must fail at network, not validation"
         );
+    }
+
+    #[test]
+    fn utf16_units_count_and_truncate_keep_pairs() {
+        // G2：契约单位 = UTF-16（emoji 星面字符计 2），截断不切裂代理对。
+        assert_eq!(utf16_len("a"), 1);
+        assert_eq!(utf16_len("\u{1F600}"), 2);
+        let s = "ab\u{1F600}c";
+        assert_eq!(truncate_utf16(s, 3), "ab");
+        assert_eq!(truncate_utf16(s, 4), "ab\u{1F600}");
+        assert_eq!(truncate_utf16(s, 99), s);
     }
 
     #[test]

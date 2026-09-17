@@ -51,4 +51,4 @@ hst diagnose cache           # 网关缓存命中矩阵（打真 API 烧最小 t
 
 发现缺陷一键反馈：`hst issue new "<标题>" --body "<细节>"`（自动带版本加平台加主机，issues.ohmygh.com 集中管理；`hst issue list` / `hst issue show <id>` 读面）。
 
-agent 手册面：`hst --llm`（紧凑 markdown 手册，随活命令树自适应）；`hst --llm --json`（机器形态）。
+agent 手册面：`hst --llms`（紧凑 markdown 手册，随活命令树自适应）；`hst --llms --json`（机器形态）。

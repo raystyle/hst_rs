@@ -10,7 +10,7 @@ env `HST_ISSUES_API` 覆盖基址（测与灰度）。
 ## Functions
 
 - `base_url` — API 基址（env `HST_ISSUES_API` 覆盖，缺省总台统一入口）。
-- `file_issue` — # Errors
+- `file_issue` — 提交面（new）：title trim 后 1 至 200、body 至多 20000、version 至多 40
 - `list_issues` — # Errors
 - `show_issue` — # Errors
 

@@ -259,6 +259,17 @@ fn doctor_blocks_on_a_fresh_project_and_says_so() {
 }
 
 #[test]
+fn issue_new_invalid_title_fails_locally() {
+    // REQ-010（codex 三面评审 G4）：空标题在本地拒绝，不触网（秒红，stderr
+    // 结构化错误含 1-200 提示）。
+    hst()
+        .args(["issue", "new", "   "])
+        .assert()
+        .failure()
+        .stderr(contains("1-200"));
+}
+
+#[test]
 fn llms_flag_prints_compact_manual() {
     // REQ-060 更正后：--llms 是族标准名，裸出 markdown 手册（名加版本加
     // 定位加子命令表加通用旗标加常用例，活命令树自适应，至多 120 行）。
