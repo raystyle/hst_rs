@@ -41,10 +41,11 @@ fn truncate_utf16(s: &str, max: usize) -> String {
     out
 }
 
-/// 平台串（os-arch 形，契约至多 64 字符，客户端先截断）。
+/// 平台串（总台 O2 裁：族形统一 slash 形取 rust target 段，如 linux/x86_64
+/// 加 windows/x86_64 加 macos/aarch64；契约至多 64 字符，客户端先截断）。
 fn platform_string() -> String {
     truncate_utf16(
-        &format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH),
+        &format!("{}/{}", std::env::consts::OS, std::env::consts::ARCH),
         64,
     )
 }
@@ -119,16 +120,36 @@ pub fn file_issue(title: &str, body: &str) -> Result<Filed, String> {
     }
 }
 
+/// 查询参数标准百分号编码（总台 O3 裁：未保留字符一律 %XX 大写十六进制；
+/// RFC 3986 未保留集外全转义，空格与加号与汉字等不拼坏 URL）。
+fn urlencode(s: &str) -> String {
+    let mut out = String::new();
+    for b in s.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(b as char);
+            }
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
+    out
+}
+
 /// # Errors
 ///
 /// 失败返回 `String` 错误（校验不过、网络与解析类、服务端 error 透传）。
 /// 列表面（list）：GET /api/issues?tool=&status=&limit=（limit 1 至 100，
-/// 新到旧）；回 {ok,count,issues[]}。
+/// 新到旧；tool 与 status 百分号编码）；回 {ok,count,issues[]}。
 pub fn list_issues(tool: &str, status: Option<&str>, limit: u32) -> Result<Vec<Value>, String> {
     let limit = limit.clamp(1, 100);
-    let mut url = format!("{}/api/issues?tool={}&limit={}", base_url(), tool, limit);
+    let mut url = format!(
+        "{}/api/issues?tool={}&limit={}",
+        base_url(),
+        urlencode(tool),
+        limit
+    );
     if let Some(s) = status {
-        url.push_str(&format!("&status={s}"));
+        url.push_str(&format!("&status={}", urlencode(s)));
     }
     let resp = match ureq::get(&url)
         .set("User-Agent", "hst-issue")
@@ -282,6 +303,25 @@ mod tests {
         assert!(rows.contains(&"issue.body=l1".to_string()));
         assert_eq!(rows.last().unwrap(), "  l2");
         assert_eq!(rows.iter().filter(|l| l.starts_with("issue.")).count(), 9);
+    }
+
+    #[test]
+    fn platform_uses_family_slash_form() {
+        // 总台 O2 裁：slash 族形（linux/x86_64 形），不带连字符旧形。
+        let p = platform_string();
+        assert!(p.contains('/'), "{p}");
+        assert!(!p.contains('-'), "{p}");
+        assert!(p.contains(std::env::consts::OS));
+    }
+
+    #[test]
+    fn urlencode_keeps_unreserved_and_escapes_rest() {
+        // 总台 O3 裁：未保留字符原样，其余 %XX 大写（空格加号汉字与管道全转义）。
+        assert_eq!(urlencode("hst"), "hst");
+        assert_eq!(urlencode("a b"), "a%20b");
+        assert_eq!(urlencode("a+b"), "a%2Bb");
+        assert_eq!(urlencode("开"), "%E5%BC%80");
+        assert_eq!(urlencode("a&b=c"), "a%26b%3Dc");
     }
 
     #[test]

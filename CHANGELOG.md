@@ -119,6 +119,8 @@
 
 ### 里程碑 2026-09-17
 
+- **三面统一对齐 v2.2.0**（REQ-060 总台二号单加更正单、REQ-010）：`--llms` 手册面族标准名重塑（裸 markdown 57 行小于 120：名加版本加定位加子命令表递归加通用旗标加常用例；`--llms --json` 机器形；活命令树渲染禁双份）；`hst issue new/list/show` 统一入口（UTF-16 契约单位、非 2xx 文案透传、platform 族形 slash 形（O2 裁）、list 查询串百分号编码（O3 裁）、fmtio 三态）；README 四节重排（项目介绍含仓间分工、部署含 hst.ohmygh.com 直下、配置环境变量表、使用方法可复制例）；实弹 issue #6 加 #11（wsl pwsh 破裂存证后自愈闭环）。
+
 - **项目级 yolo 干扰一键清除 v2.1.0**（REQ-009/D55）：`hst init --clear-project-yolo` 摘一切项目级干扰键（ours 与外来都收，D50 三键加 codex/kimi 项目键；allow/deny 不动；家目录守卫），doctor 三处冲突 CTA 扩指。**doctor 家目录守卫（D52 同型二连修）**：root 为家目录时 claude/codex/kimi 三面 yolo 项目层置 None、claude 层清单跳过同体 shared 层（ask/readblock/parse 同罩），修 `--project $HOME` 把用户键误判 project level 与同文件双行的舰队对账伪影（2026-09-17 ark 工位跨工位实证）。**文档体系完整重构（ADR-0006/D56）**：老文档层删除出仓（references 的 R 系、guide 的 G 系、mistakes 的 M 系、proven 的 P 系、根目录旧四原语簇、web），契约权威回归 clap help 加 `///` 加 tests 加投影双面（`hst --llms` 与 aidoc，漂移门禁），AGENTS 收紧 43 行检索阶梯，六态与禁字一句话进 docs/README。
 
 ### 排后

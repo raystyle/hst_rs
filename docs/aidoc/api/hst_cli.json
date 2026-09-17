@@ -370,7 +370,7 @@
     {
       "path": "hst_cli::issue::list_issues",
       "kind": "function",
-      "docs": "# Errors\n\n失败返回 `String` 错误（校验不过、网络与解析类、服务端 error 透传）。\n列表面（list）：GET /api/issues?tool=&status=&limit=（limit 1 至 100，\n新到旧）；回 {ok,count,issues[]}。"
+      "docs": "# Errors\n\n失败返回 `String` 错误（校验不过、网络与解析类、服务端 error 透传）。\n列表面（list）：GET /api/issues?tool=&status=&limit=（limit 1 至 100，\n新到旧；tool 与 status 百分号编码）；回 {ok,count,issues[]}。"
     },
     {
       "path": "hst_cli::issue::render_show_kv",
