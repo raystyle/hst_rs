@@ -1271,7 +1271,7 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
     push_project_residue(
         &mut findings,
         "claude",
-        claude_proj_form != "none",
+        claude_proj_form != "none" && !home_is_root,
         &claude_shared,
     );
     push_statusline(
@@ -1504,8 +1504,9 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
     push_project_residue(
         &mut findings,
         "codex",
-        codex_hooks_sides(json_file(&root.join(".codex").join("hooks.json")).as_ref())
-            != (false, false),
+        !home_is_root
+            && codex_hooks_sides(json_file(&root.join(".codex").join("hooks.json")).as_ref())
+                != (false, false),
         &root.join(".codex").join("hooks.json"),
     );
     {
@@ -1803,15 +1804,16 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
     push_project_residue(
         &mut findings,
         "grok",
-        json_hooks_form(
-            json_file(
-                &root
-                    .join(".grok")
-                    .join("hooks")
-                    .join("ohmyagents-state.json"),
-            )
-            .as_ref(),
-        ) != "none",
+        !home_is_root
+            && json_hooks_form(
+                json_file(
+                    &root
+                        .join(".grok")
+                        .join("hooks")
+                        .join("ohmyagents-state.json"),
+                )
+                .as_ref(),
+            ) != "none",
         &root
             .join(".grok")
             .join("hooks")
@@ -2202,6 +2204,17 @@ mod tests {
                 f.detail
             );
         }
+        // codex 三轮 O-1：项目残留检查同罩家目录守卫，用户级注册本体不得
+        // 报 hooks.retired 伪影。
+        assert!(
+            !d.findings.iter().any(|f| f.check == "hooks.retired"),
+            "no hooks.retired artifact at home root: {:?}",
+            d.findings
+                .iter()
+                .filter(|f| f.check == "hooks.retired")
+                .map(|f| f.agent.as_str())
+                .collect::<Vec<_>>()
+        );
     }
 
     // ===== 部署诊断扩展（S025/S026 判据） =====
