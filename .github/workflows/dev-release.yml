@@ -52,8 +52,9 @@ jobs:
           cargo aidoc --check --strict
 
   build:
-    # ADR-0007：release published 事件只播种不编译（CI 不编译面）。
-    if: github.event_name != 'release'
+    # ADR-0007：release 与 dispatch 事件不编译（CI 不编译面；dispatch 补推
+    # 只吃 Release 资产，跑矩阵是白烧 runner，codex 批 C O3）。
+    if: github.event_name == 'push'
     strategy:
       fail-fast: false
       matrix:

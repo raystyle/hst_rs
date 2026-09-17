@@ -209,7 +209,9 @@ fn record_path() -> Result<PathBuf, String> {
 fn read_record_digest() -> Option<String> {
     let text = std::fs::read_to_string(record_path().ok()?).ok()?;
     let v: serde_json::Value = serde_json::from_str(&text).ok()?;
-    v.get("digest").and_then(|d| d.as_str()).map(String::from)
+    v.get("digest")
+        .and_then(|d| d.as_str())
+        .and_then(normalize_digest)
 }
 
 fn write_record(digest: &str, tag: &str) {
@@ -248,7 +250,8 @@ fn normalize_digest(raw: &str) -> Option<String> {
 
 /// GitHub 腿判新 digest 取值（批 C 钉死）：API digest 归一优先；缺省或非法时
 /// 回落取同 Release 的 `<资产名>.sha256` 边车资产内容（发布器与升级器同锚，
-/// 旧 API 响应不再降级成每跑必重装）；边车也取不到回 None（保守更新）。
+/// 旧 API 响应不再降级成每跑必重装）；边车也取不到回 None（保守更新）。回落臂
+/// 无离线测试 seam，由下版发布首跑实测覆盖（codex 批 C O4 口径）。
 fn github_asset_digest(release: &Release, asset: &Asset) -> Option<String> {
     if let Some(d) = asset.digest.as_deref().and_then(normalize_digest) {
         return Some(d);
