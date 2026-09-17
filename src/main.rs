@@ -22,7 +22,7 @@ struct Cli {
     /// 的输出格式面（细则见模块文档与集成测试）。
     #[arg(long, global = true)]
     format: Option<String>,
-    /// 打印紧凑版 agent 说明书（llms 风格速查；命令表随活命令树自适应，功能面与输出契约为概览段；ADR-0005 后唯一机读手册面，不落盘）后退出
+    /// 打印紧凑版 agent 说明书（REQ-060 更正后族标准名 --llms：裸出 markdown 手册，配 --json 出机器形；命令表随活命令树自适应，禁手维护双份）后退出
     #[arg(long)]
     llms: bool,
     #[command(subcommand)]
@@ -109,10 +109,44 @@ enum Commands {
         #[command(subcommand)]
         cmd: TraceCmd,
     },
+    /// 统一 issue 入口（issues.ohmygh.com，REQ-057 对齐）：遇缺陷一键反馈，自动带 tool=hst 加版本加平台加主机
+    Issue {
+        #[command(subcommand)]
+        cmd: IssueCmd,
+    },
     /// 活性诊断（D21，ohmycloud D45 配套）：打真网关烧最小 token，与 doctor 的零网络体检分家
     Diagnose {
         #[command(subcommand)]
         cmd: DiagnoseCmd,
+    },
+}
+
+#[derive(Subcommand)]
+enum IssueCmd {
+    /// 提交 issue（标题必填；正文 --body；自动带上下文）
+    New {
+        /// 标题（trim 后 1 至 200 字符）
+        title: String,
+        /// 正文（至多 20000 字符）
+        #[arg(long)]
+        body: Option<String>,
+    },
+    /// 列 issue（缺省 tool=hst，新到旧）
+    List {
+        /// 按仓过滤（缺省 hst）
+        #[arg(long)]
+        tool: Option<String>,
+        /// 按状态过滤（open 或 closed）
+        #[arg(long)]
+        status: Option<String>,
+        /// 条数（1 至 100，缺省 20）
+        #[arg(long)]
+        limit: Option<u32>,
+    },
+    /// 看单条 issue 详情（含正文）
+    Show {
+        /// issue id（数字）
+        id: String,
     },
 }
 
@@ -291,10 +325,19 @@ fn main() {
 
 fn run() -> Result<(), String> {
     let cli = Cli::parse();
-    // `hst --llms`：帮助面同款裸输出（markdown 直打 stdout，不走信封），
-    // 供 agent 一条命令取紧凑说明书（ADR-0005/D54）。
+    // `hst --llms`（REQ-060 更正后族标准名）：裸出 markdown 手册（帮助面
+    // 同款直打 stdout）；配 --json 出机器形态 {name,version,description,
+    // commands[]}。活命令树渲染，禁手维护双份（ADR-0005/D54）。
     if cli.llms {
-        println!("{}", render_llms(&Cli::command()));
+        if cli.json {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&llm_machine_form(&Cli::command()))
+                    .map_err(|e| e.to_string())?
+            );
+        } else {
+            println!("{}", render_llms(&Cli::command()));
+        }
         return Ok(());
     }
     hst::fmtio::init(cli.json, cli.format.as_deref())?;
@@ -371,13 +414,15 @@ fn run() -> Result<(), String> {
         Commands::Completions { shell } => cmd_completions(shell),
         Commands::Trace { cmd } => cmd_trace(cmd),
         Commands::Diagnose { cmd } => cmd_diagnose(cmd),
+        Commands::Issue { cmd } => cmd_issue(cmd),
     }
 }
 
-/// `hst --llms`：紧凑版 agent 说明书（llms 风格）。命令表从 clap 活命令树
-/// 自适应渲染（新命令自动出现；功能面五条与输出契约是手写概览段，codex
-/// 评审 G1 口径）；不落盘、不装技能（ADR-0005 后唯一机读手册面）。命令
-/// 本面是速查投影，契约在 clap 帮助与集成测试。
+/// `hst --llms`：紧凑版 agent 说明书（REQ-060 族标准面，总长至多 120 行）。
+/// 名加版本加一句定位、子命令表（组递归到叶）、通用旗标、常用例；命令表从
+/// clap 活命令树自适应渲染（新命令自动出现，禁手维护双份）；不落盘、不装
+/// 技能（ADR-0005 后唯一机读手册面）。本面是速查投影，契约在 clap 帮助与
+/// 集成测试。
 fn render_llms(root: &clap::Command) -> String {
     let mut rows: Vec<(String, String)> = Vec::new();
     walk(root, String::new(), &mut rows);
@@ -391,8 +436,40 @@ fn render_llms(root: &clap::Command) -> String {
         table.push_str(&format!("| `{usage}` | {about} |\n"));
     }
     format!(
-        "# hst\n\n> HST（Hooks, Statusline, Trace）：agent 全平台部署配置与诊断 CLI。本手册命令表由 `hst --llms` 随活命令树自适应渲染（功能面与输出契约为概览段）；命令行为契约以 clap 帮助、模块 /// 与集成测试为准。\n\n## 功能面\n\n- 可用性诊断：`hst doctor`（零网络只读体检）、`hst agents`（四家检测）、`hst diagnose`（活性诊断）\n- hook 设置：`hst init`（部署，幂等）、`hst hook status`（状态落盘）\n- 状态栏设置：`hst statusline`（四家写入面）\n- 对话 trace：`hst trace` 六视图只读检索四家原生会话库\n- yolo 不阻塞设置：`hst init --yolo`\n\n## 命令表\n\n| 命令 | 说明 |\n| --- | --- |\n{table}\n## 输出契约\n\n全部命令支持 `--format kv|json|jsonl` 与 `--json` 信封（kv 是缺省 marker 行）；结构化错误 stderr 单行 JSON；doctor blocked 与 verify fail 退出 1，diagnose cache 探测错误退出 1。\n"
+        "# hst {ver}\n\n> HST（Hooks, Statusline, Trace）：agent 全平台部署配置与诊断 CLI（四家 hook 落盘、状态栏、只读对话 trace、可用性诊断、yolo 分级）。手册由活命令树渲染；契约以 clap 帮助与集成测试为准。\n\n## 子命令表\n\n| 命令 | 说明 |\n| --- | --- |\n{table}\n## 通用旗标\n\n| 旗标 | 说明 |\n| --- | --- |\n| `--format kv\\|json\\|jsonl` | 输出三态（kv 是缺省 marker 行）；`--json` 信封简写 |\n| `--llms` | 本手册；配 `--json` 出机器形态（REQ-060 族标准） |\n| `--help` / `--version` | 帮助与版本 |\n\n## 输出契约\n\n结构化错误 stderr 单行 JSON；doctor blocked 与 verify fail 退出 1，diagnose cache 探测错误退出 1。\n\n## 常用例\n\n```bash\nhst init                     # 全套部署（幂等）：yolo 键加 hook 加状态栏\nhst doctor                   # 零网络只读体检（block 才退 1）\nhst trace file src/main.rs   # 单文件谁改的、为什么\nhst --llms --json            # 机器形手册（agent 面）\nhst issue new \"发现缺陷\" --body \"复现步骤\"   # 一键反馈（issues.ohmygh.com）\n```\n",
+        ver = env!("CARGO_PKG_VERSION"),
+        table = table,
     )
+}
+
+/// `hst --llms --json` 的机器形态（REQ-060）：{name, version, description,
+/// commands:[{name, description, subcommands?}]}，活命令树递归，组到叶。
+fn llm_machine_form(root: &clap::Command) -> Value {
+    fn cmd_node(cmd: &clap::Command) -> Value {
+        let name = cmd.get_name().to_string();
+        let description = cmd.get_about().map(|s| s.to_string()).unwrap_or_default();
+        let subs: Vec<Value> = cmd
+            .get_subcommands()
+            .filter(|s| s.get_name() != "help")
+            .map(cmd_node)
+            .collect();
+        let mut v = serde_json::json!({ "name": name, "description": description });
+        if !subs.is_empty() {
+            v["subcommands"] = Value::Array(subs);
+        }
+        v
+    }
+    let subs: Vec<Value> = root
+        .get_subcommands()
+        .filter(|s| s.get_name() != "help")
+        .map(cmd_node)
+        .collect();
+    serde_json::json!({
+        "name": "hst",
+        "version": env!("CARGO_PKG_VERSION"),
+        "description": "HST（Hooks, Statusline, Trace）：agent 全平台部署配置与诊断 CLI",
+        "commands": subs,
+    })
 }
 
 /// 递归收集 (usage, about)。父命令可裸调（如 `hst agents`）时也记一行。
@@ -479,6 +556,117 @@ fn synopsis(cmd: &clap::Command, path: &str) -> String {
         s.push_str(&o);
     }
     s
+}
+
+/// `hst issue new|list|show`：统一 issue 入口（REQ-057 对齐）。kv 出 marker
+/// 行，json 加 jsonl 走 fmtio 三态（列表行与详情对象）。
+fn cmd_issue(cmd: IssueCmd) -> Result<(), String> {
+    match cmd {
+        IssueCmd::New { title, body } => {
+            let filed = hst::issue::file_issue(&title, body.as_deref().unwrap_or(""))?;
+            match hst::fmtio::mode() {
+                hst::fmtio::Format::Json => {
+                    let cwd = std::env::current_dir().unwrap_or_default();
+                    print_json(
+                        "issue-new",
+                        &cwd,
+                        Ok(serde_json::json!({
+                            "filed": true, "id": filed.id, "url": filed.url,
+                        })),
+                    )?;
+                }
+                hst::fmtio::Format::Jsonl => {
+                    hst::fmtio::print_jsonl(&[serde_json::json!({
+                        "filed": true, "id": filed.id, "url": filed.url,
+                    })]);
+                }
+                hst::fmtio::Format::Kv => {
+                    println!("issue.filed=true");
+                    println!("issue.id={}", filed.id);
+                    println!("issue.url={}", filed.url);
+                }
+            }
+            Ok(())
+        }
+        IssueCmd::List {
+            tool,
+            status,
+            limit,
+        } => {
+            let rows = hst::issue::list_issues(
+                tool.as_deref().unwrap_or("hst"),
+                status.as_deref(),
+                limit.unwrap_or(20),
+            )?;
+            match hst::fmtio::mode() {
+                hst::fmtio::Format::Json => {
+                    let cwd = std::env::current_dir().unwrap_or_default();
+                    print_json(
+                        "issue-list",
+                        &cwd,
+                        Ok(serde_json::json!({ "count": rows.len(), "issues": rows })),
+                    )?;
+                }
+                hst::fmtio::Format::Jsonl => hst::fmtio::print_jsonl(&rows),
+                hst::fmtio::Format::Kv => {
+                    println!("issue.list.count={}", rows.len());
+                    for r in &rows {
+                        println!(
+                            "issue.row id={} tool={} status={} version={} created_at={} title={}",
+                            r["id"],
+                            r["tool"],
+                            r["status"],
+                            r["version"],
+                            r["created_at"].as_str().unwrap_or("-"),
+                            r["title"].as_str().unwrap_or("-"),
+                        );
+                    }
+                }
+            }
+            Ok(())
+        }
+        IssueCmd::Show { id } => {
+            let r = hst::issue::show_issue(&id)?;
+            match hst::fmtio::mode() {
+                hst::fmtio::Format::Json => {
+                    let cwd = std::env::current_dir().unwrap_or_default();
+                    print_json("issue-show", &cwd, Ok(r.clone()))?;
+                }
+                hst::fmtio::Format::Jsonl => {
+                    let rows = vec![r.clone()];
+                    hst::fmtio::print_jsonl(&rows);
+                }
+                hst::fmtio::Format::Kv => {
+                    let f = |k: &str| {
+                        r[k].as_str().map(String::from).unwrap_or_else(|| {
+                            r[k].as_u64()
+                                .map(|n| n.to_string())
+                                .unwrap_or_else(|| "-".into())
+                        })
+                    };
+                    println!("#{} {}", f("id"), f("title"));
+                    println!(
+                        "  {} v{} {} host {} {} {} UTC",
+                        f("tool"),
+                        f("version"),
+                        f("platform"),
+                        f("host"),
+                        f("status"),
+                        f("created_at")
+                    );
+                    if let Some(body) = r["body"].as_str() {
+                        if !body.is_empty() {
+                            println!("  正文:");
+                            for line in body.lines() {
+                                println!("    {line}");
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(())
+        }
+    }
 }
 
 /// `hst diagnose cache|agents`：活性诊断族（D21）。打真 API、烧最小 token。

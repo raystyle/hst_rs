@@ -260,7 +260,8 @@ fn doctor_blocks_on_a_fresh_project_and_says_so() {
 
 #[test]
 fn llms_flag_prints_compact_manual() {
-    // ADR-0005：--llms 是唯一机读手册面（llms 风格速查，活命令树自适应渲染）。
+    // REQ-060 更正后：--llms 是族标准名，裸出 markdown 手册（名加版本加
+    // 定位加子命令表加通用旗标加常用例，活命令树自适应，至多 120 行）。
     let out = hst()
         .arg("--llms")
         .assert()
@@ -269,9 +270,34 @@ fn llms_flag_prints_compact_manual() {
         .stdout
         .clone();
     let s = String::from_utf8_lossy(&out);
-    assert!(s.contains("# hst"), "manual header");
+    assert!(s.contains("# hst "), "manual header with version");
     assert!(s.contains("hst init"), "command table lists init");
-    assert!(s.contains("输出契约"), "output contract section");
+    assert!(s.contains("通用旗标"), "common flags section");
+    assert!(s.lines().count() <= 120, "compact manual within 120 lines");
+}
+
+#[test]
+fn llms_json_flag_prints_machine_form() {
+    // REQ-060 更正后：--llms --json 出机器形态 {name,version,description,commands[]}。
+    let out = hst()
+        .args(["--llms", "--json"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: serde_json::Value =
+        serde_json::from_str(&String::from_utf8_lossy(&out)).expect("machine form parses");
+    assert_eq!(v["name"], serde_json::json!("hst"));
+    assert!(v["version"].as_str().is_some_and(|s| !s.is_empty()));
+    assert!(v["commands"].as_array().is_some_and(|a| !a.is_empty()));
+    let names: Vec<&str> = v["commands"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|c| c["name"].as_str())
+        .collect();
+    assert!(names.contains(&"issue") && names.contains(&"init") && names.contains(&"trace"));
 }
 
 #[test]

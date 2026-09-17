@@ -1,4 +1,4 @@
-# hst-cli 2.1.0
+# hst-cli 2.2.0
 
 hst-cli：HST（Hooks, Statusline, Trace）库面——四家 agent（claude、
 codex、grok、kimi）的部署配置与诊断内核。承载五功能：hook 状态落盘
@@ -18,6 +18,7 @@ docs/research 与 docs/adr；输出信封契约见 fmtio 模块文档。
 - [`fmtio`](fmtio.md): 全局输出三态（kv/json/jsonl）与结构化错误出口契约。
 - [`hook`](hook.md): `hst hook`：事件到四态映射、用户级 session 分键 state 落盘与密钥拦截分流（D28/S030）。
 - [`install`](install.md): hst 根解析与共享下载件（self update 复用）。
+- [`issue`](issue.md): 统一 issue 入口客户端面（issues.ohmygh.com，REQ-057 对齐）。
 - [`pathutil`](pathutil.md): 的路径工具面（细则见模块文档与集成测试）。
 - [`secretguard`](secretguard.md): 的密钥拦截闸面（细则见模块文档与集成测试）。
 - [`shim`](shim.md): shim 三形态自包含状态写入器：cmd/ps1/sh 加 grok 包装（D27/D28/D39）。
