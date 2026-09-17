@@ -21,6 +21,8 @@ env:
 
 jobs:
   docs-gate:
+    # push/dispatch 才跑；release published 事件只需播种，不重跑门禁。
+    if: github.event_name != 'release'
     # 三个 md 扫描进 CI（codex 验收 review 补：此前只在本地人工执行，
     # 标题括号类红两次溜过发布）。rumdl 需 Python 侧工具，走 uv。
     # aidoc 漂移门禁进 CI（codex 评审 O8 收口：v1.3.0 封版时 aidoc 存量
@@ -45,6 +47,8 @@ jobs:
           cargo aidoc --check --strict
 
   build:
+    # ADR-0007：release published 事件只播种不编译（CI 不编译面）。
+    if: github.event_name != 'release'
     strategy:
       fail-fast: false
       matrix:
