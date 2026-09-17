@@ -16,3 +16,4 @@ Thumbs.db
 .secrets/
 /target-linux/
 __pycache__/
+dist/

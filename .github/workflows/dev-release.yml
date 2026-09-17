@@ -1,14 +1,16 @@
-# - push main：构建测试后资产滚动挂 pre-release tag `dev`（本地测试期的滚动升级源，`hst self update`）；
-# - push v* tag：构建测试后资产挂正式 release（封版触发，`hst self update --stable`）。
+# ADR-0007（总台 build-release 标准对齐，2026-09-17 核准批 A）：编译与打包产地迁本地
+# （.tools/release.ps1，wsl 交叉 linux 加 win-gnu、lan-mac 实机），正式版 gh 本地直发，
+# CI 不再建正式 Release；本 workflow 面 = 测试岗（docs-gate）加 dev 轻岗（豁免在册：
+# push main 建 dev prerelease 滚动源）加播种（从 Release 资产拉，stable 走 release
+# published 事件，dev 轻岗链内触发——GITHUB_TOKEN 建档不触发 release 事件）。
 # 资产名即编译目标（selfupdate 按目标三元组映射）；mac 只要 arm64 不要 intel（用户裁决）。
-# D45 oma 遗产清扫：oma-<triple> 过渡 stub 资产与镜像 oma/ 兼容段退役（D29 定的
-# 一个版本窗口已过）；镜像只保留 hst/ 主段。
 name: dev-release
 
 on:
   push:
     branches: [main]
-    tags: ['v*']
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -96,7 +98,9 @@ jobs:
           name: hst-${{ matrix.target }}
           path: dist/*
 
-  release:
+  dev-release:
+    # dev 轻岗（ADR-0007 豁免在册）：main 推滚动 prerelease；正式版归本地直发。
+    if: github.event_name == 'push'
     needs: [build, docs-gate]
     runs-on: ubuntu-latest
     steps:
@@ -105,27 +109,21 @@ jobs:
         with:
           path: dist
           merge-multiple: true
-      - name: Publish
+      - name: Publish dev prerelease
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            tag="${GITHUB_REF#refs/tags/}"
-            gh release create "$tag" dist/*.zip dist/*.tar.gz dist/*.sha256 --latest \
-              --title "hst $tag" \
-              --notes "正式版 $tag（版本 tag 触发构建）。安装：hst self update --stable。"
-          else
-            gh release delete dev --yes --cleanup-tag || true
-            gh release create dev dist/*.zip dist/*.tar.gz dist/*.sha256 --prerelease \
-              --title "hst dev (rolling)" \
-              --notes "滚动开发版：main 最新提交自动构建。安装：hst self update（默认 dev 通道）。"
-          fi
+          gh release delete dev --yes --cleanup-tag || true
+          gh release create dev dist/*.zip dist/*.tar.gz dist/*.sha256 --prerelease \
+            --title "hst dev (rolling)" \
+            --notes "滚动开发版：main 最新提交自动构建。安装：hst self update（默认 dev 通道）。"
 
-  # D41 路线 A：产物镜像自推 R2（env 桶）——hst/ 主段 sync（dev 滚动与 stable
-  # tag）。边车是 Package 步 sha256sum 原生格式（hex 空两格加名）。D45 起 oma/
-  # 兼容段退役（stub 资产不再构建），ohmycloud 侧随后收段。
-  mirror:
-    needs: release
+  # 播种（ADR-0007）：从 Release 资产拉（不再吃 workflow artifacts）；stable 走
+  # release published 事件（本地直发触发），dev 轻岗链内触发（GITHUB_TOKEN 建档
+  # 不触发 release 事件）。边车即镜像锚契约（sha256sum 原生格式）。
+  seed:
+    if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    needs: [dev-release]
     runs-on: ubuntu-latest
     env:
       RCLONE_CONFIG_R2_TYPE: s3
@@ -136,21 +134,29 @@ jobs:
       # 必带（D41 实证）：受限 token 无建桶权，预检 CreateBucket 会 403。
       RCLONE_CONFIG_R2_NO_CHECK_BUCKET: "true"
       R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          merge-multiple: true
+      - uses: actions/checkout@v4
       - name: Install rclone if missing
         run: command -v rclone || (curl -fsSL https://rclone.org/install.sh | sudo bash)
-      - name: Mirror to R2
+      - name: Pick release and download assets
+        id: rel
         run: |
-          seg="dev"
-          [[ "$GITHUB_REF" == refs/tags/v* ]] && seg="stable"
-          mkdir -p dist-hst
-          mv artifacts/hst-* dist-hst/ 2>/dev/null || true
-          # 段内只留压缩包加边车；sync 加 --delete-excluded 清段内白名单外遗留
-          #（D45 连带清掉 dist 里不再构建的 oma stub 残件，如仍混入）。
+          if [[ "$GITHUB_EVENT_NAME" == "release" ]]; then
+            tag="${GITHUB_REF#refs/tags/}"
+            seg="stable"
+          else
+            tag="dev"
+            seg="dev"
+          fi
+          echo "seg=$seg" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
+            --pattern 'hst-*' --dir dist-hst
+      - name: Seed mirror segment
+        run: |
+          seg="${{ steps.rel.outputs.seg }}"
+          # 段内只留压缩包加边车；sync 加 --delete-excluded 清段内白名单外遗留。
           rclone sync dist-hst/ "r2:${R2_BUCKET}/hst/${seg}/" \
             --include "*.zip" --include "*.tar.gz" --include "*.sha256" \
             --delete-excluded \

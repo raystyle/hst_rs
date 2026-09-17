@@ -12,6 +12,7 @@
 - `PEVO_CHECK_ALLOW` 加 `uv run /mnt/wsl/repos/project-evo/plugins/evo-adr/skills/code-kit/scripts/check.py .` 骨架合规自检（标准命令见 docs/README 末节）
 - `./target/debug/hst doctor` 本机体检；`./target/debug/hst init` dogfood 部署
 - `bash .tools/cross-test.sh` 全平台实弹矩阵（5端4机，细则见 guides/环境事实）
+- `pwsh -NoProfile -File .tools/release.ps1 [-DryRun]` 本地发布链（ADR-0007 三段式：版本闸加测试闸加本地交叉与 mac 实机构建加打包冒烟加 gh 直发 --latest）
 - `///` 契约注释覆盖公开项（missing_docs = deny，CI 必红）；doctest 走集成测试 tests/ 承载
 
 ## Must
