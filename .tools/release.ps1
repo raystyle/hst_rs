@@ -47,12 +47,18 @@ Write-Output "gate.precheck=ok gh-auth remote-tag no-existing-release"
 # ---- 2 测试闸：cargo test --locked 加 md 四门禁加 aidoc 漂移（G4）先行 ----
 cargo test --locked
 if ($LASTEXITCODE -ne 0) { throw "gate: cargo test failed" }
-uv run --script .tools/md-ref-scan.py
-uv run --script .tools/md-heading-scan.py
-uv run --script .tools/mdcharlint.py
-uvx rumdl check .
-cargo aidoc --check --strict
-if ($LASTEXITCODE -ne 0) { throw "gate: md/aidoc gates failed" }
+# pwsh 原生命令失败不触发 ErrorActionPreference，逐门禁查退出码（codex 二
+# 轮新 G：否则 md 门禁等于没跑）。
+foreach ($g in @(
+    @{ c = "uv run --script .tools/md-ref-scan.py"; n = "md-ref-scan" },
+    @{ c = "uv run --script .tools/md-heading-scan.py"; n = "md-heading-scan" },
+    @{ c = "uv run --script .tools/mdcharlint.py"; n = "mdcharlint" },
+    @{ c = "uvx rumdl check ."; n = "rumdl" },
+    @{ c = "cargo aidoc --check --strict"; n = "aidoc-strict" }
+)) {
+    Invoke-Expression $g.c
+    if ($LASTEXITCODE -ne 0) { throw "gate: $($g.n) failed (rc=$LASTEXITCODE)" }
+}
 Write-Output "gate.test=ok cargo+md4+aidoc"
 
 # ---- 3 本地构建：linux 本职 + win-gnu 交叉（wsl）；mac 实机（ssh lan-mac）----
