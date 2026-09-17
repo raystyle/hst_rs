@@ -261,13 +261,10 @@ fn github_asset_digest(release: &Release, asset: &Asset) -> Option<String> {
     parse_sidecar(&text).ok()
 }
 
-/// 文件 sha256 摘要（批 C 钉死：API digest 缺省时安装后按下载件实算写记录）。
+/// 文件 sha256 摘要（批 C 钉死：API digest 缺省时安装后按下载件实算写记录；
+/// 复用镜像腿同款流式 archive::sha256_file，锚形态统一 sha256:hex）。
 fn file_sha256(path: &std::path::Path) -> Result<String, String> {
-    use sha2::{Digest, Sha256};
-    let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    let mut h = Sha256::new();
-    h.update(&bytes);
-    Ok(format!("sha256:{:x}", h.finalize()))
+    Ok(format!("sha256:{}", crate::archive::sha256_file(path)?))
 }
 
 /// dev 通道判新：滚动源资产 digest 与上次安装记录一致即已最新。
@@ -275,7 +272,7 @@ fn dev_is_current(release: &Release) -> bool {
     let Some(asset) = pick_asset(&release.assets) else {
         return false;
     };
-    let Some(d) = github_asset_digest(release, &asset) else {
+    let Some(d) = github_asset_digest(release, asset) else {
         return false;
     };
     digest_matches(read_record_digest().as_deref(), Some(&d))
@@ -372,12 +369,8 @@ fn parse_sidecar(text: &str) -> Result<String, String> {
         .split_whitespace()
         .next()
         .ok_or_else(|| "empty sidecar".to_string())?;
-    let lower = first.to_ascii_lowercase();
-    let hex = lower.strip_prefix("sha256:").unwrap_or(&lower);
-    if hex.len() != 64 || !hex.chars().all(|c| c.is_ascii_hexdigit()) {
-        return Err(format!("sidecar first field is not a sha256 hex: {first}"));
-    }
-    Ok(format!("sha256:{hex}"))
+    normalize_digest(first)
+        .ok_or_else(|| format!("sidecar first field is not a sha256 hex: {first}"))
 }
 
 fn http_get_string(url: &str) -> Result<String, String> {

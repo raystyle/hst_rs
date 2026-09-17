@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'ADR-0007 批 C 补推口：从该 tag 的 Release 重灌镜像段（如 v2.0.0）；留空走 push-main 流程'
+        description: 'ADR-0007 批 C 补推口：从该 tag 的 Release 重灌版本段与 stable 段（stable 是 sync 滚动语义，会把 stable 段滚到该 tag，回滚才用）；留空仅跑门禁与构建，不发布不播种'
         required: false
         type: string
 
@@ -153,12 +153,14 @@ jobs:
         run: command -v rclone || (curl -fsSL https://rclone.org/install.sh | sudo bash)
       - name: Pick release and download assets
         id: rel
+        env:
+          TAG_IN: ${{ inputs.tag }}
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "release" ]]; then
             tag="${GITHUB_REF#refs/tags/}"
             seg="stable"
-          elif [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && -n "${{ inputs.tag }}" ]]; then
-            tag="${{ inputs.tag }}"
+          elif [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && -n "$TAG_IN" ]]; then
+            tag="$TAG_IN"
             seg="stable"
           else
             tag="dev"
@@ -178,7 +180,7 @@ jobs:
           set -o pipefail
           tag="${{ steps.rel.outputs.tag }}"
           seg="${{ steps.rel.outputs.seg }}"
-          if [[ "$GITHUB_EVENT_NAME" == "release" ]]; then
+          if [[ "$seg" == "stable" ]]; then
             ver="${tag#v}"
             # 版本段 immutable（bare 版本号，与存量 hst/2.0.0/ 同形）：copy-only
             # 长缓存；--immutable 防同版本异内容覆写（同内容重灌零修改不触）。
