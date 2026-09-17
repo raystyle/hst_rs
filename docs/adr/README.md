@@ -9,3 +9,4 @@
 | ADR-0003 | accepted | Windows构建切gnu交叉编译摆脱VC | |
 | ADR-0004 | accepted | self-update镜像腿与缺省回退 | |
 | ADR-0005 | accepted | skill面退役发现通道收敛llms | 替代 D22/D49 两级 skill 面 |
+| ADR-0006 | accepted | 文档体系完整重构契约回归代码与投影 | 取代 09-15 guide/guides 并存裁定，清退 references/G/M/proven 老文档层 |
