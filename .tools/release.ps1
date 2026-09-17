@@ -7,7 +7,8 @@
 param(
     [string]$MacHost = "lan-mac",
     [string]$WinHost = "ray@127.0.0.1",
-    [switch]$DryRun
+    [switch]$DryRun,
+    [switch]$SkipWinSmoke
 )
 $ErrorActionPreference = "Stop"
 $root = (Resolve-Path "$PSScriptRoot/..").Path
@@ -27,10 +28,32 @@ if ($ver -ne $cargoVer) {
 }
 Write-Output "gate.version=ok tag=$ver"
 
-# ---- 2 测试闸：cargo test --locked 先行 ----
+# ---- 1b 发布预检（codex 批 A G2/G3）：gh 已登、远端 tag 已推且指本 sha、tag 无既有 Release ----
+gh auth status *> $null
+if ($LASTEXITCODE -ne 0) { throw "precheck: gh not logged in (run gh auth login)" }
+$remoteTag = git ls-remote --tags origin "refs/tags/$tag" 2>$null | Out-String
+if ($remoteTag.Trim() -eq "") {
+    throw "precheck: tag $tag not on origin yet; git push origin $tag first (gh would auto-tag a different HEAD)"
+}
+if ($remoteTag -notmatch [regex]::Escape((git rev-parse HEAD).Trim())) {
+    throw "precheck: remote tag $tag points elsewhere; re-push the tag from this HEAD"
+}
+gh release view $tag *> $null
+if ($LASTEXITCODE -eq 0) {
+    throw "precheck: release $tag already exists; recover via gh release delete $tag --yes then rerun, or gh release upload $tag <assets> --clobber"
+}
+Write-Output "gate.precheck=ok gh-auth remote-tag no-existing-release"
+
+# ---- 2 测试闸：cargo test --locked 加 md 四门禁加 aidoc 漂移（G4）先行 ----
 cargo test --locked
 if ($LASTEXITCODE -ne 0) { throw "gate: cargo test failed" }
-Write-Output "gate.test=ok"
+uv run --script .tools/md-ref-scan.py
+uv run --script .tools/md-heading-scan.py
+uv run --script .tools/mdcharlint.py
+uvx rumdl check .
+cargo aidoc --check --strict
+if ($LASTEXITCODE -ne 0) { throw "gate: md/aidoc gates failed" }
+Write-Output "gate.test=ok cargo+md4+aidoc"
 
 # ---- 3 本地构建：linux 本职 + win-gnu 交叉（wsl）；mac 实机（ssh lan-mac）----
 $targets = @("x86_64-unknown-linux-gnu", "x86_64-pc-windows-gnu")
@@ -40,11 +63,10 @@ foreach ($t in $targets) {
     Write-Output "build.local=ok $t"
 }
 $sha = git rev-parse HEAD
-$macBin = "dist/hst-aarch64-apple-darwin/hst"
-ssh -o BatchMode=yes $MacHost "set -e; export PATH=`"`$HOME/.cargo/bin:`$PATH`"; mkdir -p ~/repos; if [ -d ~/repos/hst_rs/.git ]; then git -C ~/repos/hst_rs fetch --tags -q; else git clone -q https://github.com/raystyle/hst_rs.git ~/repos/hst_rs; fi; git -C ~/repos/hst_rs checkout -q $sha; cargo build --release --locked --manifest-path ~/repos/hst_rs/Cargo.toml"
+ssh -o BatchMode=yes $MacHost "set -e; export PATH=`"`$HOME/.cargo/bin:`$PATH`"; mkdir -p ~/repos; if [ -d ~/repos/hst_rs/.git ]; then git -C ~/repos/hst_rs fetch --tags -q; else git clone -q https://github.com/raystyle/hst_rs.git ~/repos/hst_rs; fi; git -C ~/repos/hst_rs checkout -q $sha; cargo build --release --locked --target aarch64-apple-darwin --bins --manifest-path ~/repos/hst_rs/Cargo.toml"
 if ($LASTEXITCODE -ne 0) { throw "build: mac remote failed" }
 New-Item -ItemType Directory -Force "dist/hst-aarch64-apple-darwin" | Out-Null
-scp -q "${MacHost}:~/repos/hst_rs/target/release/hst" "dist/hst-aarch64-apple-darwin/hst"
+scp -q "${MacHost}:~/repos/hst_rs/target/aarch64-apple-darwin/release/hst" "dist/hst-aarch64-apple-darwin/hst"
 Write-Output "build.mac=ok aarch64-apple-darwin"
 
 # ---- 4 打包：单顶层目录 = 二进制 + README + LICENSE；win 形 zip 他形 tar.gz；逐包 sha256 边车 ----
@@ -73,6 +95,14 @@ foreach ($t in $targets + @("aarch64-apple-darwin")) {
     Set-Location $root
 }
 
+# F1（codex 批 A）：清打包暂存目录，publish 面只认六件并计数断言。
+Get-ChildItem dist/pkg -Directory | Remove-Item -Recurse -Force
+$plan = @(Get-ChildItem dist/pkg -File | Sort-Object Name)
+if ($plan.Count -ne 6) {
+    throw "gate: publish plan expects 6 files (3 archives + 3 sidecars), got $($plan.Count): $($plan.Name -join ', ')"
+}
+Write-Output "gate.publish-plan=ok $($plan.Name -join ', ')"
+
 # ---- 5 解包冒烟：三端各解包跑 --version 与 tag 逐字对 ----
 $smoke = "dist/smoke"
 if (Test-Path $smoke) { Remove-Item -Recurse -Force $smoke }
@@ -95,7 +125,12 @@ if ($LASTEXITCODE -eq 0) {
     Write-Output "smoke.win=ok $wv"
 }
 else {
-    Write-Output "smoke.win=skipped (win host unreachable)"
+    if ($SkipWinSmoke) {
+        Write-Output "smoke.win=skipped-by-flag (record in release notes)"
+    }
+    else {
+        throw "smoke: win host unreachable and win PE has no other runtime check; pass -SkipWinSmoke to explicitly waive"
+    }
 }
 
 # ---- 6 gh 直发（--latest 禁 draft；产物只进 Release 与镜像段，零 commit 回仓）----
@@ -103,6 +138,6 @@ if ($DryRun) {
     Write-Output "publish=dry-run skip (assets in dist/pkg)"
     exit 0
 }
-gh release create $tag dist/pkg/* --latest --title "hst $tag" --notes "正式版 $tag（本地编译打包直发，ADR-0007）。安装：hst self update --stable。"
+gh release create $tag dist/pkg/*.zip dist/pkg/*.tar.gz dist/pkg/*.sha256 --latest --title "hst $tag" --notes "正式版 $tag（本地编译打包直发，ADR-0007）。安装：hst self update --stable。"
 if ($LASTEXITCODE -ne 0) { throw "publish: gh release create failed" }
 Write-Output "publish=ok $tag --latest"

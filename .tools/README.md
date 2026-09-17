@@ -24,4 +24,4 @@
 - 两个首发工具由 2026-08-31 文档整编与全量 REVIEW 中验证过的内联脚本正式化（断链扫描器当轮扫出 21 处断链并修复）。
 - D15（2026-09-08）去编排后删除两件编排时代工具：`review-round.py`（agent 轮换接力 review，消费面 `oma send/task` 已移除）与 `share-view-probe.py`（rmux web-share 探针）。历史见 git。
 - `cross-test.sh`：全平台实弹测试矩阵（REQ-007），**5端4机**基建原语（wsl 加 lan-win 加 lan-mac 加 lan-ubuntu 加 lan-linux；wsl 与 lan-win 同宿主机）——本地构建 linux/mac/windows-gnu 三产物，wsl 就地跑、scp 到 lan-ubuntu 与 lan-linux 与 lan-mac 冒烟，lan-win 走 127.0.0.1 回环 powershell 冒烟。用法 `bash .tools/cross-test.sh`。
-| `release.ps1` | 本地发布链（ADR-0007：版本闸加测试闸加三端构建打包加解包冒烟加 gh 直发 --latest；`-DryRun` 到冒烟为止） | `pwsh -NoProfile -File .tools/release.ps1 [-MacHost lan-mac] [-DryRun]` |
+| `release.ps1` | 本地发布链（ADR-0007：版本闸加预检加测试与 md 与 aidoc 闸加三端构建打包加解包冒烟加 gh 直发 --latest；`-DryRun` 到冒烟为止；`-SkipWinSmoke` 显式豁免 win 冒烟） | `pwsh -NoProfile -File .tools/release.ps1 [-MacHost lan-mac] [-DryRun] [-SkipWinSmoke]` |

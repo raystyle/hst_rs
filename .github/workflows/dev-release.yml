@@ -127,8 +127,9 @@ jobs:
   # 不触发 release 事件）。边车即镜像锚契约（sha256sum 原生格式）。
   seed:
     # release 事件时 dev-release 被 if 跳过，always() 防连带跳过；push 时仍要
-    # dev-release 成功（资产在场）才播种。
-    if: always() && (github.event_name == 'release' || (github.event_name == 'push' && needs.dev-release.result == 'success'))
+    # dev-release 成功（资产在场）才播种。G1：release 臂排除 prerelease（人为
+    # 重发 dev prerelease 不得灌 stable 段）。dispatch 臂空转至批 C 补推口。
+    if: always() && ((github.event_name == 'release' && !github.event.release.prerelease) || (github.event_name == 'push' && needs.dev-release.result == 'success'))
     needs: [dev-release]
     runs-on: ubuntu-latest
     env:
@@ -142,7 +143,6 @@ jobs:
       R2_BUCKET: ${{ secrets.R2_BUCKET }}
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
       - name: Install rclone if missing
         run: command -v rclone || (curl -fsSL https://rclone.org/install.sh | sudo bash)
       - name: Pick release and download assets
@@ -150,6 +150,7 @@ jobs:
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "release" ]]; then
             tag="${GITHUB_REF#refs/tags/}"
+            case "$tag" in v[0-9]*) ;; *) echo "bad tag shape: $tag" >&2; exit 1;; esac
             seg="stable"
           else
             tag="dev"
@@ -159,6 +160,8 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
             --pattern 'hst-*' --dir dist-hst
+          # O2：边车自校验（下载侧锚核对，与 browse-rs 同形）。
+          cd dist-hst && sha256sum -c ./*.sha256
       - name: Seed mirror segment
         run: |
           seg="${{ steps.rel.outputs.seg }}"
