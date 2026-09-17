@@ -122,7 +122,9 @@ jobs:
   # release published 事件（本地直发触发），dev 轻岗链内触发（GITHUB_TOKEN 建档
   # 不触发 release 事件）。边车即镜像锚契约（sha256sum 原生格式）。
   seed:
-    if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    # release 事件时 dev-release 被 if 跳过，always() 防连带跳过；push 时仍要
+    # dev-release 成功（资产在场）才播种。
+    if: always() && (github.event_name == 'release' || (github.event_name == 'push' && needs.dev-release.result == 'success'))
     needs: [dev-release]
     runs-on: ubuntu-latest
     env:
