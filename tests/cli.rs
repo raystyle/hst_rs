@@ -1540,6 +1540,31 @@ fn llms_manual_covers_command_tree_and_flags() {
     let cmd_table = section("子命令表");
     let common_flags = section("通用旗标");
 
+    // 该命令自己的表行（组行首列恰为路径闭合反引号，叶行首列以路径加空格
+    // 开头带 synopsis；防同名旗标跨命令遮蔽与组行前缀遮蔽，codex 二轮 G1）。
+    let row_of = |table: &str, p: &str| -> String {
+        let wanted = format!("| `{p}");
+        table
+            .lines()
+            .find(|l| {
+                l.starts_with(&wanted)
+                    && l[wanted.len()..]
+                        .chars()
+                        .next()
+                        .is_some_and(|c| c == '`' || c == ' ')
+            })
+            .unwrap_or_else(|| panic!("表 {table:?} 缺 {p} 自己的行"))
+            .to_string()
+    };
+    // 通用旗标的首列在册判定（提及不算，codex 二轮 G2）。
+    let first_cell_has = |table: &str, f: &str| -> bool {
+        table.lines().any(|l| {
+            l.strip_prefix("| `")
+                .and_then(|rest| rest.split(" |").next())
+                .is_some_and(|cell| cell.contains(f))
+        })
+    };
+
     let machine: serde_json::Value = serde_json::from_slice(
         &hst()
             .args(["--llms", "--json"])
@@ -1572,10 +1597,7 @@ fn llms_manual_covers_command_tree_and_flags() {
     collect(&machine, "", &mut paths);
     assert!(paths.len() >= 20, "命令树遍历到叶：{} 条", paths.len());
     for p in &paths {
-        assert!(
-            cmd_table.contains(p.as_str()),
-            "子命令表含命令 {p}（节域断言，防遮蔽）"
-        );
+        let _ = row_of(&cmd_table, p);
     }
 
     // flag 名提取：劈 [ = < , /（clap 冲突注记连写形如 --yolo/--project-yolo）。
@@ -1607,15 +1629,15 @@ fn llms_manual_covers_command_tree_and_flags() {
         .expect("根帮助有 Global Options 节");
     for f in flag_names(&root_help[..root_split]) {
         assert!(
-            common_flags.contains(&f),
-            "通用旗标节含根专属旗标 {f}（节域断言）"
+            first_cell_has(&common_flags, &f),
+            "通用旗标节首列含根专属旗标 {f}（首列判定，提及不算）"
         );
         checked += 1;
     }
     for f in flag_names(&root_help[root_split..]) {
         assert!(
-            common_flags.contains(&f),
-            "通用旗标节含全局旗标 {f}（节域断言）"
+            first_cell_has(&common_flags, &f),
+            "通用旗标节首列含全局旗标 {f}（首列判定，提及不算）"
         );
         checked += 1;
     }
@@ -1644,26 +1666,27 @@ fn llms_manual_covers_command_tree_and_flags() {
             panic!("{p} 帮助缺 Options 或 Global Options 节");
         };
         assert!(opts < global, "{p} Options 先于 Global Options");
-        // 叶 Options 节旗标对子命令表节域；Global Options 节旗标对通用旗标
-        // 节域；内建 --help/--version 恒对通用旗标节（手册登记位）。
+        // 叶 Options 节旗标对该命令自己的表行（行级断言）；Global Options
+        // 节旗标对通用旗标节首列；内建 --help/--version 恒对通用旗标节。
+        let own_row = row_of(&cmd_table, p);
         for f in flag_names(&help[opts..global]) {
             if f == "--help" || f == "--version" {
                 assert!(
-                    common_flags.contains(&f),
-                    "通用旗标节含内建旗标 {f}（命令 {p}）"
+                    first_cell_has(&common_flags, &f),
+                    "通用旗标节首列含内建旗标 {f}（命令 {p}）"
                 );
             } else {
                 assert!(
-                    cmd_table.contains(&f),
-                    "子命令表节含 {p} 的旗标 {f}（节域断言）"
+                    own_row.contains(&f),
+                    "{p} 自己的表行含旗标 {f}（行级断言，防跨命令遮蔽）"
                 );
             }
             checked += 1;
         }
         for f in flag_names(&help[global..]) {
             assert!(
-                common_flags.contains(&f),
-                "通用旗标节含全局旗标 {f}（命令 {p}）"
+                first_cell_has(&common_flags, &f),
+                "通用旗标节首列含全局旗标 {f}（命令 {p}）"
             );
             checked += 1;
         }
