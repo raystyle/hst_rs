@@ -162,13 +162,37 @@ jobs:
             --pattern 'hst-*' --dir dist-hst
           # O2：边车自校验（下载侧锚核对，与 browse-rs 同形）。
           cd dist-hst && sha256sum -c ./*.sha256
-      - name: Seed mirror segment
+      - name: Seed mirror segments (ADR-0007 批 B)
         run: |
+          tag="${{ steps.rel.outputs.tag }}"
           seg="${{ steps.rel.outputs.seg }}"
-          # 段内只留压缩包加边车；sync 加 --delete-excluded 清段内白名单外遗留。
+          if [[ "$GITHUB_EVENT_NAME" == "release" ]]; then
+            ver="${tag#v}"
+            # 版本段 immutable（bare 版本号，与存量 hst/2.0.0/ 同形）：copy-only
+            # 长缓存；--immutable 防同版本异内容覆写（同内容重灌零修改不触）。
+            rclone copy dist-hst/ "r2:${R2_BUCKET}/hst/${ver}/" \
+              --include "*.zip" --include "*.tar.gz" --include "*.sha256" \
+              --immutable \
+              --header-upload "Cache-Control: public, max-age=31536000, immutable" \
+              --checksum -v --stats-one-line
+            n_ver=$(rclone lsf "r2:${R2_BUCKET}/hst/${ver}/" --files-only | wc -l)
+            echo "seed.count.version.${ver}=${n_ver}"
+            if [[ "${n_ver}" -eq 0 ]]; then
+              echo "RED: version segment hst/${ver}/ is empty (partial failure)" >&2
+              exit 1
+            fi
+          fi
+          # 滚动段（stable 加 --delete-excluded 滚代清旧；dev 同形）：段内只留
+          # 压缩包加边车。
           rclone sync dist-hst/ "r2:${R2_BUCKET}/hst/${seg}/" \
             --include "*.zip" --include "*.tar.gz" --include "*.sha256" \
             --delete-excluded \
             --header-upload "Cache-Control: public, max-age=60" \
             --checksum -v --stats-one-line
+          n_seg=$(rclone lsf "r2:${R2_BUCKET}/hst/${seg}/" --files-only | wc -l)
+          echo "seed.count.${seg}=${n_seg}"
+          if [[ "${n_seg}" -eq 0 ]]; then
+            echo "RED: ${seg} segment is empty (partial failure)" >&2
+            exit 1
+          fi
           rclone lsl "r2:${R2_BUCKET}/hst/${seg}/"
