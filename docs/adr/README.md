@@ -1,6 +1,6 @@
 # ADR 索引
 
-> 架构决策记录:不可逆技术选择先立 ADR 再动手。新建拷 0000-template.md,编号接当前最大号,退役不复用。状态流转 proposed 到 accepted 到 superseded;supersede 须两篇互指。历史方案全文在 `docs/proven/`（P 编号归档件），ADR 择要承接仍约束现状的决策并指针回指。
+> 架构决策记录:不可逆技术选择先立 ADR 再动手。新建拷 0000-template.md,编号接当前最大号,退役不复用。状态流转 proposed 到 accepted 到 superseded;supersede 须两篇互指。历史方案全文与 P 编号归档已随 ADR-0006 清退出仓（git 历史可考），ADR 承接仍约束现状的决策。
 
 | id | 状态 | 标题 | 替代 |
 |---|---|---|---|

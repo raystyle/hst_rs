@@ -1,4 +1,4 @@
-//! CLI smoke tests for the read-only / deploy commands (R004 layer: integration).
+//! CLI smoke tests for the read-only / deploy commands (integration layer).
 //! Assertions stick to stable surfaces only: exit codes and marker lines.
 //! D15 后本仓是纯部署配置工具：编排面（spawn/status/send/serve/mcp）
 //! 与其 rmux 闸门测试已随删除面一并移除；trace（只读检索，与 rmux 无耦合）
@@ -72,7 +72,7 @@ fn trace_sessions_on_empty_project_is_zero() {
 #[test]
 fn trace_formats_and_pagination_markers() {
     // D26：trace 全视图吃 --format 三态；截断时 kv 补 has_more；sessions 吃
-    // --limit；--offset 翻页可用。数据自种金档（R004：期望不依赖宿主机的
+    // --limit；--offset 翻页可用。数据自种金档（期望不依赖宿主机的
     // 真实会话历史——CI 检出无任何 agent 数据，靠本仓历史只会本机绿）：
     // HST_TRACE_HOME 重定向会话库根到夹具，.claude/projects/<slug>/ 下三
     // 会话各两轮 Edit 工具调用（timeline 6 事件、blocks 6 块）。
@@ -691,6 +691,19 @@ fn init_clear_project_yolo_strips_interference() {
         !proj.join(".codex").join("config.toml").exists(),
         "empty codex config removed"
     );
+    // 家目录守卫（D52 同型）加输出面（codex 评审 O-2/O-3）：root 即用户家
+    // 时整支跳过打 warn；scope/pretrust/project 三行不缺。
+    hst()
+        .args(["init", "--clear-project-yolo", "--project"])
+        .arg(&user)
+        .env("HST_USER_HOME", &user)
+        .env("HST_ROOT", &hst_root)
+        .assert()
+        .success()
+        .stdout(contains("init.warn=clear-project-yolo skipped"))
+        .stdout(contains("init.scope=clear-project-yolo"))
+        .stdout(contains("init.pretrust=skipped"))
+        .stdout(contains("init.project="));
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -1093,10 +1106,10 @@ fn verify_all_skip_exits_zero_when_no_agents_detected() {
 /// 三轮实证：auth.json 在场但不可用，形状闸门误放行后照红），唯一可靠的
 /// 环境探测就是 verify 结果本身：hook 层 ok 才计入活体断言，hook 层不成
 /// 打 skip 说明不计败。产品 verify 面不动（如实 fail，修环境归操作员，
-/// R004 三.6）。claude/codex 无鉴权前置的探测面，保持硬断言。
+/// 测试分层）。claude/codex 无鉴权前置的探测面，保持硬断言。
 #[test]
 fn verify_live_headless_acceptance_for_installed_agents() {
-    // 闸门（R004）：依赖真 agent 二进制，消耗极少量真实 token；binary 不在
+    // 闸门：依赖真 agent 二进制，消耗极少量真实 token；binary 不在
     // 则 eprintln skip。判据只押 hook state 落盘（SessionStart /
     // UserPromptSubmit 先于模型调用，S033）。
     let out = hst()

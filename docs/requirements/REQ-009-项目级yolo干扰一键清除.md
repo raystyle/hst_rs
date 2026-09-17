@@ -24,7 +24,7 @@ tags: ['yolo', 'D55', 'REQ-009']
 - codex：项目 `.codex/config.toml` 摘顶层 `sandbox_mode` 加 `approval_policy`（任意值）；项目信任键不动。
 - kimi：项目 `.kimi-code/config.toml` 摘 `default_permission_mode`（任意值）。
 - grok：无项目级面，n/a。
-- 边界：`permissions.allow`/`deny` 与其余非干扰键不动（deny 是安全 carve-out，D50 分类学未列干扰）；家目录守卫同 `--project-yolo`（root 是家目录整支跳过打点）；输出 `init.retired=<路径> (cleared-yolo)` 行族。
+- 边界：干扰面 = D50 三键（defaultMode 加 ask 加 blockReads=true）加 codex/kimi 两键，ours 自落的项目级 `skipDangerousModePermissionPrompt` 与 `enableAllProjectMcpServers` 残余归 `--project-yolo=off`（codex 评审 O-1 口径）；`permissions.allow`/`deny` 与其余非干扰键不动（deny 是安全 carve-out，D50 分类学未列干扰）；家目录守卫同 `--project-yolo`（root 是家目录整支跳过打点）；输出 `init.retired=<路径> (cleared-yolo)` 行族。
 - doctor 三处冲突 CTA 扩 `or hst init --clear-project-yolo`。
 
 ## 验收

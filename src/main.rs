@@ -447,8 +447,8 @@ fn synopsis(cmd: &clap::Command, path: &str) -> String {
                 clap::ArgAction::Set | clap::ArgAction::Append
             ) {
                 // 裸旗标合法的取值旗标（num_args 下界 0，如 --yolo）出
-                // `[--yolo[=full|partial|off]]`（有枚举值列值集，codex 评审
-                // G2：与裸旗标取值语义对齐，codex 评审 G2）；必值旗标仍 `[--script <路径>]`。
+                // `[--yolo[=full|partial|off]]`（有枚举值列值集，与裸旗标
+                // 取值语义对齐，codex 评审 G2）；必值旗标仍 `[--script <路径>]`。
                 let optional_value = a
                     .get_num_args()
                     .map(|r| r.min_values() == 0)
@@ -726,9 +726,7 @@ fn cmd_init(
             }
         }
         println!("init.hooks=skipped");
-        return Ok(());
-    }
-    if let Some(level) = project_yolo {
+    } else if let Some(level) = project_yolo {
         println!("init.flag.project_yolo=true");
         println!("init.yolo.level={}", level.as_str());
         // D52 铁证修复（codex F1）：家目录不是项目——--project-yolo 于家
@@ -808,7 +806,9 @@ fn cmd_init(
     println!("init.project={}", root.display());
     println!(
         "init.scope={}",
-        if project_yolo.is_some() {
+        if clear_project_yolo {
+            "clear-project-yolo"
+        } else if project_yolo.is_some() {
             "yolo-project"
         } else if keys_only {
             "yolo"

@@ -861,6 +861,12 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
     let root = abs_display(root);
     let home = crate::pathutil::user_home()?;
     let mut findings = Vec::new();
+    // D52 同型（家目录不是项目）：root 是用户家目录时项目层文件即用户级
+    // 文件本体，按项目层读会自我遮蔽把用户键误判成 project level
+    // （2026-09-17 ark 工位舰队对账实证：`--project $HOME` 报 project
+    // level）。yolo 三面（claude 加 codex 加 kimi）项目层置 None 走用户
+    // 级分支。
+    let home_is_root = crate::pathutil::same_location(&root, &home);
 
     // 部署诊断共享事实：状态栏脚本与 pwsh 探测一次（S025），登录态用统一
     // 时间基准（S026）。
@@ -927,9 +933,13 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
             );
         }
     }
-    let claude_proj_mode = claude_mode_at(&claude_local_settings)
-        .map(|m| (m, claude_local_settings.clone()))
-        .or_else(|| claude_mode_at(&claude_shared).map(|m| (m, claude_shared.clone())));
+    let claude_proj_mode = if home_is_root {
+        None
+    } else {
+        claude_mode_at(&claude_local_settings)
+            .map(|m| (m, claude_local_settings.clone()))
+            .or_else(|| claude_mode_at(&claude_shared).map(|m| (m, claude_shared.clone())))
+    };
     let claude_user_mode = claude_mode_at(&claude_user_yolo);
     // D33：yolo 判据分级接受（full=bypassPermissions、partial=acceptEdits）。
     let claude_yolo_ok = |m: &str| matches!(m, "bypassPermissions" | "acceptEdits");
@@ -1280,7 +1290,11 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
             toml_str(t, "approval_policy")?.to_string(),
         ))
     };
-    let codex_proj_pair = codex_pair_at(proj_toml.as_ref());
+    let codex_proj_pair = if home_is_root {
+        None
+    } else {
+        codex_pair_at(proj_toml.as_ref())
+    };
     let codex_user_pair = codex_pair_at(user_toml.as_ref());
     let codex_yolo_pair = |p: &(String, String)| {
         // D33：full = danger-full-access/never，partial = workspace-write/on-request。
@@ -1529,7 +1543,11 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
                 .map(str::to_string)
         })
     };
-    let kimi_proj_mode = kimi_mode_at(&kimi_proj);
+    let kimi_proj_mode = if home_is_root {
+        None
+    } else {
+        kimi_mode_at(&kimi_proj)
+    };
     let kimi_user_mode = kimi_mode_at(&kimi_user);
     let kimi_ok = |m: &str| matches!(m, "yolo" | "auto");
     match (&kimi_proj_mode, &kimi_user_mode) {
@@ -2152,6 +2170,36 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
     }
 
+    #[test]
+    fn home_root_doctor_reads_yolo_as_user_level() {
+        // D52 同型回归钉（2026-09-17 ark 工位舰队对账实证）：--project 指到
+        // 用户家目录时项目层即用户文件本体，yolo 三面不得把用户键误判成
+        // project level。
+        let _g = crate::pathutil::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let user = temp_root("home-root-user");
+        fs::create_dir_all(&user).unwrap();
+        std::env::set_var("HST_USER_HOME", &user);
+        crate::yolo::apply_user_yolo_with(&user).expect("yolo");
+        let d = diagnose(&user).expect("diagnose");
+        std::env::remove_var("HST_USER_HOME");
+        let _ = fs::remove_dir_all(&user);
+        for agent in ["codex", "kimi"] {
+            let f = d
+                .findings
+                .iter()
+                .find(|f| f.agent == agent && f.check == "yolo")
+                .expect("yolo finding");
+            assert_eq!(f.status, Status::Ok, "{agent}: {}", f.detail);
+            assert!(
+                f.detail.contains("user level"),
+                "{agent} must read user level at home root: {}",
+                f.detail
+            );
+        }
+    }
+
     // ===== 部署诊断扩展（S025/S026 判据） =====
 
     fn temp_root(tag: &str) -> std::path::PathBuf {
@@ -2754,6 +2802,12 @@ approval_policy = \"on-request\"
             assert!(
                 f.detail.contains("conflict") && f.detail.contains("hst init --project-yolo"),
                 "CTA present: {}",
+                f.detail
+            );
+            // REQ-009：CTA 同时扩指一键清除面（codex 评审 O-3 钉）。
+            assert!(
+                f.detail.contains("hst init --clear-project-yolo"),
+                "clear CTA present: {}",
                 f.detail
             );
         }
