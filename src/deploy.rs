@@ -576,7 +576,7 @@ fn strip_ours_codex_handlers(settings: &mut Json) -> Result<bool, String> {
     Ok(changed)
 }
 
-/// 部署的退役写入面（细则见 R002 与模块文档）。
+/// 部署的退役写入面（细则见模块文档与集成测试）。
 fn retire_json_file(
     path: &Path,
     strip: fn(&mut Json) -> Result<bool, String>,
@@ -613,7 +613,7 @@ fn claude_handler(oma: &Path, side: OsSide) -> Json {
     })
 }
 
-/// 部署的D27面（细则见 R002 与模块文档）。
+/// 部署的D27面（细则见模块文档与集成测试）。
 /// 根，跨项目共享、hst 轮换无痛）。Windows 用 **`powershell.exe -NoProfile
 /// -ExecutionPolicy Bypass -File` 前缀加无引号正斜杠 ps1 路径**加参数
 /// （D39，2026-09-13 宿主实弹）：settings.json 是双消费者（claude 本体 hook
@@ -650,7 +650,7 @@ pub enum OsSide {
     Unix,
 }
 
-/// 部署的host_side面（细则见 R002 与模块文档）。
+/// 部署的host_side面（细则见模块文档与集成测试）。
 pub fn host_side() -> OsSide {
     if cfg!(windows) {
         OsSide::Windows
@@ -785,7 +785,7 @@ fn grok_handler(oma: &Path, side: OsSide) -> Json {
     })
 }
 
-/// 部署的Claude面（细则见 R002 与模块文档）。
+/// 部署的Claude面（细则见模块文档与集成测试）。
 /// statusline 各占一键，互不干扰）。事件集含 PermissionRequest。
 fn deploy_claude_user(
     user_home: &Path,
@@ -825,7 +825,7 @@ fn deploy_claude_user(
     Ok(())
 }
 
-/// 部署的Codex面（细则见 R002 与模块文档）。
+/// 部署的Codex面（细则见模块文档与集成测试）。
 /// 两者都非空触发警告，故只用 hooks.json 一层）+ `~/.codex/config.toml`
 /// `[features] hooks` 与 `[hooks.state]` trusted_hash 预种。Notification
 /// does not exist in Codex (S015)。
@@ -954,7 +954,7 @@ fn deploy_codex_user(
     Ok(())
 }
 
-/// 部署的Grok面（细则见 R002 与模块文档）。
+/// 部署的Grok面（细则见模块文档与集成测试）。
 /// Claude 同构 JSON）。No PermissionRequest event exists (S015)。
 fn deploy_grok_user(
     user_home: &Path,
@@ -1018,7 +1018,7 @@ fn kimi_hook_command(oma: &Path, side: OsSide) -> String {
     }
 }
 
-/// 部署的Kimi面（细则见 R002 与模块文档）。
+/// 部署的Kimi面（细则见模块文档与集成测试）。
 /// 仅用户级，项目级 hook 注册不存在）。陈旧 ours（bare oma、旧路径、异形）
 /// 弃后按事件补现行单条，同形去重；外来条目保留。
 fn apply_kimi_hooks(
@@ -1149,7 +1149,7 @@ pub fn deploy_user_hooks_with(
 /// # Errors
 ///
 /// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
-/// 部署的生产入口面（细则见 R002 与模块文档）。
+/// 部署的生产入口面（细则见模块文档与集成测试）。
 pub fn deploy_user_hooks(report: &mut DeployReport) -> Result<(), String> {
     let user_home = crate::pathutil::user_home()?;
     let oma = crate::install::hst_home()?;

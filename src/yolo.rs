@@ -101,14 +101,14 @@ fn unix_millis() -> u128 {
 pub enum YoloLevel {
     /// 全 bypass：编辑与命令执行全放行（现行 --yolo 行为）
     Full,
-    /// yolo 键的危险操作仍确认面（细则见 R002 与模块文档）。
+    /// yolo 键的危险操作仍确认面（细则见模块文档与集成测试）。
     Partial,
-    /// yolo 键的全关面（细则见 R002 与模块文档）。
+    /// yolo 键的全关面（细则见模块文档与集成测试）。
     Off,
 }
 
 impl YoloLevel {
-    /// yolo 键的as_str面（细则见 R002 与模块文档）。
+    /// yolo 键的as_str面（细则见模块文档与集成测试）。
     pub fn as_str(self) -> &'static str {
         match self {
             YoloLevel::Full => "full",
@@ -410,7 +410,7 @@ pub fn apply_project_yolo_level(root: &Path, level: YoloLevel) -> Result<ApplyRe
 /// # Errors
 ///
 /// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
-/// yolo 键的生产入口面（细则见 R002 与模块文档）。
+/// yolo 键的生产入口面（细则见模块文档与集成测试）。
 pub fn apply_user_yolo() -> Result<ApplyReport, String> {
     let home = crate::pathutil::user_home()?;
     apply_user_yolo_with(&home)
@@ -419,7 +419,7 @@ pub fn apply_user_yolo() -> Result<ApplyReport, String> {
 /// # Errors
 ///
 /// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
-/// yolo 键的生产入口面（细则见 R002 与模块文档）。
+/// yolo 键的生产入口面（细则见模块文档与集成测试）。
 pub fn apply_user_yolo_level(level: YoloLevel) -> Result<ApplyReport, String> {
     let home = crate::pathutil::user_home()?;
     apply_user_yolo_level_with(&home, level)
@@ -428,7 +428,7 @@ pub fn apply_user_yolo_level(level: YoloLevel) -> Result<ApplyReport, String> {
 /// # Errors
 ///
 /// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
-/// yolo 键的生产入口面（细则见 R002 与模块文档）。
+/// yolo 键的生产入口面（细则见模块文档与集成测试）。
 pub fn retire_user_yolo() -> Result<Vec<String>, String> {
     let home = crate::pathutil::user_home()?;
     retire_user_yolo_with(&home)
@@ -693,7 +693,7 @@ pub fn retire_project_yolo(root: &Path) -> Result<Vec<String>, String> {
 /// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
 /// 用户级 yolo 键退役（D33 off）：与 retire_project_yolo 同款 ours 等值
 /// 摘除策略（hst 落值才动、用户自设值保留、整文件只剩空对象/空表时删）。
-/// yolo 键的注意面（细则见 R002 与模块文档）。
+/// yolo 键的注意面（细则见模块文档与集成测试）。
 /// 也由 pretrust 面写入，ours 判定无法区分落写者，off 一并摘除；需要 MCP
 /// 直通请重跑 `--pre-trust`。grok 只摘 `[ui]` permission_mode（ours 值）。
 pub fn retire_user_yolo_with(user_home: &Path) -> Result<Vec<String>, String> {
@@ -1018,7 +1018,7 @@ fn apply_mcp_approvals(obj: &mut serde_json::Map<String, Json>, root: &Path) {
     }
 }
 
-/// yolo 键的kimi_workspace_key面（细则见 R002 与模块文档）。
+/// yolo 键的kimi_workspace_key面（细则见模块文档与集成测试）。
 pub fn kimi_workspace_key(root: &Path) -> String {
     let root = abs_display(root);
     let name = root

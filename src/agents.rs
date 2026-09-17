@@ -9,7 +9,7 @@ use crate::pathutil::abs_display;
 pub const DEFAULT_AGENTS: &[&str] = &["claude", "codex", "grok", "kimi"];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-/// agent 探测的Source面（细则见 R002 与模块文档）。
+/// agent 探测的Source面（细则见模块文档与集成测试）。
 pub enum Source {
     /// 该字段承载agent 探测的Env数据。
     Env,
@@ -22,7 +22,7 @@ pub enum Source {
 }
 
 impl Source {
-    /// agent 探测的as_str面（细则见 R002 与模块文档）。
+    /// agent 探测的as_str面（细则见模块文档与集成测试）。
     pub fn as_str(self) -> &'static str {
         match self {
             Source::Env => "env",
@@ -43,7 +43,7 @@ impl Source {
 }
 
 #[derive(Clone, Debug)]
-/// agent 探测的Hit面（细则见 R002 与模块文档）。
+/// agent 探测的Hit面（细则见模块文档与集成测试）。
 pub struct Hit {
     /// 该字段承载agent 探测的agent数据。
     pub agent: &'static str,
@@ -60,7 +60,7 @@ pub struct Hit {
 }
 
 #[derive(Clone, Debug)]
-/// agent 探测的Report面（细则见 R002 与模块文档）。
+/// agent 探测的Report面（细则见模块文档与集成测试）。
 pub struct Report {
     /// 该字段承载agent 探测的agent数据。
     pub agent: &'static str,
@@ -114,7 +114,7 @@ pub struct Probe {
 }
 
 impl Probe {
-    /// agent 探测的from_env面（细则见 R002 与模块文档）。
+    /// agent 探测的from_env面（细则见模块文档与集成测试）。
     pub fn from_env() -> Self {
         let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
         let local = dirs::data_local_dir();
@@ -143,7 +143,7 @@ impl Probe {
         }
     }
 
-    /// agent 探测的detect面（细则见 R002 与模块文档）。
+    /// agent 探测的detect面（细则见模块文档与集成测试）。
     pub fn detect(&self) -> Vec<Report> {
         SPECS.iter().map(|spec| self.detect_one(spec)).collect()
     }
@@ -233,7 +233,7 @@ impl Probe {
     }
 }
 
-/// agent 探测的detect面（细则见 R002 与模块文档）。
+/// agent 探测的detect面（细则见模块文档与集成测试）。
 pub fn detect() -> Vec<Report> {
     Probe::from_env().detect()
 }
@@ -243,7 +243,7 @@ pub fn find(name: &str) -> Option<Hit> {
     Probe::from_env().find(name)
 }
 
-/// agent 探测的print_reports面（细则见 R002 与模块文档）。
+/// agent 探测的print_reports面（细则见模块文档与集成测试）。
 pub fn print_reports(reports: &[Report]) {
     let mut installed = 0u32;
     let mut missing = 0u32;

@@ -7,36 +7,36 @@ hst trace：查询时联邦的四家会话日志检索（P0013，S019）。
 
 ## Functions
 
-- `apply_filter` — trace 六视图的apply_filter面（细则见 R002 与模块文档）。
+- `apply_filter` — trace 六视图的apply_filter面（细则见模块文档与集成测试）。
 - `apply_filter_counted` — 过滤加窗口计数（D26）：返回（窗口内事件，过滤后总数）。事件流为时间
 - `claude_events` — claude transcript：父链近似为行序——tool_use 前最近的 assistant text 是操作意图、
 - `claude_project_slug` — `~/.claude/projects/<slug>/`：slug 规则是路径串里非字母数字一律换 `-`
-- `claude_sessions_in` — trace 六视图的claude_sessions_in面（细则见 R002 与模块文档）。
+- `claude_sessions_in` — trace 六视图的claude_sessions_in面（细则见模块文档与集成测试）。
 - `codex_events` — codex rollout：编辑主源是 `event_msg/item_completed` 的 `FileChange` item（绝对路径 +
 - `codex_sessions_under` — codex rollout：首行 session_meta.payload.cwd 决定项目归属。
-- `file_matches` — trace 六视图的文件过滤面（细则见 R002 与模块文档）。
+- `file_matches` — trace 六视图的文件过滤面（细则见模块文档与集成测试）。
 - `grok_events` — grok 双源分发（S020）：updates.jsonl 是权威日志，chat_history.jsonl 是派生缓存
-- `grok_sessions_in` — trace 六视图的grok面（细则见 R002 与模块文档）。
+- `grok_sessions_in` — trace 六视图的grok面（细则见模块文档与集成测试）。
 - `group_blocks` — # Panics
 - `kimi_events` — kimi wire.jsonl（协议 1.5，S019 源码核实）：`turn.prompt` 且 `origin.kind=="user"` 是
-- `kimi_sessions_in` — trace 六视图的kimi面（细则见 R002 与模块文档）。
-- `list_sessions` — trace 六视图的四家环境入口面（细则见 R002 与模块文档）。
-- `ms_to_iso` — trace 六视图的ms_to_iso面（细则见 R002 与模块文档）。
+- `kimi_sessions_in` — trace 六视图的kimi面（细则见模块文档与集成测试）。
+- `list_sessions` — trace 六视图的四家环境入口面（细则见模块文档与集成测试）。
+- `ms_to_iso` — trace 六视图的ms_to_iso面（细则见模块文档与集成测试）。
 - `parse_apply_patch` — 解析 apply_patch 补丁头的 Add/Update/Delete File 行。
-- `search_matches` — trace 六视图的检索面（细则见 R002 与模块文档）。
-- `timeline` — trace 六视图的四家环境入口面（细则见 R002 与模块文档）。
+- `search_matches` — trace 六视图的检索面（细则见模块文档与集成测试）。
+- `timeline` — trace 六视图的四家环境入口面（细则见模块文档与集成测试）。
 - `ts_to_ms` — "2026-08-31T09:24:32.851Z" 形（毫秒可选）→ epoch ms；纯数字串原样解析。
 
 ## Types
 
-- `EditKind` — trace 六视图的EditKind面（细则见 R002 与模块文档）。
-- `TraceBlock` — trace 六视图的意图操作块面（细则见 R002 与模块文档）。
-- `TraceEvent` — trace 六视图的归一化事件面（细则见 R002 与模块文档）。
-- `TraceFilter` — trace 六视图的TraceFilter面（细则见 R002 与模块文档）。
-- `TraceSession` — trace 六视图的TraceSession面（细则见 R002 与模块文档）。
+- `EditKind` — trace 六视图的EditKind面（细则见模块文档与集成测试）。
+- `TraceBlock` — trace 六视图的意图操作块面（细则见模块文档与集成测试）。
+- `TraceEvent` — trace 六视图的归一化事件面（细则见模块文档与集成测试）。
+- `TraceFilter` — trace 六视图的TraceFilter面（细则见模块文档与集成测试）。
+- `TraceSession` — trace 六视图的TraceSession面（细则见模块文档与集成测试）。
 
 ## Constants
 
 - `DEFAULT_LIMIT` — 分页 clamp（S018 参数形状）。
-- `MAX_LIMIT` — trace 六视图的MAX_LIMIT面（细则见 R002 与模块文档）。
+- `MAX_LIMIT` — trace 六视图的MAX_LIMIT面（细则见模块文档与集成测试）。
 

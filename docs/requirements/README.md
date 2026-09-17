@@ -1,6 +1,6 @@
 # Requirements 索引
 
-> 需求登记:新需求先立 REQ 再实现,实现后回填 trace(测试或验收命令)。新建拷 0000-template.md,编号接当前最大号。状态 draft 到 implemented 到 rejected。历史需求清单在根 `PRD.md`（D 编号，2026-09-15 前入口，迁移注记见其顶部）。
+> 需求登记:新需求先立 REQ 再实现,实现后回填 trace(测试或验收命令)。新建拷 0000-template.md,编号接当前最大号。状态 draft 到 implemented 到 rejected。历史 D 编号需求清单已随 ADR-0006 清退出仓（git 历史可考）。
 
 | id | 状态 | 优先级 | 标题 | trace |
 |---|---|---|---|---|

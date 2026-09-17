@@ -60,8 +60,8 @@ function FmtDur([double]$ms) {
 $parts = [System.Collections.Generic.List[string]]::new()
 "#;
 
-/// 状态栏的COMMON面（细则见 R002 与模块文档）。
-/// 状态栏的才拼入面（细则见 R002 与模块文档）。
+/// 状态栏的COMMON面（细则见模块文档与集成测试）。
+/// 状态栏的才拼入面（细则见模块文档与集成测试）。
 const PS1_COMMON: &str = r#"
 # ── 工作目录与仓库根（hst 段与目录段共用）──
 $dir = $null
@@ -158,7 +158,7 @@ $agent = if ($env:HST_AGENT) { $env:HST_AGENT } else { $AgentName }
 # 起头 token；非数字如 nightly 不显示，回落旧形——显示面与 verify 判据
 # 同源，S025）。否则本地探：定位序对齐 agents 探测（HST_<AGENT>_BIN 显
 # 式钉优先，其次 HST_AGENT_PATH 目录，最后 PATH；hst 自管根与默认位不
-# 参与，差异记档 R002）；探针只对四家白名单放行（spawn 面与缓存文件名
+# 参与，差异记档于 git 历史与集成测试）；探针只对四家白名单放行（spawn 面与缓存文件名
 # 受控）；键 = (终目标路径, mtime, size) 三元组（软链解析一层 LinkTarget；
 # 壳 shim 与保留 mtime 的升级由 7 天兜底重探覆盖）；缓存按 agent 单文
 # 件、临时件加改名原子落盘，读失败按 miss；探测失败记空值加 5 分钟静
@@ -397,7 +397,7 @@ if ($tp -and (Test-Path $tp)) {
 "#;
 
 /// tools 段：工具调用计数（transcript 尾 500 行 tool_use 出现次数；近似
-/// 口径，长会话低估——与 R002 同口径）。
+/// 口径，长会话低估，与 agents 探测同口径）。
 const SEG_TOOLS: &str = r#"
 # ── 工具计数： N（transcript 尾 500 行 tool_use 次数，近似口径）──
 if ($null -ne $toolCalls) {
@@ -532,7 +532,7 @@ if ($branch -or $flags) {
 }
 "#;
 
-/// 状态栏的PROBE面（细则见 R002 与模块文档）。
+/// 状态栏的PROBE面（细则见模块文档与集成测试）。
 /// D11 first-match 序 rust / node / python 先于 zig / go / cpp）。段序含
 /// package 或任一工具链段才拼入（文件读加 git 子进程，无人消费时省掉）。
 const PS1_PROBE: &str = r#"
@@ -710,7 +710,7 @@ if ($nerd -and $projKind -eq 'cpp') {
 }
 "#;
 
-/// 状态栏的TAIL面（细则见 R002 与模块文档）。
+/// 状态栏的TAIL面（细则见模块文档与集成测试）。
 const PS1_TAIL: &str = "\nWrite-Output ($parts -join ' | ')\nexit 0\n";
 
 /// 排间断点（D40 双排，D42 三行泛化）：第 n 排段块后收线并重置收集器。
@@ -784,7 +784,7 @@ pub(crate) const DEFAULT_SEGMENTS3: &[&str] = &[];
 
 /// 内嵌默认模板（D18）。键 = 段 id；`context-ascii` 是 grok 的结构差异项
 /// （nerd 版带 used/window 括号对，ascii 版只有百分比加 ctx 后缀）。
-/// 各段可用占位符见 R002；git 段默认前导空格在 branch / flags 变量里。
+/// 各段可用占位符见 `hst statusline --example`；git 段默认前导空格在 branch / flags 变量里。
 const DEFAULT_TEMPLATES: &[(&str, &str)] = &[
     ("shell", "{icon}{name}"),
     ("dir", "{path}"),
@@ -860,7 +860,7 @@ fn lookup_override<'a>(user: &'a [(String, String)], key: &str) -> Option<&'a st
     user.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str())
 }
 
-/// 状态栏的烘焙定制块面（细则见 R002 与模块文档）。
+/// 状态栏的烘焙定制块面（细则见模块文档与集成测试）。
 /// 默认全键在场）。值经单引号转义，用户串无法越出字面量（模板注入不成立）。
 fn render_cfg_block(cfg: &StatuslineConfig) -> String {
     let mut out = String::from(
@@ -966,7 +966,7 @@ pub(crate) fn assemble_statusline_ps1(
     Ok(out)
 }
 
-/// 状态栏的默认脚本面（细则见 R002 与模块文档）。
+/// 状态栏的默认脚本面（细则见模块文档与集成测试）。
 pub(crate) fn default_statusline_ps1() -> String {
     assemble_statusline_ps1(
         &[DEFAULT_SEGMENTS, DEFAULT_SEGMENTS2, DEFAULT_SEGMENTS3],
@@ -1019,7 +1019,7 @@ pub fn read_config(home: &Path) -> Result<StatuslineConfig, String> {
     parse_config(&text).map_err(|e| format!("{}: {e}", p.display()))
 }
 
-/// 状态栏的纯函数面（细则见 R002 与模块文档）。
+/// 状态栏的纯函数面（细则见模块文档与集成测试）。
 fn parse_config(text: &str) -> Result<StatuslineConfig, String> {
     let v: toml::Value = toml::from_str(text).map_err(|e| format!("parse: {e}"))?;
     let mut cfg = StatuslineConfig::default();
@@ -1230,7 +1230,7 @@ pub fn deploy_custom_script(home: &Path, src: &Path) -> Result<PathBuf, String> 
 /// # Errors
 ///
 /// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
-/// 状态栏的还原内嵌脚本面（细则见 R002 与模块文档）。
+/// 状态栏的还原内嵌脚本面（细则见模块文档与集成测试）。
 pub fn restore_builtin_script(home: &Path) -> Result<PathBuf, String> {
     let m = marker_path(home);
     if m.exists() {
@@ -1242,7 +1242,7 @@ pub fn restore_builtin_script(home: &Path) -> Result<PathBuf, String> {
 /// # Errors
 ///
 /// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
-/// 状态栏的claude面（细则见 R002 与模块文档）。
+/// 状态栏的claude面（细则见模块文档与集成测试）。
 /// D53（codex F1）：user_home 显式透传（测试密闭，不读 env）。
 pub fn merge_claude(home: &Path, user_home: &Path) -> Result<String, String> {
     let script = deploy_script(home)?;
@@ -1272,7 +1272,7 @@ pub fn merge_claude(home: &Path, user_home: &Path) -> Result<String, String> {
 /// # Errors
 ///
 /// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
-/// 状态栏的kimi面（细则见 R002 与模块文档）。
+/// 状态栏的kimi面（细则见模块文档与集成测试）。
 /// cmd/sh 执行，首行接管 footer；300ms 超时由 kimi 侧约束，超时自动回退
 /// 内置布局——S025）。其它表保留。
 /// D53（codex F1）：user_home 显式透传。
@@ -1311,7 +1311,7 @@ fn apply_kimi_status_line(toml: &mut toml::Value, script_str: &str) -> Result<bo
 /// # Errors
 ///
 /// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
-/// 状态栏的grok面（细则见 R002 与模块文档）。
+/// 状态栏的grok面（细则见模块文档与集成测试）。
 /// Windows 写 `.cmd` 单路径（M048）；Unix 仍写 `pwsh -File` 命令行（NotFound
 /// 才回落 sh -c）。其它表保留。
 /// D53（codex F1）：user_home 显式透传。
@@ -1423,7 +1423,7 @@ segments3 = []
 /// 清单——源码 status_line_setup.rs 全量约 30 项）。token 细分（used/
 /// input/output/window）是 codex 侧对 D40「token 用量」要素的承载；
 /// tools 计数、MCP 计数、context 构成三要素 codex 能力面不可达（差距
-/// 说明见 S034 追记与 R002）。D46 加 `codex-version`（源码实证
+/// 说明见 S034 追记）。D46 加 `codex-version`（源码实证
 /// `StatusLineItem::CodexVersion`，strum kebab_case ID），codex 侧版本
 /// 显示走内置项，与 pwsh 面版本并入 agent 名同要素；同轮用户裁去
 /// `context-remaining`（渲染成 left 百分比，与 `context-used` 的
@@ -1691,7 +1691,7 @@ mod tests {
 
     #[test]
     fn template_override_changes_rendered_output() {
-        // pwsh 闸门 skip（R004 形态）：无 pwsh 环境不跑行为判据。
+        // pwsh 闸门 skip（测试分层形态）：无 pwsh 环境不跑行为判据。
         if !pwsh_on_path() {
             return;
         }
@@ -1720,7 +1720,7 @@ mod tests {
 
     #[test]
     fn hst_segment_reads_user_session_keyed_state() {
-        // pwsh 闸门 skip（R004 形态）：无 pwsh 环境不跑行为判据。
+        // pwsh 闸门 skip（测试分层形态）：无 pwsh 环境不跑行为判据。
         if !pwsh_on_path() {
             return;
         }
@@ -2339,10 +2339,10 @@ mod tests {
         // 第三行去掉（tools 与 mcp 两计数、token 用量三段显式选用才出
         // 现）。codex D40 评审 G2 顺带钉 kimi 退化：同配置下 kimi 并一行。
         if !pwsh_on_path() {
-            // R004 闸门 skip；eprintln 标痕防无 pwsh 环境静默空跑（codex
+            // pwsh 闸门 skip；eprintln 标痕防无 pwsh 环境静默空跑（codex
             // 评审 O3：CI 两岗带 pwsh 不空跑，本机缺位时四条判据全不跑
             // 且无提示）。
-            eprintln!("skip: pwsh not on path (R004 gate)");
+            eprintln!("skip: pwsh not on path (pwsh gate)");
             return;
         }
         let home = scratch("tworow");

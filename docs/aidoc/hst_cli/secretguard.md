@@ -1,6 +1,6 @@
 # hst-cli::secretguard
 
-的密钥拦截闸面（细则见 R002 与模块文档）。
+的密钥拦截闸面（细则见模块文档与集成测试）。
 密钥 hook 安全拦截（S030）：oma hook 的第二职责，接管 ohmypwsh
 secret-guard 的会话出口闸。误报八层防线（S030 误报策略节）：
 ① 精确前缀硬阻断 ② 实值比对零误报通道 ③ 熵值门（通用赋值类）
@@ -14,12 +14,12 @@ secret-guard 的会话出口闸。误报八层防线（S030 误报策略节）�
 
 - `guard` — guard 主判定（fail-open：任何一步拿不到文本都放行）。
 - `mask` — 掩码（防线 7）：审计与 stderr 只见前 4 后 4。
-- `scan` — 密钥拦截的扫描面（细则见 R002 与模块文档）。
+- `scan` — 密钥拦截的扫描面（细则见模块文档与集成测试）。
 - `scan_text` — 从 hook payload 抽待扫描文本（claude/codex/kimi/grok 信封，snake_case
 
 ## Types
 
-- `Finding` — 密钥拦截的Finding面（细则见 R002 与模块文档）。
+- `Finding` — 密钥拦截的Finding面（细则见模块文档与集成测试）。
 - `GuardVerdict` — guard 判定：`block` 为真时调用方 exit 2；`reasons` 面向 agent stderr。
-- `Tier` — 密钥拦截的Tier面（细则见 R002 与模块文档）。
+- `Tier` — 密钥拦截的Tier面（细则见模块文档与集成测试）。
 

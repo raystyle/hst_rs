@@ -1,5 +1,5 @@
 //! hst CLI 入口：子命令分发（init/doctor/agents/hook/self/completions/
-//! trace/diagnose/statusline/verify）与 `--format`/`--json` 信封出口（R011）。
+//! trace/diagnose/statusline/verify）与 `--format`/`--json` 信封出口（fmtio 三态契约）。
 
 use std::path::{Path, PathBuf};
 
@@ -19,7 +19,7 @@ struct Cli {
     /// JSON 信封输出（--format json 简写）
     #[arg(long, global = true, conflicts_with = "format")]
     json: bool,
-    /// 的输出格式面（细则见 R002 与模块文档）。
+    /// 的输出格式面（细则见模块文档与集成测试）。
     #[arg(long, global = true)]
     format: Option<String>,
     /// 打印紧凑版 agent 说明书（llms 风格速查；命令表随活命令树自适应，功能面与输出契约为概览段；ADR-0005 后唯一机读手册面，不落盘）后退出
@@ -118,7 +118,7 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum DiagnoseCmd {
-    /// 的网关缓存探测面（细则见 R002 与模块文档）。
+    /// 的网关缓存探测面（细则见模块文档与集成测试）。
     Cache {
         /// 只测这些别名；缺省 = 网关 /v1/models 全量
         #[arg(value_name = "别名")]
@@ -169,7 +169,7 @@ enum TraceCmd {
         /// 条数上限（1-1000）
         #[arg(long, default_value_t = 100)]
         limit: usize,
-        /// 的翻页偏移面（细则见 R002 与模块文档）。
+        /// 的翻页偏移面（细则见模块文档与集成测试）。
         #[arg(long, default_value_t = 0)]
         offset: usize,
         /// 项目根；默认当前目录
@@ -186,7 +186,7 @@ enum TraceCmd {
         /// 条数上限（1-1000）
         #[arg(long, default_value_t = 100)]
         limit: usize,
-        /// 的翻页偏移面（细则见 R002 与模块文档）。
+        /// 的翻页偏移面（细则见模块文档与集成测试）。
         #[arg(long, default_value_t = 0)]
         offset: usize,
         /// 项目根；默认当前目录
@@ -204,14 +204,14 @@ enum TraceCmd {
         /// 条数上限（1-1000）
         #[arg(long, default_value_t = 100)]
         limit: usize,
-        /// 的翻页偏移面（细则见 R002 与模块文档）。
+        /// 的翻页偏移面（细则见模块文档与集成测试）。
         #[arg(long, default_value_t = 0)]
         offset: usize,
         /// 项目根；默认当前目录
         #[arg(long)]
         project: Option<PathBuf>,
     },
-    /// 的意图操作块视图面（细则见 R002 与模块文档）。
+    /// 的意图操作块视图面（细则见模块文档与集成测试）。
     Blocks {
         /// 只看某家 agent
         #[arg(long)]
@@ -219,7 +219,7 @@ enum TraceCmd {
         /// 条数上限（1-1000，取最新 N 块）
         #[arg(long, default_value_t = 100)]
         limit: usize,
-        /// 的翻页偏移面（细则见 R002 与模块文档）。
+        /// 的翻页偏移面（细则见模块文档与集成测试）。
         #[arg(long, default_value_t = 0)]
         offset: usize,
         /// 项目根；默认当前目录
@@ -233,7 +233,7 @@ enum TraceCmd {
         /// 条数上限（1-1000，取最新 N 块）
         #[arg(long, default_value_t = 100)]
         limit: usize,
-        /// 的翻页偏移面（细则见 R002 与模块文档）。
+        /// 的翻页偏移面（细则见模块文档与集成测试）。
         #[arg(long, default_value_t = 0)]
         offset: usize,
         /// 项目根；默认当前目录
@@ -250,7 +250,7 @@ enum HookCmd {
         #[arg(long)]
         project: Option<PathBuf>,
     },
-    /// 的状态写入入口面（细则见 R002 与模块文档）。
+    /// 的状态写入入口面（细则见模块文档与集成测试）。
     Status {
         /// 事件名或四态（idle/working/blocked/unknown）；省略则读 stdin JSON
         #[arg(value_name = "事件")]
@@ -377,7 +377,7 @@ fn run() -> Result<(), String> {
 /// `hst --llms`：紧凑版 agent 说明书（llms 风格）。命令表从 clap 活命令树
 /// 自适应渲染（新命令自动出现；功能面五条与输出契约是手写概览段，codex
 /// 评审 G1 口径）；不落盘、不装技能（ADR-0005 后唯一机读手册面）。命令
-/// 细则唯一权威在 R002，本面只做速查投影。
+/// 本面是速查投影，契约在 clap 帮助与集成测试。
 fn render_llms(root: &clap::Command) -> String {
     let mut rows: Vec<(String, String)> = Vec::new();
     walk(root, String::new(), &mut rows);
@@ -391,7 +391,7 @@ fn render_llms(root: &clap::Command) -> String {
         table.push_str(&format!("| `{usage}` | {about} |\n"));
     }
     format!(
-        "# hst\n\n> HST（Hooks, Statusline, Trace）：agent 全平台部署配置与诊断 CLI。本手册命令表由 `hst --llms` 随活命令树自适应渲染（功能面与输出契约为概览段）；命令细则唯一权威在仓库 docs/references/R002。\n\n## 功能面\n\n- 可用性诊断：`hst doctor`（零网络只读体检）、`hst agents`（四家检测）、`hst diagnose`（活性诊断）\n- hook 设置：`hst init`（部署，幂等）、`hst hook status`（状态落盘）\n- 状态栏设置：`hst statusline`（四家写入面）\n- 对话 trace：`hst trace` 六视图只读检索四家原生会话库\n- yolo 不阻塞设置：`hst init --yolo`\n\n## 命令表\n\n| 命令 | 说明 |\n| --- | --- |\n{table}\n## 输出契约\n\n全部命令支持 `--format kv|json|jsonl` 与 `--json` 信封（kv 是缺省 marker 行）；结构化错误 stderr 单行 JSON；doctor blocked 与 verify fail 退出 1，diagnose cache 探测错误退出 1。\n"
+        "# hst\n\n> HST（Hooks, Statusline, Trace）：agent 全平台部署配置与诊断 CLI。本手册命令表由 `hst --llms` 随活命令树自适应渲染（功能面与输出契约为概览段）；命令行为契约以 clap 帮助、模块 /// 与集成测试为准。\n\n## 功能面\n\n- 可用性诊断：`hst doctor`（零网络只读体检）、`hst agents`（四家检测）、`hst diagnose`（活性诊断）\n- hook 设置：`hst init`（部署，幂等）、`hst hook status`（状态落盘）\n- 状态栏设置：`hst statusline`（四家写入面）\n- 对话 trace：`hst trace` 六视图只读检索四家原生会话库\n- yolo 不阻塞设置：`hst init --yolo`\n\n## 命令表\n\n| 命令 | 说明 |\n| --- | --- |\n{table}\n## 输出契约\n\n全部命令支持 `--format kv|json|jsonl` 与 `--json` 信封（kv 是缺省 marker 行）；结构化错误 stderr 单行 JSON；doctor blocked 与 verify fail 退出 1，diagnose cache 探测错误退出 1。\n"
     )
 }
 
@@ -414,7 +414,7 @@ fn walk(cmd: &clap::Command, prefix: String, rows: &mut Vec<(String, String)>) {
     }
 }
 
-/// 命令表用法串拼装面（细则见 R002 与模块文档）。
+/// 命令表用法串拼装面（细则见模块文档与集成测试）。
 fn synopsis(cmd: &clap::Command, path: &str) -> String {
     let mut s = String::from(path);
     let mut opts: Vec<String> = Vec::new();
@@ -448,7 +448,7 @@ fn synopsis(cmd: &clap::Command, path: &str) -> String {
             ) {
                 // 裸旗标合法的取值旗标（num_args 下界 0，如 --yolo）出
                 // `[--yolo[=full|partial|off]]`（有枚举值列值集，codex 评审
-                // G2：与 R002 的裸旗标语义对齐）；必值旗标仍 `[--script <路径>]`。
+                // G2：与裸旗标取值语义对齐，codex 评审 G2）；必值旗标仍 `[--script <路径>]`。
                 let optional_value = a
                     .get_num_args()
                     .map(|r| r.min_values() == 0)
@@ -523,7 +523,7 @@ fn print_json(command: &str, root: &Path, outcome: Result<Value, String>) -> Res
     }
 }
 
-/// 的completions面（细则见 R002 与模块文档）。
+/// 的completions面（细则见模块文档与集成测试）。
 fn cmd_completions(shell: clap_complete::Shell) -> Result<(), String> {
     let mut cmd = Cli::command();
     clap_complete::generate(shell, &mut cmd, "hst", &mut std::io::stdout());
@@ -1104,7 +1104,7 @@ fn emit_trace(count_key: &str, rows: Vec<TraceRow>, total: usize, offset: usize,
     }
 }
 
-/// 的操作块时间线面（细则见 R002 与模块文档）。
+/// 的操作块时间线面（细则见模块文档与集成测试）。
 /// 正序（与 timeline 的窗口语义一致，offset 向更早翻页）。
 fn print_block_timeline(
     project: &std::path::Path,

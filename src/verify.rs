@@ -97,7 +97,7 @@ fn wanted_names(names: &[String]) -> Result<Vec<String>, String> {
 /// # Errors
 ///
 /// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
-/// 无头验收的验收主流程面（细则见 R002 与模块文档）。
+/// 无头验收的验收主流程面（细则见模块文档与集成测试）。
 pub fn run(names: &[String], timeout_secs: u64) -> Result<Vec<AgentOutcome>, String> {
     let wanted = wanted_names(names)?;
     let reports = agents::detect();
@@ -200,7 +200,7 @@ fn verify_statusline(agent: &str, home: &Path) -> LayerVerdict {
     // D46（codex F7/F1）：mock 空 JSON 无 version 必走本地探，钉 HST_VER_CACHE_DIR
     // 到系统临时目录的本轮专用子目录（用完即删），不读不写真实 ~/.hst/cache、
     // 不在数据根留常驻子件（pristine 迁移判据不受扰；冷缓存每家一次
-    // --version spawn 的代价口径见 R002）。
+    // --version spawn 的代价口径见集成测试）。
     let ver_cache =
         std::env::temp_dir().join(format!("hst-verify-ver-cache-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&ver_cache);
@@ -258,7 +258,7 @@ fn verify_statusline(agent: &str, home: &Path) -> LayerVerdict {
     }
 }
 
-/// 无头验收的纯函数面（细则见 R002 与模块文档）。
+/// 无头验收的纯函数面（细则见模块文档与集成测试）。
 /// 在第二行；D46 起版本并入 agent 名）。旧形 `<agent>:<state>`；新形
 /// `<agent>-<version>:<state>`（用户裁连字符拼接），版本 token 数字起头
 /// 且含点（probe 正则与 payload version 都至少一段 `.N`；点门槛同时压
@@ -271,7 +271,7 @@ pub fn statusline_marker_ok(agent: &str, stdout: &str) -> bool {
     stdout.lines().any(|l| marker_line_hit(agent, l))
 }
 
-/// 无头验收的单行标记判据面（细则见 R002 与模块文档）。
+/// 无头验收的单行标记判据面（细则见模块文档与集成测试）。
 /// `-<version>:`（D46 新形，版本后必须收在 `:`）。
 fn marker_line_hit(agent: &str, line: &str) -> bool {
     let mut from = 0;
@@ -294,7 +294,7 @@ fn marker_line_hit(agent: &str, line: &str) -> bool {
     false
 }
 
-/// 无头验收的codex面（细则见 R002 与模块文档）。
+/// 无头验收的codex面（细则见模块文档与集成测试）。
 /// 部署归 `hst statusline` 面，init 不写）；已部署但缺 run-state 锚 = Fail。
 fn codex_statusline_builtin() -> LayerVerdict {
     let config = match crate::pathutil::user_home() {
@@ -319,7 +319,7 @@ fn codex_statusline_builtin() -> LayerVerdict {
     codex_statusline_from_text(&text)
 }
 
-/// 无头验收的纯函数面（细则见 R002 与模块文档）。
+/// 无头验收的纯函数面（细则见模块文档与集成测试）。
 fn codex_statusline_from_text(text: &str) -> LayerVerdict {
     if !codex_statusline_key_present(text) {
         return LayerVerdict::Skip(
@@ -336,7 +336,7 @@ fn codex_statusline_from_text(text: &str) -> LayerVerdict {
     }
 }
 
-/// 无头验收的纯函数面（细则见 R002 与模块文档）。
+/// 无头验收的纯函数面（细则见模块文档与集成测试）。
 fn codex_statusline_key_present(text: &str) -> bool {
     let mut in_tui = false;
     for ln in text.lines() {
@@ -352,7 +352,7 @@ fn codex_statusline_key_present(text: &str) -> bool {
     false
 }
 
-/// 无头验收的纯函数面（细则见 R002 与模块文档）。
+/// 无头验收的纯函数面（细则见模块文档与集成测试）。
 /// run-state 锚（hst 部署的内置项清单恒含，M045 无外部命令面）。
 pub fn codex_builtin_statusline_ok(text: &str) -> bool {
     let mut in_tui = false;
@@ -486,7 +486,7 @@ fn verify_hook_in(
 }
 
 /// 用户级状态目录里本轮窗口内新写的 `<agent>*.json`（取最新 mtime）。
-/// 无头验收的只读不删面（细则见 R002 与模块文档）。
+/// 无头验收的只读不删面（细则见模块文档与集成测试）。
 /// 真实家目录直取（shim 写 `%USERPROFILE%\.hst\state` 不看 HST_ROOT）。
 fn freshest_new_user_state(agent: &str, started: std::time::SystemTime) -> Option<String> {
     let home = verify_real_home().ok()?;
@@ -617,7 +617,7 @@ impl Drop for GrokTrustGuard {
     }
 }
 
-/// 无头验收的纯函数面（细则见 R002 与模块文档）。
+/// 无头验收的纯函数面（细则见模块文档与集成测试）。
 /// grok 段）。返回是否为新增（已信任则不动，调用方也不该摘除）。
 fn grok_trust_insert(toml: &mut toml::Value, key: &str) -> Result<bool, String> {
     let table = match toml {
@@ -650,7 +650,7 @@ fn grok_trust_insert(toml: &mut toml::Value, key: &str) -> Result<bool, String> 
     Ok(true)
 }
 
-/// 无头验收的纯函数面（细则见 R002 与模块文档）。
+/// 无头验收的纯函数面（细则见模块文档与集成测试）。
 fn grok_trust_remove(toml: &mut toml::Value, key: &str) {
     let toml::Value::Table(table) = toml else {
         return;
@@ -755,7 +755,7 @@ fn wait_with_timeout(child: &mut Child, timeout: Duration) -> bool {
 /// # Errors
 ///
 /// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
-/// 无头验收的纯函数面（细则见 R002 与模块文档）。
+/// 无头验收的纯函数面（细则见模块文档与集成测试）。
 /// event 空 = shim 没解析到 stdin payload（codex review G2：此前的判据
 /// 盲区，读空也落 unknown-state 文件、verify 照样绿）。
 pub fn parse_state(text: &str) -> Result<String, String> {

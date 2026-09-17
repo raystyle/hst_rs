@@ -10,11 +10,11 @@ use std::path::{Path, PathBuf};
 const MAX_INTENT_CHARS: usize = 200;
 /// 分页 clamp（S018 参数形状）。
 pub const DEFAULT_LIMIT: usize = 100;
-/// trace 六视图的MAX_LIMIT面（细则见 R002 与模块文档）。
+/// trace 六视图的MAX_LIMIT面（细则见模块文档与集成测试）。
 pub const MAX_LIMIT: usize = 1000;
 
 #[derive(Debug, Clone)]
-/// trace 六视图的TraceSession面（细则见 R002 与模块文档）。
+/// trace 六视图的TraceSession面（细则见模块文档与集成测试）。
 pub struct TraceSession {
     /// 该字段承载trace 六视图的agent数据。
     pub agent: String,
@@ -29,7 +29,7 @@ pub struct TraceSession {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// trace 六视图的EditKind面（细则见 R002 与模块文档）。
+/// trace 六视图的EditKind面（细则见模块文档与集成测试）。
 pub enum EditKind {
     /// 该字段承载trace 六视图的Create数据。
     Create,
@@ -40,7 +40,7 @@ pub enum EditKind {
 }
 
 impl EditKind {
-    /// trace 六视图的as_str面（细则见 R002 与模块文档）。
+    /// trace 六视图的as_str面（细则见模块文档与集成测试）。
     pub fn as_str(self) -> &'static str {
         match self {
             EditKind::Create => "create",
@@ -50,7 +50,7 @@ impl EditKind {
     }
 }
 
-/// trace 六视图的归一化事件面（细则见 R002 与模块文档）。
+/// trace 六视图的归一化事件面（细则见模块文档与集成测试）。
 #[derive(Debug, Clone)]
 pub struct TraceEvent {
     /// 该字段承载trace 六视图的agent数据。
@@ -78,7 +78,7 @@ pub struct TraceEvent {
 }
 
 impl TraceEvent {
-    /// trace 六视图的operation_id面（细则见 R002 与模块文档）。
+    /// trace 六视图的operation_id面（细则见模块文档与集成测试）。
     pub fn operation_id(&self) -> String {
         format!(
             "{}:{}",
@@ -88,7 +88,7 @@ impl TraceEvent {
     }
 }
 
-/// trace 六视图的意图操作块面（细则见 R002 与模块文档）。
+/// trace 六视图的意图操作块面（细则见模块文档与集成测试）。
 #[derive(Debug, Clone)]
 pub struct TraceBlock {
     /// 该字段承载trace 六视图的op数据。
@@ -156,7 +156,7 @@ pub fn group_blocks(events: &[TraceEvent]) -> Vec<TraceBlock> {
     order.into_iter().filter_map(|op| map.remove(&op)).collect()
 }
 
-/// trace 六视图的TraceFilter面（细则见 R002 与模块文档）。
+/// trace 六视图的TraceFilter面（细则见模块文档与集成测试）。
 pub struct TraceFilter<'a> {
     /// 该字段承载trace 六视图的agent数据。
     pub agent: Option<&'a str>,
@@ -170,7 +170,7 @@ pub struct TraceFilter<'a> {
 }
 
 impl<'a> TraceFilter<'a> {
-    /// trace 六视图的clamp_limit面（细则见 R002 与模块文档）。
+    /// trace 六视图的clamp_limit面（细则见模块文档与集成测试）。
     pub fn clamp_limit(&self) -> usize {
         self.limit.clamp(1, MAX_LIMIT)
     }
@@ -254,7 +254,7 @@ pub fn ts_to_ms(s: &str) -> Option<u64> {
     Some((days as u64 * 86_400 + h * 3600 + mi * 60 + se) * 1000 + ms)
 }
 
-/// trace 六视图的ms_to_iso面（细则见 R002 与模块文档）。
+/// trace 六视图的ms_to_iso面（细则见模块文档与集成测试）。
 pub fn ms_to_iso(ms: u64) -> String {
     let days = (ms / 86_400_000) as i64;
     let rem = ms % 86_400_000;
@@ -306,7 +306,7 @@ pub fn claude_project_slug(project: &Path) -> String {
         .collect()
 }
 
-/// trace 六视图的claude_sessions_in面（细则见 R002 与模块文档）。
+/// trace 六视图的claude_sessions_in面（细则见模块文档与集成测试）。
 pub fn claude_sessions_in(dir: &Path, project: &Path) -> Vec<TraceSession> {
     let mut out = Vec::new();
     let Ok(rd) = fs::read_dir(dir) else {
@@ -414,7 +414,7 @@ fn codex_session_meta(file: &Path) -> Option<serde_json::Value> {
     None
 }
 
-/// trace 六视图的grok面（细则见 R002 与模块文档）。
+/// trace 六视图的grok面（细则见模块文档与集成测试）。
 /// 权威日志是 updates.jsonl（S020：chat_history 是派生缓存，compaction 会重建）；
 /// 缺 updates 的旧会话退 chat_history。started_at：updates 首行 timestamp（秒），
 /// 退 uuid v7 生成时刻近似。
@@ -503,7 +503,7 @@ fn percent_decode(s: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-/// trace 六视图的kimi面（细则见 R002 与模块文档）。
+/// trace 六视图的kimi面（细则见模块文档与集成测试）。
 /// append-only 索引带墓碑行（{sessionId, deleted:true}），后行覆盖前行。
 pub fn kimi_sessions_in(index: &Path, project: &Path) -> Vec<TraceSession> {
     let mut out = Vec::new();
@@ -552,7 +552,7 @@ pub fn kimi_sessions_in(index: &Path, project: &Path) -> Vec<TraceSession> {
 
 // ---- 事件抽取 ----
 
-/// trace 六视图的会话库根面（细则见 R002 与模块文档）。
+/// trace 六视图的会话库根面（细则见模块文档与集成测试）。
 /// 同形——Windows 的家目录解析走 SHGetKnownFolderPath，HOME / USERPROFILE
 /// 环境重定向对 dirs 无效，故显式开一扇门）。
 fn sessions_home() -> PathBuf {
@@ -563,7 +563,7 @@ fn sessions_home() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
 }
 
-/// trace 六视图的四家环境入口面（细则见 R002 与模块文档）。
+/// trace 六视图的四家环境入口面（细则见模块文档与集成测试）。
 pub fn list_sessions(project: &Path) -> Vec<TraceSession> {
     let mut out = Vec::new();
     let home = sessions_home();
@@ -589,7 +589,7 @@ pub fn list_sessions(project: &Path) -> Vec<TraceSession> {
     out
 }
 
-/// trace 六视图的四家环境入口面（细则见 R002 与模块文档）。
+/// trace 六视图的四家环境入口面（细则见模块文档与集成测试）。
 pub fn timeline(project: &Path) -> Vec<TraceEvent> {
     let mut out = Vec::new();
     for s in list_sessions(project) {
@@ -844,7 +844,7 @@ pub fn grok_events(session: &TraceSession) -> Vec<TraceEvent> {
 /// grok updates.jsonl（权威日志，S020）：信封 `{timestamp:秒, method, params:{sessionId,
 /// update:{sessionUpdate,...}}}`。method 两流：`session/update` 管内容（user/agent 分片、
 /// tool_call），`_x.ai/session/update` 管遥测（hook/turn/compaction）——内容只读前者。
-/// trace 六视图的四要素面（细则见 R002 与模块文档）。
+/// trace 六视图的四要素面（细则见模块文档与集成测试）。
 /// 是用户意图；agent_message_chunk 连续拼接是操作意图；tool_call 的 `_meta` 下 `x.ai/tool`
 /// 带 kind（write/edit/read，判写族免名字硬编码），`rawInput` 是现成对象；时间用信封
 /// timestamp（秒）——每事件真实时间，替代 v1 的会话起点近似。
@@ -1137,7 +1137,7 @@ fn concat_text_parts(v: Option<&serde_json::Value>) -> String {
 
 // ---- 过滤与检索 ----
 
-/// trace 六视图的apply_filter面（细则见 R002 与模块文档）。
+/// trace 六视图的apply_filter面（细则见模块文档与集成测试）。
 pub fn apply_filter(events: Vec<TraceEvent>, filter: &TraceFilter) -> Vec<TraceEvent> {
     apply_filter_counted(events, filter).0
 }
@@ -1171,7 +1171,7 @@ pub fn apply_filter_counted(
     (window, n)
 }
 
-/// trace 六视图的文件过滤面（细则见 R002 与模块文档）。
+/// trace 六视图的文件过滤面（细则见模块文档与集成测试）。
 pub fn file_matches(file: &str, pattern: &str) -> bool {
     if let Ok(g) = glob::Pattern::new(pattern) {
         return g.matches(file);
@@ -1179,7 +1179,7 @@ pub fn file_matches(file: &str, pattern: &str) -> bool {
     file.contains(pattern)
 }
 
-/// trace 六视图的检索面（细则见 R002 与模块文档）。
+/// trace 六视图的检索面（细则见模块文档与集成测试）。
 pub fn search_matches(event: &TraceEvent, query: &str) -> bool {
     let re = regex::Regex::new(query).ok();
     let fields = [

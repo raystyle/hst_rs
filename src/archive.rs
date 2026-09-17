@@ -8,7 +8,7 @@ use std::path::Path;
 
 use sha2::{Digest, Sha256};
 
-/// 归档的host_os_arch面（细则见 R002 与模块文档）。
+/// 归档的host_os_arch面（细则见模块文档与集成测试）。
 pub fn host_os_arch() -> (&'static str, &'static str) {
     (std::env::consts::OS, std::env::consts::ARCH)
 }

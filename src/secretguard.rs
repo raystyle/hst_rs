@@ -13,7 +13,7 @@ use regex::Regex;
 use serde_json::Value as Json;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-/// 密钥拦截的Tier面（细则见 R002 与模块文档）。
+/// 密钥拦截的Tier面（细则见模块文档与集成测试）。
 pub enum Tier {
     /// 该字段承载密钥拦截的Block数据。
     Block,
@@ -22,7 +22,7 @@ pub enum Tier {
 }
 
 #[derive(Debug)]
-/// 密钥拦截的Finding面（细则见 R002 与模块文档）。
+/// 密钥拦截的Finding面（细则见模块文档与集成测试）。
 pub struct Finding {
     /// 该字段承载密钥拦截的label数据。
     pub label: &'static str,
@@ -48,7 +48,7 @@ struct PatternSpec {
     label: &'static str,
     ignore_case: bool,
     tier: Tier,
-    /// 密钥拦截的通用赋值类面（细则见 R002 与模块文档）。
+    /// 密钥拦截的通用赋值类面（细则见模块文档与集成测试）。
     /// 正则带 1 号捕获组圈住值部，熵值按组算。
     generic: bool,
 }
@@ -259,7 +259,7 @@ const SECRET_ENV_NAMES: &[&str] = &[
     "DEEPSEEK_API_KEY",
 ];
 
-/// 密钥拦截的实值比对条目面（细则见 R002 与模块文档）。
+/// 密钥拦截的实值比对条目面（细则见模块文档与集成测试）。
 struct RealSecret {
     label: &'static str,
     display: String,
@@ -284,7 +284,7 @@ fn real_secret_values() -> Vec<RealSecret> {
     out
 }
 
-/// 密钥拦截的扫描面（细则见 R002 与模块文档）。
+/// 密钥拦截的扫描面（细则见模块文档与集成测试）。
 pub fn scan(text: &str) -> Vec<Finding> {
     let mut out = Vec::new();
     if text.len() < 8 {
@@ -348,7 +348,7 @@ pub fn scan(text: &str) -> Vec<Finding> {
     out
 }
 
-/// 密钥拦截的标识符字符类面（细则见 R002 与模块文档）。
+/// 密钥拦截的标识符字符类面（细则见模块文档与集成测试）。
 /// 杀「值是更长标识符的真子串」误报族（#9：模型别名作为更长别名后缀的
 /// 一段时被裸 contains 误拦；连字符属于标识符类，超集形态不命中）。
 fn is_ident_edge(c: Option<char>) -> bool {
@@ -410,7 +410,7 @@ pub fn scan_text(event: &str, payload: &Json) -> Option<(&'static str, String)> 
 
 /// guard 主判定（fail-open：任何一步拿不到文本都放行）。
 /// PreToolUse / UserPromptSubmit：block 级命中 → block=true；
-/// 密钥拦截的PostToolUse面（细则见 R002 与模块文档）。
+/// 密钥拦截的PostToolUse面（细则见模块文档与集成测试）。
 pub fn guard(event: &str, payload: Option<&Json>) -> GuardVerdict {
     let mut v = GuardVerdict::default();
     let Some(payload) = payload else {

@@ -20,7 +20,7 @@ MoonshotAI/kimi-code sources).
 - `deploy_all_with` — # Errors
 - `deploy_user_hooks` — # Errors
 - `deploy_user_hooks_with` — # Errors
-- `host_side` — 部署的host_side面（细则见 R002 与模块文档）。
+- `host_side` — 部署的host_side面（细则见模块文档与集成测试）。
 - `retire_project_hooks_with` — # Errors
 
 ## Types

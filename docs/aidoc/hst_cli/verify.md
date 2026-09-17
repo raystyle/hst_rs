@@ -24,12 +24,12 @@
 ## Functions
 
 - `any_fail` — 任一非跳过项失败即 true（进程退出 1 的判据）。
-- `codex_builtin_statusline_ok` — 无头验收的纯函数面（细则见 R002 与模块文档）。
+- `codex_builtin_statusline_ok` — 无头验收的纯函数面（细则见模块文档与集成测试）。
 - `headless_argv` — 各家的无头命令行（S033 取证）。codex 的 bypass 旗标必须：否则 hook
 - `parse_state` — # Errors
 - `render` — kv marker 行渲染（风格对齐 statusline/install 等现有命令）。
 - `run` — # Errors
-- `statusline_marker_ok` — 无头验收的纯函数面（细则见 R002 与模块文档）。
+- `statusline_marker_ok` — 无头验收的纯函数面（细则见模块文档与集成测试）。
 
 ## Types
 

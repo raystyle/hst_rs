@@ -15,7 +15,7 @@
     {
       "path": "hst_cli::agents::Hit",
       "kind": "struct",
-      "docs": "agent 探测的Hit面（细则见 R002 与模块文档）。"
+      "docs": "agent 探测的Hit面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::agents::Probe",
@@ -25,17 +25,17 @@
     {
       "path": "hst_cli::agents::Report",
       "kind": "struct",
-      "docs": "agent 探测的Report面（细则见 R002 与模块文档）。"
+      "docs": "agent 探测的Report面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::agents::Source",
       "kind": "enum",
-      "docs": "agent 探测的Source面（细则见 R002 与模块文档）。"
+      "docs": "agent 探测的Source面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::agents::detect",
       "kind": "function",
-      "docs": "agent 探测的detect面（细则见 R002 与模块文档）。"
+      "docs": "agent 探测的detect面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::agents::find",
@@ -45,12 +45,12 @@
     {
       "path": "hst_cli::agents::print_reports",
       "kind": "function",
-      "docs": "agent 探测的print_reports面（细则见 R002 与模块文档）。"
+      "docs": "agent 探测的print_reports面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::archive",
       "kind": "module",
-      "docs": "的通用归档工具面（细则见 R002 与模块文档）。\n通用归档与文件工具：sha256 取证、zip / tar.gz 解压、递归复制、宿主\nos/arch 探测。原在 rmux.rs 的与 rmux 无关部分，D15 收窄后独立成模块\n供 install.rs / update.rs 复用。"
+      "docs": "的通用归档工具面（细则见模块文档与集成测试）。\n通用归档与文件工具：sha256 取证、zip / tar.gz 解压、递归复制、宿主\nos/arch 探测。原在 rmux.rs 的与 rmux 无关部分，D15 收窄后独立成模块\n供 install.rs / update.rs 复用。"
     },
     {
       "path": "hst_cli::archive::copy_dir",
@@ -70,7 +70,7 @@
     {
       "path": "hst_cli::archive::host_os_arch",
       "kind": "function",
-      "docs": "归档的host_os_arch面（细则见 R002 与模块文档）。"
+      "docs": "归档的host_os_arch面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::archive::sha256_file",
@@ -85,7 +85,7 @@
     {
       "path": "hst_cli::caps::CpuCaps",
       "kind": "struct",
-      "docs": "指令集能力的CpuCaps面（细则见 R002 与模块文档）。"
+      "docs": "指令集能力的CpuCaps面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::caps::caps_line",
@@ -100,7 +100,7 @@
     {
       "path": "hst_cli::caps::detect",
       "kind": "function",
-      "docs": "指令集能力的detect面（细则见 R002 与模块文档）。"
+      "docs": "指令集能力的detect面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::deploy",
@@ -130,7 +130,7 @@
     {
       "path": "hst_cli::deploy::deploy_user_hooks",
       "kind": "function",
-      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n部署的生产入口面（细则见 R002 与模块文档）。"
+      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n部署的生产入口面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::deploy::deploy_user_hooks_with",
@@ -140,7 +140,7 @@
     {
       "path": "hst_cli::deploy::host_side",
       "kind": "function",
-      "docs": "部署的host_side面（细则见 R002 与模块文档）。"
+      "docs": "部署的host_side面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::deploy::retire_project_hooks_with",
@@ -155,7 +155,7 @@
     {
       "path": "hst_cli::diagnose::CacheVerdict",
       "kind": "enum",
-      "docs": "活性诊断的CacheVerdict面（细则见 R002 与模块文档）。"
+      "docs": "活性诊断的CacheVerdict面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::diagnose::Gateway",
@@ -165,7 +165,7 @@
     {
       "path": "hst_cli::diagnose::Line",
       "kind": "enum",
-      "docs": "活性诊断的Line面（细则见 R002 与模块文档）。"
+      "docs": "活性诊断的Line面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::diagnose::claude_env",
@@ -190,12 +190,12 @@
     {
       "path": "hst_cli::diagnose::discover_gateway",
       "kind": "function",
-      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n活性诊断的discover_gateway面（细则见 R002 与模块文档）。"
+      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n活性诊断的discover_gateway面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::diagnose::line_of",
       "kind": "function",
-      "docs": "活性诊断的别名线归属面（细则见 R002 与模块文档）。\n/v1/messages。"
+      "docs": "活性诊断的别名线归属面（细则见模块文档与集成测试）。\n/v1/messages。"
     },
     {
       "path": "hst_cli::diagnose::list_models",
@@ -205,7 +205,7 @@
     {
       "path": "hst_cli::diagnose::probe_alias",
       "kind": "function",
-      "docs": "活性诊断的探测一个别名面（细则见 R002 与模块文档）。\ngeo 漂移实测；读到即停，判前缀缓存）。"
+      "docs": "活性诊断的探测一个别名面（细则见模块文档与集成测试）。\ngeo 漂移实测；读到即停，判前缀缓存）。"
     },
     {
       "path": "hst_cli::diagnose::render_cache_rows",
@@ -225,7 +225,7 @@
     {
       "path": "hst_cli::diagnose::verdict_from_usages",
       "kind": "function",
-      "docs": "活性诊断的纯函数面（细则见 R002 与模块文档）。\n网关异区只写不读的实测形态；ds 特判只落在 claude 线）。"
+      "docs": "活性诊断的纯函数面（细则见模块文档与集成测试）。\n网关异区只写不读的实测形态；ds 特判只落在 claude 线）。"
     },
     {
       "path": "hst_cli::doctor",
@@ -255,17 +255,17 @@
     {
       "path": "hst_cli::doctor::print_diagnosis",
       "kind": "function",
-      "docs": "体检的print_diagnosis面（细则见 R002 与模块文档）。"
+      "docs": "体检的print_diagnosis面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::fmtio",
       "kind": "module",
-      "docs": "全局输出三态（kv/json/jsonl）与结构化错误出口（R011 契约）。\n全局输出格式（issue #1 总台集成契约，与 ome S003 同构）：\n`--format kv|json|jsonl`，`--json` 为 json 简写（互斥）。kv 是人读\nmarker 行（缺省）；json 出 `{ok,data|error,meta}` 信封（P0015 三传输\n同形——oma 与 ome 裸数据裁决的分道点，三传输复用优先，契约文档记档）；\njsonl 是列表型数据的逐行对象（数据即数据，无信封）。\n\n结构化模式（json/jsonl）下错误走 stderr 单行 JSON `{\"code\":\"error\",\n\"message\":...}`，stdout 保持纯数据；kv 模式错误 `hst: <e>`。\nserde_json 开 preserve_order：JSON 字段序与 kv 行序一致（ome S003 实证\n教训——默认 BTreeMap 字母序会打乱）。"
+      "docs": "全局输出三态（kv/json/jsonl）与结构化错误出口契约。\n全局输出格式（issue #1 总台集成契约，与 ome S003 同构）：\n`--format kv|json|jsonl`，`--json` 为 json 简写（互斥）。kv 是人读\nmarker 行（缺省）；json 出 `{ok,data|error,meta}` 信封（P0015 三传输\n同形——oma 与 ome 裸数据裁决的分道点，三传输复用优先，契约文档记档）；\njsonl 是列表型数据的逐行对象（数据即数据，无信封）。\n\n结构化模式（json/jsonl）下错误走 stderr 单行 JSON `{\"code\":\"error\",\n\"message\":...}`，stdout 保持纯数据；kv 模式错误 `hst: <e>`。\nserde_json 开 preserve_order：JSON 字段序与 kv 行序一致（ome S003 实证\n教训——默认 BTreeMap 字母序会打乱）。"
     },
     {
       "path": "hst_cli::fmtio::Format",
       "kind": "enum",
-      "docs": "输出与信封的Format面（细则见 R002 与模块文档）。"
+      "docs": "输出与信封的Format面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::fmtio::envelope",
@@ -285,7 +285,7 @@
     {
       "path": "hst_cli::fmtio::mode",
       "kind": "function",
-      "docs": "输出与信封的mode面（细则见 R002 与模块文档）。"
+      "docs": "输出与信封的mode面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::fmtio::print_jsonl",
@@ -350,7 +350,7 @@
     {
       "path": "hst_cli::pathutil",
       "kind": "module",
-      "docs": "的路径工具面（细则见 R002 与模块文档）。"
+      "docs": "的路径工具面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::pathutil::DIR",
@@ -405,7 +405,7 @@
     {
       "path": "hst_cli::pathutil::project_dir",
       "kind": "function",
-      "docs": "路径的项目侧数据根面（细则见 R002 与模块文档）。"
+      "docs": "路径的项目侧数据根面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::pathutil::same_location",
@@ -415,17 +415,17 @@
     {
       "path": "hst_cli::pathutil::user_home",
       "kind": "function",
-      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n用户家目录解析（D28）：`HST_USER_HOME` 覆盖优先（集成测试与 verify 的\n路径的隔离缝面（细则见 R002 与模块文档）。\n`dirs::home_dir()`。"
+      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n用户家目录解析（D28）：`HST_USER_HOME` 覆盖优先（集成测试与 verify 的\n路径的隔离缝面（细则见模块文档与集成测试）。\n`dirs::home_dir()`。"
     },
     {
       "path": "hst_cli::secretguard",
       "kind": "module",
-      "docs": "的密钥拦截闸面（细则见 R002 与模块文档）。\n密钥 hook 安全拦截（S030）：oma hook 的第二职责，接管 ohmypwsh\nsecret-guard 的会话出口闸。误报八层防线（S030 误报策略节）：\n① 精确前缀硬阻断 ② 实值比对零误报通道 ③ 熵值门（通用赋值类）\n④ stopwords 占位符豁免 ⑤ 语料豁免（测试运行时拼接构造）⑥ warn-only\n分级出口 ⑦ 日志掩码 ⑧ fail-open（异常不挡活）。\n\n阻断语义对齐 ohmypwsh：PreToolUse / UserPromptSubmit 命中 block 级 →\n调用方 exit 2；PostToolUse 只观察不阻断。"
+      "docs": "的密钥拦截闸面（细则见模块文档与集成测试）。\n密钥 hook 安全拦截（S030）：oma hook 的第二职责，接管 ohmypwsh\nsecret-guard 的会话出口闸。误报八层防线（S030 误报策略节）：\n① 精确前缀硬阻断 ② 实值比对零误报通道 ③ 熵值门（通用赋值类）\n④ stopwords 占位符豁免 ⑤ 语料豁免（测试运行时拼接构造）⑥ warn-only\n分级出口 ⑦ 日志掩码 ⑧ fail-open（异常不挡活）。\n\n阻断语义对齐 ohmypwsh：PreToolUse / UserPromptSubmit 命中 block 级 →\n调用方 exit 2；PostToolUse 只观察不阻断。"
     },
     {
       "path": "hst_cli::secretguard::Finding",
       "kind": "struct",
-      "docs": "密钥拦截的Finding面（细则见 R002 与模块文档）。"
+      "docs": "密钥拦截的Finding面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::secretguard::GuardVerdict",
@@ -435,12 +435,12 @@
     {
       "path": "hst_cli::secretguard::Tier",
       "kind": "enum",
-      "docs": "密钥拦截的Tier面（细则见 R002 与模块文档）。"
+      "docs": "密钥拦截的Tier面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::secretguard::guard",
       "kind": "function",
-      "docs": "guard 主判定（fail-open：任何一步拿不到文本都放行）。\nPreToolUse / UserPromptSubmit：block 级命中 → block=true；\n密钥拦截的PostToolUse面（细则见 R002 与模块文档）。"
+      "docs": "guard 主判定（fail-open：任何一步拿不到文本都放行）。\nPreToolUse / UserPromptSubmit：block 级命中 → block=true；\n密钥拦截的PostToolUse面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::secretguard::mask",
@@ -450,7 +450,7 @@
     {
       "path": "hst_cli::secretguard::scan",
       "kind": "function",
-      "docs": "密钥拦截的扫描面（细则见 R002 与模块文档）。"
+      "docs": "密钥拦截的扫描面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::secretguard::scan_text",
@@ -490,7 +490,7 @@
     {
       "path": "hst_cli::shim::deploy_shims",
       "kind": "function",
-      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n部署 shim 文件集到 hst 自管根的 `hooks/`（D28 用户级常驻：\n`<hst_home>/hooks/`，调用方传 `install::hst_home()`；测试传临时根）。\n三份脚本全侧落齐（跨 OS 共享并存：Windows init 也备好 .sh、Unix init\n也备好 .cmd；+x 只在 Unix 生效）。cmd 主 shim按 jq 探测选形态（D27\n的用户裁定面（细则见 R002 与模块文档）。\n返回 (实写路径, 警告)。"
+      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n部署 shim 文件集到 hst 自管根的 `hooks/`（D28 用户级常驻：\n`<hst_home>/hooks/`，调用方传 `install::hst_home()`；测试传临时根）。\n三份脚本全侧落齐（跨 OS 共享并存：Windows init 也备好 .sh、Unix init\n也备好 .cmd；+x 只在 Unix 生效）。cmd 主 shim按 jq 探测选形态（D27\n的用户裁定面（细则见模块文档与集成测试）。\n返回 (实写路径, 警告)。"
     },
     {
       "path": "hst_cli::shim::deploy_shims_with",
@@ -540,7 +540,7 @@
     {
       "path": "hst_cli::statusline::merge_claude",
       "kind": "function",
-      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n状态栏的claude面（细则见 R002 与模块文档）。\nD53（codex F1）：user_home 显式透传（测试密闭，不读 env）。"
+      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n状态栏的claude面（细则见模块文档与集成测试）。\nD53（codex F1）：user_home 显式透传（测试密闭，不读 env）。"
     },
     {
       "path": "hst_cli::statusline::merge_codex",
@@ -550,12 +550,12 @@
     {
       "path": "hst_cli::statusline::merge_grok",
       "kind": "function",
-      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n状态栏的grok面（细则见 R002 与模块文档）。\nWindows 写 `.cmd` 单路径（M048）；Unix 仍写 `pwsh -File` 命令行（NotFound\n才回落 sh -c）。其它表保留。\nD53（codex F1）：user_home 显式透传。"
+      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n状态栏的grok面（细则见模块文档与集成测试）。\nWindows 写 `.cmd` 单路径（M048）；Unix 仍写 `pwsh -File` 命令行（NotFound\n才回落 sh -c）。其它表保留。\nD53（codex F1）：user_home 显式透传。"
     },
     {
       "path": "hst_cli::statusline::merge_kimi",
       "kind": "function",
-      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n状态栏的kimi面（细则见 R002 与模块文档）。\ncmd/sh 执行，首行接管 footer；300ms 超时由 kimi 侧约束，超时自动回退\n内置布局——S025）。其它表保留。\nD53（codex F1）：user_home 显式透传。"
+      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n状态栏的kimi面（细则见模块文档与集成测试）。\ncmd/sh 执行，首行接管 footer；300ms 超时由 kimi 侧约束，超时自动回退\n内置布局——S025）。其它表保留。\nD53（codex F1）：user_home 显式透传。"
     },
     {
       "path": "hst_cli::statusline::pwsh_on_path",
@@ -570,7 +570,7 @@
     {
       "path": "hst_cli::statusline::restore_builtin_script",
       "kind": "function",
-      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n状态栏的还原内嵌脚本面（细则见 R002 与模块文档）。"
+      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n状态栏的还原内嵌脚本面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::trace",
@@ -585,37 +585,37 @@
     {
       "path": "hst_cli::trace::EditKind",
       "kind": "enum",
-      "docs": "trace 六视图的EditKind面（细则见 R002 与模块文档）。"
+      "docs": "trace 六视图的EditKind面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::trace::MAX_LIMIT",
       "kind": "constant",
-      "docs": "trace 六视图的MAX_LIMIT面（细则见 R002 与模块文档）。"
+      "docs": "trace 六视图的MAX_LIMIT面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::trace::TraceBlock",
       "kind": "struct",
-      "docs": "trace 六视图的意图操作块面（细则见 R002 与模块文档）。"
+      "docs": "trace 六视图的意图操作块面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::trace::TraceEvent",
       "kind": "struct",
-      "docs": "trace 六视图的归一化事件面（细则见 R002 与模块文档）。"
+      "docs": "trace 六视图的归一化事件面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::trace::TraceFilter",
       "kind": "struct",
-      "docs": "trace 六视图的TraceFilter面（细则见 R002 与模块文档）。"
+      "docs": "trace 六视图的TraceFilter面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::trace::TraceSession",
       "kind": "struct",
-      "docs": "trace 六视图的TraceSession面（细则见 R002 与模块文档）。"
+      "docs": "trace 六视图的TraceSession面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::trace::apply_filter",
       "kind": "function",
-      "docs": "trace 六视图的apply_filter面（细则见 R002 与模块文档）。"
+      "docs": "trace 六视图的apply_filter面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::trace::apply_filter_counted",
@@ -635,7 +635,7 @@
     {
       "path": "hst_cli::trace::claude_sessions_in",
       "kind": "function",
-      "docs": "trace 六视图的claude_sessions_in面（细则见 R002 与模块文档）。"
+      "docs": "trace 六视图的claude_sessions_in面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::trace::codex_events",
@@ -650,7 +650,7 @@
     {
       "path": "hst_cli::trace::file_matches",
       "kind": "function",
-      "docs": "trace 六视图的文件过滤面（细则见 R002 与模块文档）。"
+      "docs": "trace 六视图的文件过滤面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::trace::grok_events",
@@ -660,7 +660,7 @@
     {
       "path": "hst_cli::trace::grok_sessions_in",
       "kind": "function",
-      "docs": "trace 六视图的grok面（细则见 R002 与模块文档）。\n权威日志是 updates.jsonl（S020：chat_history 是派生缓存，compaction 会重建）；\n缺 updates 的旧会话退 chat_history。started_at：updates 首行 timestamp（秒），\n退 uuid v7 生成时刻近似。"
+      "docs": "trace 六视图的grok面（细则见模块文档与集成测试）。\n权威日志是 updates.jsonl（S020：chat_history 是派生缓存，compaction 会重建）；\n缺 updates 的旧会话退 chat_history。started_at：updates 首行 timestamp（秒），\n退 uuid v7 生成时刻近似。"
     },
     {
       "path": "hst_cli::trace::group_blocks",
@@ -675,17 +675,17 @@
     {
       "path": "hst_cli::trace::kimi_sessions_in",
       "kind": "function",
-      "docs": "trace 六视图的kimi面（细则见 R002 与模块文档）。\nappend-only 索引带墓碑行（{sessionId, deleted:true}），后行覆盖前行。"
+      "docs": "trace 六视图的kimi面（细则见模块文档与集成测试）。\nappend-only 索引带墓碑行（{sessionId, deleted:true}），后行覆盖前行。"
     },
     {
       "path": "hst_cli::trace::list_sessions",
       "kind": "function",
-      "docs": "trace 六视图的四家环境入口面（细则见 R002 与模块文档）。"
+      "docs": "trace 六视图的四家环境入口面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::trace::ms_to_iso",
       "kind": "function",
-      "docs": "trace 六视图的ms_to_iso面（细则见 R002 与模块文档）。"
+      "docs": "trace 六视图的ms_to_iso面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::trace::parse_apply_patch",
@@ -695,12 +695,12 @@
     {
       "path": "hst_cli::trace::search_matches",
       "kind": "function",
-      "docs": "trace 六视图的检索面（细则见 R002 与模块文档）。"
+      "docs": "trace 六视图的检索面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::trace::timeline",
       "kind": "function",
-      "docs": "trace 六视图的四家环境入口面（细则见 R002 与模块文档）。"
+      "docs": "trace 六视图的四家环境入口面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::trace::ts_to_ms",
@@ -720,7 +720,7 @@
     {
       "path": "hst_cli::update::Channel",
       "kind": "enum",
-      "docs": "自更新的更新通道面（细则见 R002 与模块文档）。\nlatest = 正式封版后的 releases/latest。"
+      "docs": "自更新的更新通道面（细则见模块文档与集成测试）。\nlatest = 正式封版后的 releases/latest。"
     },
     {
       "path": "hst_cli::update::DEFAULT_REPO",
@@ -750,7 +750,7 @@
     {
       "path": "hst_cli::update::run",
       "kind": "function",
-      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n`hst self update` entry: release path with git fallback.\n\n判新（D48 双通道）：dev 按 rolling digest（资产 sha256 对安装记录，滚动版\n版本号常不变）；latest 走 GitHub 时按版本 tag，走镜像腿时同 dev 按 digest。\n自更新的读序面（细则见 R002 与模块文档）。\n失败（403 限流与网络类）自动回退镜像腿（默认基址）；空串镜像全关。"
+      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n`hst self update` entry: release path with git fallback.\n\n判新（D48 双通道）：dev 按 rolling digest（资产 sha256 对安装记录，滚动版\n版本号常不变）；latest 走 GitHub 时按版本 tag，走镜像腿时同 dev 按 digest。\n自更新的读序面（细则见模块文档与集成测试）。\n失败（403 限流与网络类）自动回退镜像腿（默认基址）；空串镜像全关。"
     },
     {
       "path": "hst_cli::update::self_replace",
@@ -795,7 +795,7 @@
     {
       "path": "hst_cli::verify::codex_builtin_statusline_ok",
       "kind": "function",
-      "docs": "无头验收的纯函数面（细则见 R002 与模块文档）。\nrun-state 锚（hst 部署的内置项清单恒含，M045 无外部命令面）。"
+      "docs": "无头验收的纯函数面（细则见模块文档与集成测试）。\nrun-state 锚（hst 部署的内置项清单恒含，M045 无外部命令面）。"
     },
     {
       "path": "hst_cli::verify::headless_argv",
@@ -805,7 +805,7 @@
     {
       "path": "hst_cli::verify::parse_state",
       "kind": "function",
-      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n无头验收的纯函数面（细则见 R002 与模块文档）。\nevent 空 = shim 没解析到 stdin payload（codex review G2：此前的判据\n盲区，读空也落 unknown-state 文件、verify 照样绿）。"
+      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n无头验收的纯函数面（细则见模块文档与集成测试）。\nevent 空 = shim 没解析到 stdin payload（codex review G2：此前的判据\n盲区，读空也落 unknown-state 文件、verify 照样绿）。"
     },
     {
       "path": "hst_cli::verify::render",
@@ -815,12 +815,12 @@
     {
       "path": "hst_cli::verify::run",
       "kind": "function",
-      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n无头验收的验收主流程面（细则见 R002 与模块文档）。"
+      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n无头验收的验收主流程面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::verify::statusline_marker_ok",
       "kind": "function",
-      "docs": "无头验收的纯函数面（细则见 R002 与模块文档）。\n在第二行；D46 起版本并入 agent 名）。旧形 `<agent>:<state>`；新形\n`<agent>-<version>:<state>`（用户裁连字符拼接），版本 token 数字起头\n且含点（probe 正则与 payload version 都至少一段 `.N`；点门槛同时压\n「claude-2026:」类无点数字误报）。探不到版本时脚本回落旧形，两形都\n必须过。"
+      "docs": "无头验收的纯函数面（细则见模块文档与集成测试）。\n在第二行；D46 起版本并入 agent 名）。旧形 `<agent>:<state>`；新形\n`<agent>-<version>:<state>`（用户裁连字符拼接），版本 token 数字起头\n且含点（probe 正则与 payload version 都至少一段 `.N`；点门槛同时压\n「claude-2026:」类无点数字误报）。探不到版本时脚本回落旧形，两形都\n必须过。"
     },
     {
       "path": "hst_cli::yolo",
@@ -855,12 +855,12 @@
     {
       "path": "hst_cli::yolo::apply_user_yolo",
       "kind": "function",
-      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\nyolo 键的生产入口面（细则见 R002 与模块文档）。"
+      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\nyolo 键的生产入口面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::yolo::apply_user_yolo_level",
       "kind": "function",
-      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\nyolo 键的生产入口面（细则见 R002 与模块文档）。"
+      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\nyolo 键的生产入口面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::yolo::apply_user_yolo_level_with",
@@ -880,7 +880,7 @@
     {
       "path": "hst_cli::yolo::kimi_workspace_key",
       "kind": "function",
-      "docs": "yolo 键的kimi_workspace_key面（细则见 R002 与模块文档）。"
+      "docs": "yolo 键的kimi_workspace_key面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::yolo::retire_project_yolo",
@@ -890,12 +890,12 @@
     {
       "path": "hst_cli::yolo::retire_user_yolo",
       "kind": "function",
-      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\nyolo 键的生产入口面（细则见 R002 与模块文档）。"
+      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\nyolo 键的生产入口面（细则见模块文档与集成测试）。"
     },
     {
       "path": "hst_cli::yolo::retire_user_yolo_with",
       "kind": "function",
-      "docs": "# Panics\n\n正常路径不 panic；内部 unwrap 仅出现在构造不变量上。\n# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n用户级 yolo 键退役（D33 off）：与 retire_project_yolo 同款 ours 等值\n摘除策略（hst 落值才动、用户自设值保留、整文件只剩空对象/空表时删）。\nyolo 键的注意面（细则见 R002 与模块文档）。\n也由 pretrust 面写入，ours 判定无法区分落写者，off 一并摘除；需要 MCP\n直通请重跑 `--pre-trust`。grok 只摘 `[ui]` permission_mode（ours 值）。"
+      "docs": "# Panics\n\n正常路径不 panic；内部 unwrap 仅出现在构造不变量上。\n# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n用户级 yolo 键退役（D33 off）：与 retire_project_yolo 同款 ours 等值\n摘除策略（hst 落值才动、用户自设值保留、整文件只剩空对象/空表时删）。\nyolo 键的注意面（细则见模块文档与集成测试）。\n也由 pretrust 面写入，ours 判定无法区分落写者，off 一并摘除；需要 MCP\n直通请重跑 `--pre-trust`。grok 只摘 `[ui]` permission_mode（ours 值）。"
     }
   ]
 }

@@ -49,7 +49,7 @@ pub struct Asset {
     pub digest: Option<String>,
 }
 
-/// 自更新的更新通道面（细则见 R002 与模块文档）。
+/// 自更新的更新通道面（细则见模块文档与集成测试）。
 /// latest = 正式封版后的 releases/latest。
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Channel {
@@ -60,7 +60,7 @@ pub enum Channel {
 }
 
 impl Channel {
-    /// 自更新的as_str面（细则见 R002 与模块文档）。
+    /// 自更新的as_str面（细则见模块文档与集成测试）。
     pub fn as_str(self) -> &'static str {
         match self {
             Channel::Dev => "dev",
@@ -200,7 +200,7 @@ pub fn version_newer(tag: &str, current: &str) -> bool {
     false
 }
 
-/// 自更新的上次安装记录面（细则见 R002 与模块文档）。
+/// 自更新的上次安装记录面（细则见模块文档与集成测试）。
 /// digest 是压缩包哈希，与 exe 哈希不可比）。
 fn record_path() -> Result<PathBuf, String> {
     Ok(crate::install::hst_home()?.join("selfupdate.json"))
@@ -225,7 +225,7 @@ fn write_record(digest: &str, tag: &str) {
     }
 }
 
-/// 自更新的判据纯函数面（细则见 R002 与模块文档）。
+/// 自更新的判据纯函数面（细则见模块文档与集成测试）。
 fn digest_matches(record: Option<&str>, asset: Option<&str>) -> bool {
     match (record, asset) {
         (Some(r), Some(a)) => r.eq_ignore_ascii_case(a),
@@ -483,7 +483,7 @@ fn mirror_fallback_base(plan: &MirrorPlan) -> Option<&'static str> {
 ///
 /// 判新（D48 双通道）：dev 按 rolling digest（资产 sha256 对安装记录，滚动版
 /// 版本号常不变）；latest 走 GitHub 时按版本 tag，走镜像腿时同 dev 按 digest。
-/// 自更新的读序面（细则见 R002 与模块文档）。
+/// 自更新的读序面（细则见模块文档与集成测试）。
 /// 失败（403 限流与网络类）自动回退镜像腿（默认基址）；空串镜像全关。
 pub fn run(repo: &str, channel: Channel, git_mode: bool, force: bool) -> Result<(), String> {
     println!("update.current={}", env!("CARGO_PKG_VERSION"));

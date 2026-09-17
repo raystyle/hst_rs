@@ -24,7 +24,7 @@ GH_TOKEN 在位附 Bearer（D48，匿名 60 升 5000 次每时）。
 ## Types
 
 - `Asset` — release 资产条目：名、下载直链与可选 digest（判新锚）。
-- `Channel` — 自更新的更新通道面（细则见 R002 与模块文档）。
+- `Channel` — 自更新的更新通道面（细则见模块文档与集成测试）。
 - `Release` — GitHub release 元数据（tag 与资产清单），self update 的查询面。
 
 ## Constants

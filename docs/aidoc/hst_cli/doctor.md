@@ -5,7 +5,7 @@
 ## Functions
 
 - `diagnose` — # Errors
-- `print_diagnosis` — 体检的print_diagnosis面（细则见 R002 与模块文档）。
+- `print_diagnosis` — 体检的print_diagnosis面（细则见模块文档与集成测试）。
 
 ## Types
 

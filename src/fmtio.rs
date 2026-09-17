@@ -26,7 +26,7 @@ pub fn envelope(command: &str, root: &std::path::Path, outcome: Result<Value, St
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-/// 输出与信封的Format面（细则见 R002 与模块文档）。
+/// 输出与信封的Format面（细则见模块文档与集成测试）。
 pub enum Format {
     /// 该字段承载输出与信封的Kv数据。
     Kv,
@@ -58,7 +58,7 @@ pub fn init(json_shorthand: bool, format: Option<&str>) -> Result<Format, String
     Ok(mode)
 }
 
-/// 输出与信封的mode面（细则见 R002 与模块文档）。
+/// 输出与信封的mode面（细则见模块文档与集成测试）。
 pub fn mode() -> Format {
     MODE.get().copied().unwrap_or(Format::Kv)
 }

@@ -1,6 +1,6 @@
 # hst-cli::pathutil
 
-的路径工具面（细则见 R002 与模块文档）。
+的路径工具面（细则见模块文档与集成测试）。
 
 ## Functions
 
@@ -11,7 +11,7 @@
 - `keys_match` — 跨侧配置键匹配（原生与正斜杠双形、Windows 大小写不敏感）。
 - `native_slash` — 平台原生斜杠形。
 - `norm_key` — Windows 配置键归一：反斜杠加小写（跨侧键匹配）。
-- `project_dir` — 路径的项目侧数据根面（细则见 R002 与模块文档）。
+- `project_dir` — 路径的项目侧数据根面（细则见模块文档与集成测试）。
 - `same_location` — D52 铁证修复共享件：两路径是否同一位置（canonicalize 双侧归一符号
 - `user_home` — # Errors
 

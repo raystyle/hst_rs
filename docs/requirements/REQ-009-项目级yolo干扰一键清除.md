@@ -2,6 +2,8 @@
 id: REQ-009
 title: 项目级yolo干扰一键清除
 status: implemented
+priority: must
+trace: cargo test --locked（clear_project_yolo_interference 单测加 cli 集成 init --clear-project-yolo）；五端实况核 2026-09-17 在册
 date: 2026-09-17
 owner: raystyle
 tags: ['yolo', 'D55', 'REQ-009']

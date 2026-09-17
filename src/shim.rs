@@ -387,7 +387,7 @@ fn crlf(s: &str) -> String {
     s.replace("\r\n", "\n").replace('\n', "\r\n")
 }
 
-/// 的写前比对面（细则见 R002 与模块文档）。
+/// 的写前比对面（细则见模块文档与集成测试）。
 fn write_if_changed(path: &std::path::Path, content: &str) -> Result<bool, String> {
     if std::fs::read_to_string(path)
         .map(|old| old == content)
@@ -416,7 +416,7 @@ pub fn host_shell() -> &'static str {
 /// `<hst_home>/hooks/`，调用方传 `install::hst_home()`；测试传临时根）。
 /// 三份脚本全侧落齐（跨 OS 共享并存：Windows init 也备好 .sh、Unix init
 /// 也备好 .cmd；+x 只在 Unix 生效）。cmd 主 shim按 jq 探测选形态（D27
-/// 的用户裁定面（细则见 R002 与模块文档）。
+/// 的用户裁定面（细则见模块文档与集成测试）。
 /// 返回 (实写路径, 警告)。
 pub fn deploy_shims(
     root_param: &std::path::Path,

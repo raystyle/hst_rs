@@ -12,7 +12,7 @@ use std::io::Read;
 
 use serde_json::{json, Value};
 
-/// 活性诊断的探测用长文本面（细则见 R002 与模块文档）。
+/// 活性诊断的探测用长文本面（细则见模块文档与集成测试）。
 /// 确定性生成（同 payload 双连才能命中前缀缓存）。
 fn cache_text() -> String {
     let para = "oma cache probe deterministic filler block. prefix caching requires a stable long system prefix repeated verbatim across two connections. ";
@@ -45,7 +45,7 @@ pub struct Gateway {
     pub source: &'static str,
 }
 
-/// 活性诊断的网关发现面（细则见 R002 与模块文档）。
+/// 活性诊断的网关发现面（细则见模块文档与集成测试）。
 fn read_env_nonempty(key: &str) -> Option<String> {
     std::env::var(key).ok().filter(|s| !s.is_empty())
 }
@@ -53,7 +53,7 @@ fn read_env_nonempty(key: &str) -> Option<String> {
 /// # Errors
 ///
 /// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
-/// 活性诊断的discover_gateway面（细则见 R002 与模块文档）。
+/// 活性诊断的discover_gateway面（细则见模块文档与集成测试）。
 pub fn discover_gateway() -> Result<Gateway, String> {
     // D45 oma 遗产清扫：旧 OMA_GATEWAY_* 兼容读已删（1.1.0 窗口已过）。
     let env_url = read_env_nonempty("HST_GATEWAY_URL");
@@ -211,7 +211,7 @@ pub fn list_models(gw: &Gateway) -> Result<Vec<String>, String> {
     Ok(out)
 }
 
-/// 活性诊断的别名线归属面（细则见 R002 与模块文档）。
+/// 活性诊断的别名线归属面（细则见模块文档与集成测试）。
 /// /v1/messages。
 pub fn line_of(alias: &str) -> Line {
     if alias.ends_with("-codex") {
@@ -221,7 +221,7 @@ pub fn line_of(alias: &str) -> Line {
     }
 }
 
-/// 活性诊断的Line面（细则见 R002 与模块文档）。
+/// 活性诊断的Line面（细则见模块文档与集成测试）。
 pub enum Line {
     /// 该字段承载活性诊断的Claude数据。
     Claude,
@@ -238,7 +238,7 @@ impl Line {
     }
 }
 
-/// 活性诊断的CacheVerdict面（细则见 R002 与模块文档）。
+/// 活性诊断的CacheVerdict面（细则见模块文档与集成测试）。
 pub enum CacheVerdict {
     /// Hit {：活性诊断族公开项。
     Hit {
@@ -262,7 +262,7 @@ pub enum CacheVerdict {
 }
 
 impl CacheVerdict {
-    /// 活性诊断的label面（细则见 R002 与模块文档）。
+    /// 活性诊断的label面（细则见模块文档与集成测试）。
     pub fn label(&self) -> String {
         match self {
             CacheVerdict::Hit { created, read } => {
@@ -297,7 +297,7 @@ fn post_json(url: &str, key: &str, claude_line: bool, body: &Value) -> Result<Va
     parse_body(resp)
 }
 
-/// 活性诊断的探测一个别名面（细则见 R002 与模块文档）。
+/// 活性诊断的探测一个别名面（细则见模块文档与集成测试）。
 /// geo 漂移实测；读到即停，判前缀缓存）。
 pub fn probe_alias(gw: &Gateway, alias: &str, line: &Line) -> CacheVerdict {
     let text = cache_text();
@@ -342,7 +342,7 @@ pub fn probe_alias(gw: &Gateway, alias: &str, line: &Line) -> CacheVerdict {
     verdict_from_usages(alias, line, &usages)
 }
 
-/// 活性诊断的纯函数面（细则见 R002 与模块文档）。
+/// 活性诊断的纯函数面（细则见模块文档与集成测试）。
 /// 网关异区只写不读的实测形态；ds 特判只落在 claude 线）。
 pub fn verdict_from_usages(alias: &str, line: &Line, usages: &[Value]) -> CacheVerdict {
     let is_ds = alias.starts_with("ds");

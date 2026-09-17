@@ -18,17 +18,17 @@ codex `~/.codex/config.toml`（model_providers.base_url）加 auth.json
 - `codex_key` — codex auth.json 的 key（活性单独探测用）。
 - `codex_view` — codex 激活模型与 provider base_url（diagnose agents 检测面）。
 - `discover_gateway` — # Errors
-- `line_of` — 活性诊断的别名线归属面（细则见 R002 与模块文档）。
+- `line_of` — 活性诊断的别名线归属面（细则见模块文档与集成测试）。
 - `list_models` — # Errors
-- `probe_alias` — 活性诊断的探测一个别名面（细则见 R002 与模块文档）。
+- `probe_alias` — 活性诊断的探测一个别名面（细则见模块文档与集成测试）。
 - `render_cache_rows` — kv 行渲染（`hst diagnose cache` 输出面）。
 - `run_agents` — # Errors
 - `run_cache` — # Errors
-- `verdict_from_usages` — 活性诊断的纯函数面（细则见 R002 与模块文档）。
+- `verdict_from_usages` — 活性诊断的纯函数面（细则见模块文档与集成测试）。
 
 ## Types
 
-- `CacheVerdict` — 活性诊断的CacheVerdict面（细则见 R002 与模块文档）。
+- `CacheVerdict` — 活性诊断的CacheVerdict面（细则见模块文档与集成测试）。
 - `Gateway` — 网关凭据与入口。
-- `Line` — 活性诊断的Line面（细则见 R002 与模块文档）。
+- `Line` — 活性诊断的Line面（细则见模块文档与集成测试）。
 

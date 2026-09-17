@@ -78,7 +78,7 @@ fn json_file(path: &Path) -> Option<Json> {
     serde_json::from_str(text.trim_start_matches('\u{feff}')).ok()
 }
 
-/// 体检的D52面（细则见 R002 与模块文档）。
+/// 体检的D52面（细则见模块文档与集成测试）。
 /// 假报 missing（宿主实弹：带 BOM 的 settings.json 被 doctor 报 missing
 /// 误导排障）。
 enum JsonFileState {
@@ -280,7 +280,7 @@ fn kimi_trust_ok(home: &Path, root: &Path) -> bool {
 // ===== 登录态（S026 判据）与部署诊断扩展 =====
 
 /// grok 登录态：`~/.grok/auth.json` 是 scope → 凭据 map。判据来自 S026
-/// 体检的源码取证加本机文件结构实证面（细则见 R002 与模块文档）。
+/// 体检的源码取证加本机文件结构实证面（细则见模块文档与集成测试）。
 /// 过期看 `expires_at`（RFC3339），缺省按 `create_time + 30 天`兜底，提前
 /// 300s 视过期；过期但 refresh_token 在则 agent 下次运行自动刷新。
 fn grok_login_state(v: Option<&Json>, now: OffsetDateTime) -> (Status, String) {
@@ -339,7 +339,7 @@ fn grok_login_state(v: Option<&Json>, now: OffsetDateTime) -> (Status, String) {
 }
 
 /// kimi 登录态：`~/.kimi-code/credentials/kimi-code.json`。判据来自 S026
-/// 体检的源码取证面（细则见 R002 与模块文档）。
+/// 体检的源码取证面（细则见模块文档与集成测试）。
 /// 阈值自动做）；空串是 401/403 墓碑（吊销态，需重登）；expires_at 是
 /// Unix 秒。
 fn kimi_login_state(v: Option<&Json>, now_secs: i64) -> (Status, String) {
@@ -396,7 +396,7 @@ pub(crate) fn login_state(agent: &str) -> Option<(Status, String)> {
 
 // ===== 状态栏形态（S025 落位） =====
 
-/// 体检的状态栏脚本标记面（细则见 R002 与模块文档）。
+/// 体检的状态栏脚本标记面（细则见模块文档与集成测试）。
 const STATUSLINE_MARKER: &str = "hst-statusline";
 const STATUSLINE_MARKER_LEGACY: &str = "oma-statusline";
 
@@ -574,8 +574,8 @@ fn command_target(c: &str) -> std::path::PathBuf {
 }
 
 /// JSON 形 hook 注册（claude settings、grok ohmyagents-state.json）的 oma
-/// 体检的形态面（细则见 R002 与模块文档）。
-/// 体检的缺失面（细则见 R002 与模块文档）。
+/// 体检的形态面（细则见模块文档与集成测试）。
+/// 体检的缺失面（细则见模块文档与集成测试）。
 /// absolute（单环境）/ args（M047 病理）/ none。
 fn json_hooks_form(v: Option<&Json>) -> &'static str {
     let Some(events) = v.and_then(|v| v.get("hooks")).and_then(|h| h.as_object()) else {
@@ -1924,7 +1924,7 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
     Ok(Diagnosis { findings })
 }
 
-/// 体检的print_diagnosis面（细则见 R002 与模块文档）。
+/// 体检的print_diagnosis面（细则见模块文档与集成测试）。
 pub fn print_diagnosis(d: &Diagnosis) {
     for f in &d.findings {
         println!(
@@ -2385,7 +2385,7 @@ mod tests {
     fn codex_user_hooks_trust_needs_full_key_match() {
         // D28 加 F2 硬化：判据逐键对账（键源 = hooks.json 路径）。oracle =
         // 真 deploy 行为（种真哈希断 Ok；篡改任一键断 Block），不用被测
-        // 同款逻辑现算期望（R004 反重言式）。
+        // 同款逻辑现算期望（反重言式）。
         let _g = crate::pathutil::ENV_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());

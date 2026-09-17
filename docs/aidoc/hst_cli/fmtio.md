@@ -1,6 +1,6 @@
 # hst-cli::fmtio
 
-全局输出三态（kv/json/jsonl）与结构化错误出口（R011 契约）。
+全局输出三态（kv/json/jsonl）与结构化错误出口契约。
 全局输出格式（issue #1 总台集成契约，与 ome S003 同构）：
 `--format kv|json|jsonl`，`--json` 为 json 简写（互斥）。kv 是人读
 marker 行（缺省）；json 出 `{ok,data|error,meta}` 信封（P0015 三传输
@@ -17,11 +17,11 @@ serde_json 开 preserve_order：JSON 字段序与 kv 行序一致（ome S003 实
 - `envelope` — 响应信封（S016 吸收，原 api.rs；P0011 删除后归位本模块）：CLI `--json`
 - `error_exit` — main 错误出口：结构化模式 stderr 单行 JSON，kv 模式人称行；退出码 1。
 - `init` — # Errors
-- `mode` — 输出与信封的mode面（细则见 R002 与模块文档）。
+- `mode` — 输出与信封的mode面（细则见模块文档与集成测试）。
 - `print_jsonl` — jsonl 模式：逐行对象（无信封）。列表型命令用；非列表命令 jsonl 视同
 - `structured` — 结构化模式（错误走单行 JSON、stdout 纯数据）。
 
 ## Types
 
-- `Format` — 输出与信封的Format面（细则见 R002 与模块文档）。
+- `Format` — 输出与信封的Format面（细则见模块文档与集成测试）。
 

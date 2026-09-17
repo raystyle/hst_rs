@@ -6,16 +6,16 @@
 
 - [hst-cli overview](hst_cli/index.md): hst-cli：HST（Hooks, Statusline, Trace）库面——四家 agent（claude、
 - [hst-cli::agents](hst_cli/agents.md): 四家 agent 探测（PATH、env、hst 自管根、默认目录四源）。
-- [hst-cli::archive](hst_cli/archive.md): 的通用归档工具面（细则见 R002 与模块文档）。
+- [hst-cli::archive](hst_cli/archive.md): 的通用归档工具面（细则见模块文档与集成测试）。
 - [hst-cli::caps](hst_cli/caps.md): CPU 指令集能力与探针退出形态分类（S021/P0018）。
 - [hst-cli::deploy](hst_cli/deploy.md): `hst init` 部署层：hook 注册四家用户级、shim 落位、状态栏面与 ours 技能目录清扫（D53/ADR-0005）。
 - [hst-cli::diagnose](hst_cli/diagnose.md): `hst diagnose` 活性诊断族：网关缓存命中矩阵与配置活性（D21）。
 - [hst-cli::doctor](hst_cli/doctor.md): `hst doctor` 只读体检：yolo、信任、二进制、登录态、hook 形态、状态栏与状态面。
-- [hst-cli::fmtio](hst_cli/fmtio.md): 全局输出三态（kv/json/jsonl）与结构化错误出口（R011 契约）。
+- [hst-cli::fmtio](hst_cli/fmtio.md): 全局输出三态（kv/json/jsonl）与结构化错误出口契约。
 - [hst-cli::hook](hst_cli/hook.md): `hst hook`：事件到四态映射、用户级 session 分键 state 落盘与密钥拦截分流（D28/S030）。
 - [hst-cli::install](hst_cli/install.md): hst 根解析与共享下载件（self update 复用）。
-- [hst-cli::pathutil](hst_cli/pathutil.md): 的路径工具面（细则见 R002 与模块文档）。
-- [hst-cli::secretguard](hst_cli/secretguard.md): 的密钥拦截闸面（细则见 R002 与模块文档）。
+- [hst-cli::pathutil](hst_cli/pathutil.md): 的路径工具面（细则见模块文档与集成测试）。
+- [hst-cli::secretguard](hst_cli/secretguard.md): 的密钥拦截闸面（细则见模块文档与集成测试）。
 - [hst-cli::shim](hst_cli/shim.md): shim 三形态自包含状态写入器：cmd/ps1/sh 加 grok 包装（D27/D28/D39）。
 - [hst-cli::statusline](hst_cli/statusline.md): `hst statusline`：四家状态栏写入面幂等合并与拆段拼装（S025/D18/D42 至 D51）。
 - [hst-cli::trace](hst_cli/trace.md): trace 六视图：联邦读四家原生会话库归一检索（P0013/P0014，D19）。
