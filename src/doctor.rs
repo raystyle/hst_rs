@@ -2188,6 +2188,17 @@ mod tests {
         fs::create_dir_all(&user).unwrap();
         std::env::set_var("HST_USER_HOME", &user);
         crate::yolo::apply_user_yolo_with(&user).expect("yolo");
+        // codex 四轮 G（空钉修）：种用户级 ours hooks 注册，使「无
+        // hooks.retired」断言真咬合——无守卫时 claude_proj_form 会把用户
+        // settings.json 读成项目层 ours 注册报伪影，断言必红；有守卫静默。
+        let claude_settings = user.join(".claude").join("settings.json");
+        let mut v: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&claude_settings).unwrap()).unwrap();
+        v["hooks"] = serde_json::json!({
+            "Stop": [{"matcher": "*", "hooks":
+                [{"type": "command", "command": "hst hook"}]}]
+        });
+        fs::write(&claude_settings, serde_json::to_string_pretty(&v).unwrap()).unwrap();
         let d = diagnose(&user).expect("diagnose");
         std::env::remove_var("HST_USER_HOME");
         let _ = fs::remove_dir_all(&user);
