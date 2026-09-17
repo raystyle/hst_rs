@@ -373,6 +373,11 @@
       "docs": "# Errors\n\n失败返回 `String` 错误（校验不过、网络与解析类、服务端 error 透传）。\n列表面（list）：GET /api/issues?tool=&status=&limit=（limit 1 至 100，\n新到旧）；回 {ok,count,issues[]}。"
     },
     {
+      "path": "hst_cli::issue::render_show_kv",
+      "kind": "function",
+      "docs": "详情面 kv 行渲染（codex 三面批二轮 F1 G3：抽纯函数加单测根治「无测试\n钉住导致空头承诺」——marker 行与 new 的 issue.filed= 加 list 的\nissue.row= 同形；正文首行挂 issue.body=，续行两空格缩进）。"
+    },
+    {
       "path": "hst_cli::issue::show_issue",
       "kind": "function",
       "docs": "# Errors\n\n失败返回 `String` 错误（校验不过、网络与解析类、服务端 error 透传）。\n详情面（show）：GET /api/issues/<id>，回 {ok,issue{...body}}。"

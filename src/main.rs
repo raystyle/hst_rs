@@ -637,30 +637,8 @@ fn cmd_issue(cmd: IssueCmd) -> Result<(), String> {
                     hst::fmtio::print_jsonl(&rows);
                 }
                 hst::fmtio::Format::Kv => {
-                    let f = |k: &str| {
-                        r[k].as_str().map(String::from).unwrap_or_else(|| {
-                            r[k].as_u64()
-                                .map(|n| n.to_string())
-                                .unwrap_or_else(|| "-".into())
-                        })
-                    };
-                    println!("#{} {}", f("id"), f("title"));
-                    println!(
-                        "  {} v{} {} host {} {} {} UTC",
-                        f("tool"),
-                        f("version"),
-                        f("platform"),
-                        f("host"),
-                        f("status"),
-                        f("created_at")
-                    );
-                    if let Some(body) = r["body"].as_str() {
-                        if !body.is_empty() {
-                            println!("  正文:");
-                            for line in body.lines() {
-                                println!("    {line}");
-                            }
-                        }
+                    for line in hst::issue::render_show_kv(&r) {
+                        println!("{line}");
                     }
                 }
             }

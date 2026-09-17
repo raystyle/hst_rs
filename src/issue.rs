@@ -190,6 +190,44 @@ pub fn show_issue(id: &str) -> Result<Value, String> {
     }
 }
 
+/// 详情面 kv 行渲染（codex 三面批二轮 F1 G3：抽纯函数加单测根治「无测试
+/// 钉住导致空头承诺」——marker 行与 new 的 issue.filed= 加 list 的
+/// issue.row= 同形；正文首行挂 issue.body=，续行两空格缩进）。
+pub fn render_show_kv(r: &Value) -> Vec<String> {
+    let f = |k: &str| {
+        r[k].as_str().map(String::from).unwrap_or_else(|| {
+            r[k].as_u64()
+                .map(|n| n.to_string())
+                .unwrap_or_else(|| "-".into())
+        })
+    };
+    let mut out = Vec::new();
+    for k in [
+        "id",
+        "tool",
+        "title",
+        "status",
+        "version",
+        "platform",
+        "host",
+        "created_at",
+    ] {
+        out.push(format!("issue.{k}={}", f(k)));
+    }
+    if let Some(body) = r["body"].as_str() {
+        if !body.is_empty() {
+            let mut lines = body.lines();
+            if let Some(first) = lines.next() {
+                out.push(format!("issue.body={first}"));
+            }
+            for line in lines {
+                out.push(format!("  {line}"));
+            }
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -228,6 +266,22 @@ mod tests {
         assert_eq!(truncate_utf16(s, 3), "ab");
         assert_eq!(truncate_utf16(s, 4), "ab\u{1F600}");
         assert_eq!(truncate_utf16(s, 99), s);
+    }
+
+    #[test]
+    fn render_show_kv_marks_marker_rows_and_body_continuation() {
+        // G3 二轮实修钉：marker 行逐字段 + 正文续行缩进（首笔空头承诺的根治）。
+        let r = serde_json::json!({
+            "id": 6, "tool": "hst", "title": "t1 t2", "status": "open",
+            "version": "2.2.0", "platform": "linux-x86_64", "host": "h",
+            "created_at": "2026-09-17 06:59:09", "body": "l1\nl2",
+        });
+        let rows = render_show_kv(&r);
+        assert!(rows.contains(&"issue.id=6".to_string()), "{rows:?}");
+        assert!(rows.contains(&"issue.title=t1 t2".to_string()));
+        assert!(rows.contains(&"issue.body=l1".to_string()));
+        assert_eq!(rows.last().unwrap(), "  l2");
+        assert_eq!(rows.iter().filter(|l| l.starts_with("issue.")).count(), 9);
     }
 
     #[test]
