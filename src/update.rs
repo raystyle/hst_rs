@@ -2,12 +2,16 @@
 //! releases 为空时走 `--git` 源码安装路径）。
 //! 机制见 S028：releases/latest API、资产命名约定 `hst-<triple>.(zip|tar.gz)`、
 //! Windows 运行中自替换（rename 舞步）、Unix 原子 rename 覆盖。
-//! D16 起 `HST_MIRROR=<基址>` 走镜像通道；D48 扩到双通道与缺省回退：设值 =
-//! mirror-first（失败回落 GitHub）；未设 = GitHub 优先、失败自动回退镜像腿
-//! （默认基址 env.ohmygh.com）；空串 = 镜像全关。镜像判新走
-//! `<基址>/hst/<seg>/<资产名>.sha256` 边车对安装记录（段随通道，dev 禁落
-//! stable）。镜像侧仅网络类失败回落；哈希不符是安全问题，报错不回落。
-//! GH_TOKEN 在位附 Bearer（D48，匿名 60 升 5000 次每时）。
+//! D16 起 `HST_MIRROR=<基址>` 走镜像通道；ADR-0008（2026-09-18 家族统一
+//! 标准，承接 D48）：未设 = 镜像段优先（默认基址 env.ohmygh.com，任一步
+//! 网络类失败整对回落 GitHub，不回环）；设值 = 基址覆盖同读序；空串 =
+//! 镜像全关。镜像判新走 `<基址>/hst/<seg>/<资产名>.sha256` 边车对安装
+//! 记录（段随通道，dev 禁落 stable）。镜像侧仅网络类失败回落；哈希不符
+//! 是安全问题，报错不回落（GitHub 官方腿同判：下载后对 API digest 或同
+//! Release 边车硬校验）。latest 判新走 release tag 三态（本地领先报
+//! localNewer 不动），镜像 stable 腿降级守卫由暂存件 `--version` 预检
+//! 承载；自替换带更新锁、陈旧收割、入位后自证五次重试与回滚复核；
+//! ark 管理布局（落痕或符号链接）让位走 ark。GH_TOKEN 在位附 Bearer。
 
 use std::path::{Path, PathBuf};
 
@@ -287,19 +291,20 @@ fn dev_is_current(release: &Release) -> bool {
 /// 设值覆盖（mirror-first 语义沿用 D16）。
 const DEFAULT_MIRROR_BASE: &str = "https://env.ohmygh.com";
 
-/// 镜像计划三态（D48，纯函数可测）：`HST_MIRROR` 未设 = GitHub 优先、失败
-/// 自动回退默认基址（不占缺省行为面，ark 先例）；设值 = 基址覆盖加
-/// mirror-first（两通道，D16 语义扩 stable）；空串 = 镜像全关。
+/// 镜像计划三态（ADR-0008 家族标准对齐，纯函数可测）：`HST_MIRROR` 未设 =
+/// 镜像段优先（默认基址，stable 通道落 stable 滚动段，任一步失败整对回落
+/// GitHub）；设值 = 基址覆盖同读序；空串 = 镜像全关。D48 的
+/// DefaultFallback（GitHub 优先镜像回退）缺省形随本批退役。
 #[derive(Debug, PartialEq, Eq)]
 enum MirrorPlan {
     Off,
-    DefaultFallback,
+    DefaultFirst,
     First(String),
 }
 
 fn resolve_mirror_plan(env_raw: Option<String>) -> MirrorPlan {
     match env_raw {
-        None => MirrorPlan::DefaultFallback,
+        None => MirrorPlan::DefaultFirst,
         Some(v) => {
             let v = v.trim().trim_end_matches('/').to_string();
             if v.is_empty() {
@@ -312,12 +317,21 @@ fn resolve_mirror_plan(env_raw: Option<String>) -> MirrorPlan {
 }
 
 impl MirrorPlan {
-    /// kv 标记值：First 沿用基址原值；DefaultFallback 标 fallback-default
-    /// 形（区别于 off 与显式基址）；Off 沿用 off。
+    /// 镜像腿基址：DefaultFirst 用默认基址、First 用覆盖值、Off 无镜像腿。
+    fn base(&self) -> Option<&str> {
+        match self {
+            MirrorPlan::Off => None,
+            MirrorPlan::DefaultFirst => Some(DEFAULT_MIRROR_BASE),
+            MirrorPlan::First(b) => Some(b),
+        }
+    }
+
+    /// kv 标记值：First 沿用基址原值；DefaultFirst 标 default-first 形
+    /// （区别于 off 与显式基址）；Off 沿用 off。
     fn kv(&self) -> String {
         match self {
             MirrorPlan::Off => "off".to_string(),
-            MirrorPlan::DefaultFallback => format!("fallback-default:{DEFAULT_MIRROR_BASE}"),
+            MirrorPlan::DefaultFirst => format!("default-first:{DEFAULT_MIRROR_BASE}"),
             MirrorPlan::First(b) => b.clone(),
         }
     }
@@ -438,7 +452,7 @@ fn via_mirror(base: &str, seg: &str, force: bool) -> Result<MirrorStep, String> 
         crate::archive::extract_tar_gz(&tmp, &out)?;
         find_hst_bin(&out).ok_or("hst binary not found in archive")?
     };
-    let final_path = self_replace(&extracted)?;
+    let final_path = self_replace(&extracted, None)?;
     println!("update.replaced={}", final_path.display());
     write_record(&digest, &format!("{seg}-mirror"));
     println!("update.source=mirror");
@@ -446,12 +460,215 @@ fn via_mirror(base: &str, seg: &str, force: bool) -> Result<MirrorStep, String> 
     Ok(MirrorStep::Done)
 }
 
+/// semver 判新三态（家族标准）：同版、本地领先、远端更新。
+#[derive(Debug, PartialEq, Eq)]
+enum Verdict {
+    /// 同版：already-latest。
+    UpToDate,
+    /// 本地领先（测试构建等）：报 localNewer 不动，semver 只升不降。
+    LocalNewer,
+    /// 远端更新：放行下载安装。
+    Newer,
+}
+
+fn semver_verdict(tag: &str, current: &str) -> Verdict {
+    if version_newer(tag, current) {
+        Verdict::Newer
+    } else if version_newer(current, tag) {
+        Verdict::LocalNewer
+    } else {
+        Verdict::UpToDate
+    }
+}
+
+/// 锁内 pid 是否仍活（linux 走 /proc；他端保守判活不收割，browse 同形）。
+fn pid_alive(pid: u32) -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        std::path::Path::new(&format!("/proc/{pid}")).exists()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = pid;
+        true
+    }
+}
+
+/// exe 旁的更新锁路径（create_new 语义，占用即另一 update 在跑）。
+fn lock_path(exe: &Path) -> PathBuf {
+    exe.with_file_name(".hst-update.lock")
+}
+
+/// 更新锁守卫：drop 时清锁件（盖 panic 面；SIGKILL 面靠陈旧 pid 收割）。
+#[derive(Debug)]
+struct LockGuard {
+    path: PathBuf,
+}
+
+impl Drop for LockGuard {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
+    }
+}
+
+/// 取更新锁：create_new 语义。AlreadyExists 先做 pid 陈旧判据（持有者已死
+/// 即收割重取一次，防 SIGKILL 永久锁死）；其余 io 错误报真因（安装位不可
+/// 写等），不误报「在跑」。
+fn acquire_lock(exe: &Path) -> Result<LockGuard, String> {
+    let lock = lock_path(exe);
+    let take = || -> std::io::Result<()> {
+        use std::io::Write;
+        let mut f = std::fs::File::create_new(&lock)?;
+        let _ = writeln!(f, "{}", std::process::id());
+        Ok(())
+    };
+    match take() {
+        Ok(()) => {
+            // 同抢竞态：两进程同抢时后到者回读锁 pid 让位。
+            let owner = std::fs::read_to_string(&lock).unwrap_or_default();
+            if owner.trim() == std::process::id().to_string() {
+                Ok(LockGuard { path: lock })
+            } else {
+                Err(format!(
+                    "另一 hst self update 正在跑（{}）；若确无 update 在跑，删 {} 后重试",
+                    lock.display(),
+                    lock.display()
+                ))
+            }
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+            let stale = std::fs::read_to_string(&lock)
+                .ok()
+                .and_then(|t| t.trim().parse::<u32>().ok())
+                .is_some_and(|pid| !pid_alive(pid));
+            if stale && std::fs::remove_file(&lock).is_ok() && take().is_ok() {
+                println!("update.lock=reaped {}", lock.display());
+                return Ok(LockGuard { path: lock });
+            }
+            Err(format!(
+                "另一 hst self update 正在跑（{}）；若确无 update 在跑，删 {} 后重试",
+                lock.display(),
+                lock.display()
+            ))
+        }
+        Err(e) => Err(format!(
+            "建更新锁失败（{}）：{e}；确认安装位可写（系统目录需提权）",
+            lock.display()
+        )),
+    }
+}
+
+/// 陈旧件收割：exe 旁 `.{file}.new-{pid}` 与 `.{file}.old-{pid}` 中 pid
+/// 已死者清除（崩溃 run 残件）；活 pid 的不动（在跑 update 的暂存）。
+fn sweep_stale(dir: &Path, file: &str) -> usize {
+    let mut n = 0usize;
+    let Ok(rd) = std::fs::read_dir(dir) else {
+        return 0;
+    };
+    for e in rd.flatten() {
+        let Some(name) = e.file_name().into_string().ok() else {
+            continue;
+        };
+        for prefix in [format!(".{file}.new-"), format!(".{file}.old-")] {
+            let Some(rest) = name.strip_prefix(&prefix) else {
+                continue;
+            };
+            if let Ok(pid) = rest.parse::<u32>() {
+                if !pid_alive(pid) && std::fs::remove_file(e.path()).is_ok() {
+                    n += 1;
+                }
+            }
+        }
+    }
+    n
+}
+
+/// `--version` 输出的版号解析（`hst 2.3.0` 取 `2.3.0`；无数字 token 回
+/// None）。
+fn parse_reported_version(out: &str) -> Option<&str> {
+    out.split_whitespace()
+        .rev()
+        .find(|t| t.chars().next().is_some_and(|c| c.is_ascii_digit()))
+        .map(|t| t.trim_end_matches(|c: char| !c.is_ascii_digit() && c != '.'))
+}
+
+/// 探针：跑 `bin --version` 取版号；跑不动或解析不出回 None（预检臂容
+/// 忍缺省，自证臂另有强判）。
+fn probe_version(bin: &Path) -> Option<String> {
+    let out = std::process::Command::new(bin)
+        .arg("--version")
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    parse_reported_version(&String::from_utf8_lossy(&out.stdout)).map(String::from)
+}
+
+/// 降级守卫判据（纯函数）：预检探得版低于现版即拒装（semver 只升不降，
+/// 镜像 stable 腿无版本段时的统一守卫）；探不到版（None）放行走自证臂。
+fn downgrade_refused(probed: Option<&str>, current: &str) -> bool {
+    probed.is_some_and(|v| version_newer(current, v))
+}
+
+/// 管理方布局判据（家族标准，落痕生产者契约派 ark 侧）：exe 同目录
+/// `ark-managed` 落痕，或用户面 bin 目录存在指向本 exe 的符号链接入口
+/// （ark 布局：真身进 EnvRoot，用户面 symlink）。返回命中物描述。
+fn ark_managed_signal(exe: &Path) -> Option<String> {
+    if let Some(d) = exe.parent() {
+        let mark = d.join("ark-managed");
+        if mark.exists() {
+            return Some(format!("落痕 {}", mark.display()));
+        }
+    }
+    let home_bin = std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local").join("bin"));
+    let faces = [exe.parent().map(Path::to_path_buf), home_bin];
+    faces
+        .into_iter()
+        .flatten()
+        .filter_map(|d| std::fs::read_dir(&d).ok())
+        .flat_map(|rd| rd.flatten().map(|e| e.path()))
+        .filter_map(|p| {
+            let t = std::fs::read_link(&p).ok()?;
+            match t.canonicalize() {
+                Ok(cwd) if exe == cwd => Some(format!("链接 {} -> {}", p.display(), t.display())),
+                _ => None,
+            }
+        })
+        .next()
+}
+
+/// 回滚并复核终态：坏新件挪离原位、旧件回位、确认 exe 在位；任何一步
+/// 失败报精确自救路径。入位失败臂与自证失败臂共用（browse 同形）。
+fn rollback_and_verify(exe: &Path, bak: &Path, bad_new: &Path) -> Result<(), String> {
+    let _ = std::fs::rename(exe, bad_new);
+    match std::fs::rename(bak, exe) {
+        Ok(()) if exe.exists() => Ok(()),
+        Ok(()) => Err(format!(
+            "回滚后复核 exe 缺位（旧件 {} 与新件 {} 已挪离原位）；下一步：按在位件手动复原到 {}",
+            bak.display(),
+            bad_new.display(),
+            exe.display()
+        )),
+        Err(e) => Err(format!(
+            "回滚受阻（{e}）：旧件在 {}，新件在 {}；下一步：手动复原 mv {} {} 后 hst issue new 反馈",
+            bak.display(),
+            bad_new.display(),
+            bak.display(),
+            exe.display()
+        )),
+    }
+}
+
 /// # Errors
 ///
 /// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
-/// Atomic-ish self replace: write the new binary beside the current exe, then
-/// swap. Windows cannot overwrite a running exe but CAN rename it away.
-pub fn self_replace(new_bin: &Path) -> Result<PathBuf, String> {
+/// 自替换三步舞（ADR-0008 家族标准）：陈旧收割加取锁 -> 暂存落 exe 同
+/// 目录（pid 后缀防并发互踩，跨文件系统 rename 必炸故不用 temp）->
+/// `--version` 预检（降级拒装）-> 旧件挪 pid 备份、新件入位 -> `--version`
+/// 自证五次重试（杀软瞬时锁面，期望版已知时必须命中）-> 证毕清备份；
+/// 证败或入位败回滚并复核终态，回滚受阻报自救路径。
+pub fn self_replace(new_bin: &Path, expect_version: Option<&str>) -> Result<PathBuf, String> {
     let cur = std::env::current_exe().map_err(|e| format!("current exe: {e}"))?;
     let dir = cur
         .parent()
@@ -460,20 +677,66 @@ pub fn self_replace(new_bin: &Path) -> Result<PathBuf, String> {
         .file_name()
         .and_then(|s| s.to_str())
         .ok_or_else(|| "exe name not utf-8".to_string())?;
-    let staged = dir.join(format!(".{file}.new-{}", std::process::id()));
-    std::fs::copy(new_bin, &staged).map_err(|e| format!("stage {}: {e}", staged.display()))?;
-    if cfg!(windows) {
-        let old = dir.join(format!(".{file}.old-{}", std::process::id()));
-        std::fs::rename(&cur, &old).map_err(|e| format!("rename current away: {e}"))?;
-        if let Err(e) = std::fs::rename(&staged, &cur) {
-            // Put the old binary back so the install stays bootable.
-            let _ = std::fs::rename(&old, &cur);
-            return Err(format!("swap in new binary: {e}"));
-        }
-        let _ = std::fs::remove_file(&old);
-    } else {
-        std::fs::rename(&staged, &cur).map_err(|e| format!("replace binary: {e}"))?;
+    let swept = sweep_stale(dir, file);
+    if swept > 0 {
+        println!("update.sweep={swept}");
     }
+    let _guard = acquire_lock(&cur)?;
+    let pid = std::process::id();
+    let staged = dir.join(format!(".{file}.new-{pid}"));
+    let bak = dir.join(format!(".{file}.old-{pid}"));
+    std::fs::copy(new_bin, &staged).map_err(|e| format!("stage {}: {e}", staged.display()))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perm = std::fs::metadata(&staged)
+            .map_err(|e| format!("stage meta {}: {e}", staged.display()))?
+            .permissions();
+        perm.set_mode(0o755);
+        std::fs::set_permissions(&staged, perm)
+            .map_err(|e| format!("stage chmod {}: {e}", staged.display()))?;
+    }
+    // 预检：暂存件 --version 低于现版即拒装（降级守卫；探不到版放行，
+    // 由入位后自证臂兜底）。
+    let probed = probe_version(&staged);
+    if downgrade_refused(probed.as_deref(), env!("CARGO_PKG_VERSION")) {
+        let _ = std::fs::remove_file(&staged);
+        let reported = probed.as_deref().unwrap_or("?");
+        return Err(format!(
+            "暂存件 --version 报 {reported} 低于现版 {}，拒绝降级（semver 只升不降）",
+            env!("CARGO_PKG_VERSION")
+        ));
+    }
+    // 三步舞：旧件挪备份、新件入位（入位败即回滚复核）。
+    std::fs::rename(&cur, &bak).map_err(|e| format!("rename current away: {e}"))?;
+    if let Err(e) = std::fs::rename(&staged, &cur) {
+        rollback_and_verify(&cur, &bak, &staged)
+            .map_err(|r| format!("新件入位失败（{e}）且{r}"))?;
+        let _ = std::fs::remove_file(&bak);
+        return Err(format!("新件入位失败（已回滚并复核在位）：{e}"));
+    }
+    // 自证：杀软瞬时锁面重试五次；期望版已知时必须命中（browse 同形）。
+    let mut probe_ok = false;
+    for i in 0..5 {
+        match probe_version(&cur) {
+            Some(v) if expect_version.is_none_or(|e| v == e) => {
+                println!("update.probe={v}");
+                probe_ok = true;
+                break;
+            }
+            _ => {}
+        }
+        std::thread::sleep(std::time::Duration::from_millis(200 * (i + 1)));
+    }
+    if !probe_ok {
+        rollback_and_verify(&cur, &bak, &staged).map_err(|r| format!("新件自证失败且{r}"))?;
+        let _ = std::fs::remove_file(&bak);
+        return Err(format!(
+            "新件自证失败（--version 未达期望 {}，已回滚并复核在位）；下一步：重试一次，仍失败 hst issue new 反馈",
+            expect_version.unwrap_or("可运行")
+        ));
+    }
+    let _ = std::fs::remove_file(&bak);
     Ok(cur)
 }
 
@@ -498,29 +761,21 @@ pub fn git_install(repo: &str) -> Result<(), String> {
     }
 }
 
-/// D48 读序回退守卫（REQ-003）：GitHub 失败后是否回退镜像腿。仅
-/// DefaultFallback（未设 HST_MIRROR）真；First 已试过镜像，再回退即回环
-/// 重试故不回；Off 显式全关。钉「不回环」性质（codex D48 评审 F3）。
-fn github_fail_falls_back_to_mirror(plan: &MirrorPlan) -> bool {
-    matches!(plan, MirrorPlan::DefaultFallback)
-}
-
-/// GitHub 失败后的回退基址（codex 评审 O1 收口）：仅 DefaultFallback 返回
-/// 默认镜像基址、其余态 None；run 据此单点决定回退腿，三态单测因此有
-/// 独立 oracle（不与 matches! 定义同源）。
-fn mirror_fallback_base(plan: &MirrorPlan) -> Option<&'static str> {
-    github_fail_falls_back_to_mirror(plan).then_some(DEFAULT_MIRROR_BASE)
-}
+// D48 读序回退守卫（REQ-003）随 ADR-0008 退役：缺省翻镜像优先后，
+// 「不回环」性质结构化成立（镜像腿只在首位试一次，GitHub 只整对回落
+// 一次，GitHub 再失败不回镜像），不再需要独立回退守卫函数。
 
 /// # Errors
 ///
 /// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
 /// `hst self update` entry: release path with git fallback.
 ///
-/// 判新（D48 双通道）：dev 按 rolling digest（资产 sha256 对安装记录，滚动版
-/// 版本号常不变）；latest 走 GitHub 时按版本 tag，走镜像腿时同 dev 按 digest。
-/// 自更新的读序面（细则见模块文档与集成测试）。
-/// 失败（403 限流与网络类）自动回退镜像腿（默认基址）；空串镜像全关。
+/// 读序（ADR-0008 家族标准）：管理方布局让位（ark-managed 落痕或用户面
+/// 符号链接入口即拦走 ark）；镜像段优先（未设 HST_MIRROR = 默认基址，
+/// 任一步网络类失败整对回落 GitHub）；判新 dev 按 rolling digest、latest
+/// 走 GitHub tag 三态（already-latest、localNewer 不动、更新），镜像
+/// stable 腿的降级守卫由暂存件 --version 预检承载；GitHub 官方腿下载后
+/// digest 锚硬校验（不符拒装不回落）。
 pub fn run(repo: &str, channel: Channel, git_mode: bool, force: bool) -> Result<(), String> {
     println!("update.current={}", env!("CARGO_PKG_VERSION"));
     println!("update.channel={}", channel.as_str());
@@ -529,7 +784,14 @@ pub fn run(repo: &str, channel: Channel, git_mode: bool, force: bool) -> Result<
     if git_mode {
         return git_install(repo);
     }
-    if let MirrorPlan::First(base) = &plan {
+    if let Some(signal) =
+        ark_managed_signal(&std::env::current_exe().map_err(|e| format!("current exe: {e}"))?)
+    {
+        return Err(format!(
+            "检测到管理方布局（{signal}）；升级走 ark（管理方滚 catalog pin）；确为自管安装则删该落痕或链接后再 hst self update"
+        ));
+    }
+    if let Some(base) = plan.base() {
         match via_mirror(base, channel.mirror_seg(), force)? {
             MirrorStep::Done => return Ok(()),
             MirrorStep::Fallback(detail) => {
@@ -542,20 +804,8 @@ pub fn run(repo: &str, channel: Channel, git_mode: bool, force: bool) -> Result<
     let release = match fetch_release(repo, channel) {
         Ok(r) => r,
         Err(e) => {
-            // D48 回退腿：GitHub 失败自动落镜像段边车锚（救 api.github.com
-            // 匿名 403 限流与断网）。mirror-first 已试过镜像的不回环重试。
-            if let Some(base) = mirror_fallback_base(&plan) {
-                println!("update.release=unavailable detail={e}");
-                println!("update.fallback=mirror");
-                return match via_mirror(base, channel.mirror_seg(), force)? {
-                    MirrorStep::Done => Ok(()),
-                    MirrorStep::Fallback(detail) => {
-                        println!("update.mirror=failed detail={detail}");
-                        println!("update.hint=hst self update --git 走源码安装（封版前主路径）");
-                        Ok(())
-                    }
-                };
-            }
+            // 镜像腿已试过（plan.base 有值）或显式全关：不回环重试，按源码
+            // 安装提示收束。
             println!("update.release=unavailable detail={e}");
             println!("update.hint=hst self update --git 走源码安装（封版前主路径）");
             return Ok(());
@@ -563,14 +813,29 @@ pub fn run(repo: &str, channel: Channel, git_mode: bool, force: bool) -> Result<
     };
     println!("update.latest={}", release.tag_name);
     if !force {
-        let up_to_date = match channel {
-            Channel::Dev => dev_is_current(&release),
-            // 资产名即编译目标（无版本段），版本判据走 release tag。
-            Channel::Latest => !version_newer(&release.tag_name, env!("CARGO_PKG_VERSION")),
-        };
-        if up_to_date {
-            println!("update.ok=already-latest");
-            return Ok(());
+        match channel {
+            Channel::Dev => {
+                if dev_is_current(&release) {
+                    println!("update.ok=already-latest");
+                    return Ok(());
+                }
+            }
+            // 资产名即编译目标（无版本段），版本判据走 release tag；本地
+            // 领先（测试构建）报 localNewer 不动，semver 只升不降。
+            Channel::Latest => match semver_verdict(&release.tag_name, env!("CARGO_PKG_VERSION")) {
+                Verdict::UpToDate => {
+                    println!("update.ok=already-latest");
+                    return Ok(());
+                }
+                Verdict::LocalNewer => {
+                    println!("update.ok=localNewer");
+                    println!(
+                        "update.note=本地版本领先（可能是测试构建），不降级；如确要回退走 GitHub Releases 手动装"
+                    );
+                    return Ok(());
+                }
+                Verdict::Newer => {}
+            },
         }
     }
     let Some(asset) = pick_asset(&release.assets) else {
@@ -589,6 +854,22 @@ pub fn run(repo: &str, channel: Channel, git_mode: bool, force: bool) -> Result<
         asset.name.replace('/', "_")
     ));
     crate::install::download_asset(&asset.browser_download_url, &tmp)?;
+    // digest 锚硬校验（家族标准）：锚 = API digest 归一优先、缺省回落同
+    // Release 边车资产内容；不符拒装且不回落（安全面，非可用性）。
+    let expected = github_asset_digest(&release, asset);
+    let got = file_sha256(&tmp)?;
+    match expected.as_deref() {
+        Some(anchor) if !anchor.eq_ignore_ascii_case(&got) => {
+            let _ = std::fs::remove_file(&tmp);
+            return Err(format!(
+                "github asset sha256 mismatch: anchor {anchor} got {got}; refusing install (no fallback)"
+            ));
+        }
+        Some(_) => {}
+        None => {
+            println!("update.warn=anchor-unavailable skip-verify（无 API digest 且边车不可达）")
+        }
+    }
     // 压缩包解开找 hst 本体；裸二进制资产直接用。
     let extracted = if asset.name.ends_with(".zip") {
         let out = tmp.with_extension("unpacked");
@@ -601,14 +882,16 @@ pub fn run(repo: &str, channel: Channel, git_mode: bool, force: bool) -> Result<
     } else {
         tmp.clone()
     };
-    let final_path = self_replace(&extracted)?;
+    let expect_version = release
+        .tag_name
+        .trim_start_matches('v')
+        .split('-')
+        .next()
+        .unwrap_or_default()
+        .to_string();
+    let final_path = self_replace(&extracted, Some(&expect_version))?;
     println!("update.replaced={}", final_path.display());
-    let digest = asset
-        .digest
-        .as_deref()
-        .and_then(normalize_digest)
-        .or_else(|| file_sha256(&tmp).ok());
-    if let Some(d) = digest {
+    if let Some(d) = expected.or(Some(got)) {
         write_record(&d, &release.tag_name);
     }
     println!("update.ok=true");
@@ -799,11 +1082,12 @@ mod tests {
 
     #[test]
     fn mirror_plan_three_states_from_env_raw() {
-        // D48 读序三态：未设 = GitHub 优先失败自动回退默认基址；设值 = 基址
-        // 覆盖加 mirror-first；空串 = 镜像全关（显式退出通道）。
+        // ADR-0008 读序三态：未设 = 镜像段优先（默认基址）；设值 = 基址
+        // 覆盖同读序；空串 = 镜像全关（显式退出通道）。D48 的 GitHub 优先
+        // 缺省形（fallback-default 标记）随家族标准退役。
         assert!(matches!(
             resolve_mirror_plan(None),
-            MirrorPlan::DefaultFallback
+            MirrorPlan::DefaultFirst
         ));
         assert!(matches!(
             resolve_mirror_plan(Some(String::new())),
@@ -817,16 +1101,24 @@ mod tests {
             MirrorPlan::First(b) => assert_eq!(b, "https://m.example.com"),
             other => panic!("expected First, got {other:?}"),
         }
-        // kv 标记值形：off 沿用、默认回退标 fallback-default、显式基址原值。
+        // kv 标记值形：off 沿用、缺省镜像优先标 default-first、显式基址原值。
         assert_eq!(
             resolve_mirror_plan(None).kv(),
-            "fallback-default:https://env.ohmygh.com"
+            "default-first:https://env.ohmygh.com"
         );
         assert_eq!(resolve_mirror_plan(Some(String::new())).kv(), "off");
         assert_eq!(
             resolve_mirror_plan(Some("https://m.example.com".to_string())).kv(),
             "https://m.example.com"
         );
+        // 镜像腿基址：DefaultFirst 与 First 有腿、Off 无腿（run 据此单点
+        // 定读序，镜像优先对两态同形）。
+        assert_eq!(resolve_mirror_plan(None).base(), Some(DEFAULT_MIRROR_BASE));
+        assert_eq!(
+            resolve_mirror_plan(Some("https://m.example.com".to_string())).base(),
+            Some("https://m.example.com")
+        );
+        assert_eq!(resolve_mirror_plan(Some(String::new())).base(), None);
     }
 
     #[test]
@@ -837,29 +1129,106 @@ mod tests {
     }
 
     #[test]
-    fn github_fail_fallback_guard_covers_three_read_states() {
-        // REQ-003 读序回退守卫三态（codex D48 评审 F3）：仅 DefaultFallback
-        // 触发镜像回退；First 已试过镜像（再回退即回环重试）、Off 全关。
-        // env 三态解析面另见 mirror_plan_three_states_from_env_raw；First
-        // 与 Off 的实腿接线见 tests/cli.rs 假基址集成断言。回退基址面
-        //（codex 评审 O1）与 matches! 定义不同源：DefaultFallback 返默认
-        // 基址本体，另两态 None。
-        assert!(github_fail_falls_back_to_mirror(
-            &MirrorPlan::DefaultFallback
+    fn semver_verdict_three_states() {
+        // 家族标准：同版 already-latest、本地领先 localNewer 不动、远端更新
+        // 放行；v 前缀容错。
+        assert_eq!(semver_verdict("v2.3.0", "2.3.0"), Verdict::UpToDate);
+        assert_eq!(semver_verdict("2.3.0", "2.4.0"), Verdict::LocalNewer);
+        assert_eq!(semver_verdict("v2.5.0", "2.4.0"), Verdict::Newer);
+        assert_eq!(semver_verdict("0.1.10", "0.1.9"), Verdict::Newer);
+    }
+
+    #[test]
+    fn parse_reported_version_takes_dotted_token() {
+        assert_eq!(parse_reported_version("hst 2.3.0"), Some("2.3.0"));
+        assert_eq!(parse_reported_version("hst 2.3.0\n"), Some("2.3.0"));
+        assert_eq!(parse_reported_version("no digits here"), None);
+        assert_eq!(parse_reported_version(""), None);
+    }
+
+    #[test]
+    fn probe_version_parses_hst_binary_when_reachable() {
+        // 探针实弹（可跳过形）：CARGO_BIN_EXE_hst 只在集成测试注入、lib
+        // 单测壳（libtest）不识 --version，此处取得到才实弹；探针所依赖的
+        // 输出契约（hst --version 出可解析点分版号）另由 cli 集成
+        // update_version_output_parses 钉死。
+        let Some(bin) = std::env::var_os("CARGO_BIN_EXE_hst") else {
+            return;
+        };
+        assert_eq!(
+            probe_version(Path::new(&bin)).as_deref(),
+            Some(env!("CARGO_PKG_VERSION"))
+        );
+    }
+
+    #[test]
+    fn downgrade_guard_refuses_older_staged() {
+        // 降级守卫判据：探得版低于现版拒装；同版与更新放行；探不到版放行
+        //（由自证臂兜底）。
+        assert!(downgrade_refused(Some("2.3.0"), "2.4.0"));
+        assert!(!downgrade_refused(Some("2.4.0"), "2.4.0"));
+        assert!(!downgrade_refused(Some("2.5.0"), "2.4.0"));
+        assert!(!downgrade_refused(None, "2.4.0"));
+    }
+
+    #[test]
+    fn acquire_lock_rejects_live_owner_and_reaps_stale() {
+        // 家族标准更新锁：占用即拒（活 pid）；陈旧锁（死 pid）收割重取；
+        // drop 清锁件。
+        let dir = std::env::temp_dir().join(format!(
+            "hst-lock-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
         ));
-        assert!(!github_fail_falls_back_to_mirror(&MirrorPlan::First(
-            "https://m.example.com".into()
-        )));
-        assert!(!github_fail_falls_back_to_mirror(&MirrorPlan::Off));
-        assert_eq!(
-            mirror_fallback_base(&MirrorPlan::DefaultFallback),
-            Some(DEFAULT_MIRROR_BASE)
-        );
-        assert_eq!(
-            mirror_fallback_base(&MirrorPlan::First("https://m.example.com".into())),
-            None
-        );
-        assert_eq!(mirror_fallback_base(&MirrorPlan::Off), None);
+        std::fs::create_dir_all(&dir).unwrap();
+        let exe = dir.join("hst");
+        // 活锁：锁内写本进程 pid（活着）——第二个 acquire 必须拒。
+        std::fs::write(lock_path(&exe), std::process::id().to_string()).unwrap();
+        let err = acquire_lock(&exe).unwrap_err();
+        assert!(err.contains("正在跑"), "{err}");
+        // 陈旧锁：死 pid 收割重取成功，drop 后锁件消失。
+        let dead = 4_000_000; // /proc 上限之上的死 pid（linux 实判，他端保
+                              // 守判活由 pid_alive 的 cfg 分支承载。
+        std::fs::write(lock_path(&exe), dead.to_string()).unwrap();
+        if !pid_alive(dead) {
+            let guard = acquire_lock(&exe).expect("stale lock reaped");
+            drop(guard);
+            assert!(!lock_path(&exe).exists(), "drop 清锁");
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn sweep_stale_harvests_dead_pid_files() {
+        // 陈旧收割：死 pid 的 .new/.old 残件清除，活 pid 的暂存不动。
+        let dir = std::env::temp_dir().join(format!(
+            "hst-sweep-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let dead = 4_000_000;
+        if pid_alive(dead) {
+            let _ = std::fs::remove_dir_all(&dir);
+            return; // 非 linux 端保守判活，收割臂不适用
+        }
+        std::fs::write(dir.join(format!(".hst.new-{dead}")), b"x").unwrap();
+        std::fs::write(dir.join(format!(".hst.old-{dead}")), b"x").unwrap();
+        std::fs::write(dir.join(format!(".hst.new-{}", std::process::id())), b"x").unwrap();
+        std::fs::write(dir.join("hst-unrelated"), b"x").unwrap();
+        let n = sweep_stale(&dir, "hst");
+        assert_eq!(n, 2, "只收死 pid 残件");
+        assert!(dir
+            .join(format!(".hst.new-{}", std::process::id()))
+            .exists());
+        assert!(dir.join("hst-unrelated").exists());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

@@ -1,12 +1,12 @@
 ---
 id: ADR-0004
 title: self-update镜像腿与缺省回退
-status: accepted
+status: superseded
 date: 2026-09-15
 deciders:
   - raystyle
 supersedes: []
-superseded_by: None
+superseded_by: ADR-0008
 tags: ['self-update', 'D16', 'D48']
 ---
 

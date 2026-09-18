@@ -1693,3 +1693,23 @@ fn llms_manual_covers_command_tree_and_flags() {
     }
     assert!(checked >= 40, "旗标核对量足够：{checked}");
 }
+
+#[test]
+fn update_version_output_parses() {
+    // 家族自更新标准的探针契约（REQ-013）：hst --version 输出必须含可解析
+    // 的点分版号（update.rs probe_version 的地基；libtest 壳不识
+    // --version 故在集成面钉）。
+    let out = hst()
+        .arg("--version")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let s = String::from_utf8_lossy(&out);
+    let dotted = s
+        .split_whitespace()
+        .rev()
+        .find(|t| t.chars().next().is_some_and(|c| c.is_ascii_digit()));
+    assert_eq!(dotted, Some(env!("CARGO_PKG_VERSION")), "输出形：{s}");
+}

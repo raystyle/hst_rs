@@ -1,4 +1,4 @@
-# 2026-09-18：cli-docs 采纳轮与 v2.3.0 封版
+# 2026-09-18：cli-docs 采纳轮 v2.3.0 封版与 selfupdate 家族统一标准对齐
 
 > 总台 2026-09-18 全仓采纳令：所有仓 review cli-docs 技能（ripgrep/fzf/bat/fd 提炼，含默认帮助面节序），取或改进后封一版。本仓昨日刚做三面统一（v2.2.0，REQ-060），本轮按新标准逐件盘点增量收口并封 v2.3.0。
 
@@ -13,6 +13,18 @@
 7. **评审一轮收口（herdr codex hst-codex-review 首班，F 三加 G 十）**：F1「必选七件收口」断言不实且 --full-output 零登记（改 REQ-011 补裁加 CHANGELOG 与本篇断言改写）；F2 多下标部分越界静默截断（findings[0,99] 实弹反例，改任一越界即 Err 带长度）；F3 无信封命令面静默 no-op 与帮助文案承诺冲突（帮助与手册钉死「仅对出信封的命令生效」，存量 --json 同型记 REQ-011）；G1 Global Options 字典序与 --format 枚举全值（字段序重排加 value_name 加测试钉）；G2 退出码表补启动期校验走 1；G3 漂移守卫全文 contains 会假绿（改节域断言：命令路径对子命令表节、全局旗标对通用旗标节）；G4 根专属旗标与叶节序无守卫（根帮助纳入遍历加叶头行与节序断言）；G5 路径错误一律折未命中（pick 改 Result 按类分道：键不存在、不是数组、越界带长度、多下标不可续导航）；G6 --llms 描述去内部治理语；G7 库面同型残破百余处（立 REQ-012）；G8 fmtio 头文档补 stdout 信封道；G9 两处死分支删加 a[] 判空；G10 叶形 Examples 与 Environment Variables 不适用裁定随对照表记档。
 8. **二轮快核收口（F 二加 G 四，评审方放行口径：F 修完即 CONFIRM）**：F1 diary 损坏字「馧」改回「首」（合法 CJK 字，md 门禁与 rumdl 都查不出，只能通读抓；与自家「禁 sed 批改中文」纪律同型事故，值得点一句）；F2 残破描述计数三口径不一（CHANGELOG 六处、diary 六处、REQ-012 约 16 处，git 实数 13 处 = main 11 加 fmtio 2；统一改 13，CHANGELOG 的 197 加 39 同步改 198 加 39、fmtio 单测三件改四件）加 binary 侧 synopsis 文档注释余 1 处顺手清；G1 守卫再收窄（逐命令旗标对该命令自己的表行行级断言，堵同名旗标跨命令遮蔽与组行前缀遮蔽）；G2 手册通用旗标补 --json 独立行加守卫改首列判定（提及不算）；G3 fmtio 头文档改「经信封出口的失败双道、不经信封的只走 stderr 单行」（trace agent bogus 实证后者 stdout 空）；G4 本篇第 5 条补二轮形态注。
 9. **门禁与封版**：二轮修复后全门禁复跑（fmt 与 md 四门禁与 PEVO 与 aidoc strict 全 rc=0、cargo test --locked 198 加 39 绿、clippy 基线 13）；herdr codex 三轮终核 CONFIRM 放行（四笔 4d712c7 加 e2c6686 加 411935e 加 da86058，基线 b5f87ec）。封版实绩：推 main 后 CI run 35258416031 success；tag v2.3.0（da86058）推送后 release.ps1 全链绿（版本闸、测试闸、linux 加 win-gnu 本地与 lan-mac 实机构建、三包 sha256 边车、三端冒烟对 2.3.0、gh 直发 --latest）；release 事件 run 35258855030 seed success（stable 段从 Release 资产重灌）；`self update --stable` 冒烟 github 403 匿名限速回退镜像腿 already-latest 通 `[实证: 2026-09-17T18:26Z 后 gh run view 35258416031 加 35258855030 加 gh release view v2.3.0 六资产加边车]`。reviewer 收尾回执已发（评审格对话在案）。
+
+## 二班流水：selfupdate 家族统一标准对齐
+
+> ADR-0008 替代 ADR-0004、REQ-013、v2.4.0。总台家族自更新统一标准轮（2026-09-18 用户裁「采纳推广」，权威 = browse-rs REQ-005 加 build-release 公共契约第六节）。本仓 D48 双通道面对照差异，缺啥补啥。
+
+1. **差异对照（对照表见总台回执）**：hst D48 与家族标准逐条对照五差异：缺省读序方向相反（D48 未设 = GitHub 优先镜像仅回退腿；标准 = 镜像段优先整对回落官方）；GitHub 官方腿下载零锚校验；semver 无只升不降（latest 二态无 localNewer、镜像 stable 腿无降级守卫）；自替换无锁无自证无回滚复核；无管理方布局让位。
+2. **读序翻向（ADR-0008 替代 ADR-0004）**：MirrorPlan 缺省态 DefaultFallback 改 DefaultFirst（未设 = 默认基址 env.ohmygh.com 镜像段优先，stable 通道落 stable 滚动段，任一步网络类失败整对回落 GitHub 不回环）；kv 标记 fallback-default 形退役换 default-first 形；plan.base() 单点定镜像腿，D48 回退守卫两函数（github_fail_falls_back_to_mirror 加 mirror_fallback_base）随「结构化不回环」退役。
+3. **digest 锚与 semver 三态**：GitHub 官方腿下载后对 API digest（github_asset_digest：API digest 归一优先、缺省回落同 Release 边车资产内容）硬校验，不符拒装不回落（锚不可得才 warn skip-verify）；latest 判新三态 semver_verdict（already-latest、localNewer 报告不动、更新）；镜像 stable 腿（无版本段）降级守卫由暂存件 --version 预检承载（downgrade_refused 纯函数；探不到版放行，由自证臂兜底）。
+4. **自替换三步舞加固**：exe 旁更新锁（create_new 加锁内 pid 活性判加陈旧收割加 drop 清锁；linux 走 /proc、他端保守判活）；sweep_stale 收割死 pid 的 .new/.old 残件；unix 暂存件 chmod 755（预检与自证要执行暂存件）；入位后 --version 自证五次重试（期望版从 release tag 注入）；证败或入位败 rollback_and_verify 回滚并复核终态，回滚受阻报精确自救路径。
+5. **管理方让位**：ark_managed_signal 判 exe 同目录 ark-managed 落痕或用户面 bin 符号链接指向本 exe，命中拦自更新 CTA 走 ark（落痕生产者契约派 ark 侧批次，元数据对齐验收待 ark 批双报）。
+6. **提交前自检收口**：md-ref-scan 抓 REQ-013 跨仓路径形断链（browse-rs REQ-005 写成路径形在本仓解析不到，改与 ADR-0008 同形无路径写法）；版本 2.3.0 升 2.4.0（缺省读序行为变化，semver minor；aidoc 投影随载体版本重生）；CHANGELOG 里程碑补记；REQ-013 状态随实现翻 implemented 回填 trace。
+7. **门禁与实弹**：全门禁绿（fmt、clippy、cargo test --locked 203 加 40、aidoc strict、md 四门禁、PEVO）；实弹缺省镜像腿 `./target/debug/hst self update --stable`（本机 2026-09-18，HST_MIRROR 未设）出 `update.mirror=default-first:https://env.ohmygh.com`、`update.source=mirror`、`update.ok=already-latest`，缺省镜像优先腿不触 GitHub 即收口（与 D48 时代「GitHub 403 回退镜像」同场景对照）。
 
 ## 自省
 
