@@ -452,10 +452,11 @@ D16 起 `HST_MIRROR=<基址>` 走镜像通道；ADR-0008（2026-09-18 家族统�
 镜像全关。镜像判新走 `<基址>/hst/<seg>/<资产名>.sha256` 边车对安装
 记录（段随通道，dev 禁落 stable）。镜像侧仅网络类失败回落；哈希不符
 是安全问题，报错不回落（GitHub 官方腿同判：下载后对 API digest 或同
-Release 边车硬校验）。latest 判新走 release tag 三态（本地领先报
-localNewer 不动），镜像 stable 腿降级守卫由暂存件 `--version` 预检
-承载；自替换带更新锁、陈旧收割、入位后自证五次重试与回滚复核；
-ark 管理布局（落痕或符号链接）让位走 ark。GH_TOKEN 在位附 Bearer。
+Release 边车硬校验，锚不可得同样拒装）。latest 判新走 release tag
+三态（本地领先报 localNewer 不动），镜像 stable 腿降级守卫由暂存件
+`--version` 预检承载（命中按 localNewer 收束，不装不回落）；自替换带
+更新锁、陈旧收割、入位后自证五次重试与回滚复核；ark 管理布局（同
+目录落痕或带落痕的符号链接入口）让位走 ark。GH_TOKEN 在位附 Bearer。
 
 ## Functions
 
@@ -471,6 +472,7 @@ ark 管理布局（落痕或符号链接）让位走 ark。GH_TOKEN 在位附 Be
 - `Asset` — release 资产条目：名、下载直链与可选 digest（判新锚）。
 - `Channel` — 自更新的更新通道面（细则见模块文档与集成测试）。
 - `Release` — GitHub release 元数据（tag 与资产清单），self update 的查询面。
+- `ReplaceOutcome` — 自替换收束态（ADR-0008 家族标准）。
 
 ## Constants
 

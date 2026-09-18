@@ -6,7 +6,7 @@
 |---|---|---|---|---|
 | REQ-001 | implemented | must | 文档体系迁移dev-evo | check.py 全项 |
 | REQ-002 | implemented | should | 资产名与关键词取参纯函数重构 | asset_name 加 asset_keywords 加 pick_asset_for 全平台表断言 |
-| REQ-003 | implemented | should | self-update读序不回环集成断言 | self_update 假基址断言加守卫三态单测 |
+| REQ-003 | implemented | should | self-update读序不回环集成断言 | self_update 假基址断言加 MirrorPlan::base 三态单测（守卫随 ADR-0008 退役） |
 | REQ-004 | implemented | should | grok运行时退单排pwsh闸门断言 | default_layout pwsh 闸门行为测试 |
 | REQ-005 | rejected | should | 门禁脚本退出码对齐CI | 三环境退出码实证（场景不复现，M033 同型） |
 | REQ-006 | implemented | must | aidoc投影强制重构 | aidoc --check --strict |
@@ -16,4 +16,4 @@
 | REQ-010 | implemented | must | 统一issue入口集成 | hst issue new/list/show 实弹（issues.ohmygh.com，契约 = 总台 REQ-057） |
 | REQ-011 | draft | should | 输出协议可选件评估 | 待回填 |
 | REQ-012 | draft | should | 库面残破描述清算 | 待回填 |
-| REQ-013 | implemented | must | 自更新家族统一标准对齐 | update.rs 单测六件加 cli 集成 update_version_output_parses 加实弹缺省镜像腿 |
+| REQ-013 | implemented | must | 自更新家族统一标准对齐 | update.rs 单测八件加 cli 集成 update_version_output_parses 加实弹缺省镜像腿与降级收束 |

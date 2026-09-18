@@ -750,7 +750,7 @@
     {
       "path": "hst_cli::update",
       "kind": "module",
-      "docs": "`hst self update`：dev 滚动与 stable 正式版自更新、镜像腿与缺省回退（S028/D16/D48）。\nhst 自更新（用户定调 2026-09-02：去 GitHub 升级新版本；封版前本地测试，\nreleases 为空时走 `--git` 源码安装路径）。\n机制见 S028：releases/latest API、资产命名约定 `hst-<triple>.(zip|tar.gz)`、\nWindows 运行中自替换（rename 舞步）、Unix 原子 rename 覆盖。\nD16 起 `HST_MIRROR=<基址>` 走镜像通道；ADR-0008（2026-09-18 家族统一\n标准，承接 D48）：未设 = 镜像段优先（默认基址 env.ohmygh.com，任一步\n网络类失败整对回落 GitHub，不回环）；设值 = 基址覆盖同读序；空串 =\n镜像全关。镜像判新走 `<基址>/hst/<seg>/<资产名>.sha256` 边车对安装\n记录（段随通道，dev 禁落 stable）。镜像侧仅网络类失败回落；哈希不符\n是安全问题，报错不回落（GitHub 官方腿同判：下载后对 API digest 或同\nRelease 边车硬校验）。latest 判新走 release tag 三态（本地领先报\nlocalNewer 不动），镜像 stable 腿降级守卫由暂存件 `--version` 预检\n承载；自替换带更新锁、陈旧收割、入位后自证五次重试与回滚复核；\nark 管理布局（落痕或符号链接）让位走 ark。GH_TOKEN 在位附 Bearer。"
+      "docs": "`hst self update`：dev 滚动与 stable 正式版自更新、镜像腿与缺省回退（S028/D16/D48）。\nhst 自更新（用户定调 2026-09-02：去 GitHub 升级新版本；封版前本地测试，\nreleases 为空时走 `--git` 源码安装路径）。\n机制见 S028：releases/latest API、资产命名约定 `hst-<triple>.(zip|tar.gz)`、\nWindows 运行中自替换（rename 舞步）、Unix 原子 rename 覆盖。\nD16 起 `HST_MIRROR=<基址>` 走镜像通道；ADR-0008（2026-09-18 家族统一\n标准，承接 D48）：未设 = 镜像段优先（默认基址 env.ohmygh.com，任一步\n网络类失败整对回落 GitHub，不回环）；设值 = 基址覆盖同读序；空串 =\n镜像全关。镜像判新走 `<基址>/hst/<seg>/<资产名>.sha256` 边车对安装\n记录（段随通道，dev 禁落 stable）。镜像侧仅网络类失败回落；哈希不符\n是安全问题，报错不回落（GitHub 官方腿同判：下载后对 API digest 或同\nRelease 边车硬校验，锚不可得同样拒装）。latest 判新走 release tag\n三态（本地领先报 localNewer 不动），镜像 stable 腿降级守卫由暂存件\n`--version` 预检承载（命中按 localNewer 收束，不装不回落）；自替换带\n更新锁、陈旧收割、入位后自证五次重试与回滚复核；ark 管理布局（同\n目录落痕或带落痕的符号链接入口）让位走 ark。GH_TOKEN 在位附 Bearer。"
     },
     {
       "path": "hst_cli::update::Asset",
@@ -771,6 +771,11 @@
       "path": "hst_cli::update::Release",
       "kind": "struct",
       "docs": "GitHub release 元数据（tag 与资产清单），self update 的查询面。"
+    },
+    {
+      "path": "hst_cli::update::ReplaceOutcome",
+      "kind": "enum",
+      "docs": "自替换收束态（ADR-0008 家族标准）。"
     },
     {
       "path": "hst_cli::update::fetch_release",
@@ -795,7 +800,7 @@
     {
       "path": "hst_cli::update::self_replace",
       "kind": "function",
-      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n自替换三步舞（ADR-0008 家族标准）：陈旧收割加取锁 -> 暂存落 exe 同\n目录（pid 后缀防并发互踩，跨文件系统 rename 必炸故不用 temp）->\n`--version` 预检（降级拒装）-> 旧件挪 pid 备份、新件入位 -> `--version`\n自证五次重试（杀软瞬时锁面，期望版已知时必须命中）-> 证毕清备份；\n证败或入位败回滚并复核终态，回滚受阻报自救路径。"
+      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n自替换三步舞（ADR-0008 家族标准）：陈旧收割加取锁 -> 暂存落 exe 同\n目录（pid 后缀防并发互踩，跨文件系统 rename 必炸故不用 temp）->\n`--version` 预检（降级守卫命中按 `LocalNewer` 收束，不装不动旧件）\n-> 旧件挪 pid 备份、新件入位 -> `--version` 自证五次重试（杀软瞬时\n锁面，期望版已知时必须命中）-> 证毕清备份；证败或入位败回滚并\n复核终态，回滚受阻报自救路径。"
     },
     {
       "path": "hst_cli::update::version_newer",

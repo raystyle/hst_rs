@@ -36,7 +36,7 @@ ark install hst
 
 五端注意：状态栏运行时是 pwsh 7（缺了只是不渲染，不影响其它命令）；`~/.local/bin` 不在非登录 ssh 的默认 PATH（无头调用前 `export PATH="$HOME/.local/bin:$PATH"`）；Windows 侧勿用 powershell.exe 5.1 跑仓内脚本。
 
-自升级通道：`hst self update`（dev 滚动源）、`hst self update --stable`（正式版，GitHub 优先失败自动回退镜像腿）、`hst self update --git`（源码装）。
+自升级通道：`hst self update`（dev 滚动源）、`hst self update --stable`（正式版；缺省镜像优先，失败自动回退 GitHub 官方）、`hst self update --git`（源码装）。
 
 ## 配置
 
@@ -44,7 +44,7 @@ ark install hst
 
 | 变量 | 作用 | 缺省 |
 | --- | --- | --- |
-| `HST_MIRROR` | 自升级镜像基址 | GitHub 优先，失败回退 `https://env.ohmygh.com` |
+| `HST_MIRROR` | 自升级镜像基址 | 未设 = 镜像优先（`https://env.ohmygh.com`，失败回退 GitHub）；设值 = 基址覆盖；空串 = 镜像全关 |
 | `HST_GATEWAY_URL` / `HST_GATEWAY_KEY` | 活性诊断（diagnose）网关指向与凭据 | 未设（diagnose cache 才消费） |
 | `HST_ISSUES_API` | issue 入口基址覆盖 | `https://issues.ohmygh.com` |
 | `HST_AGENT_PATH` / `HST_<AGENT>_BIN` | agent 检测自定义路径 | PATH 与默认目录探测 |

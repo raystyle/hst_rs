@@ -8,10 +8,11 @@
 //! 镜像全关。镜像判新走 `<基址>/hst/<seg>/<资产名>.sha256` 边车对安装
 //! 记录（段随通道，dev 禁落 stable）。镜像侧仅网络类失败回落；哈希不符
 //! 是安全问题，报错不回落（GitHub 官方腿同判：下载后对 API digest 或同
-//! Release 边车硬校验）。latest 判新走 release tag 三态（本地领先报
-//! localNewer 不动），镜像 stable 腿降级守卫由暂存件 `--version` 预检
-//! 承载；自替换带更新锁、陈旧收割、入位后自证五次重试与回滚复核；
-//! ark 管理布局（落痕或符号链接）让位走 ark。GH_TOKEN 在位附 Bearer。
+//! Release 边车硬校验，锚不可得同样拒装）。latest 判新走 release tag
+//! 三态（本地领先报 localNewer 不动），镜像 stable 腿降级守卫由暂存件
+//! `--version` 预检承载（命中按 localNewer 收束，不装不回落）；自替换带
+//! 更新锁、陈旧收割、入位后自证五次重试与回滚复核；ark 管理布局（同
+//! 目录落痕或带落痕的符号链接入口）让位走 ark。GH_TOKEN 在位附 Bearer。
 
 use std::path::{Path, PathBuf};
 
@@ -254,8 +255,9 @@ fn normalize_digest(raw: &str) -> Option<String> {
 
 /// GitHub 腿判新 digest 取值（批 C 钉死）：API digest 归一优先；缺省或非法时
 /// 回落取同 Release 的 `<资产名>.sha256` 边车资产内容（发布器与升级器同锚，
-/// 旧 API 响应不再降级成每跑必重装）；边车也取不到回 None（保守更新）。回落臂
-/// 无离线测试 seam，由下版发布首跑实测覆盖（codex 批 C O4 口径）。
+/// 旧 API 响应不再降级成每跑必重装）；边车也取不到回 None（安装臂对 None
+/// fail-closed 拒装不回落，ADR-0008 评审收口）。回落臂无离线测试 seam，由
+/// 下版发布首跑实测覆盖（codex 批 C O4 口径）。
 fn github_asset_digest(release: &Release, asset: &Asset) -> Option<String> {
     if let Some(d) = asset.digest.as_deref().and_then(normalize_digest) {
         return Some(d);
@@ -443,20 +445,34 @@ fn via_mirror(base: &str, seg: &str, force: bool) -> Result<MirrorStep, String> 
             "mirror asset sha256 mismatch: sidecar {digest} got {got}; refusing install"
         ));
     }
+    let out = tmp.with_extension("unpacked");
     let extracted = if name.ends_with(".zip") {
-        let out = tmp.with_extension("unpacked");
         crate::archive::extract_zip(&tmp, &out)?;
         find_hst_bin(&out).ok_or("hst binary not found in archive")?
     } else {
-        let out = tmp.with_extension("unpacked");
         crate::archive::extract_tar_gz(&tmp, &out)?;
         find_hst_bin(&out).ok_or("hst binary not found in archive")?
     };
-    let final_path = self_replace(&extracted, None)?;
-    println!("update.replaced={}", final_path.display());
-    write_record(&digest, &format!("{seg}-mirror"));
-    println!("update.source=mirror");
-    println!("update.ok=true");
+    match self_replace(&extracted, None)? {
+        ReplaceOutcome::Replaced(final_path) => {
+            println!("update.replaced={}", final_path.display());
+            write_record(&digest, &format!("{seg}-mirror"));
+            println!("update.source=mirror");
+            println!("update.ok=true");
+        }
+        // 降级守卫命中即收束态：不装、不写记录、不回落（镜像滞后窗口与
+        // 本地预发布构建同收一支，semver 只升不降）。
+        ReplaceOutcome::LocalNewer { reported } => {
+            println!("update.ok=localNewer");
+            println!(
+                "update.note=镜像腿资产 {reported} 低于现版 {}（本地领先），不降级不回落；如确要回退走 GitHub Releases 手动装",
+                env!("CARGO_PKG_VERSION")
+            );
+        }
+    }
+    // 证毕清理下载件与解包目录（失败臂保留残件供诊断）。
+    let _ = std::fs::remove_file(&tmp);
+    let _ = std::fs::remove_dir_all(&out);
     Ok(MirrorStep::Done)
 }
 
@@ -499,6 +515,19 @@ fn lock_path(exe: &Path) -> PathBuf {
     exe.with_file_name(".hst-update.lock")
 }
 
+/// 锁件陈旧 mtime 窗（评审 G5）：正常持锁窗口（staging 加探针加 rename
+/// 加自证重试）在秒级，超此窗即按陈旧收割，兜住空锁与他端保守判活面。
+const STALE_LOCK_AFTER: std::time::Duration = std::time::Duration::from_secs(600);
+
+/// 锁件是否按 mtime 判陈旧（读不到元数据按不陈旧处理，保守面）。
+fn lock_is_stale(lock: &Path) -> bool {
+    std::fs::metadata(lock)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.elapsed().ok())
+        .is_some_and(|age| age >= STALE_LOCK_AFTER)
+}
+
 /// 更新锁守卫：drop 时清锁件（盖 panic 面；SIGKILL 面靠陈旧 pid 收割）。
 #[derive(Debug)]
 struct LockGuard {
@@ -511,9 +540,10 @@ impl Drop for LockGuard {
     }
 }
 
-/// 取更新锁：create_new 语义。AlreadyExists 先做 pid 陈旧判据（持有者已死
-/// 即收割重取一次，防 SIGKILL 永久锁死）；其余 io 错误报真因（安装位不可
-/// 写等），不误报「在跑」。
+/// 取更新锁：create_new 语义。AlreadyExists 先做陈旧判据：持有者 pid 已死，
+/// 或锁件 mtime 超窗（SIGKILL 落在 create_new 与 writeln 之间留下的空锁、
+/// 他端保守判活面，评审 G5），即收割重取一次；其余 io 错误报真因（安装位
+/// 不可写等），不误报「在跑」。
 fn acquire_lock(exe: &Path) -> Result<LockGuard, String> {
     let lock = lock_path(exe);
     let take = || -> std::io::Result<()> {
@@ -537,11 +567,14 @@ fn acquire_lock(exe: &Path) -> Result<LockGuard, String> {
             }
         }
         Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
-            let stale = std::fs::read_to_string(&lock)
+            let owner_dead = std::fs::read_to_string(&lock)
                 .ok()
                 .and_then(|t| t.trim().parse::<u32>().ok())
                 .is_some_and(|pid| !pid_alive(pid));
-            if stale && std::fs::remove_file(&lock).is_ok() && take().is_ok() {
+            if (owner_dead || lock_is_stale(&lock))
+                && std::fs::remove_file(&lock).is_ok()
+                && take().is_ok()
+            {
                 println!("update.lock=reaped {}", lock.display());
                 return Ok(LockGuard { path: lock });
             }
@@ -560,27 +593,39 @@ fn acquire_lock(exe: &Path) -> Result<LockGuard, String> {
 
 /// 陈旧件收割：exe 旁 `.{file}.new-{pid}` 与 `.{file}.old-{pid}` 中 pid
 /// 已死者清除（崩溃 run 残件）；活 pid 的不动（在跑 update 的暂存）。
-fn sweep_stale(dir: &Path, file: &str) -> usize {
-    let mut n = 0usize;
+/// `.old` 是回滚救援件：exe 缺位时全数保留（唯一好件可能在其中，评审
+/// G4），仅 exe 在位才收。返回收割件路径清单（打点用）。
+fn sweep_stale(dir: &Path, file: &str, exe: &Path) -> Vec<PathBuf> {
+    let mut reaped = Vec::new();
     let Ok(rd) = std::fs::read_dir(dir) else {
-        return 0;
+        return reaped;
     };
+    let exe_present = exe.exists();
     for e in rd.flatten() {
         let Some(name) = e.file_name().into_string().ok() else {
             continue;
         };
-        for prefix in [format!(".{file}.new-"), format!(".{file}.old-")] {
+        for (prefix, rescue_class) in [
+            (format!(".{file}.new-"), false),
+            (format!(".{file}.old-"), true),
+        ] {
             let Some(rest) = name.strip_prefix(&prefix) else {
                 continue;
             };
             if let Ok(pid) = rest.parse::<u32>() {
-                if !pid_alive(pid) && std::fs::remove_file(e.path()).is_ok() {
-                    n += 1;
+                if pid_alive(pid) {
+                    continue;
+                }
+                if rescue_class && !exe_present {
+                    continue;
+                }
+                if std::fs::remove_file(e.path()).is_ok() {
+                    reaped.push(e.path());
                 }
             }
         }
     }
-    n
+    reaped
 }
 
 /// `--version` 输出的版号解析（`hst 2.3.0` 取 `2.3.0`；无数字 token 回
@@ -611,9 +656,23 @@ fn downgrade_refused(probed: Option<&str>, current: &str) -> bool {
     probed.is_some_and(|v| version_newer(current, v))
 }
 
+/// 自证期望版推导（纯函数，评审 F2 收口）：tag 去 `v` 前缀后首字符为
+/// 数字才取（semver 形，预发布后缀整体保留，与 `--version` 自报同形）；
+/// `dev` 等非 semver tag 回 None（自证退化为可跑判，不强求等值）。
+fn expect_version_from_tag(tag: &str) -> Option<&str> {
+    let v = tag.strip_prefix('v').unwrap_or(tag);
+    v.chars()
+        .next()
+        .is_some_and(|c| c.is_ascii_digit())
+        .then_some(v)
+}
+
 /// 管理方布局判据（家族标准，落痕生产者契约派 ark 侧）：exe 同目录
 /// `ark-managed` 落痕，或用户面 bin 目录存在指向本 exe 的符号链接入口
-/// （ark 布局：真身进 EnvRoot，用户面 symlink）。返回命中物描述。
+/// 且链接目标目录有同落痕（ark 布局：真身进 EnvRoot 带落痕，用户面
+/// symlink）。链接臂要求落痕，避免用户自建便利链接误拦（评审 G1）；
+/// 相对链接目标按链接所在目录解析（canonicalize 按进程 CWD 会漂移）。
+/// 返回命中物描述。
 fn ark_managed_signal(exe: &Path) -> Option<String> {
     if let Some(d) = exe.parent() {
         let mark = d.join("ark-managed");
@@ -630,12 +689,19 @@ fn ark_managed_signal(exe: &Path) -> Option<String> {
         .flat_map(|rd| rd.flatten().map(|e| e.path()))
         .filter_map(|p| {
             let t = std::fs::read_link(&p).ok()?;
-            match t.canonicalize() {
-                Ok(cwd) if exe == cwd => Some(format!("链接 {} -> {}", p.display(), t.display())),
-                _ => None,
-            }
+            let target = if t.is_relative() {
+                p.parent()?.join(&t)
+            } else {
+                t
+            };
+            let canon = target.canonicalize().ok()?;
+            (canon == exe).then_some(canon)
         })
-        .next()
+        .find_map(|canon| {
+            let mark = canon.parent()?.join("ark-managed");
+            mark.exists()
+                .then(|| format!("链接目录落痕 {}", mark.display()))
+        })
 }
 
 /// 回滚并复核终态：坏新件挪离原位、旧件回位、确认 exe 在位；任何一步
@@ -660,15 +726,32 @@ fn rollback_and_verify(exe: &Path, bak: &Path, bad_new: &Path) -> Result<(), Str
     }
 }
 
+/// 自替换收束态（ADR-0008 家族标准）。
+#[derive(Debug)]
+pub enum ReplaceOutcome {
+    /// 新件已入位并过自证，值为最终 exe 路径。
+    Replaced(PathBuf),
+    /// 本地领先（降级守卫命中，semver 只升不降）：未安装、未动旧件，
+    /// 调用方按 localNewer 报告收束。
+    LocalNewer {
+        /// 暂存件 `--version` 自报版本。
+        reported: String,
+    },
+}
+
 /// # Errors
 ///
 /// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
 /// 自替换三步舞（ADR-0008 家族标准）：陈旧收割加取锁 -> 暂存落 exe 同
 /// 目录（pid 后缀防并发互踩，跨文件系统 rename 必炸故不用 temp）->
-/// `--version` 预检（降级拒装）-> 旧件挪 pid 备份、新件入位 -> `--version`
-/// 自证五次重试（杀软瞬时锁面，期望版已知时必须命中）-> 证毕清备份；
-/// 证败或入位败回滚并复核终态，回滚受阻报自救路径。
-pub fn self_replace(new_bin: &Path, expect_version: Option<&str>) -> Result<PathBuf, String> {
+/// `--version` 预检（降级守卫命中按 `LocalNewer` 收束，不装不动旧件）
+/// -> 旧件挪 pid 备份、新件入位 -> `--version` 自证五次重试（杀软瞬时
+/// 锁面，期望版已知时必须命中）-> 证毕清备份；证败或入位败回滚并
+/// 复核终态，回滚受阻报自救路径。
+pub fn self_replace(
+    new_bin: &Path,
+    expect_version: Option<&str>,
+) -> Result<ReplaceOutcome, String> {
     let cur = std::env::current_exe().map_err(|e| format!("current exe: {e}"))?;
     let dir = cur
         .parent()
@@ -677,9 +760,14 @@ pub fn self_replace(new_bin: &Path, expect_version: Option<&str>) -> Result<Path
         .file_name()
         .and_then(|s| s.to_str())
         .ok_or_else(|| "exe name not utf-8".to_string())?;
-    let swept = sweep_stale(dir, file);
-    if swept > 0 {
-        println!("update.sweep={swept}");
+    let reaped = sweep_stale(dir, file, &cur);
+    if !reaped.is_empty() {
+        let names = reaped
+            .iter()
+            .map(|p| p.file_name().unwrap_or_default().to_string_lossy())
+            .collect::<Vec<_>>()
+            .join(",");
+        println!("update.sweep={} {names}", reaped.len());
     }
     let _guard = acquire_lock(&cur)?;
     let pid = std::process::id();
@@ -696,16 +784,14 @@ pub fn self_replace(new_bin: &Path, expect_version: Option<&str>) -> Result<Path
         std::fs::set_permissions(&staged, perm)
             .map_err(|e| format!("stage chmod {}: {e}", staged.display()))?;
     }
-    // 预检：暂存件 --version 低于现版即拒装（降级守卫；探不到版放行，
-    // 由入位后自证臂兜底）。
+    // 预检：暂存件 --version 低于现版即按 LocalNewer 收束（降级守卫，
+    // semver 只升不降；不装不回落）；探不到版放行，由入位后自证臂兜底。
     let probed = probe_version(&staged);
     if downgrade_refused(probed.as_deref(), env!("CARGO_PKG_VERSION")) {
         let _ = std::fs::remove_file(&staged);
-        let reported = probed.as_deref().unwrap_or("?");
-        return Err(format!(
-            "暂存件 --version 报 {reported} 低于现版 {}，拒绝降级（semver 只升不降）",
-            env!("CARGO_PKG_VERSION")
-        ));
+        return Ok(ReplaceOutcome::LocalNewer {
+            reported: probed.unwrap_or_default(),
+        });
     }
     // 三步舞：旧件挪备份、新件入位（入位败即回滚复核）。
     std::fs::rename(&cur, &bak).map_err(|e| format!("rename current away: {e}"))?;
@@ -737,7 +823,7 @@ pub fn self_replace(new_bin: &Path, expect_version: Option<&str>) -> Result<Path
         ));
     }
     let _ = std::fs::remove_file(&bak);
-    Ok(cur)
+    Ok(ReplaceOutcome::Replaced(cur))
 }
 
 /// # Errors
@@ -855,22 +941,26 @@ pub fn run(repo: &str, channel: Channel, git_mode: bool, force: bool) -> Result<
     ));
     crate::install::download_asset(&asset.browser_download_url, &tmp)?;
     // digest 锚硬校验（家族标准）：锚 = API digest 归一优先、缺省回落同
-    // Release 边车资产内容；不符拒装且不回落（安全面，非可用性）。
+    // Release 边车资产内容；不符拒装且不回落，锚不可得同样拒装（安全
+    // 面 fail-closed，非可用性，评审 G2；发布面恒有边车，缺边车属发布
+    // 缺陷）。
     let expected = github_asset_digest(&release, asset);
     let got = file_sha256(&tmp)?;
-    match expected.as_deref() {
-        Some(anchor) if !anchor.eq_ignore_ascii_case(&got) => {
-            let _ = std::fs::remove_file(&tmp);
-            return Err(format!(
-                "github asset sha256 mismatch: anchor {anchor} got {got}; refusing install (no fallback)"
-            ));
-        }
-        Some(_) => {}
-        None => {
-            println!("update.warn=anchor-unavailable skip-verify（无 API digest 且边车不可达）")
-        }
+    let Some(anchor) = expected.as_deref() else {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(format!(
+            "github asset 锚不可得（无 API digest 且 {}.sha256 边车缺失）拒装不回落；Release 缺边车属发布面缺陷，hst issue new 反馈",
+            asset.name
+        ));
+    };
+    if !anchor.eq_ignore_ascii_case(&got) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(format!(
+            "github asset sha256 mismatch: anchor {anchor} got {got}; refusing install (no fallback)"
+        ));
     }
     // 压缩包解开找 hst 本体；裸二进制资产直接用。
+    let packed = asset.name.ends_with(".zip") || asset.name.ends_with(".tar.gz");
     let extracted = if asset.name.ends_with(".zip") {
         let out = tmp.with_extension("unpacked");
         crate::archive::extract_zip(&tmp, &out)?;
@@ -882,19 +972,26 @@ pub fn run(repo: &str, channel: Channel, git_mode: bool, force: bool) -> Result<
     } else {
         tmp.clone()
     };
-    let expect_version = release
-        .tag_name
-        .trim_start_matches('v')
-        .split('-')
-        .next()
-        .unwrap_or_default()
-        .to_string();
-    let final_path = self_replace(&extracted, Some(&expect_version))?;
-    println!("update.replaced={}", final_path.display());
-    if let Some(d) = expected.or(Some(got)) {
-        write_record(&d, &release.tag_name);
+    match self_replace(&extracted, expect_version_from_tag(&release.tag_name))? {
+        ReplaceOutcome::Replaced(final_path) => {
+            println!("update.replaced={}", final_path.display());
+            write_record(anchor, &release.tag_name);
+            println!("update.ok=true");
+        }
+        // --force 或 dev 滚动源与本地预发布构建的窗口：不降级不写记录。
+        ReplaceOutcome::LocalNewer { reported } => {
+            println!("update.ok=localNewer");
+            println!(
+                "update.note=官方腿资产 {reported} 低于现版 {}（本地领先），不降级；如确要回退走 GitHub Releases 手动装",
+                env!("CARGO_PKG_VERSION")
+            );
+        }
     }
-    println!("update.ok=true");
+    // 证毕清理下载件与解包目录（失败臂保留残件供诊断，评审 G9）。
+    let _ = std::fs::remove_file(&tmp);
+    if packed {
+        let _ = std::fs::remove_dir_all(tmp.with_extension("unpacked"));
+    }
     Ok(())
 }
 
@@ -1203,7 +1300,8 @@ mod tests {
 
     #[test]
     fn sweep_stale_harvests_dead_pid_files() {
-        // 陈旧收割：死 pid 的 .new/.old 残件清除，活 pid 的暂存不动。
+        // 陈旧收割：死 pid 的 .new 残件清除、活 pid 暂存不动；.old 是救援
+        // 件，exe 缺位时保留（唯一好件可能在其中），exe 在位才收（评审 G4）。
         let dir = std::env::temp_dir().join(format!(
             "hst-sweep-{}-{}",
             std::process::id(),
@@ -1218,16 +1316,71 @@ mod tests {
             let _ = std::fs::remove_dir_all(&dir);
             return; // 非 linux 端保守判活，收割臂不适用
         }
+        let exe = dir.join("hst");
         std::fs::write(dir.join(format!(".hst.new-{dead}")), b"x").unwrap();
         std::fs::write(dir.join(format!(".hst.old-{dead}")), b"x").unwrap();
         std::fs::write(dir.join(format!(".hst.new-{}", std::process::id())), b"x").unwrap();
         std::fs::write(dir.join("hst-unrelated"), b"x").unwrap();
-        let n = sweep_stale(&dir, "hst");
-        assert_eq!(n, 2, "只收死 pid 残件");
+        // exe 缺位：只收 .new，.old 留作救援。
+        let reaped = sweep_stale(&dir, "hst", &exe);
+        assert_eq!(reaped.len(), 1, "exe 缺位只收死 pid 的 .new 残件");
+        assert!(
+            dir.join(format!(".hst.old-{dead}")).exists(),
+            "exe 缺位保救援件"
+        );
         assert!(dir
             .join(format!(".hst.new-{}", std::process::id()))
             .exists());
         assert!(dir.join("hst-unrelated").exists());
+        // exe 在位：.old 也收。
+        std::fs::write(&exe, b"x").unwrap();
+        let reaped = sweep_stale(&dir, "hst", &exe);
+        assert_eq!(reaped.len(), 1, "exe 在位收 .old 残件");
+        assert!(!dir.join(format!(".hst.old-{dead}")).exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn expect_version_from_tag_semver_shapes() {
+        // 期望版推导（评审 F2）：semver 形去 v 整体取（预发布后缀保留，
+        // 与 --version 自报同形）；dev 等非 semver tag 回 None（自证退化
+        // 为可跑判，不强求等值）。
+        assert_eq!(expect_version_from_tag("v2.5.0"), Some("2.5.0"));
+        assert_eq!(expect_version_from_tag("v2.5.0-rc.1"), Some("2.5.0-rc.1"));
+        assert_eq!(expect_version_from_tag("2.4.0"), Some("2.4.0"));
+        assert_eq!(expect_version_from_tag("dev"), None);
+        assert_eq!(expect_version_from_tag(""), None);
+    }
+
+    #[test]
+    fn acquire_lock_reaps_unparseable_stale_lock_by_mtime() {
+        // 空锁兜底（评审 G5）：SIGKILL 落在 create_new 与 writeln 之间留下
+        // 不可解析锁，mtime 超窗即陈旧收割重取；新鲜空锁（并发在写窗口）
+        // 不收。
+        let dir = std::env::temp_dir().join(format!(
+            "hst-lock2-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let exe = dir.join("hst");
+        let lock = lock_path(&exe);
+        std::fs::write(&lock, "").unwrap();
+        let f = std::fs::File::options().append(true).open(&lock).unwrap();
+        f.set_modified(
+            std::time::SystemTime::now()
+                .checked_sub(STALE_LOCK_AFTER + std::time::Duration::from_secs(1))
+                .unwrap(),
+        )
+        .unwrap();
+        let guard = acquire_lock(&exe).expect("陈旧空锁收割重取");
+        drop(guard);
+        assert!(!lock.exists(), "drop 清锁");
+        std::fs::write(&lock, "").unwrap();
+        assert!(acquire_lock(&exe).is_err(), "新鲜空锁不收割");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
