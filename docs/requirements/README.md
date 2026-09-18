@@ -16,4 +16,4 @@
 | REQ-010 | implemented | must | 统一issue入口集成 | hst issue new/list/show 实弹（issues.ohmygh.com，契约 = 总台 REQ-057） |
 | REQ-011 | draft | should | 输出协议可选件评估 | 待回填 |
 | REQ-012 | draft | should | 库面残破描述清算 | 待回填 |
-| REQ-013 | implemented | must | 自更新家族统一标准对齐 | update.rs 单测九件加 cli 集成 update_version_output_parses 加实弹缺省镜像腿与降级收束 |
+| REQ-013 | implemented | must | 自更新家族统一标准对齐 | update.rs 单测九件（八新加一存量改）加 cli 集成 update_version_output_parses 加实弹缺省镜像腿与降级收束 |
