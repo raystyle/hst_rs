@@ -69,7 +69,7 @@ foreach ($t in $targets) {
     Write-Output "build.local=ok $t"
 }
 $sha = git rev-parse HEAD
-ssh -o BatchMode=yes $MacHost "set -e; export PATH=`"`$HOME/.cargo/bin:`$PATH`"; mkdir -p ~/repos; if [ -d ~/repos/hst_rs/.git ]; then git -C ~/repos/hst_rs fetch --tags -q; else git clone -q https://github.com/raystyle/hst_rs.git ~/repos/hst_rs; fi; git -C ~/repos/hst_rs checkout -q $sha; cargo build --release --locked --target aarch64-apple-darwin --bins --manifest-path ~/repos/hst_rs/Cargo.toml"
+ssh -o BatchMode=yes $MacHost "set -e; export PATH=`"`$HOME/.cargo/bin:`$PATH`"; mkdir -p ~/repos; if [ -d ~/repos/hst_rs/.git ]; then git -C ~/repos/hst_rs fetch --tags --force -q; else git clone -q https://github.com/raystyle/hst_rs.git ~/repos/hst_rs; fi; git -C ~/repos/hst_rs checkout -q $sha; cargo build --release --locked --target aarch64-apple-darwin --bins --manifest-path ~/repos/hst_rs/Cargo.toml"
 if ($LASTEXITCODE -ne 0) { throw "build: mac remote failed" }
 New-Item -ItemType Directory -Force "dist/hst-aarch64-apple-darwin" | Out-Null
 scp -q "${MacHost}:~/repos/hst_rs/target/aarch64-apple-darwin/release/hst" "dist/hst-aarch64-apple-darwin/hst"
