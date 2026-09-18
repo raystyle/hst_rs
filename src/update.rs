@@ -463,6 +463,7 @@ fn via_mirror(base: &str, seg: &str, force: bool) -> Result<MirrorStep, String> 
         // 降级守卫命中即收束态：不装、不写记录、不回落（镜像滞后窗口与
         // 本地预发布构建同收一支，semver 只升不降）。
         ReplaceOutcome::LocalNewer { reported } => {
+            println!("update.source=mirror");
             println!("update.ok=localNewer");
             println!(
                 "update.note=镜像腿资产 {reported} 低于现版 {}（本地领先），不降级不回落；如确要回退走 GitHub Releases 手动装",
@@ -657,14 +658,14 @@ fn downgrade_refused(probed: Option<&str>, current: &str) -> bool {
 }
 
 /// 自证期望版推导（纯函数，评审 F2 收口）：tag 去 `v` 前缀后首字符为
-/// 数字才取（semver 形，预发布后缀整体保留，与 `--version` 自报同形）；
-/// `dev` 等非 semver tag 回 None（自证退化为可跑判，不强求等值）。
+/// 数字且含点分（semver 形判据，评审 N3：日期形 2026-09-18 与 2-x 形不
+/// 注入，自报恒为 semver，注入即不可达期望致自证必败）才取（预发布
+/// 后缀整体保留，与 `--version` 自报同形）；`dev` 等非 semver tag 回
+/// None（自证退化为可跑判，不强求等值）。
 fn expect_version_from_tag(tag: &str) -> Option<&str> {
     let v = tag.strip_prefix('v').unwrap_or(tag);
-    v.chars()
-        .next()
-        .is_some_and(|c| c.is_ascii_digit())
-        .then_some(v)
+    let semverish = v.chars().next().is_some_and(|c| c.is_ascii_digit()) && v.contains('.');
+    semverish.then_some(v)
 }
 
 /// 管理方布局判据（家族标准，落痕生产者契约派 ark 侧）：exe 同目录
@@ -695,7 +696,14 @@ fn ark_managed_signal(exe: &Path) -> Option<String> {
                 t
             };
             let canon = target.canonicalize().ok()?;
-            (canon == exe).then_some(canon)
+            // 命中形（评审 N1）：链接本身即本 exe 路径（macOS 的 current_exe
+            // 可能返回未解析的用户面链接路径；linux 恒解析，canon == exe 形
+            // 与首臂同源不重复判）。
+            if p == exe {
+                Some(canon)
+            } else {
+                None
+            }
         })
         .find_map(|canon| {
             let mark = canon.parent()?.join("ark-managed");
@@ -1350,6 +1358,9 @@ mod tests {
         assert_eq!(expect_version_from_tag("2.4.0"), Some("2.4.0"));
         assert_eq!(expect_version_from_tag("dev"), None);
         assert_eq!(expect_version_from_tag(""), None);
+        // 点分数字核（评审 N3）：日期形与非点分数字形不注入。
+        assert_eq!(expect_version_from_tag("2026-09-18"), None);
+        assert_eq!(expect_version_from_tag("2-x"), None);
     }
 
     #[test]

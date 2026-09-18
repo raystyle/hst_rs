@@ -18,7 +18,7 @@ tags: ['self-update', '家族统一标准', 'REQ-013']
 
 ## Decision
 
-对齐家族标准，全量承接 ADR-0004 仍有效件并翻缺省方向：HST_MIRROR 未设 = 镜像段优先（默认基址 env.ohmygh.com，latest 通道落 stable 滚动段、dev 通道落 dev 滚动段，同读序），镜像腿任一步网络类失败整对回落 GitHub 官方（不回环）；设值 = 基址覆盖同读序；空串 = 全关。段随通道与 dev 禁落 stable 与 GH_TOKEN Bearer 沿用。GitHub 官方腿下载后对 API digest（缺省回落同 Release 边车资产）硬校验，不符拒装不回落，锚不可得同样拒装（fail-closed，安全面不归网络回落；发布面恒有边车，缺边车属发布缺陷）。latest 通道判新分三态（already-latest、localNewer 不动、更新），双腿统一暂存件 --version 预检降级守卫，命中按 localNewer 收束态（rc=0 不装不回落，不误报自动化失败）。自替换：exe 旁更新锁（create_new 加 pid 活性判加 mtime 超窗兜底加陈旧收割加 drop 清锁）、陈旧暂存与备份件收割（.old 救援件在 exe 缺位时保留）、旧件 pid 备份、入位后 --version 自证五次重试（期望版仅从 semver 形 tag 推导，dev 等非 semver tag 与无版本段的镜像腿退化为可跑判）、证败回滚并复核在位、回滚受阻报自救路径。管理方布局（exe 同目录 ark-managed 落痕，或用户面 bin 符号链接指向本 exe 且链接目标目录有同落痕）拦自更新，CTA 走 ark；用户自建便利链接无落痕不误拦。
+对齐家族标准，全量承接 ADR-0004 仍有效件并翻缺省方向：HST_MIRROR 未设 = 镜像段优先（默认基址 env.ohmygh.com，latest 通道落 stable 滚动段、dev 通道落 dev 滚动段，同读序），镜像腿任一步网络类失败整对回落 GitHub 官方（不回环）；设值 = 基址覆盖同读序；空串 = 全关。段随通道与 dev 禁落 stable 与 GH_TOKEN Bearer 沿用。GitHub 官方腿下载后对 API digest（缺省回落同 Release 边车资产）硬校验，不符拒装不回落，锚不可得同样拒装（fail-closed，安全面不归网络回落；发布面恒有边车，缺边车属发布缺陷）。latest 通道判新分三态（already-latest、localNewer 不动、更新），双腿统一暂存件 --version 预检降级守卫，命中按 localNewer 收束态（rc=0 不装不回落，不误报自动化失败）。自替换：exe 旁更新锁（create_new 加 pid 活性判加 mtime 超窗兜底加陈旧收割加 drop 清锁）、陈旧暂存与备份件收割（.old 救援件在 exe 缺位时保留）、旧件 pid 备份、入位后 --version 自证五次重试（期望版仅从 semver 形 tag 推导，dev 等非 semver tag 与无版本段的镜像腿退化为可跑判）、证败回滚并复核在位、回滚受阻报自救路径。管理方布局（exe 同目录 ark-managed 落痕，或本 exe 路径即用户面 bin 符号链接且链接目标目录有同落痕，macOS 的 current_exe 未解析链接形态由后者覆盖）拦自更新，CTA 走 ark；用户自建便利链接无落痕不误拦。
 
 ## Consequences
 
