@@ -149,23 +149,45 @@ pub fn issue_list_saturated(returned: usize, eff: u32) -> bool {
     returned >= eff as usize
 }
 
-/// issue list 饱和提示行（#52 同型修）：返回条数打满钳制后 limit 时出
-/// 此行到 stderr，指向 `--status` 过滤收窄或网页面看全量；不打满不出。
+/// issue list 饱和提示行（#52 同型修，#53 补翻页出口）：返回条数打满
+/// 钳制后 limit（或 before 翻页面 has_more 为真）时出此行到 stderr，
+/// 指向 `--status` 过滤收窄、`--limit` 提高、`--before` 翻更旧一页与
+/// 网页面；不饱和不出。
 pub fn issue_list_truncation_hint(eff: u32) -> String {
     format!(
-        "issue.list.truncated=limit-reached limit={eff} hint=返回条数打满 limit，可能仍有更多；--status <open|closed> 收窄过滤、提高 --limit（上限 100），或网页面看全量 {}",
+        "issue.list.truncated=limit-reached limit={eff} hint=返回条数打满 limit，可能仍有更多；--status <open|closed> 收窄过滤、提高 --limit（上限 100）、--before <id> 翻更旧一页，或网页面看全量 {}",
         base_url()
     )
 }
 
+/// issue list 的一页回执（#53）：`rows` 是本页条目（新到旧）；
+/// `has_more` 仅带 `before` 的请求在位（keyset 翻页权威信号，false 即
+/// 到底），不带 before 的旧形回执无此键（None），饱和判定回落
+/// [`issue_list_saturated`] 启发式。
+#[derive(Debug)]
+pub struct IssueListPage {
+    /// 本页条目（新到旧）。
+    pub rows: Vec<Value>,
+    /// 是否还有更旧一页（仅 before 请求在位）。
+    pub has_more: Option<bool>,
+}
+
 /// # Errors
 ///
-/// 失败返回 `String` 错误（校验不过、网络与解析类、服务端 error 透传）。
-/// 列表面（list）：GET /api/issues?tool=&status=&limit=（limit 1 至 100，
-/// 新到旧；tool 与 status 百分号编码）；回 {ok,count,issues[]}。count 是
-/// 返回条数（受 limit 截断）非在册总数，饱和提示见
+/// 失败返回 `String` 错误（网络与解析类、服务端 error 透传，含 before
+/// 非法值的 400 归因）。
+/// 列表面（list）：GET /api/issues?tool=&status=&limit=&before=（limit
+/// 1 至 100，新到旧；tool 与 status 与 before 百分号编码；before 是
+/// keyset 游标，#53，取该 id 之前更旧一页，非法值服务端回 400 透传）；
+/// 回 {ok,count,issues 数组，before 请求另有 has_more 布尔}。
+/// count 是返回条数（受 limit 截断）非在册总数，饱和提示见
 /// [`issue_list_truncation_hint`]。
-pub fn list_issues(tool: &str, status: Option<&str>, limit: u32) -> Result<Vec<Value>, String> {
+pub fn list_issues(
+    tool: &str,
+    status: Option<&str>,
+    limit: u32,
+    before: Option<&str>,
+) -> Result<IssueListPage, String> {
     let limit = clamp_issue_limit(limit);
     let mut url = format!(
         "{}/api/issues?tool={}&limit={}",
@@ -175,6 +197,9 @@ pub fn list_issues(tool: &str, status: Option<&str>, limit: u32) -> Result<Vec<V
     );
     if let Some(s) = status {
         url.push_str(&format!("&status={}", urlencode(s)));
+    }
+    if let Some(b) = before {
+        url.push_str(&format!("&before={}", urlencode(b)));
     }
     let resp = match ureq::get(&url)
         .set("User-Agent", "hst-issue")
@@ -191,10 +216,14 @@ pub fn list_issues(tool: &str, status: Option<&str>, limit: u32) -> Result<Vec<V
         .map_err(|e| format!("read list body: {e}"))?;
     let v: Value = serde_json::from_str(&text).map_err(|e| format!("parse list: {e}"))?;
     if status_code == 200 && v["ok"] == json!(true) {
-        v["issues"]
+        let rows = v["issues"]
             .as_array()
             .cloned()
-            .ok_or_else(|| "issues field missing".to_string())
+            .ok_or_else(|| "issues field missing".to_string())?;
+        Ok(IssueListPage {
+            rows,
+            has_more: v["has_more"].as_bool(),
+        })
     } else {
         Err(format!(
             "list failed status={status_code} error={}",
@@ -376,6 +405,7 @@ mod tests {
         );
         assert!(h.contains("--status"), "{h}");
         assert!(h.contains("--limit"), "{h}");
+        assert!(h.contains("--before"), "{h}");
         assert!(h.contains(&base_url()), "{h}");
     }
 

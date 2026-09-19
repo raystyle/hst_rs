@@ -284,6 +284,7 @@ fn issue_list_help_documents_default_limit_and_count_semantics() {
     assert!(s.contains("缺省 100"), "默认值入 help：{s}");
     assert!(s.contains("返回条数非在册总数"), "count 语义入 help：{s}");
     assert!(s.contains("截断提示"), "饱和提示指引入 help：{s}");
+    assert!(s.contains("--before"), "翻页游标入 help（#53）：{s}");
 }
 
 #[test]
