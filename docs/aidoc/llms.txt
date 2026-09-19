@@ -2,7 +2,7 @@
 
 > hst-cli：HST（Hooks, Statusline, Trace）库面——四家 agent（claude、
 
-## hst-cli 2.4.0
+## hst-cli 2.5.0
 
 - [hst-cli overview](hst_cli/index.md): hst-cli：HST（Hooks, Statusline, Trace）库面——四家 agent（claude、
 - [hst-cli::agents](hst_cli/agents.md): 四家 agent 探测（PATH、env、hst 自管根、默认目录四源）。

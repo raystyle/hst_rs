@@ -308,10 +308,46 @@ if ($env:HST_STATE_FILE) {
     }
 }
 if (-not $state) { $state = 'unknown' }
+# 注册哨兵（REQ-014，issue #31）：unknown 时探注册面（按 agent 定位配置
+# 文件，标记串 hst-state.sh），缺失即升格 no-hook! 可见告警；节流窗（每
+# agent 1 小时）到期才 best-effort 自愈调 hst hook init（幂等重注册，仅
+# hook 面不动 yolo 与状态栏配置；hst 不在 PATH 或失败静默，不阻塞渲染）。
+if ($state -eq 'unknown' -and $HOME) {
+    $regFile = switch ($agent) {
+        'claude' { Join-Path $HOME '.claude/settings.json' }
+        'codex' { Join-Path $HOME '.codex/hooks.json' }
+        'grok' { Join-Path $HOME '.grok/hooks/ohmyagents-state.json' }
+        'kimi' { Join-Path $HOME '.kimi-code/config.toml' }
+        default { $null }
+    }
+    $regOk = $false
+    if ($regFile -and (Test-Path -LiteralPath $regFile)) {
+        try { $regOk = [bool](Select-String -Path $regFile -Pattern 'hst-state.sh' -SimpleMatch -Quiet) } catch { $regOk = $false }
+    }
+    if ($regFile -and -not $regOk) {
+        $state = 'no-hook!'
+        $stampDir = Join-Path $HOME '.hst/state'
+        $stamp = Join-Path $stampDir ('.hookcheck-' + $agent)
+        $due = $true
+        try {
+            if (Test-Path -LiteralPath $stamp) {
+                $due = (([DateTime]::UtcNow - (Get-Item -LiteralPath $stamp).LastWriteTimeUtc).TotalSeconds -ge 3600)
+            }
+        } catch {}
+        if ($due) {
+            try {
+                if (-not (Test-Path -LiteralPath $stampDir)) { New-Item -ItemType Directory -Path $stampDir -Force | Out-Null }
+                [IO.File]::WriteAllText($stamp, 'x')
+            } catch {}
+            try { & hst hook init *> $null } catch {}
+        }
+    }
+}
 $stateColor = switch ($state) {
     'idle' { '38;5;108' }
     'working' { '38;5;179' }
     'blocked' { '38;5;203' }
+    'no-hook!' { '38;5;203' }
     default { '38;5;245' }
 }
 $hstTxt = ApplyFmt (Tmpl 'hst') @{ icon = (Ico 'hst'); agent = $agentDisp; state = $state }
@@ -1788,6 +1824,24 @@ mod tests {
         run_statusline_with(script, agent, home, stdin, &[])
     }
 
+    /// 播种注册面标记（REQ-014 哨兵探针判据）：行为测试默认种上，保住
+    /// 「无状态但注册在册 → unknown」的既有断言语义；哨兵行为测试用
+    /// run_statusline_opts 关掉播种验 no-hook! 面。
+    fn seed_registration(home: &Path, agent: &str) {
+        let rel = match agent {
+            "claude" => ".claude/settings.json",
+            "codex" => ".codex/hooks.json",
+            "grok" => ".grok/hooks/ohmyagents-state.json",
+            "kimi" => ".kimi-code/config.toml",
+            _ => return,
+        };
+        let p = home.join(rel);
+        if let Some(d) = p.parent() {
+            let _ = std::fs::create_dir_all(d);
+        }
+        let _ = std::fs::write(&p, "\"command\": \"/x/.hst/hooks/hst-state.sh\"\n");
+    }
+
     /// run_statusline 带额外 env（D46 探针定位 / 缓存隔离通道用）。
     fn run_statusline_with(
         script: &Path,
@@ -1796,8 +1850,23 @@ mod tests {
         stdin: &[u8],
         extra_env: &[(&str, std::ffi::OsString)],
     ) -> String {
+        run_statusline_opts(script, agent, home, stdin, extra_env, true)
+    }
+
+    /// run_statusline_with 的免播种变体（哨兵行为测试用）。
+    fn run_statusline_opts(
+        script: &Path,
+        agent: &str,
+        home: &Path,
+        stdin: &[u8],
+        extra_env: &[(&str, std::ffi::OsString)],
+        seed_reg: bool,
+    ) -> String {
         use std::io::Write;
         use std::process::{Command, Stdio};
+        if seed_reg {
+            seed_registration(home, agent);
+        }
         let mut cmd = Command::new("pwsh");
         cmd.arg("-NoProfile")
             .arg("-File")
@@ -2690,5 +2759,53 @@ mod tests {
         assert!(out.contains("[sandbox]"));
         assert!(!out.contains("\"old\""));
         assert!(!out.contains("[tui]"));
+    }
+
+    #[test]
+    fn sentinel_selfheal_markers_present_in_script() {
+        // REQ-014 形锁：hst 段含注册哨兵件（no-hook! 升格、hst-state.sh
+        // 探针标记、hst hook init 自愈调用、节流 stamp 面）。
+        let home = scratch("sentinel");
+        let path = deploy_script(&home).unwrap();
+        let script = std::fs::read_to_string(&path).unwrap();
+        assert!(script.contains("no-hook!"), "升格态在册");
+        assert!(script.contains("hst-state.sh"), "注册探针标记");
+        assert!(script.contains("& hst hook init"), "自愈调用");
+        assert!(script.contains(".hookcheck-"), "节流 stamp 面");
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn sentinel_probe_covers_four_agents() {
+        // 四家注册面定位（claude/codex/grok/kimi 的配置文件路径行）都在
+        // 生成脚本里。
+        let home = scratch("sentinel4");
+        let path = deploy_script(&home).unwrap();
+        let script = std::fs::read_to_string(&path).unwrap();
+        for marker in [
+            ".claude/settings.json",
+            ".codex/hooks.json",
+            ".grok/hooks/ohmyagents-state.json",
+            ".kimi-code/config.toml",
+        ] {
+            assert!(script.contains(marker), "探针面缺 {marker}");
+        }
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn sentinel_flags_missing_registration_and_stamps_throttle() {
+        // REQ-014 行为面：注册面缺位时 hst 段升格 no-hook!，且节流 stamp
+        // 落盘（自愈尝试的节流痕迹由脚本自写，不依赖 hst 在 PATH，CI 可
+        // 移植；hst hook init 的真自愈回写由本机实弹验收在 diary 记档）。
+        let home = scratch("sentinel-noreg");
+        let path = deploy_script(&home).unwrap();
+        let out = run_statusline_opts(&path, "claude", &home, b"{}", &[], false);
+        assert!(out.contains("no-hook!"), "升格态渲染：{out}");
+        assert!(
+            home.join(".hst/state/.hookcheck-claude").exists(),
+            "节流 stamp 落盘"
+        );
+        let _ = std::fs::remove_dir_all(&home);
     }
 }

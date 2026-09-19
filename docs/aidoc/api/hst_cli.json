@@ -1,6 +1,6 @@
 {
   "crate": "hst-cli",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "items": [
     {
       "path": "hst_cli::agents",

@@ -17,3 +17,5 @@
 | REQ-011 | draft | should | 输出协议可选件评估 | 待回填 |
 | REQ-012 | draft | should | 库面残破描述清算 | 待回填 |
 | REQ-013 | implemented | must | 自更新家族统一标准对齐 | update.rs 单测九件（八新加一存量改）加 cli 集成 update_version_output_parses 加实弹缺省镜像腿与降级收束 |
+| REQ-014 | implemented | must | hook注册自愈哨兵 | statusline.rs 单测三件加本机断注册实弹自愈闭环 |
+| REQ-015 | draft | should | hook注册形态迁移评估 | 待评估后回填 |
