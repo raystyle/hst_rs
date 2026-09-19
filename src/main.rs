@@ -168,7 +168,7 @@ enum IssueCmd {
         /// 条数（1 至 100，缺省 100；返回条数打满即 stderr 出截断提示）
         #[arg(long)]
         limit: Option<u32>,
-        /// 翻页游标（#53）：取该 id 之前更旧一页；响应含 has_more
+        /// 翻页游标（#53）：取该 id 之前更旧一页（末行 id 作下一页游标，短页即止）；响应含 has_more；非法值服务端回 400
         #[arg(long)]
         before: Option<String>,
     },
@@ -634,8 +634,9 @@ fn cmd_issue(cmd: IssueCmd) -> Result<(), String> {
         } => {
             // #52 同型修：默认 limit 提到服务端上限 100（旧默认 20 静默截
             // 断，open 集超限后旧条目在默认面隐形）；返回条数打满钳制后
-            // limit 时 stderr 出饱和提示。#53：before 请求的饱和判定用
-            // 响应 has_more 权威信号（false 即到底），旧形请求保持启发式。
+            // limit 时 stderr 出饱和提示。#53：饱和判定权威信号优先（has_more
+            // 在位听它的，false 即到底），缺信号回落 >= 启发式（评审 G1：
+            // 服务端一次部署回退不至于退回静默形态）。
             let eff = hst::issue::clamp_issue_limit(limit.unwrap_or(100));
             let page = hst::issue::list_issues(
                 tool.as_deref().unwrap_or("hst"),
@@ -643,10 +644,9 @@ fn cmd_issue(cmd: IssueCmd) -> Result<(), String> {
                 eff,
                 before.as_deref(),
             )?;
-            let saturated = if before.is_some() {
-                page.has_more == Some(true)
-            } else {
-                hst::issue::issue_list_saturated(page.rows.len(), eff)
+            let saturated = match page.has_more {
+                Some(hm) => hm,
+                None => hst::issue::issue_list_saturated(page.rows.len(), eff),
             };
             if saturated {
                 eprintln!("{}", hst::issue::issue_list_truncation_hint(eff));

@@ -161,8 +161,9 @@ pub fn issue_list_truncation_hint(eff: u32) -> String {
 }
 
 /// issue list 的一页回执（#53）：`rows` 是本页条目（新到旧）；
-/// `has_more` 仅带 `before` 的请求在位（keyset 翻页权威信号，false 即
-/// 到底），不带 before 的旧形回执无此键（None），饱和判定回落
+/// `has_more` 仅带 `before` 的请求透出（keyset 翻页权威信号，false 即
+/// 到底；客户端闸住，服务端在旧形请求上漂移回此键也不透出，评审 G2），
+/// 不带 before 的旧形回执无此键（None），饱和判定回落
 /// [`issue_list_saturated`] 启发式。
 #[derive(Debug)]
 pub struct IssueListPage {
@@ -222,7 +223,11 @@ pub fn list_issues(
             .ok_or_else(|| "issues field missing".to_string())?;
         Ok(IssueListPage {
             rows,
-            has_more: v["has_more"].as_bool(),
+            has_more: if before.is_some() {
+                v["has_more"].as_bool()
+            } else {
+                None
+            },
         })
     } else {
         Err(format!(

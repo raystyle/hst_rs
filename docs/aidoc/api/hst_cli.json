@@ -365,7 +365,7 @@
     {
       "path": "hst_cli::issue::IssueListPage",
       "kind": "struct",
-      "docs": "issue list 的一页回执（#53）：`rows` 是本页条目（新到旧）；\n`has_more` 仅带 `before` 的请求在位（keyset 翻页权威信号，false 即\n到底），不带 before 的旧形回执无此键（None），饱和判定回落\n[`issue_list_saturated`] 启发式。"
+      "docs": "issue list 的一页回执（#53）：`rows` 是本页条目（新到旧）；\n`has_more` 仅带 `before` 的请求透出（keyset 翻页权威信号，false 即\n到底；客户端闸住，服务端在旧形请求上漂移回此键也不透出，评审 G2），\n不带 before 的旧形回执无此键（None），饱和判定回落\n[`issue_list_saturated`] 启发式。"
     },
     {
       "path": "hst_cli::issue::base_url",

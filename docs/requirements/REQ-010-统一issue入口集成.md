@@ -29,3 +29,4 @@ issue.rs 单测三件（本地校验先行、平台与主机截断形、数字 i
 
 - [x] list 契约扩面（#52 同型修）：默认 limit 100（服务端上限钳制单源）、count 语义（返回条数非在册总数）入 help、返回条数不少于钳制后 limit 时 stderr 截断提示 `[实证: 2026-09-19 --limit 1 实弹提示行 rc=0]`
 - [x] list keyset 翻页（#53，参照 browse 0167e8c）：--before <id> 游标透传（取该 id 之前更旧一页；带 before 响应含 has_more 权威翻页信号且饱和提示以它判定，非法值服务端 400 透传归因；不带 before 旧形回执不变）；饱和提示补 --before 翻页出口 `[实证: 2026-09-19 --limit 3 --before 51 取 tool=hst 名下 id<51 降序页加 has_more=true 加提示行 rc=0]`
+- [x] #53 收口裁定（评审 G4 加 G5）：list_issues 公开签名与回执类型升级（加 before 参加 IssueListPage）按 minor 记不升 major（库面无外部 crate 消费者，评审方全仓 Cargo.toml 检索在案；CLI 面行为属能力新增）；jsonl 消费口径 = 末行 id 作下一页 before 游标、短页即止（勿靠 stderr 判终止）
