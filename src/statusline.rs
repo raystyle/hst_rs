@@ -309,9 +309,10 @@ if ($env:HST_STATE_FILE) {
 }
 if (-not $state) { $state = 'unknown' }
 # 注册哨兵（REQ-014，issue #31）：unknown 时探注册面（按 agent 定位配置
-# 文件，标记串 hst-state.sh），缺失即升格 no-hook! 可见告警；节流窗（每
-# agent 1 小时）到期才 best-effort 自愈调 hst hook init（幂等重注册，仅
-# hook 面不动 yolo 与状态栏配置；hst 不在 PATH 或失败静默，不阻塞渲染）。
+# 文件，标记串 hst-state 干 stem，覆盖 Unix .sh 与 Windows .ps1/.cmd 注册
+# 形态，评审 F2），缺失即升格 no-hook! 可见告警；节流窗（每 agent 1 小
+# 时）到期才 best-effort 自愈调 hst hook init（幂等重注册，仅 hook 面
+# 保语义不保字节；hst 不在 PATH 或失败静默，不阻塞渲染）。
 if ($state -eq 'unknown' -and $HOME) {
     $regFile = switch ($agent) {
         'claude' { Join-Path $HOME '.claude/settings.json' }
@@ -322,7 +323,7 @@ if ($state -eq 'unknown' -and $HOME) {
     }
     $regOk = $false
     if ($regFile -and (Test-Path -LiteralPath $regFile)) {
-        try { $regOk = [bool](Select-String -Path $regFile -Pattern 'hst-state.sh' -SimpleMatch -Quiet) } catch { $regOk = $false }
+        try { $regOk = [bool](Select-String -LiteralPath $regFile -Pattern 'hst-state' -SimpleMatch -Quiet) } catch { $regOk = $false }
     }
     if ($regFile -and -not $regOk) {
         $state = 'no-hook!'
@@ -330,14 +331,23 @@ if ($state -eq 'unknown' -and $HOME) {
         $stamp = Join-Path $stampDir ('.hookcheck-' + $agent)
         $due = $true
         try {
-            if (Test-Path -LiteralPath $stamp) {
-                $due = (([DateTime]::UtcNow - (Get-Item -LiteralPath $stamp).LastWriteTimeUtc).TotalSeconds -ge 3600)
+            # [IO.File] 直取 mtime（评审 F1）：dotfile 在 Unix pwsh 带
+            # Hidden 属性，Get-Item 不带 -Force 取不到会把节流整窗打穿。
+            if ([IO.File]::Exists($stamp)) {
+                $due = (([DateTime]::UtcNow - [IO.File]::GetLastWriteTimeUtc($stamp)).TotalSeconds -ge 3600)
             }
-        } catch {}
+        } catch { $due = $false }
         if ($due) {
             try {
                 if (-not (Test-Path -LiteralPath $stampDir)) { New-Item -ItemType Directory -Path $stampDir -Force | Out-Null }
-                [IO.File]::WriteAllText($stamp, 'x')
+                if ([IO.File]::Exists($stamp)) {
+                    # 窗口到期刷新 mtime（评审 G2）：并发双刷有界且 heal
+                    # 幂等，记档接受。
+                    try { [IO.File]::SetLastWriteTimeUtc($stamp, [DateTime]::UtcNow) } catch {}
+                } else {
+                    # 首创建独占（评审 G2）：并发窗格败者视作他人刚自愈。
+                    try { $fs = [IO.File]::Open($stamp, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write); if ($fs) { $fs.Close() } } catch {}
+                }
             } catch {}
             try { & hst hook init *> $null } catch {}
         }
@@ -1880,7 +1890,9 @@ mod tests {
             .env_remove("HST_CLAUDE_BIN")
             .env_remove("HST_CODEX_BIN")
             .env_remove("HST_GROK_BIN")
-            .env_remove("HST_KIMI_BIN");
+            .env_remove("HST_KIMI_BIN")
+            .env_remove("HST_ROOT")
+            .env_remove("HST_USER_HOME");
         for (k, v) in extra_env {
             cmd.env(k, v);
         }
@@ -2761,15 +2773,41 @@ mod tests {
         assert!(!out.contains("[tui]"));
     }
 
+    /// 哨兵测试的 hst 桩（评审 G5）：stub 目录前置 PATH，heal 腿不会真跑
+    /// 部署；返回 (stub 目录, 新 PATH)。
+    fn heal_stub_path(home: &Path) -> (PathBuf, std::ffi::OsString) {
+        let dir = home.join("heal-stub-bin");
+        std::fs::create_dir_all(&dir).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let p = dir.join("hst");
+            std::fs::write(&p, "#!/bin/sh\nexit 0\n").unwrap();
+            let mut perm = std::fs::metadata(&p).unwrap().permissions();
+            perm.set_mode(0o755);
+            std::fs::set_permissions(&p, perm).unwrap();
+        }
+        #[cfg(windows)]
+        std::fs::write(dir.join("hst.cmd"), "@exit /b 0\n").unwrap();
+        let cur = std::env::var_os("PATH").unwrap_or_default();
+        let joined = std::env::join_paths(
+            std::iter::once(dir.clone().into()).chain(std::env::split_paths(&cur)),
+        )
+        .unwrap();
+        (dir, joined)
+    }
+
     #[test]
     fn sentinel_selfheal_markers_present_in_script() {
-        // REQ-014 形锁：hst 段含注册哨兵件（no-hook! 升格、hst-state.sh
-        // 探针标记、hst hook init 自愈调用、节流 stamp 面）。
+        // REQ-014 形锁：hst 段含注册哨兵件（no-hook! 升格、hst-state 干
+        // stem 探针标记覆盖平台注册形态、hst hook init 自愈调用、节流
+        // stamp 面）。
         let home = scratch("sentinel");
         let path = deploy_script(&home).unwrap();
         let script = std::fs::read_to_string(&path).unwrap();
         assert!(script.contains("no-hook!"), "升格态在册");
-        assert!(script.contains("hst-state.sh"), "注册探针标记");
+        assert!(!script.contains("hst-state.sh'"), "探针不绑 .sh 字面");
+        assert!(script.contains("'hst-state'"), "注册探针 stem 标记");
         assert!(script.contains("& hst hook init"), "自愈调用");
         assert!(script.contains(".hookcheck-"), "节流 stamp 面");
         let _ = std::fs::remove_dir_all(&home);
@@ -2796,16 +2834,38 @@ mod tests {
     #[test]
     fn sentinel_flags_missing_registration_and_stamps_throttle() {
         // REQ-014 行为面：注册面缺位时 hst 段升格 no-hook!，且节流 stamp
-        // 落盘（自愈尝试的节流痕迹由脚本自写，不依赖 hst 在 PATH，CI 可
-        // 移植；hst hook init 的真自愈回写由本机实弹验收在 diary 记档）。
+        // 落盘（自愈尝试的节流痕迹由脚本自写；heal 腿经 stub PATH 隔离
+        // 不真跑部署，CI 可移植；真自愈回写由本机实弹验收在 diary 记档）。
         let home = scratch("sentinel-noreg");
         let path = deploy_script(&home).unwrap();
-        let out = run_statusline_opts(&path, "claude", &home, b"{}", &[], false);
+        let (_stub, path_env) = heal_stub_path(&home);
+        let envs: Vec<(&str, std::ffi::OsString)> = vec![("PATH", path_env)];
+        let out = run_statusline_opts(&path, "claude", &home, b"{}", &envs, false);
         assert!(out.contains("no-hook!"), "升格态渲染：{out}");
         assert!(
             home.join(".hst/state/.hookcheck-claude").exists(),
             "节流 stamp 落盘"
         );
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn sentinel_throttle_holds_across_renders() {
+        // 评审 F1 回归锁：节流窗内二次渲染不刷新 stamp（修复前 Unix pwsh
+        // 的 dotfile Hidden 属性让 mtime 读侧失效、每渲染都自愈成写战）。
+        let home = scratch("sentinel-throttle");
+        let path = deploy_script(&home).unwrap();
+        let (_stub, path_env) = heal_stub_path(&home);
+        let envs: Vec<(&str, std::ffi::OsString)> = vec![("PATH", path_env)];
+        let _ = run_statusline_opts(&path, "claude", &home, b"{}", &envs, false);
+        let stamp = home.join(".hst/state/.hookcheck-claude");
+        assert!(stamp.exists(), "首轮 stamp 落盘");
+        let m1 = std::fs::metadata(&stamp).unwrap().modified().unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(1100));
+        let out = run_statusline_opts(&path, "claude", &home, b"{}", &envs, false);
+        assert!(out.contains("no-hook!"), "仍缺位维持红字：{out}");
+        let m2 = std::fs::metadata(&stamp).unwrap().modified().unwrap();
+        assert_eq!(m1, m2, "节流窗内 stamp mtime 不变");
         let _ = std::fs::remove_dir_all(&home);
     }
 }
