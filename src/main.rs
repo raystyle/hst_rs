@@ -634,7 +634,7 @@ fn cmd_issue(cmd: IssueCmd) -> Result<(), String> {
             let eff = hst::issue::clamp_issue_limit(limit.unwrap_or(100));
             let rows =
                 hst::issue::list_issues(tool.as_deref().unwrap_or("hst"), status.as_deref(), eff)?;
-            if rows.len() as u32 == eff {
+            if hst::issue::issue_list_saturated(rows.len(), eff) {
                 eprintln!("{}", hst::issue::issue_list_truncation_hint(eff));
             }
             match hst::fmtio::mode() {

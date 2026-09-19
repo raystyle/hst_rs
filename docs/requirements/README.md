@@ -13,7 +13,7 @@
 | REQ-007 | implemented | should | 全平台SSH实测矩阵 | .tools/cross-test.sh |
 | REQ-008 | draft | should | 三扫描器缺省根统一仓根 | |
 | REQ-009 | implemented | must | 项目级yolo干扰一键清除 | clear_project_yolo_interference 单测加 cli 集成 init --clear-project-yolo |
-| REQ-010 | implemented | must | 统一issue入口集成 | hst issue new/list/show 实弹（issues.ohmygh.com，契约 = 总台 REQ-057） |
+| REQ-010 | implemented | must | 统一issue入口集成 | hst issue new/list/show 实弹（issues.ohmygh.com，契约 = 总台 REQ-057）加 #52 同型修（默认 100 加饱和提示加 help 契约锁） |
 | REQ-011 | draft | should | 输出协议可选件评估 | 待回填 |
 | REQ-012 | draft | should | 库面残破描述清算 | 待回填 |
 | REQ-013 | implemented | must | 自更新家族统一标准对齐 | update.rs 单测九件（八新加一存量改）加 cli 集成 update_version_output_parses 加实弹缺省镜像腿与降级收束 |

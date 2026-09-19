@@ -135,17 +135,25 @@ fn urlencode(s: &str) -> String {
     out
 }
 
-/// issue list 的 limit 钳制（1 至 100，服务端上限；#52 同型修）：钳制
-/// 单源，命令面默认值与饱和提示判定共用。
+/// issue list 的 limit 钳制（1 至 100；上限源 = 总台 REQ-057 服务端契约，
+/// browse-rs #52 同款配方；#52 同型修）：钳制单源，命令面默认值与饱和
+/// 提示判定共用。
 pub fn clamp_issue_limit(limit: u32) -> u32 {
     limit.clamp(1, 100)
+}
+
+/// issue list 饱和判定（#52 同型修，评审 G1）：返回条数不少于钳制后
+/// limit 即示警；用 `>=` 不用 `==`，服务端若返回多于请求值，`==` 会
+/// 静默漏报，正是要消灭的静默截断形态。
+pub fn issue_list_saturated(returned: usize, eff: u32) -> bool {
+    returned >= eff as usize
 }
 
 /// issue list 饱和提示行（#52 同型修）：返回条数打满钳制后 limit 时出
 /// 此行到 stderr，指向 `--status` 过滤收窄或网页面看全量；不打满不出。
 pub fn issue_list_truncation_hint(eff: u32) -> String {
     format!(
-        "issue.list.truncated=limit-reached limit={eff} hint=返回条数打满 limit，可能仍有更多；--status <open|closed> 收窄过滤，或网页面看全量 {}",
+        "issue.list.truncated=limit-reached limit={eff} hint=返回条数打满 limit，可能仍有更多；--status <open|closed> 收窄过滤、提高 --limit（上限 100），或网页面看全量 {}",
         base_url()
     )
 }
@@ -359,13 +367,24 @@ mod tests {
 
     #[test]
     fn truncation_hint_names_limit_filter_and_web_face() {
-        // 饱和提示三件：钳制后 limit 值、--status 收窄指引、网页面看全量。
+        // 饱和提示四件：钳制后 limit 值、--status 收窄指引、提高 --limit
+        // 出口、网页面看全量（评审 G3）。
         let h = issue_list_truncation_hint(100);
         assert!(
             h.starts_with("issue.list.truncated=limit-reached limit=100"),
             "{h}"
         );
         assert!(h.contains("--status"), "{h}");
+        assert!(h.contains("--limit"), "{h}");
         assert!(h.contains(&base_url()), "{h}");
+    }
+
+    #[test]
+    fn saturation_uses_lower_bound_not_equality() {
+        // 饱和判定（评审 G1）：eff-1 不出、eff 出、eff+1 也出（>= 语义，
+        // 服务端多返不漏报）。
+        assert!(!issue_list_saturated(99, 100));
+        assert!(issue_list_saturated(100, 100));
+        assert!(issue_list_saturated(101, 100));
     }
 }

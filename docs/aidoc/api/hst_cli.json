@@ -370,12 +370,17 @@
     {
       "path": "hst_cli::issue::clamp_issue_limit",
       "kind": "function",
-      "docs": "issue list 的 limit 钳制（1 至 100，服务端上限；#52 同型修）：钳制\n单源，命令面默认值与饱和提示判定共用。"
+      "docs": "issue list 的 limit 钳制（1 至 100；上限源 = 总台 REQ-057 服务端契约，\nbrowse-rs #52 同款配方；#52 同型修）：钳制单源，命令面默认值与饱和\n提示判定共用。"
     },
     {
       "path": "hst_cli::issue::file_issue",
       "kind": "function",
       "docs": "提交面（new）：title trim 后 1 至 200、body 至多 20000、version 至多 40\n（客户端先截断，长度单位 UTF-16）；201 回 {ok,id,url}；429 每 IP 限速；\n400 校验不过（服务端 error 文案透传）。\n# Errors\n\n失败返回 `String` 错误（校验不过、网络与解析类、服务端 error 透传）。"
+    },
+    {
+      "path": "hst_cli::issue::issue_list_saturated",
+      "kind": "function",
+      "docs": "issue list 饱和判定（#52 同型修，评审 G1）：返回条数不少于钳制后\nlimit 即示警；用 `>=` 不用 `==`，服务端若返回多于请求值，`==` 会\n静默漏报，正是要消灭的静默截断形态。"
     },
     {
       "path": "hst_cli::issue::issue_list_truncation_hint",

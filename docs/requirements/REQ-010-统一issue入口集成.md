@@ -26,3 +26,5 @@ tags: ['issue', 'REQ-057', 'v2.2.0']
 ## trace
 
 issue.rs 单测三件（本地校验先行、平台与主机截断形、数字 id 本地拒）加 cli 集成（无效标题本地拒）加实弹：issue #6 提交且 list 可见、show 全文 `[实证: 2026-09-17 issues.ohmygh.com/i/6]`。
+
+- [x] list 契约扩面（#52 同型修）：默认 limit 100（服务端上限钳制单源）、count 语义（返回条数非在册总数）入 help、返回条数不少于钳制后 limit 时 stderr 截断提示 `[实证: 2026-09-19 --limit 1 实弹提示行 rc=0]`
