@@ -10,7 +10,9 @@ env `HST_ISSUES_API` 覆盖基址（测与灰度）。
 ## Functions
 
 - `base_url` — API 基址（env `HST_ISSUES_API` 覆盖，缺省总台统一入口）。
+- `clamp_issue_limit` — issue list 的 limit 钳制（1 至 100，服务端上限；#52 同型修）：钳制
 - `file_issue` — 提交面（new）：title trim 后 1 至 200、body 至多 20000、version 至多 40
+- `issue_list_truncation_hint` — issue list 饱和提示行（#52 同型修）：返回条数打满钳制后 limit 时出
 - `list_issues` — # Errors
 - `render_show_kv` — 详情面 kv 行渲染（codex 三面批二轮 F1 G3：抽纯函数加单测根治「无测试
 - `show_issue` — # Errors

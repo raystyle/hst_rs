@@ -368,14 +368,24 @@
       "docs": "API 基址（env `HST_ISSUES_API` 覆盖，缺省总台统一入口）。"
     },
     {
+      "path": "hst_cli::issue::clamp_issue_limit",
+      "kind": "function",
+      "docs": "issue list 的 limit 钳制（1 至 100，服务端上限；#52 同型修）：钳制\n单源，命令面默认值与饱和提示判定共用。"
+    },
+    {
       "path": "hst_cli::issue::file_issue",
       "kind": "function",
       "docs": "提交面（new）：title trim 后 1 至 200、body 至多 20000、version 至多 40\n（客户端先截断，长度单位 UTF-16）；201 回 {ok,id,url}；429 每 IP 限速；\n400 校验不过（服务端 error 文案透传）。\n# Errors\n\n失败返回 `String` 错误（校验不过、网络与解析类、服务端 error 透传）。"
     },
     {
+      "path": "hst_cli::issue::issue_list_truncation_hint",
+      "kind": "function",
+      "docs": "issue list 饱和提示行（#52 同型修）：返回条数打满钳制后 limit 时出\n此行到 stderr，指向 `--status` 过滤收窄或网页面看全量；不打满不出。"
+    },
+    {
       "path": "hst_cli::issue::list_issues",
       "kind": "function",
-      "docs": "# Errors\n\n失败返回 `String` 错误（校验不过、网络与解析类、服务端 error 透传）。\n列表面（list）：GET /api/issues?tool=&status=&limit=（limit 1 至 100，\n新到旧；tool 与 status 百分号编码）；回 {ok,count,issues[]}。"
+      "docs": "# Errors\n\n失败返回 `String` 错误（校验不过、网络与解析类、服务端 error 透传）。\n列表面（list）：GET /api/issues?tool=&status=&limit=（limit 1 至 100，\n新到旧；tool 与 status 百分号编码）；回 {ok,count,issues[]}。count 是\n返回条数（受 limit 截断）非在册总数，饱和提示见\n[`issue_list_truncation_hint`]。"
     },
     {
       "path": "hst_cli::issue::render_show_kv",

@@ -157,7 +157,7 @@ enum IssueCmd {
         #[arg(long)]
         body: Option<String>,
     },
-    /// 列 issue（缺省 tool=hst，新到旧）
+    /// 列 issue（缺省 tool=hst，新到旧；count 为返回条数非在册总数）
     List {
         /// 按仓过滤（缺省 hst）
         #[arg(long)]
@@ -165,7 +165,7 @@ enum IssueCmd {
         /// 按状态过滤（open 或 closed）
         #[arg(long)]
         status: Option<String>,
-        /// 条数（1 至 100，缺省 20）
+        /// 条数（1 至 100，缺省 100；返回条数打满即 stderr 出截断提示）
         #[arg(long)]
         limit: Option<u32>,
     },
@@ -628,11 +628,15 @@ fn cmd_issue(cmd: IssueCmd) -> Result<(), String> {
             status,
             limit,
         } => {
-            let rows = hst::issue::list_issues(
-                tool.as_deref().unwrap_or("hst"),
-                status.as_deref(),
-                limit.unwrap_or(20),
-            )?;
+            // #52 同型修：默认 limit 提到服务端上限 100（旧默认 20 静默截
+            // 断，open 集超限后旧条目在默认面隐形）；返回条数打满钳制后
+            // limit 时 stderr 出饱和提示。
+            let eff = hst::issue::clamp_issue_limit(limit.unwrap_or(100));
+            let rows =
+                hst::issue::list_issues(tool.as_deref().unwrap_or("hst"), status.as_deref(), eff)?;
+            if rows.len() as u32 == eff {
+                eprintln!("{}", hst::issue::issue_list_truncation_hint(eff));
+            }
             match hst::fmtio::mode() {
                 hst::fmtio::Format::Json => {
                     let cwd = std::env::current_dir().unwrap_or_default();

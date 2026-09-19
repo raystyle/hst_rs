@@ -270,6 +270,23 @@ fn issue_new_invalid_title_fails_locally() {
 }
 
 #[test]
+fn issue_list_help_documents_default_limit_and_count_semantics() {
+    // #52 同型修的命令面契约：默认 limit 100 与 count 语义（返回条数非
+    // 在册总数）入 help，防回退漂移（本地 help 面，不触网）。
+    let out = hst()
+        .args(["issue", "list", "--help"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let s = String::from_utf8_lossy(&out);
+    assert!(s.contains("缺省 100"), "默认值入 help：{s}");
+    assert!(s.contains("返回条数非在册总数"), "count 语义入 help：{s}");
+    assert!(s.contains("截断提示"), "饱和提示指引入 help：{s}");
+}
+
+#[test]
 fn llms_flag_prints_compact_manual() {
     // REQ-060 更正后：--llms 是族标准名，裸出 markdown 手册（名加版本加
     // 定位加子命令表加通用旗标加常用例，活命令树自适应，至多 120 行）。

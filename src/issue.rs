@@ -135,13 +135,30 @@ fn urlencode(s: &str) -> String {
     out
 }
 
+/// issue list 的 limit 钳制（1 至 100，服务端上限；#52 同型修）：钳制
+/// 单源，命令面默认值与饱和提示判定共用。
+pub fn clamp_issue_limit(limit: u32) -> u32 {
+    limit.clamp(1, 100)
+}
+
+/// issue list 饱和提示行（#52 同型修）：返回条数打满钳制后 limit 时出
+/// 此行到 stderr，指向 `--status` 过滤收窄或网页面看全量；不打满不出。
+pub fn issue_list_truncation_hint(eff: u32) -> String {
+    format!(
+        "issue.list.truncated=limit-reached limit={eff} hint=返回条数打满 limit，可能仍有更多；--status <open|closed> 收窄过滤，或网页面看全量 {}",
+        base_url()
+    )
+}
+
 /// # Errors
 ///
 /// 失败返回 `String` 错误（校验不过、网络与解析类、服务端 error 透传）。
 /// 列表面（list）：GET /api/issues?tool=&status=&limit=（limit 1 至 100，
-/// 新到旧；tool 与 status 百分号编码）；回 {ok,count,issues[]}。
+/// 新到旧；tool 与 status 百分号编码）；回 {ok,count,issues[]}。count 是
+/// 返回条数（受 limit 截断）非在册总数，饱和提示见
+/// [`issue_list_truncation_hint`]。
 pub fn list_issues(tool: &str, status: Option<&str>, limit: u32) -> Result<Vec<Value>, String> {
-    let limit = limit.clamp(1, 100);
+    let limit = clamp_issue_limit(limit);
     let mut url = format!(
         "{}/api/issues?tool={}&limit={}",
         base_url(),
@@ -328,5 +345,27 @@ mod tests {
     fn show_rejects_non_numeric_id_locally() {
         assert!(show_issue("abc").is_err());
         assert!(show_issue("").is_err());
+    }
+
+    #[test]
+    fn clamp_issue_limit_bounds_to_server_ceiling() {
+        // #52 同型修：钳制单源（1 至 100，服务端上限）。
+        assert_eq!(clamp_issue_limit(0), 1);
+        assert_eq!(clamp_issue_limit(1), 1);
+        assert_eq!(clamp_issue_limit(50), 50);
+        assert_eq!(clamp_issue_limit(100), 100);
+        assert_eq!(clamp_issue_limit(500), 100);
+    }
+
+    #[test]
+    fn truncation_hint_names_limit_filter_and_web_face() {
+        // 饱和提示三件：钳制后 limit 值、--status 收窄指引、网页面看全量。
+        let h = issue_list_truncation_hint(100);
+        assert!(
+            h.starts_with("issue.list.truncated=limit-reached limit=100"),
+            "{h}"
+        );
+        assert!(h.contains("--status"), "{h}");
+        assert!(h.contains(&base_url()), "{h}");
     }
 }
