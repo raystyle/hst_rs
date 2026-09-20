@@ -236,7 +236,7 @@ enum ArtifactCmd {
         #[arg(long = "git-sha")]
         git_sha: Option<String>,
     },
-    /// 产物事件（attest_dev 加 attest_prod 加 verification_failed 加 promote 加 demode 加 supersede；payload --env 与 --note）
+    /// 产物事件（attest_dev 加 attest_prod 加 verification_failed 加 promote 加 demote 加 supersede；attest_prod 的 env 由服务端强制补）
     Attest {
         /// artifact id
         id: String,
@@ -269,7 +269,13 @@ enum ArtifactCmd {
 #[derive(Subcommand)]
 enum LedgerCmd {
     /// 生成 Ed25519 密钥对（私钥写 ~/.hst/ledger/ed25519.key 0600，不打印不进 argv；公钥 JWK 与 kid 打印供总台在册）
-    Keygen,
+    Keygen {
+        /// 确认覆盖在位密档（销毁旧私钥不可恢复）
+        #[arg(long)]
+        force: bool,
+    },
+    /// 本地私钥与内置公钥的配对自检（不配对则写入全体 401 难归因；密档缺位报 absent）
+    Verify,
 }
 
 #[derive(Subcommand)]
@@ -556,7 +562,8 @@ fn run() -> Result<(), String> {
         Commands::Trace { cmd } => cmd_trace(cmd),
         Commands::Artifact { cmd } => cmd_artifact(cmd),
         Commands::Ledger { cmd } => match cmd {
-            LedgerCmd::Keygen => cmd_ledger_keygen(),
+            LedgerCmd::Keygen { force } => cmd_ledger_keygen(force),
+            LedgerCmd::Verify => cmd_ledger_verify(),
         },
         Commands::Yolo { cmd } => match cmd {
             YoloCmd::Check { project } => cmd_yolo_check(project),
@@ -951,8 +958,11 @@ fn cmd_artifact(cmd: ArtifactCmd) -> Result<(), String> {
 }
 
 /// `hst ledger keygen`：密钥对生成（私钥落密档，公钥 JWK 与 kid 打印）。
-fn cmd_ledger_keygen() -> Result<(), String> {
-    let (kid, jwk) = hst::ledger::keygen_write()?;
+fn cmd_ledger_keygen(force: bool) -> Result<(), String> {
+    let (kid, jwk, old_kid) = hst::ledger::keygen_write(force)?;
+    if let Some(old) = old_kid {
+        println!("ledger.keygen.old_kid={old}");
+    }
     println!("ledger.keygen.kid={kid}");
     println!("ledger.keygen.jwk={jwk}");
     println!(
@@ -961,6 +971,26 @@ fn cmd_ledger_keygen() -> Result<(), String> {
     );
     println!("ledger.keygen.hint=公钥 JWK 与 kid 供总台在册（在册后方可写入）");
     Ok(())
+}
+
+/// `hst ledger verify`：本地私钥与内置公钥配对自检。
+fn cmd_ledger_verify() -> Result<(), String> {
+    match hst::ledger::pairing_ok()? {
+        Some(true) => {
+            println!("ledger.pair=ok kid={}", hst::ledger::key_id());
+            Ok(())
+        }
+        Some(false) => {
+            println!("ledger.pair=mismatch kid={}", hst::ledger::key_id());
+            println!("ledger.pair.hint=本地私钥与内置公钥 JWK 不配对（写入会全体 401）；轮换密钥对后需同步换 CLI 内置常量并在册新 kid");
+            Ok(())
+        }
+        None => {
+            println!("ledger.pair=absent kid={}", hst::ledger::key_id());
+            println!("ledger.pair.hint=私钥密档或 env 缺位；hst ledger keygen 生成");
+            Ok(())
+        }
+    }
 }
 
 /// `hst diagnose cache|agents`：活性诊断族（D21）。打真 API、烧最小 token。

@@ -445,7 +445,7 @@
     {
       "path": "hst_cli::ledger::issues_list",
       "kind": "function",
-      "docs": "issue 列表（GET，家族形）：limit 缺省 100（钳制 1 至 100），before\nkeyset 游标，`more=1` 使 has_more 恒在（旧形不带 before 时键缺省）。\n# Errors\n\n失败返回 `String` 错误（网络与解析类、服务端 error 透传）。"
+      "docs": "issue 列表（GET，家族形）：limit 缺省 100（钳制 1 至 100），before\nkeyset 游标，`more=1` 使 has_more 恒在（与 before 无关，服务端契约）。\n# Errors\n\n失败返回 `String` 错误（网络与解析类、服务端 error 透传）。"
     },
     {
       "path": "hst_cli::ledger::key_id",
@@ -455,7 +455,7 @@
     {
       "path": "hst_cli::ledger::keygen_write",
       "kind": "function",
-      "docs": "密钥对生成（一次性或轮换）：写私钥密档（0600，目录 `~/.hst/ledger/`）\n并返回 (kid, JWK)；私钥不打印不进 argv，公钥 JWK 供总台在册（在册后\n方可写入）。\n# Errors\n\n失败返回 `String` 错误（路径与写入类）。"
+      "docs": "密钥对生成（一次性或轮换）：写私钥密档（0600，目录 `~/.hst/ledger/`）\n并返回 (kid, JWK, 旧 kid)；私钥不打印不进 argv，公钥 JWK 供总台在册\n（在册后方可写入）。在位密档非 `--force` 即拒（防静默销毁）。\n# Errors\n\n失败返回 `String` 错误（路径与写入类）。"
     },
     {
       "path": "hst_cli::ledger::ledger_base",
@@ -466,6 +466,11 @@
       "path": "hst_cli::ledger::load_signing_key",
       "kind": "function",
       "docs": "载入签名私钥：env `HST_LEDGER_PRIVATE_KEY`（base64url seed）优先，\n次本地密档。不进 argv 不进仓。"
+    },
+    {
+      "path": "hst_cli::ledger::pairing_ok",
+      "kind": "function",
+      "docs": "本地私钥与内置公钥 JWK 的配对自检（评审 G3）：密档/env 缺位回 None\n（无法判），在位回配对与否——不配对则写入会全体 401 且难归因。"
     },
     {
       "path": "hst_cli::ledger::private_key_path",

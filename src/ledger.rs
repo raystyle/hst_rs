@@ -133,32 +133,68 @@ fn b64url(seed: &[u8]) -> String {
 }
 
 /// 密钥对生成（一次性或轮换）：写私钥密档（0600，目录 `~/.hst/ledger/`）
-/// 并返回 (kid, JWK)；私钥不打印不进 argv，公钥 JWK 供总台在册（在册后
-/// 方可写入）。
+/// 并返回 (kid, JWK, 旧 kid)；私钥不打印不进 argv，公钥 JWK 供总台在册
+/// （在册后方可写入）。在位密档非 `--force` 即拒（防静默销毁）。
 /// # Errors
 ///
 /// 失败返回 `String` 错误（路径与写入类）。
-pub fn keygen_write() -> Result<(String, String), String> {
+pub fn keygen_write(force: bool) -> Result<(String, String, Option<String>), String> {
+    let path = private_key_path()?;
+    // 覆盖守卫（评审 G2b）：在册私钥静默销毁 = 后续写入全 401 且旧钥不可
+    // 恢复；非 force 即拒，force 时先带出旧 kid 供对账。
+    let old_kid = if path.exists() {
+        let old = load_signing_key().ok().map(|k| {
+            let x = b64url(&k.verifying_key().to_bytes());
+            sha256_hex(format!("{{\"crv\":\"Ed25519\",\"kty\":\"OKP\",\"x\":\"{x}\"}}").as_bytes())
+        });
+        if !force {
+            return Err(format!(
+                "密档已在位（{}）；重复生成会销毁在册私钥，确认轮换加 --force",
+                path.display()
+            ));
+        }
+        old
+    } else {
+        None
+    };
     let sk = SigningKey::generate(&mut rand::rngs::OsRng);
     let x = b64url(&sk.verifying_key().to_bytes());
     let jwk = format!("{{\"crv\":\"Ed25519\",\"kty\":\"OKP\",\"x\":\"{x}\"}}");
     let kid = sha256_hex(jwk.as_bytes());
-    let path = private_key_path()?;
     if let Some(d) = path.parent() {
         std::fs::create_dir_all(d).map_err(|e| format!("{}: {e}", d.display()))?;
     }
-    std::fs::write(&path, b64url(&sk.to_bytes()))
-        .map_err(|e| format!("{}: {e}", path.display()))?;
+    // 原子 0600（评审 G2a）：OpenOptions 带模式一次落，消两步间的 0644 窗。
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
-        let mut perm = std::fs::metadata(&path)
-            .map_err(|e| format!("{}: {e}", path.display()))?
-            .permissions();
-        perm.set_mode(0o600);
-        std::fs::set_permissions(&path, perm).map_err(|e| format!("{}: {e}", path.display()))?;
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut opts = std::fs::OpenOptions::new();
+        opts.write(true).create(true).truncate(true).mode(0o600);
+        let mut f = opts
+            .open(&path)
+            .map_err(|e| format!("{}: {e}", path.display()))?;
+        use std::io::Write;
+        f.write_all(b64url(&sk.to_bytes()).as_bytes())
+            .map_err(|e| format!("{}: {e}", path.display()))?;
     }
-    Ok((kid, jwk))
+    #[cfg(not(unix))]
+    std::fs::write(&path, b64url(&sk.to_bytes()))
+        .map_err(|e| format!("{}: {e}", path.display()))?;
+    Ok((kid, jwk, old_kid))
+}
+
+/// 本地私钥与内置公钥 JWK 的配对自检（评审 G3）：密档/env 缺位回 None
+/// （无法判），在位回配对与否——不配对则写入会全体 401 且难归因。
+pub fn pairing_ok() -> Result<Option<bool>, String> {
+    let key = match load_signing_key() {
+        Ok(k) => k,
+        Err(_) => return Ok(None),
+    };
+    let x = b64url(&key.verifying_key().to_bytes());
+    let expect = serde_json::from_str::<Value>(PUBKEY_JWK)
+        .ok()
+        .and_then(|j| j["x"].as_str().map(String::from));
+    Ok(expect.map(|e| e == x))
 }
 
 /// 载入签名私钥：env `HST_LEDGER_PRIVATE_KEY`（base64url seed）优先，
@@ -202,11 +238,21 @@ fn rand_hex32() -> String {
 /// 写入道（POST 全必填五头）：构造头、签名、发请求、解回执。非 2xx 透
 /// 传服务端 error；幂等命中（200 加 replay）原样透出由调用方标注。
 fn post_signed(path: &str, body: &Value) -> Result<Value, String> {
+    post_signed_with_idem(path, body, None)
+}
+
+/// [`post_signed`] 的确定性幂等键形（评审 G1）：同键同内容重试被服务端
+/// 幂等命中返 replay（不重复追加事件），关单链用。
+fn post_signed_with_idem(
+    path: &str,
+    body: &Value,
+    idem_fixed: Option<&str>,
+) -> Result<Value, String> {
     let key = load_signing_key()?;
     let body_text = serde_json::to_string(body).map_err(|e| format!("serialize body: {e}"))?;
     let ts = unix_secs().to_string();
     let nonce = rand_hex32();
-    let idem = rand_hex32();
+    let idem = idem_fixed.map(String::from).unwrap_or_else(rand_hex32);
     let base = signature_base("POST", path, &ts, &nonce, &idem, &body_text);
     let sig = key.sign(base.as_bytes()).to_bytes();
     let url = format!("{}{path}", ledger_base());
@@ -339,6 +385,7 @@ pub fn issue_open(
 /// # Errors
 ///
 /// 失败返回 `String` 错误（本地校验、网络与解析类、服务端 error 透传）。
+
 pub fn issue_event(
     n: u64,
     ev_type: &str,
@@ -358,6 +405,33 @@ pub fn issue_event(
     post_signed(&format!("/repos/{REPO_ID}/issues/{n}/events"), &body)
 }
 
+/// [`issue_event`] 的确定性幂等键形（评审 G1）：键 = sha256hex(流加类型
+/// 加内容锚)，重试被服务端幂等去重不重复追加。
+fn issue_event_with_idem(
+    n: u64,
+    ev_type: &str,
+    payload: Value,
+    note: Option<&str>,
+    anchor: &str,
+) -> Result<Value, String> {
+    if !ISSUE_EVENT_TYPES.contains(&ev_type) {
+        return Err(format!(
+            "type 仅 {}，得 {ev_type}",
+            ISSUE_EVENT_TYPES.join("|")
+        ));
+    }
+    let mut body = json!({ "type": ev_type, "payload": payload });
+    if let Some(b) = note {
+        body["body"] = json!(b);
+    }
+    let idem = sha256_hex(format!("hst-issue-{n}-{ev_type}-{anchor}").as_bytes());
+    post_signed_with_idem(
+        &format!("/repos/{REPO_ID}/issues/{n}/events"),
+        &body,
+        Some(&idem),
+    )
+}
+
 /// issue 关单链（result 引 digest 先行，status to=done 收尾；REQ-063 关
 /// 单完成判据）。返回两事件回执数组。
 /// # Errors
@@ -369,13 +443,15 @@ pub fn issue_close(n: u64, digest: &str, note: Option<&str>) -> Result<Vec<Value
     if let Some(b) = note {
         payload["note"] = json!(b);
     }
-    let result = issue_event(n, "result", payload, note)?;
-    let status = issue_event(n, "status", json!({ "to": "done" }), None)?;
+    // 确定性幂等键（评审 G1）：首段成次段败后重跑，result 与 done 都按
+    // 键幂等命中返 replay，不重复追加（账本只增语义保持）。
+    let result = issue_event_with_idem(n, "result", payload, note, digest)?;
+    let status = issue_event_with_idem(n, "status", json!({ "to": "done" }), None, digest)?;
     Ok(vec![result, status])
 }
 
 /// issue 列表（GET，家族形）：limit 缺省 100（钳制 1 至 100），before
-/// keyset 游标，`more=1` 使 has_more 恒在（旧形不带 before 时键缺省）。
+/// keyset 游标，`more=1` 使 has_more 恒在（与 before 无关，服务端契约）。
 /// # Errors
 ///
 /// 失败返回 `String` 错误（网络与解析类、服务端 error 透传）。
@@ -574,9 +650,10 @@ mod tests {
                 .as_millis()
         ));
         std::env::set_var("HST_ROOT", &root);
-        let (kid, jwk) = keygen_write().unwrap();
+        let (kid, jwk, old) = keygen_write(false).unwrap();
         assert_eq!(kid.len(), 64);
-        assert!(jwk.contains("\"Ed25519\""));
+        assert!(old.is_none(), "首代无旧 kid");
+        assert!(jwk.contains("Ed25519"));
         let via_file = load_signing_key().unwrap();
         // env 通道同钥。
         let seed_b64 = {
@@ -589,6 +666,11 @@ mod tests {
         // 坏 seed 拒。
         std::env::set_var("HST_LEDGER_PRIVATE_KEY", "tooshort");
         assert!(load_signing_key().is_err());
+        // 覆盖守卫：在位密档非 force 拒、force 过（评审 G2b）。
+        std::env::remove_var("HST_LEDGER_PRIVATE_KEY");
+        assert!(keygen_write(false).is_err());
+        let (_, _, old2) = keygen_write(true).unwrap();
+        assert_eq!(old2, Some(kid.clone()), "force 带出旧 kid");
         std::env::remove_var("HST_LEDGER_PRIVATE_KEY");
         std::env::remove_var("HST_ROOT");
         let _ = std::fs::remove_dir_all(&root);

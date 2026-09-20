@@ -27,6 +27,7 @@ issue 流（bug 加 improvement 任务的立项、事件与关单）加 artifact
 - `keygen_write` — 密钥对生成（一次性或轮换）：写私钥密档（0600，目录 `~/.hst/ledger/`）
 - `ledger_base` — 账本基址（env `HST_LEDGER_URL` 覆盖，测与灰度）。
 - `load_signing_key` — 载入签名私钥：env `HST_LEDGER_PRIVATE_KEY`（base64url seed）优先，
+- `pairing_ok` — 本地私钥与内置公钥 JWK 的配对自检（评审 G3）：密档/env 缺位回 None
 - `private_key_path` — 私钥密档路径（`~/.hst/ledger/ed25519.key`，内容 = base64url 32 字节
 - `signature_base` — 签名基构造（服务端 signatureBase 同源）：`v1\nPOST\n<路径>\n<ts>\n
 - `validate_digest` — digest 校验（服务端 DIGEST_RE 同源）：`sha256:<64hex 小写>`。
