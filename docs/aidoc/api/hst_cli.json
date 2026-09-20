@@ -355,7 +355,7 @@
     {
       "path": "hst_cli::ledger",
       "kind": "module",
-      "docs": "统一 issue 入口客户端面（issues.ohmygh.com，REQ-057 对齐）。\nhst ledger 面（REQ-063 Phase 3；总台修正令 2026-09-20 权限收口）：\n客户端实现统一走 `ledger-client` crate（ledger-rs v0.1.0，舰队唯一实\n现，签名道加只增面全在其中），本模块只剩仓身份加密档管理加本地快检\n加家族读序三件。**权限只增**：issue new/list/show 加 artifact\npublish/attest（attest_dev 加 attest_prod 加 verification_failed 三验\n证型）/list；close/delete 与 status 推进加 promote/demote/supersede 归\nomc 工作台（开发工作台经 herdr 委托执行）。私钥密档\n`~/.hst/ledger/ed25519.key`（hex 32 字节，0600）或 env\n`HST_LEDGER_PRIVATE_KEY`（hex），不进仓不进 argv。"
+      "docs": "统一 issue 入口客户端面（issues.ohmygh.com，REQ-057 对齐）。\nhst ledger 面（REQ-063 Phase 3；总台修正令 2026-09-20 权限收口）：\n客户端实现统一走 `ledger-client` crate（ledger-rs，舰队唯一实现，\n签名道加只增面全在其中），本模块只剩仓身份加密档管理加本地快检\n加家族读序三件。**权限只增**：issue new/list/show 加 artifact\npublish/attest（attest_dev 加 attest_prod 加 verification_failed 三验\n证型）/list；close/delete 与 status 推进加 promote/demote/supersede 归\nomc 工作台（开发工作台经 herdr 委托执行）。私钥密档\n`~/.hst/ledger/ed25519.key`（hex 32 字节，0600）或 env\n`HST_LEDGER_PRIVATE_KEY`（hex），不进仓不进 argv。"
     },
     {
       "path": "hst_cli::ledger::ISSUE_KINDS",

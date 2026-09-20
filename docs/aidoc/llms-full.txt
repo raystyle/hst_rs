@@ -247,8 +247,8 @@ ome，D07 迁册）；本模块只留三件消费面共享的能力：hst 数据
 
 统一 issue 入口客户端面（issues.ohmygh.com，REQ-057 对齐）。
 hst ledger 面（REQ-063 Phase 3；总台修正令 2026-09-20 权限收口）：
-客户端实现统一走 `ledger-client` crate（ledger-rs v0.1.0，舰队唯一实
-现，签名道加只增面全在其中），本模块只剩仓身份加密档管理加本地快检
+客户端实现统一走 `ledger-client` crate（ledger-rs，舰队唯一实现，
+签名道加只增面全在其中），本模块只剩仓身份加密档管理加本地快检
 加家族读序三件。**权限只增**：issue new/list/show 加 artifact
 publish/attest（attest_dev 加 attest_prod 加 verification_failed 三验
 证型）/list；close/delete 与 status 推进加 promote/demote/supersede 归
