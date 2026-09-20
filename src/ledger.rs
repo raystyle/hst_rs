@@ -85,16 +85,25 @@ fn migrate_legacy_vault() -> Result<bool, String> {
             .decode(t.as_bytes())
             .map_err(|e| format!("旧形密档解码失败（{}）：{e}", p.display()))?;
         let hex_seed: String = seed.iter().map(|b| format!("{b:02x}")).collect();
-        std::fs::write(&p, &hex_seed).map_err(|e| format!("{}: {e}", p.display()))?;
+        // 原子换入（评审 G5）：同目录 temp（0600）加 rename，迁移中途中
+        // 断不丢钥（截断重写无此保证，该钥在册丢了只能重注册）。
+        let tmp = p.with_extension("key.tmp");
         #[cfg(unix)]
         {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perm = std::fs::metadata(&p)
-                .map_err(|e| format!("{}: {e}", p.display()))?
-                .permissions();
-            perm.set_mode(0o600);
-            std::fs::set_permissions(&p, perm).map_err(|e| format!("{}: {e}", p.display()))?;
+            use std::os::unix::fs::OpenOptionsExt;
+            let mut opts = std::fs::OpenOptions::new();
+            opts.write(true).create(true).truncate(true).mode(0o600);
+            let mut f = opts
+                .open(&tmp)
+                .map_err(|e| format!("{}: {e}", tmp.display()))?;
+            use std::io::Write;
+            f.write_all(hex_seed.as_bytes())
+                .map_err(|e| format!("{}: {e}", tmp.display()))?;
         }
+        #[cfg(not(unix))]
+        std::fs::write(&tmp, &hex_seed).map_err(|e| format!("{}: {e}", tmp.display()))?;
+        std::fs::rename(&tmp, &p)
+            .map_err(|e| format!("{} -> {}: {e}", tmp.display(), p.display()))?;
         return Ok(true);
     }
     Ok(false)
@@ -111,19 +120,26 @@ pub fn client() -> Result<ledger_client::Ledger, String> {
     Ok(ledger_client::Ledger::new(REPO_ID, key))
 }
 
-/// 只读客户端（GET 面免钥，评审 F2）：密钥在位用真钥，缺位用临时生成
-/// 钥（GET 不签名不消费钥，仅满足 crate 构造形）——读面不因密档缺位而
-/// 失能（新机器、CI、只读 agent）。crate 只读构造（`new_readonly`）出
-/// 台后替换此过渡形。
+/// 只读客户端（GET 面免钥，评审 F2 加 F4）：crate `new_readonly` 构造
+/// （v0.1.2 起）；密钥在位用真钥形（语义同，仅省一次生成），旧形密档
+/// 先迁移，不可解析不拦读（stderr 提示写入会失败）。写入面守钥报
+/// `LedgerError::Key` 由 crate 承担。
 /// # Errors
 ///
 /// 失败返回 `String` 错误（密钥在位但不可解析类）。
 pub fn client_readonly() -> Result<ledger_client::Ledger, String> {
-    let key = match read_seed_hex() {
-        Ok(seed) => ledger_client::KeyPair::load_secret_hex(&seed).map_err(|e| e.to_string())?,
-        Err(_) => ledger_client::KeyPair::generate(),
-    };
-    Ok(ledger_client::Ledger::new(REPO_ID, key))
+    // crate `read_only` 构造（v0.1.2）：GET 免签免钥；旧形密档先迁移，
+    // 不可解析不拦读（stderr 提示写入会失败，评审 F4）。
+    let _ = migrate_legacy_vault();
+    if let Ok(seed) = read_seed_hex() {
+        if let Ok(key) = ledger_client::KeyPair::load_secret_hex(&seed) {
+            return Ok(ledger_client::Ledger::new(REPO_ID, key));
+        }
+        eprintln!(
+            "ledger.warn=密档在位但不可解析（读面继续，写入会失败）；hst ledger verify 自检或 hst ledger keygen --force 重建"
+        );
+    }
+    Ok(ledger_client::Ledger::read_only(REPO_ID))
 }
 
 /// 密钥对生成（一次性或轮换）：自采 32 字节 seed（getrandom）写私钥密档

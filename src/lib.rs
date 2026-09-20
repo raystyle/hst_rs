@@ -42,10 +42,6 @@ pub mod verify;
 /// `hst init --yolo`：四家分级落盘、ours 退役与 pretrust（D33/D52）。
 pub mod yolo;
 
-/// 测试共享 env 互斥：动 HST_ROOT / HST_USER_HOME / SOPS_AGE_KEY_FILE 等
-/// 进程级环境变量的测试跨模块也要互斥（各自局部锁挡不住并发互踩）。
-#[cfg(test)]
-
 /// 测试期进程全局 env（HST_ROOT 等）互斥锁：set_var/remove_var 是进程级
 /// 全局态，并行测试竞态会互踩（CI 实弹：ledger roundtrip 撞 hook 测试的
 /// HST_ROOT）。凡动这些 env 的测试先取本锁。

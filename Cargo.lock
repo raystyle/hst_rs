@@ -1319,8 +1319,8 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
 name = "ledger-client"
-version = "0.1.1"
-source = "git+https://github.com/raystyle/ledger-rs?tag=v0.1.1#0c9fc085776c9507de7e4453f2493491b86166d1"
+version = "0.1.2"
+source = "git+https://github.com/raystyle/ledger-rs?tag=v0.1.2#19fb226e300f4cb4c99669b77e69c165ee69220f"
 dependencies = [
  "base64 0.22.1",
  "ed25519-dalek",

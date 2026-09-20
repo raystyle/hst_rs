@@ -215,6 +215,12 @@ enum ArtifactCmd {
         /// 依赖出处（可多次；回溯链即证据链）
         #[arg(long = "dep")]
         deps: Vec<String>,
+        /// 摘要
+        #[arg(long)]
+        summary: Option<String>,
+        /// 成败面（experience 类：success 或 failure）
+        #[arg(long)]
+        outcome: Option<String>,
         /// 说明（随 publish 事件 body）
         #[arg(long)]
         note: Option<String>,
@@ -864,6 +870,8 @@ fn cmd_artifact(cmd: ArtifactCmd) -> Result<(), String> {
             version,
             git_range,
             deps,
+            summary,
+            outcome,
             note,
         } => {
             let name_trim = name.trim();
@@ -881,7 +889,7 @@ fn cmd_artifact(cmd: ArtifactCmd) -> Result<(), String> {
             }
             hst::ledger::validate_digest(&digest)?;
             let id = hst::ledger::client()?
-                .artifact_publish(
+                .artifact_publish_full(
                     name_trim,
                     &kind,
                     &digest,
@@ -889,6 +897,8 @@ fn cmd_artifact(cmd: ArtifactCmd) -> Result<(), String> {
                     git_range.as_deref(),
                     &deps,
                     note.as_deref(),
+                    summary.as_deref(),
+                    outcome.as_deref(),
                 )
                 .map_err(|e| e.to_string())?;
             match hst::fmtio::mode() {

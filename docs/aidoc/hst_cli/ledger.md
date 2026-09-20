@@ -15,7 +15,7 @@ omc 工作台（开发工作台经 herdr 委托执行）。私钥密档
 
 - `clamp_issue_limit` — issue list 的 limit 钳制（1 至 100，服务端上限；#52 家族标准）：钳制
 - `client` — 构造标准客户端（ledger-client crate）：env 优先次密档。
-- `client_readonly` — 只读客户端（GET 面免钥，评审 F2）：密钥在位用真钥，缺位用临时生成
+- `client_readonly` — 只读客户端（GET 面免钥，评审 F2 加 F4）：crate `new_readonly` 构造
 - `issue_list_saturated` — issue list 饱和判定（#52 家族标准）：返回条数不少于钳制后 limit 即示
 - `issue_list_truncation_hint` — issue list 饱和提示行（#52/#53 家族标准）：返回条数打满钳制后 limit
 - `key_id` — kid = sha256hex(规范化 JWK)，与 ledger-client 派生约定一致；常量本身

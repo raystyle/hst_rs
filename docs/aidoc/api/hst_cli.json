@@ -385,7 +385,7 @@
     {
       "path": "hst_cli::ledger::client_readonly",
       "kind": "function",
-      "docs": "只读客户端（GET 面免钥，评审 F2）：密钥在位用真钥，缺位用临时生成\n钥（GET 不签名不消费钥，仅满足 crate 构造形）——读面不因密档缺位而\n失能（新机器、CI、只读 agent）。crate 只读构造（`new_readonly`）出\n台后替换此过渡形。\n# Errors\n\n失败返回 `String` 错误（密钥在位但不可解析类）。"
+      "docs": "只读客户端（GET 面免钥，评审 F2 加 F4）：crate `new_readonly` 构造\n（v0.1.2 起）；密钥在位用真钥形（语义同，仅省一次生成），旧形密档\n先迁移，不可解析不拦读（stderr 提示写入会失败）。写入面守钥报\n`LedgerError::Key` 由 crate 承担。\n# Errors\n\n失败返回 `String` 错误（密钥在位但不可解析类）。"
     },
     {
       "path": "hst_cli::ledger::issue_list_saturated",
