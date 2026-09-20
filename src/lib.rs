@@ -48,3 +48,9 @@ pub mod yolo;
 pub(crate) mod testenv {
     pub static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 }
+
+/// 测试期进程全局 env（HST_ROOT 等）互斥锁：set_var/remove_var 是进程级
+/// 全局态，并行测试竞态会互踩（CI 实弹：ledger roundtrip 撞 hook 测试的
+/// HST_ROOT）。凡动这些 env 的测试先取本锁。
+#[cfg(test)]
+pub(crate) static TEST_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());

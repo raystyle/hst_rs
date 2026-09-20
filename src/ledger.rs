@@ -600,6 +600,7 @@ mod tests {
 
     #[test]
     fn key_id_is_sha256_of_canonical_jwk_const() {
+        let _env_guard = crate::TEST_ENV_LOCK.lock().unwrap();
         // kid = sha256hex(JWK 常量)；常量即字母键序紧凑形（单一真相）。
         let mut h = Sha256::new();
         h.update(PUBKEY_JWK.as_bytes());
@@ -639,6 +640,7 @@ mod tests {
 
     #[test]
     fn keygen_write_and_load_roundtrip_isolated() {
+        let _env_guard = crate::TEST_ENV_LOCK.lock().unwrap();
         // keygen 落密档（0600）加 load 双通道（env 与文件）往返同钥；经
         // HST_ROOT 钉临时根隔离真档。
         let root = std::env::temp_dir().join(format!(

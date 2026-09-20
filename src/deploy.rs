@@ -1547,6 +1547,7 @@ mod tests {
 
     #[test]
     fn init_refreshes_stale_statusline_and_respects_custom_marker() {
+        let _env_guard = crate::TEST_ENV_LOCK.lock().unwrap();
         // D53（fleet 实弹）：init 全套并入状态栏面——在位旧版脚本被刷新
         //（D51 clock 段到位）、四家 statusLine 配置幂等合并；自备脚本
         // marker 保护不动；重跑内容判等零写入。
@@ -2371,6 +2372,7 @@ mod tests {
 
     #[test]
     fn retire_skips_shim_removal_when_project_root_is_oma_root() {
+        let _env_guard = crate::TEST_ENV_LOCK.lock().unwrap();
         // F3 回归钉：项目根即 hst 根（`hst init --project $HOME`）时不得
         // 把用户级 shim 当项目残留自删。HST_ROOT 注入（共享 env 锁）。
         let _g = crate::pathutil::ENV_LOCK
