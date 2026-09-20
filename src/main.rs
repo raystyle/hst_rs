@@ -221,6 +221,9 @@ enum ArtifactCmd {
         /// 成败面（experience 类：success 或 failure）
         #[arg(long)]
         outcome: Option<String>,
+        /// 关联 git sha（入 artifacts 表）
+        #[arg(long = "git-sha")]
+        git_sha: Option<String>,
         /// 说明（随 publish 事件 body）
         #[arg(long)]
         note: Option<String>,
@@ -872,6 +875,7 @@ fn cmd_artifact(cmd: ArtifactCmd) -> Result<(), String> {
             deps,
             summary,
             outcome,
+            git_sha,
             note,
         } => {
             let name_trim = name.trim();
@@ -899,6 +903,7 @@ fn cmd_artifact(cmd: ArtifactCmd) -> Result<(), String> {
                     note.as_deref(),
                     summary.as_deref(),
                     outcome.as_deref(),
+                    git_sha.as_deref(),
                 )
                 .map_err(|e| e.to_string())?;
             match hst::fmtio::mode() {
