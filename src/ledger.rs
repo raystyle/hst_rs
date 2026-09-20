@@ -120,7 +120,7 @@ pub fn client() -> Result<ledger_client::Ledger, String> {
     Ok(ledger_client::Ledger::new(REPO_ID, key))
 }
 
-/// 只读客户端（GET 面免钥，评审 F2 加 F4）：crate `new_readonly` 构造
+/// 只读客户端（GET 面免钥，评审 F2 加 F4）：crate `read_only` 构造
 /// （v0.1.2 起）；密钥在位用真钥形（语义同，仅省一次生成），旧形密档
 /// 先迁移，不可解析不拦读（stderr 提示写入会失败）。写入面守钥报
 /// `LedgerError::Key` 由 crate 承担。

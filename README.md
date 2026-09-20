@@ -68,7 +68,7 @@ hst diagnose cache           # 网关缓存命中矩阵（打真 API 烧最小 t
 hst --json --filter-output blocked doctor   # 信封只留 blocked 键（agent 面）
 ```
 
-issue 账本流（真源 ledger.ohmygh.com）：`hst issue new "<标题>" --kind bug --acceptance "<验收条件>"` 开单；`hst issue list` / `hst issue show <n>` 读面；关单与状态推进归 omc 工作台（herdr 委托 omc ledger issue status）。产物共享库：`hst artifact publish <名> --kind experience --digest <sha256:...> --note "<说明>"` 等（summary 与 outcome 等旗标随统一 crate 面暂缺，已提需求补参）。
+issue 账本流（真源 ledger.ohmygh.com）：`hst issue new "<标题>" --kind bug --acceptance "<验收条件>"` 开单；`hst issue list` / `hst issue show <n>` 读面；关单与状态推进归 omc 工作台（herdr 委托 omc ledger issue status）。产物共享库：`hst artifact publish <名> --kind experience --digest <sha256:...> --note "<说明>"` 等（summary 与 outcome 已恢复；git_sha 暂缺已提总台）。
 
 agent 手册面：`hst --llms`（紧凑 markdown 手册，随活命令树自适应）；`hst --llms --json`（机器形态）。完整选项与子命令不内联本页，以 `hst --help` 与 `hst --llms` 为准。
 

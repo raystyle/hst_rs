@@ -17,7 +17,7 @@ trace: ledger.rs 单测六件加 cli 集成三件加实弹三验（开单加列�
 - [x] 签名道：写入五头（Idempotency-Key 加 X-Key-Id 加 X-Timestamp 加 X-Nonce 加 X-Signature）；签名基七行换行连（v1 加 POST 加路径加 ts 加 nonce 加 idem 加 body sha256hex，与服务端 signatureBase 同源）；Ed25519 私钥运行时从 env `HST_LEDGER_PRIVATE_KEY`（base64url seed）或密档 `~/.hst/ledger/ed25519.key`（0600）读，不进仓不进 argv；公钥 JWK 常量内置，kid = sha256hex(常量)（单一真相不另存字面量）
 - [x] 密钥面：`hst ledger keygen` 落密档（0600）打印 kid 与 JWK（私钥不打印）；密钥对生成经一次性 example 完成，私钥只在提交侧
 - [x] issue 族：`issue new`（title 加 kind=bug|improvement 缺省 bug 加 acceptance 必填）、`issue list`（家族标准：缺省 100 加 before keyset 游标加 has_more 权威饱和判定加 count 语义加截断提示；只读面免钥）、`issue show`（timeline 取 title 与 acceptance；projection 只回状态面）。~~issue close~~ 随收口令移除（归 omc 工作台）
-- [x] artifact 族：`artifact publish`（name 加 kind 十五种加 digest 加 version 加 git_range 加 deps[] 加 note；summary 加 outcome 加 git_sha 旗标随 crate 签名暂缺，已提补参需求）、`artifact attest --type`（收口后三验证型）、~~`artifact promote`~~ 随收口令移除、`artifact list --current --env`（只读面免钥）
+- [x] artifact 族：`artifact publish`（name 加 kind 十五种加 digest 加 version 加 git_range 加 deps[] 加 note；summary 与 outcome 随 v0.1.2 已恢复；git_sha 暂缺（crate publish_full 九参无此参，已提总台））、`artifact attest --type`（收口后三验证型）、~~`artifact promote`~~ 随收口令移除、`artifact list --current --env`（只读面免钥）
 - [x] 替代面：旧 issue.rs 客户端（issues.ohmygh.com 直连）整体退役，家族三件（钳制加饱和判定加提示）迁 ledger.rs 且提示改指账本网页面；组级 help 注明真源 ledger.ohmygh.com 加旧服务过渡保役
 - [x] GET 不签名不受配额；写入 per-key 50 条每 UTC 日幂等命中不耗（服务端契约面，客户端透传 429 与 Retry-After 语义）
 - [x] env：`HST_LEDGER_URL` 覆盖基址（测与灰度）
