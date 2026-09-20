@@ -24,7 +24,7 @@ pub mod hook;
 /// hst 根解析与共享下载件（self update 复用）。
 pub mod install;
 /// 统一 issue 入口客户端面（issues.ohmygh.com，REQ-057 对齐）。
-pub mod issue;
+pub mod ledger;
 /// 的路径工具面（细则见模块文档与集成测试）。
 pub mod pathutil;
 /// 的密钥拦截闸面（细则见模块文档与集成测试）。

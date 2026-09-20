@@ -19,7 +19,7 @@ docs/research 与 docs/adr；输出信封契约见 fmtio 模块文档。
 - [`fmtio`](fmtio.md): 全局输出三态（kv/json/jsonl）与结构化错误出口契约。
 - [`hook`](hook.md): `hst hook`：事件到四态映射、用户级 session 分键 state 落盘与密钥拦截分流（D28/S030）。
 - [`install`](install.md): hst 根解析与共享下载件（self update 复用）。
-- [`issue`](issue.md): 统一 issue 入口客户端面（issues.ohmygh.com，REQ-057 对齐）。
+- [`ledger`](ledger.md): 统一 issue 入口客户端面（issues.ohmygh.com，REQ-057 对齐）。
 - [`pathutil`](pathutil.md): 的路径工具面（细则见模块文档与集成测试）。
 - [`secretguard`](secretguard.md): 的密钥拦截闸面（细则见模块文档与集成测试）。
 - [`shim`](shim.md): shim 三形态自包含状态写入器：cmd/ps1/sh 加 grok 包装（D27/D28/D39）。
@@ -242,31 +242,49 @@ ome，D07 迁册）；本模块只留三件消费面共享的能力：hst 数据
 - `managed_version` — hst 自管已装版本（manifest 的 version 字段；多个版本目录取最大）。
 
 
-<!-- hst_cli/issue.md -->
-# hst-cli::issue
+<!-- hst_cli/ledger.md -->
+# hst-cli::ledger
 
 统一 issue 入口客户端面（issues.ohmygh.com，REQ-057 对齐）。
-hst issue 面（REQ-057 对齐，总台统一入口 issues.ohmygh.com）：agent
-使用过程中遇缺陷一键反馈，自动带上下文（tool=hst 加版本加平台加主机名）。
-契约真源 = ohmycloud docs/requirements/REQ-057（POST /api/issues 体与
-校验、GET 列表与详情、每 IP 10 条每时限速）；本模块是客户端投影，
-env `HST_ISSUES_API` 覆盖基址（测与灰度）。
+hst ledger 面（REQ-063 仓级公共账本客户端，Phase 3 CLI 原生集成）：
+issue 流（bug 加 improvement 任务的立项、事件与关单）加 artifact 流
+（产物共享库 publish 加 attest 加 promote）。真源 = ledger.ohmygh.com
+（替代 issues.ohmygh.com 客户端面；旧服务过渡保役，REQ-063 切换策）。
+写入五头签名道（Ed25519）：私钥运行时从 env `HST_LEDGER_PRIVATE_KEY`
+（base64url seed）或本地密档 `~/.hst/ledger/ed25519.key` 读（不进仓不
+进 argv）；公钥 JWK 常量内置（身份分发面，总台在册）。GET 不签名不
+受配额；写入 per-key 50 条每 UTC 日，幂等命中不耗（服务端契约）。
 
 ## Functions
 
-- `base_url` — API 基址（env `HST_ISSUES_API` 覆盖，缺省总台统一入口）。
-- `clamp_issue_limit` — issue list 的 limit 钳制（1 至 100；上限源 = 总台 REQ-057 服务端契约，
-- `file_issue` — 提交面（new）：title trim 后 1 至 200、body 至多 20000、version 至多 40
-- `issue_list_saturated` — issue list 饱和判定（#52 同型修，评审 G1）：返回条数不少于钳制后
-- `issue_list_truncation_hint` — issue list 饱和提示行（#52 同型修，#53 补翻页出口）：返回条数打满
-- `list_issues` — # Errors
-- `render_show_kv` — 详情面 kv 行渲染（codex 三面批二轮 F1 G3：抽纯函数加单测根治「无测试
-- `show_issue` — # Errors
+- `artifact_attest` — artifact 事件（POST /repos/<id>/artifacts/<id>/attestations）：type 见
+- `artifact_publish` — artifact 发布（POST /repos/<id>/artifacts）：digest = 正文或记录哈希
+- `artifacts_list` — artifact 列表（GET）：current=1 投影当前有效集，env 过滤 dev|prod。
+- `clamp_issue_limit` — issue list 的 limit 钳制（1 至 100，服务端上限；#52 家族标准）：钳制
+- `issue_close` — issue 关单链（result 引 digest 先行，status to=done 收尾；REQ-063 关
+- `issue_event` — issue 事件（POST /repos/<id>/issues/<n>/events）：type 见
+- `issue_list_saturated` — issue list 饱和判定（#52 家族标准）：返回条数不少于钳制后 limit 即示
+- `issue_list_truncation_hint` — issue list 饱和提示行（#52/#53 家族标准）：返回条数打满钳制后 limit
+- `issue_open` — issue 开单（POST /repos/<id>/issues）：title trim 后 1 至 200，kind 缺
+- `issue_show` — issue 详情（GET /repos/<id>/issues/<n>）：projection 加 timeline。
+- `issues_list` — issue 列表（GET，家族形）：limit 缺省 100（钳制 1 至 100），before
+- `key_id` — kid = sha256hex(规范化 JWK {crv,kty,x}，键序字母、紧凑无空白)；常量
+- `keygen_write` — 密钥对生成（一次性或轮换）：写私钥密档（0600，目录 `~/.hst/ledger/`）
+- `ledger_base` — 账本基址（env `HST_LEDGER_URL` 覆盖，测与灰度）。
+- `load_signing_key` — 载入签名私钥：env `HST_LEDGER_PRIVATE_KEY`（base64url seed）优先，
+- `private_key_path` — 私钥密档路径（`~/.hst/ledger/ed25519.key`，内容 = base64url 32 字节
+- `signature_base` — 签名基构造（服务端 signatureBase 同源）：`v1\nPOST\n<路径>\n<ts>\n
+- `validate_digest` — digest 校验（服务端 DIGEST_RE 同源）：`sha256:<64hex 小写>`。
 
-## Types
+## Constants
 
-- `Filed` — 统一 issue 入口的提交回执面（细则见模块文档）。
-- `IssueListPage` — issue list 的一页回执（#53）：`rows` 是本页条目（新到旧）；
+- `ARTIFACT_KINDS` — artifact kind 集（服务端 ARTIFACT_KINDS 同源）。
+- `ATTEST_TYPES` — attestation 类型集（服务端 ATTEST_TYPES 同源）。
+- `ISSUE_EVENT_TYPES` — issue 事件类型集（服务端 ISSUE_EVENT_TYPES 同源）。
+- `ISSUE_KINDS` — issue kind 集（服务端 ISSUE_KINDS 同源）：bug（BUG 错误任务）与
+- `ISSUE_STATUSES` — issue 状态集（服务端 ISSUE_STATUSES 同源；done 须先有 result 事件）。
+- `PUBKEY_JWK` — 本仓公钥 JWK（REQ-063 裁 2：常量集成进 CLI；字母键序紧凑形，kid 即
+- `REPO_ID` — 本仓账本身份（REQ-063：repo_id = 规范化 remote）。
 
 
 <!-- hst_cli/pathutil.md -->

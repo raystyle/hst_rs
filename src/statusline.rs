@@ -2944,7 +2944,10 @@ mod tests {
         let dir = home.join(".hst").join("state").join("projyolo");
         std::fs::create_dir_all(&dir).unwrap();
         let stdin = format!("{{\"session_id\":\"py1\",\"cwd\":\"{}\"}}", home.display());
-        let ts = 1789878155u64;
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
         std::fs::write(
             dir.join(format!("{slug}.json")),
             format!(

@@ -353,59 +353,134 @@
       "docs": "hst 自管已装版本（manifest 的 version 字段；多个版本目录取最大）。"
     },
     {
-      "path": "hst_cli::issue",
+      "path": "hst_cli::ledger",
       "kind": "module",
-      "docs": "统一 issue 入口客户端面（issues.ohmygh.com，REQ-057 对齐）。\nhst issue 面（REQ-057 对齐，总台统一入口 issues.ohmygh.com）：agent\n使用过程中遇缺陷一键反馈，自动带上下文（tool=hst 加版本加平台加主机名）。\n契约真源 = ohmycloud docs/requirements/REQ-057（POST /api/issues 体与\n校验、GET 列表与详情、每 IP 10 条每时限速）；本模块是客户端投影，\nenv `HST_ISSUES_API` 覆盖基址（测与灰度）。"
+      "docs": "统一 issue 入口客户端面（issues.ohmygh.com，REQ-057 对齐）。\nhst ledger 面（REQ-063 仓级公共账本客户端，Phase 3 CLI 原生集成）：\nissue 流（bug 加 improvement 任务的立项、事件与关单）加 artifact 流\n（产物共享库 publish 加 attest 加 promote）。真源 = ledger.ohmygh.com\n（替代 issues.ohmygh.com 客户端面；旧服务过渡保役，REQ-063 切换策）。\n写入五头签名道（Ed25519）：私钥运行时从 env `HST_LEDGER_PRIVATE_KEY`\n（base64url seed）或本地密档 `~/.hst/ledger/ed25519.key` 读（不进仓不\n进 argv）；公钥 JWK 常量内置（身份分发面，总台在册）。GET 不签名不\n受配额；写入 per-key 50 条每 UTC 日，幂等命中不耗（服务端契约）。"
     },
     {
-      "path": "hst_cli::issue::Filed",
-      "kind": "struct",
-      "docs": "统一 issue 入口的提交回执面（细则见模块文档）。"
+      "path": "hst_cli::ledger::ARTIFACT_KINDS",
+      "kind": "constant",
+      "docs": "artifact kind 集（服务端 ARTIFACT_KINDS 同源）。"
     },
     {
-      "path": "hst_cli::issue::IssueListPage",
-      "kind": "struct",
-      "docs": "issue list 的一页回执（#53）：`rows` 是本页条目（新到旧）；\n`has_more` 仅带 `before` 的请求透出（keyset 翻页权威信号，false 即\n到底；客户端闸住，服务端在旧形请求上漂移回此键也不透出，评审 G2），\n不带 before 的旧形回执无此键（None），饱和判定回落\n[`issue_list_saturated`] 启发式。"
+      "path": "hst_cli::ledger::ATTEST_TYPES",
+      "kind": "constant",
+      "docs": "attestation 类型集（服务端 ATTEST_TYPES 同源）。"
     },
     {
-      "path": "hst_cli::issue::base_url",
+      "path": "hst_cli::ledger::ISSUE_EVENT_TYPES",
+      "kind": "constant",
+      "docs": "issue 事件类型集（服务端 ISSUE_EVENT_TYPES 同源）。"
+    },
+    {
+      "path": "hst_cli::ledger::ISSUE_KINDS",
+      "kind": "constant",
+      "docs": "issue kind 集（服务端 ISSUE_KINDS 同源）：bug（BUG 错误任务）与\nimprovement（改进优化任务），缺省 bug。"
+    },
+    {
+      "path": "hst_cli::ledger::ISSUE_STATUSES",
+      "kind": "constant",
+      "docs": "issue 状态集（服务端 ISSUE_STATUSES 同源；done 须先有 result 事件）。"
+    },
+    {
+      "path": "hst_cli::ledger::PUBKEY_JWK",
+      "kind": "constant",
+      "docs": "本仓公钥 JWK（REQ-063 裁 2：常量集成进 CLI；字母键序紧凑形，kid 即\n其 sha256hex）。私钥恒在提交侧（env 或本地密档），不进仓。"
+    },
+    {
+      "path": "hst_cli::ledger::REPO_ID",
+      "kind": "constant",
+      "docs": "本仓账本身份（REQ-063：repo_id = 规范化 remote）。"
+    },
+    {
+      "path": "hst_cli::ledger::artifact_attest",
       "kind": "function",
-      "docs": "API 基址（env `HST_ISSUES_API` 覆盖，缺省总台统一入口）。"
+      "docs": "artifact 事件（POST /repos/<id>/artifacts/<id>/attestations）：type 见\n[`ATTEST_TYPES`]；payload 对象（attest_prod 强制 env=prod、promote 缺\nname 时服务端补 artifact 名）。\n# Errors\n\n失败返回 `String` 错误（本地校验、网络与解析类、服务端 error 透传）。"
     },
     {
-      "path": "hst_cli::issue::clamp_issue_limit",
+      "path": "hst_cli::ledger::artifact_publish",
       "kind": "function",
-      "docs": "issue list 的 limit 钳制（1 至 100；上限源 = 总台 REQ-057 服务端契约，\nbrowse-rs #52 同款配方；#52 同型修）：钳制单源，命令面默认值与饱和\n提示判定共用。"
+      "docs": "artifact 发布（POST /repos/<id>/artifacts）：digest = 正文或记录哈希\n（库不收二进制实体）；deps[] 记依赖出处（回溯链即证据链）。\n# Errors\n\n失败返回 `String` 错误（本地校验、网络与解析类、服务端 error 透传）。"
     },
     {
-      "path": "hst_cli::issue::file_issue",
+      "path": "hst_cli::ledger::artifacts_list",
       "kind": "function",
-      "docs": "提交面（new）：title trim 后 1 至 200、body 至多 20000、version 至多 40\n（客户端先截断，长度单位 UTF-16）；201 回 {ok,id,url}；429 每 IP 限速；\n400 校验不过（服务端 error 文案透传）。\n# Errors\n\n失败返回 `String` 错误（校验不过、网络与解析类、服务端 error 透传）。"
+      "docs": "artifact 列表（GET）：current=1 投影当前有效集，env 过滤 dev|prod。\n# Errors\n\n失败返回 `String` 错误（网络与解析类、服务端 error 透传）。"
     },
     {
-      "path": "hst_cli::issue::issue_list_saturated",
+      "path": "hst_cli::ledger::clamp_issue_limit",
       "kind": "function",
-      "docs": "issue list 饱和判定（#52 同型修，评审 G1）：返回条数不少于钳制后\nlimit 即示警；用 `>=` 不用 `==`，服务端若返回多于请求值，`==` 会\n静默漏报，正是要消灭的静默截断形态。"
+      "docs": "issue list 的 limit 钳制（1 至 100，服务端上限；#52 家族标准）：钳制\n单源，命令面默认值与饱和提示判定共用。"
     },
     {
-      "path": "hst_cli::issue::issue_list_truncation_hint",
+      "path": "hst_cli::ledger::issue_close",
       "kind": "function",
-      "docs": "issue list 饱和提示行（#52 同型修，#53 补翻页出口）：返回条数打满\n钳制后 limit（或 before 翻页面 has_more 为真）时出此行到 stderr，\n指向 `--status` 过滤收窄、`--limit` 提高、`--before` 翻更旧一页与\n网页面；不饱和不出。"
+      "docs": "issue 关单链（result 引 digest 先行，status to=done 收尾；REQ-063 关\n单完成判据）。返回两事件回执数组。\n# Errors\n\n失败返回 `String` 错误（两段任一失败即止，已写段不回滚——账本只增）。"
     },
     {
-      "path": "hst_cli::issue::list_issues",
+      "path": "hst_cli::ledger::issue_event",
       "kind": "function",
-      "docs": "# Errors\n\n失败返回 `String` 错误（网络与解析类、服务端 error 透传，含 before\n非法值的 400 归因）。\n列表面（list）：GET /api/issues?tool=&status=&limit=&before=（limit\n1 至 100，新到旧；tool 与 status 与 before 百分号编码；before 是\nkeyset 游标，#53，取该 id 之前更旧一页，非法值服务端回 400 透传）；\n回 {ok,count,issues 数组，before 请求另有 has_more 布尔}。\ncount 是返回条数（受 limit 截断）非在册总数，饱和提示见\n[`issue_list_truncation_hint`]。"
+      "docs": "issue 事件（POST /repos/<id>/issues/<n>/events）：type 见\n[`ISSUE_EVENT_TYPES`]；payload 对象随 type（status 带 to；result 带\ndigest）。status=done 由服务端校验须先有 result。\n# Errors\n\n失败返回 `String` 错误（本地校验、网络与解析类、服务端 error 透传）。"
     },
     {
-      "path": "hst_cli::issue::render_show_kv",
+      "path": "hst_cli::ledger::issue_list_saturated",
       "kind": "function",
-      "docs": "详情面 kv 行渲染（codex 三面批二轮 F1 G3：抽纯函数加单测根治「无测试\n钉住导致空头承诺」——marker 行与 new 的 issue.filed= 加 list 的\nissue.row= 同形；正文首行挂 issue.body=，续行两空格缩进）。"
+      "docs": "issue list 饱和判定（#52 家族标准）：返回条数不少于钳制后 limit 即示\n警；用 `>=` 不用 `==`，服务端若返回多于请求值，`==` 会静默漏报。"
     },
     {
-      "path": "hst_cli::issue::show_issue",
+      "path": "hst_cli::ledger::issue_list_truncation_hint",
       "kind": "function",
-      "docs": "# Errors\n\n失败返回 `String` 错误（校验不过、网络与解析类、服务端 error 透传）。\n详情面（show）：GET /api/issues/<id>，回 {ok,issue{...body}}。"
+      "docs": " issue list 饱和提示行（#52/#53 家族标准）：返回条数打满钳制后 limit\n（或 before 翻页面 has_more 为真）时出此行到 stderr，指向 `--status`\n 不适用（账本列表无状态过滤）故给 `--limit` 提高、`--before` 翻更旧\n 一页与账本网页面；不饱和不出。"
+    },
+    {
+      "path": "hst_cli::ledger::issue_open",
+      "kind": "function",
+      "docs": "issue 开单（POST /repos/<id>/issues）：title trim 后 1 至 200，kind 缺\n省 bug，acceptance 验收条件（关单 result 引 digest 即完成判据）。\n# Errors\n\n失败返回 `String` 错误（本地校验、网络与解析类、服务端 error 透传）。"
+    },
+    {
+      "path": "hst_cli::ledger::issue_show",
+      "kind": "function",
+      "docs": "issue 详情（GET /repos/<id>/issues/<n>）：projection 加 timeline。\n# Errors\n\n失败返回 `String` 错误（网络与解析类、服务端 error 透传）。"
+    },
+    {
+      "path": "hst_cli::ledger::issues_list",
+      "kind": "function",
+      "docs": "issue 列表（GET，家族形）：limit 缺省 100（钳制 1 至 100），before\nkeyset 游标，`more=1` 使 has_more 恒在（旧形不带 before 时键缺省）。\n# Errors\n\n失败返回 `String` 错误（网络与解析类、服务端 error 透传）。"
+    },
+    {
+      "path": "hst_cli::ledger::key_id",
+      "kind": "function",
+      "docs": "kid = sha256hex(规范化 JWK {crv,kty,x}，键序字母、紧凑无空白)；常量\n本身已是该形，直接哈希（单一真相，不在代码里另存 kid 字面量）。"
+    },
+    {
+      "path": "hst_cli::ledger::keygen_write",
+      "kind": "function",
+      "docs": "密钥对生成（一次性或轮换）：写私钥密档（0600，目录 `~/.hst/ledger/`）\n并返回 (kid, JWK)；私钥不打印不进 argv，公钥 JWK 供总台在册（在册后\n方可写入）。\n# Errors\n\n失败返回 `String` 错误（路径与写入类）。"
+    },
+    {
+      "path": "hst_cli::ledger::ledger_base",
+      "kind": "function",
+      "docs": "账本基址（env `HST_LEDGER_URL` 覆盖，测与灰度）。"
+    },
+    {
+      "path": "hst_cli::ledger::load_signing_key",
+      "kind": "function",
+      "docs": "载入签名私钥：env `HST_LEDGER_PRIVATE_KEY`（base64url seed）优先，\n次本地密档。不进 argv 不进仓。"
+    },
+    {
+      "path": "hst_cli::ledger::private_key_path",
+      "kind": "function",
+      "docs": "私钥密档路径（`~/.hst/ledger/ed25519.key`，内容 = base64url 32 字节\nseed；0600 由 keygen 落）。"
+    },
+    {
+      "path": "hst_cli::ledger::signature_base",
+      "kind": "function",
+      "docs": "签名基构造（服务端 signatureBase 同源）：`v1\\nPOST\\n<路径>\\n<ts>\\n\n<nonce>\\n<idem>\\n<sha256hex(body)>` 各行换行连。纯函数可单测。"
+    },
+    {
+      "path": "hst_cli::ledger::validate_digest",
+      "kind": "function",
+      "docs": "digest 校验（服务端 DIGEST_RE 同源）：`sha256:<64hex 小写>`。"
     },
     {
       "path": "hst_cli::pathutil",

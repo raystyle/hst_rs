@@ -138,6 +138,7 @@
 ### 里程碑 2026-09-20
 
 - **项目级 yolo 干扰检测告警 v2.6.0**（REQ-017，用户裁层一零改动纯可见化）：`hst yolo check` 只读检测项目级干扰键（检测集与 `--clear-project-yolo` 同源同键：claude 两层三键加 codex 两键加 kimi 一键；家目录守卫），出 kv 行加 hint 指向既有清除命令加写 `~/.hst/state/projyolo/` marker；状态栏 hst 段读 marker（每渲染廉价），命中同项目且新鲜即升格 `proj-yolo!` 红字（与 no-hook! 写端健康优先序）；探针经状态栏哨兵面节流 10 分钟触发（不入 hook 工具门：shim 零 hst 依赖 D28 加 hook 门延迟敏感）。静默自动清除被裁排除（意图不可证明加写战风险，REQ-009 手动裁有意）。
+- **ledger 账本集成（issue 面切源，REQ-018 加总台 REQ-063 Phase 3）**：`issue new/list/show/close` 与 `artifact publish/attest/promote/list` 命令族原生集成，真源 ledger.ohmygh.com（旧 issues.ohmygh.com 客户端面退役，服务过渡保役）；写入五头 Ed25519 签名道（私钥 env 或密档 `~/.hst/ledger/ed25519.key`，公钥 JWK 常量内置，kid = sha256hex(JWK)），签名基七行换行连同源服务端；issue 族承继家族标准（缺省 100 加 before keyset 加 has_more 权威饱和判定加 count 语义）；`hst ledger keygen` 密钥对管理；家族三件（钳制加饱和加提示）迁 ledger 且提示改指账本网页面；env `HST_LEDGER_URL` 加 `HST_LEDGER_PRIVATE_KEY` 新增。
 
 ### 排后
 

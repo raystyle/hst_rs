@@ -260,13 +260,86 @@ fn doctor_blocks_on_a_fresh_project_and_says_so() {
 
 #[test]
 fn issue_new_invalid_title_fails_locally() {
-    // REQ-010（codex 三面评审 G4）：空标题在本地拒绝，不触网（秒红，stderr
-    // 结构化错误含 1-200 提示）。
+    // 本地拒绝不触网（秒红）：空标题走 ledger 客户端校验（title 必填且
+    // 至多 200）；缺 --acceptance 走 clap 用法错（退出 2）。
     hst()
-        .args(["issue", "new", "   "])
+        .args(["issue", "new", "   ", "--acceptance", "x"])
         .assert()
         .failure()
-        .stderr(contains("1-200"));
+        .stderr(contains("至多 200"));
+    hst()
+        .args(["issue", "new", "t"])
+        .assert()
+        .failure()
+        .stderr(contains("--acceptance"));
+}
+
+#[test]
+fn ledger_artifact_publish_validates_locally() {
+    // REQ-018：本地校验秒红不触网（digest 形、kind 面、name 长度）。
+    hst()
+        .args([
+            "artifact",
+            "publish",
+            "x",
+            "--kind",
+            "experience",
+            "--digest",
+            "not-a-digest",
+        ])
+        .assert()
+        .failure()
+        .stderr(contains("sha256"));
+    hst()
+        .args([
+            "artifact",
+            "publish",
+            "x",
+            "--kind",
+            "nope",
+            "--digest",
+            &format!("sha256:{}", "a".repeat(64)),
+        ])
+        .assert()
+        .failure()
+        .stderr(contains("kind 仅"));
+}
+
+#[test]
+fn ledger_close_validates_digest_and_event_type() {
+    hst()
+        .args(["issue", "close", "1", "--digest", "sha256:abc"])
+        .assert()
+        .failure()
+        .stderr(contains("64hex"));
+}
+
+#[test]
+fn ledger_keygen_isolated_writes_vault() {
+    // HST_ROOT 钉临时根：keygen 写密档 0600，打印 kid 与 JWK，不泄 seed。
+    let tmp = std::env::temp_dir().join(format!(
+        "hst-cli-keygen-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis()
+    ));
+    let out = hst()
+        .args(["ledger", "keygen"])
+        .env("HST_ROOT", &tmp)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let s = String::from_utf8_lossy(&out);
+    assert!(s.contains("ledger.keygen.kid="), "kid 行：{s}");
+    assert!(s.contains("ledger.keygen.jwk="), "JWK 行：{s}");
+    assert!(!s.contains("seed"), "私钥不打印：{s}");
+    let key = tmp.join("ledger").join("ed25519.key");
+    assert!(key.exists(), "密档在位");
+    let _ = std::fs::remove_dir_all(&tmp);
 }
 
 #[test]
@@ -339,6 +412,15 @@ fn issue_list_help_documents_default_limit_and_count_semantics() {
     assert!(s.contains("返回条数非在册总数"), "count 语义入 help：{s}");
     assert!(s.contains("截断提示"), "饱和提示指引入 help：{s}");
     assert!(s.contains("更旧一页"), "翻页游标语义入 help（#53）：{s}");
+    let group = hst()
+        .args(["issue", "--help"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let g = String::from_utf8_lossy(&group);
+    assert!(g.contains("ledger.ohmygh.com"), "真源注记入组 help：{g}");
 }
 
 #[test]
