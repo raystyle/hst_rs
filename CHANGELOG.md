@@ -135,6 +135,10 @@
 - **issue 通道家族统一标准（#52 同型修 ba1e39a 加 4e1efb4；#53 keyset 翻页 ea983f7 加 c182491，参照 browse-rs 0167e8c）**：默认 limit 20 升 100（服务端上限，旧默认静默截断致 open 集超限后旧条目隐形）加饱和 stderr 截断提示加 count 语义（返回条数非在册总数）入 help 与 help 契约锁（#52）；list 加 `--before <id>` keyset 游标（非法值 400 透传归因、不带 before 旧形回执不变），回执类型升 IssueListPage 且 has_more 客户端闸住仅 before 透出，饱和判定权威信号优先加缺信号回落启发式，提示补翻页出口（#53）
 - **发布链修缮（ba0e8fd）**：release.ps1 mac fetch 加 `--force`（dev 标签每推必滚拒覆写，v2.4.0 直发首跑实录钉住）
 
+### 里程碑 2026-09-20
+
+- **项目级 yolo 干扰检测告警 v2.6.0**（REQ-017，用户裁层一零改动纯可见化）：`hst yolo check` 只读检测项目级干扰键（检测集与 `--clear-project-yolo` 同源同键：claude 两层三键加 codex 两键加 kimi 一键；家目录守卫），出 kv 行加 hint 指向既有清除命令加写 `~/.hst/state/projyolo/` marker；状态栏 hst 段读 marker（每渲染廉价），命中同项目且新鲜即升格 `proj-yolo!` 红字（与 no-hook! 写端健康优先序）；探针经状态栏哨兵面节流 10 分钟触发（不入 hook 工具门：shim 零 hst 依赖 D28 加 hook 门延迟敏感）。静默自动清除被裁排除（意图不可证明加写战风险，REQ-009 手动裁有意）。
+
 ### 排后
 
 - Linux/mac 接管（P0012 跨平台面）：资产与代码路径就绪；指令集 SIGILL 预备检测研究已备（S021）。

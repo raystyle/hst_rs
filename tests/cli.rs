@@ -270,6 +270,60 @@ fn issue_new_invalid_title_fails_locally() {
 }
 
 #[test]
+fn yolo_check_reports_hits_and_writes_marker() {
+    // REQ-017：只读检测出 kv 行加 marker 落盘（HST_ROOT 钉临时根隔离真
+    // 家）；命中文件字节原样（零改动主张）。
+    let tmp = std::env::temp_dir().join(format!(
+        "hst-cli-yolock-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis()
+    ));
+    let proj = tmp.join("proj");
+    let claude = proj.join(".claude");
+    std::fs::create_dir_all(&claude).unwrap();
+    let settings = claude.join("settings.json");
+    std::fs::write(
+        &settings,
+        r#"{"permissions": {"defaultMode": "default", "ask": ["Bash*"], "allow": ["Read*"]}}"#,
+    )
+    .unwrap();
+    let root = tmp.join("hstroot");
+    hst()
+        .args(["yolo", "check", "--project"])
+        .arg(&proj)
+        .env("HST_ROOT", &root)
+        .assert()
+        .success()
+        .stdout(contains("projyolo.hit=true"))
+        .stdout(contains("defaultMode,ask"))
+        .stdout(contains("projyolo.hint=hst init --clear-project-yolo"));
+    let slug: String = proj
+        .to_string_lossy()
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect();
+    let marker = root
+        .join("state")
+        .join("projyolo")
+        .join(format!("{slug}.json"));
+    let body = std::fs::read_to_string(&marker).unwrap_or_default();
+    assert!(body.contains("\"hit\":true"), "marker 在位：{body}");
+    assert!(
+        body.contains(&proj.display().to_string()),
+        "marker 带项目：{body}"
+    );
+    let after = std::fs::read_to_string(&settings).unwrap();
+    assert!(
+        after.contains("\"allow\"") && after.contains("\"defaultMode\""),
+        "只读零改动：{after}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
 fn issue_list_help_documents_default_limit_and_count_semantics() {
     // #52 同型修的命令面契约：默认 limit 100 与 count 语义（返回条数非
     // 在册总数）入 help，防回退漂移（本地 help 面，不触网）。

@@ -140,6 +140,11 @@ enum Commands {
         #[command(subcommand)]
         cmd: IssueCmd,
     },
+    /// yolo 面：项目级干扰只读检测（REQ-017；写 marker 驱动状态栏 proj-yolo! 升格，零改动纯可见化）
+    Yolo {
+        #[command(subcommand)]
+        cmd: YoloCmd,
+    },
     /// 活性诊断（D21，ohmycloud D45 配套）：打真网关烧最小 token，与 doctor 的零网络体检分家
     Diagnose {
         #[command(subcommand)]
@@ -176,6 +181,16 @@ enum IssueCmd {
     Show {
         /// issue id（数字）
         id: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum YoloCmd {
+    /// 检测项目级 yolo 干扰键（claude 两层加 codex 加 kimi，只读零改动；写 ~/.hst/state/projyolo/ marker，命中时状态栏升格 proj-yolo!；清除走 hst init --clear-project-yolo）
+    Check {
+        /// 项目根；默认当前目录
+        #[arg(long)]
+        project: Option<PathBuf>,
     },
 }
 
@@ -451,6 +466,9 @@ fn run() -> Result<(), String> {
         },
         Commands::Completions { shell } => cmd_completions(shell),
         Commands::Trace { cmd } => cmd_trace(cmd),
+        Commands::Yolo { cmd } => match cmd {
+            YoloCmd::Check { project } => cmd_yolo_check(project),
+        },
         Commands::Diagnose { cmd } => cmd_diagnose(cmd),
         Commands::Issue { cmd } => cmd_issue(cmd),
     }
@@ -1059,6 +1077,40 @@ fn agent_report_row(r: &agents::Report) -> Value {
             "hint": format!("ark install {}", r.agent),
         }),
     }
+}
+
+fn cmd_yolo_check(project: Option<PathBuf>) -> Result<(), String> {
+    let root = project_root(project)?;
+    let hits = yolo::project_yolo_interferences(&root)?;
+    println!("projyolo.hit={}", !hits.is_empty());
+    println!("projyolo.count={}", hits.len());
+    for h in &hits {
+        println!("projyolo.key={h}");
+    }
+    if !hits.is_empty() {
+        println!("projyolo.hint=hst init --clear-project-yolo 清除（本命令零改动）");
+    }
+    // marker：状态栏哨兵读（slug 规则同 trace——路径非字母数字一律 -；
+    // project 原样透传不经 canonicalize，与状态栏侧字符串等值匹配）。
+    let marker_dir = install::hst_home()?.join("state").join("projyolo");
+    std::fs::create_dir_all(&marker_dir).map_err(|e| format!("{}: {e}", marker_dir.display()))?;
+    let slug: String = root
+        .to_string_lossy()
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect();
+    let marker = serde_json::json!({
+        "hit": !hits.is_empty(),
+        "project": root.display().to_string(),
+        "count": hits.len(),
+        "ts": std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0),
+    });
+    std::fs::write(marker_dir.join(format!("{slug}.json")), marker.to_string())
+        .map_err(|e| format!("write marker: {e}"))?;
+    Ok(())
 }
 
 fn cmd_doctor(project: Option<PathBuf>) -> Result<(), String> {

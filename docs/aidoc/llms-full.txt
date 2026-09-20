@@ -1,5 +1,5 @@
 <!-- hst_cli/index.md -->
-# hst-cli 2.5.0
+# hst-cli 2.6.0
 
 hst-cli：HST（Hooks, Statusline, Trace）库面——四家 agent（claude、
 codex、grok、kimi）的部署配置与诊断内核。承载五功能：hook 状态落盘
@@ -544,6 +544,7 @@ Release 边车硬校验，锚不可得同样拒装）。latest 判新走 release
 - `apply_user_yolo_with` — # Errors
 - `clear_project_yolo_interference` — # Panics
 - `kimi_workspace_key` — yolo 键的kimi_workspace_key面（细则见模块文档与集成测试）。
+- `project_yolo_interferences` — 项目级 yolo 干扰只读检测（REQ-017，检测集与
 - `retire_project_yolo` — # Panics
 - `retire_user_yolo` — # Errors
 - `retire_user_yolo_with` — # Panics

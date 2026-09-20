@@ -13,6 +13,7 @@
 - `apply_user_yolo_with` — # Errors
 - `clear_project_yolo_interference` — # Panics
 - `kimi_workspace_key` — yolo 键的kimi_workspace_key面（细则见模块文档与集成测试）。
+- `project_yolo_interferences` — 项目级 yolo 干扰只读检测（REQ-017，检测集与
 - `retire_project_yolo` — # Panics
 - `retire_user_yolo` — # Errors
 - `retire_user_yolo_with` — # Panics

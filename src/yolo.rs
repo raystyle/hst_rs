@@ -540,6 +540,80 @@ pub fn clear_project_yolo_interference(root: &Path) -> Result<Vec<String>, Strin
     Ok(changed)
 }
 
+/// 项目级 yolo 干扰只读检测（REQ-017，检测集与
+/// [`clear_project_yolo_interference`] 同源同键）：claude 项目两层
+/// （`permissions.defaultMode` 任意值、`ask` 任意形态、
+/// `blockReadsOutsideWorkingDirectories` 仅 true）加 codex 项目
+/// `sandbox_mode`/`approval_policy` 加 kimi 项目
+/// `default_permission_mode`；返回命中描述（文件加键），零改动。家目录
+/// 守卫（D52 同判）：root 为用户家目录时返回空（用户级面不是项目级干
+/// 扰）。命中驱动状态栏 `proj-yolo!` 升格，清除走
+/// `hst init --clear-project-yolo`。
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与解析类）。
+pub fn project_yolo_interferences(root: &Path) -> Result<Vec<String>, String> {
+    let root = abs_display(root);
+    let mut hits = Vec::new();
+    if let Ok(home) = crate::pathutil::user_home() {
+        if root == abs_display(&home) {
+            return Ok(hits);
+        }
+    }
+    for rel in [".claude/settings.json", ".claude/settings.local.json"] {
+        let path = root.join(rel);
+        if !path.exists() {
+            continue;
+        }
+        let v = read_json(&path)?;
+        let Some(obj) = v.as_object() else {
+            continue;
+        };
+        let mut keys = Vec::new();
+        if let Some(p) = obj.get("permissions").and_then(|p| p.as_object()) {
+            if p.contains_key("defaultMode") {
+                keys.push("defaultMode");
+            }
+            if p.contains_key("ask") {
+                keys.push("ask");
+            }
+            if p.get("blockReadsOutsideWorkingDirectories")
+                .and_then(|x| x.as_bool())
+                == Some(true)
+            {
+                keys.push("blockReadsOutsideWorkingDirectories");
+            }
+        }
+        if !keys.is_empty() {
+            hits.push(format!("{} ({})", path.display(), keys.join(",")));
+        }
+    }
+    let codex = root.join(".codex").join("config.toml");
+    if codex.exists() {
+        let t = read_toml(&codex)?;
+        if let Toml::Table(map) = &t {
+            let keys: Vec<&str> = ["sandbox_mode", "approval_policy"]
+                .iter()
+                .filter(|k| map.contains_key(**k))
+                .copied()
+                .collect();
+            if !keys.is_empty() {
+                hits.push(format!("{} ({})", codex.display(), keys.join(",")));
+            }
+        }
+    }
+    let kimi = root.join(".kimi-code").join("config.toml");
+    if kimi.exists() {
+        let t = read_toml(&kimi)?;
+        if let Toml::Table(map) = &t {
+            if map.contains_key("default_permission_mode") {
+                hits.push(format!("{} (default_permission_mode)", kimi.display()));
+            }
+        }
+    }
+    Ok(hits)
+}
+
 /// # Panics
 ///
 /// 正常路径不 panic；内部 unwrap 仅出现在构造不变量上。
@@ -1573,5 +1647,48 @@ approval_policy = \"untrusted\"
         let again = clear_project_yolo_interference(&proj).unwrap();
         assert!(again.is_empty(), "idempotent: {again:?}");
         let _ = std::fs::remove_dir_all(&proj);
+    }
+
+    #[test]
+    fn project_yolo_interferences_detects_without_touching() {
+        // REQ-017：检测集与清除同源（claude 两层三键加 codex 两键加 kimi
+        // 一键），只读零改动（文件原样），干净项目零命中。
+        let proj = fresh_dir();
+        std::fs::create_dir_all(proj.join(".claude")).unwrap();
+        let shared = proj.join(".claude").join("settings.json");
+        std::fs::write(
+            &shared,
+            r#"{"permissions": {"defaultMode": "acceptEdits", "ask": ["Bash*"], "allow": ["Read*"], "blockReadsOutsideWorkingDirectories": true}}"#,
+        )
+        .unwrap();
+        let local = proj.join(".claude").join("settings.local.json");
+        std::fs::write(
+            &local,
+            r#"{"permissions": {"blockReadsOutsideWorkingDirectories": false}}"#,
+        )
+        .unwrap();
+        std::fs::create_dir_all(proj.join(".codex")).unwrap();
+        std::fs::write(
+            proj.join(".codex").join("config.toml"),
+            "sandbox_mode = \"read-only\"\n",
+        )
+        .unwrap();
+        let hits = project_yolo_interferences(&proj).unwrap();
+        assert_eq!(
+            hits.len(),
+            2,
+            "shared 三键一格加 codex 一格（local 的 false 不算）：{hits:?}"
+        );
+        assert!(
+            hits[0].contains("defaultMode") && hits[0].contains("ask"),
+            "{hits:?}"
+        );
+        assert!(hits[1].contains("sandbox_mode"), "{hits:?}");
+        // 只读面：文件字节原样。
+        let after = std::fs::read_to_string(&shared).unwrap();
+        assert!(after.contains("\"acceptEdits\"") && after.contains("\"allow\""));
+        // 干净项目零命中。
+        let clean = fresh_dir();
+        assert!(project_yolo_interferences(&clean).unwrap().is_empty());
     }
 }

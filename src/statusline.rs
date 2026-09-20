@@ -353,11 +353,48 @@ if ($state -eq 'unknown' -and $HOME) {
         }
     }
 }
+# 项目级 yolo 干扰哨兵（REQ-017，零改动纯可见化）：读 marker（廉价，每
+# 渲染），命中同项目且新鲜（2 倍窗内）即升格 proj-yolo!；探针经
+# hst yolo check 复用 Rust 检测集（同源清除键），节流窗 10 分钟到期同
+# 步跑一次（渲染阻塞有界，同 no-hook! 自愈先例）。不入 hook 工具门路
+# 径：shim 是零 hst 依赖自包含写端（D28），且 hook 门延迟敏感。
+if ($state -ne 'no-hook!' -and $HOME -and $dir) {
+    $ySlug = ($dir -replace '[^A-Za-z0-9]', '-')
+    $yDir = Join-Path (Join-Path $HOME '.hst/state') 'projyolo'
+    $yMarker = Join-Path $yDir ($ySlug + '.json')
+    if (Test-Path -LiteralPath $yMarker) {
+        try {
+            $ym = Get-Content -Raw $yMarker | ConvertFrom-Json
+            $yFresh = $false
+            try { $yFresh = ((([DateTime]::UtcNow - [DateTime]::new(1970,1,1)).TotalSeconds - [double]$ym.ts) -le 1200) } catch {}
+            if ($ym.hit -and ("$($ym.project)" -eq "$dir") -and $yFresh) { $state = 'proj-yolo!' }
+        } catch {}
+    }
+    $yStamp = Join-Path $yDir ('.check-' + $ySlug)
+    $yDue = $true
+    try {
+        if ([IO.File]::Exists($yStamp)) {
+            $yDue = (([DateTime]::UtcNow - [IO.File]::GetLastWriteTimeUtc($yStamp)).TotalSeconds -ge 600)
+        }
+    } catch { $yDue = $false }
+    if ($yDue) {
+        try {
+            if (-not (Test-Path -LiteralPath $yDir)) { New-Item -ItemType Directory -Path $yDir -Force | Out-Null }
+            if ([IO.File]::Exists($yStamp)) {
+                try { [IO.File]::SetLastWriteTimeUtc($yStamp, [DateTime]::UtcNow) } catch {}
+            } else {
+                try { $fs = [IO.File]::Open($yStamp, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write); if ($fs) { $fs.Close() } } catch {}
+            }
+        } catch {}
+        try { & hst yolo check --project $dir *> $null } catch {}
+    }
+}
 $stateColor = switch ($state) {
     'idle' { '38;5;108' }
     'working' { '38;5;179' }
     'blocked' { '38;5;203' }
     'no-hook!' { '38;5;203' }
+    'proj-yolo!' { '38;5;203' }
     default { '38;5;245' }
 }
 $hstTxt = ApplyFmt (Tmpl 'hst') @{ icon = (Ico 'hst'); agent = $agentDisp; state = $state }
@@ -2866,6 +2903,61 @@ mod tests {
         assert!(out.contains("no-hook!"), "仍缺位维持红字：{out}");
         let m2 = std::fs::metadata(&stamp).unwrap().modified().unwrap();
         assert_eq!(m1, m2, "节流窗内 stamp mtime 不变");
+        let _ = std::fs::remove_dir_all(&home);
+    }
+    #[test]
+    fn projyolo_sentinel_markers_present_in_script() {
+        // REQ-017 形锁：proj-yolo! 升格态、yolo check 探针调用、marker 面
+        // 与节流 stamp 面都在生成脚本里。
+        let home = scratch("projyolo-lock");
+        let path = deploy_script(&home).unwrap();
+        let script = std::fs::read_to_string(&path).unwrap();
+        assert!(script.contains("proj-yolo!"), "升格态在册");
+        assert!(script.contains("& hst yolo check"), "探针调用");
+        assert!(script.contains("projyolo"), "marker 面");
+        assert!(script.contains(".check-"), "节流 stamp 面");
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn projyolo_marker_drives_escalation_with_matching_project() {
+        // REQ-017 行为面：marker 命中同项目且新鲜即升格 proj-yolo!；项目
+        // 不符的 marker 不升格（探针腿经 stub PATH 隔离，不真跑检测）。
+        let home = scratch("projyolo-behave");
+        let path = deploy_script(&home).unwrap();
+        let (_stub, path_env) = heal_stub_path(&home);
+        let envs: Vec<(&str, std::ffi::OsString)> = vec![("PATH", path_env)];
+        let slug: String = home
+            .to_string_lossy()
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+            .collect();
+        let dir = home.join(".hst").join("state").join("projyolo");
+        std::fs::create_dir_all(&dir).unwrap();
+        let stdin = format!("{{\"session_id\":\"py1\",\"cwd\":\"{}\"}}", home.display());
+        let ts = 1789878155u64;
+        std::fs::write(
+            dir.join(format!("{slug}.json")),
+            format!(
+                "{{\"hit\":true,\"project\":\"{}\",\"count\":1,\"ts\":{}}}",
+                home.display(),
+                ts
+            ),
+        )
+        .unwrap();
+        let out = run_statusline_opts(&path, "claude", &home, stdin.as_bytes(), &envs, true);
+        assert!(out.contains("proj-yolo!"), "命中升格：{out}");
+        // 项目不符（marker 指别处）不升格。
+        std::fs::write(
+            dir.join(format!("{slug}.json")),
+            format!(
+                "{{\"hit\":true,\"project\":\"/elsewhere\",\"count\":1,\"ts\":{}}}",
+                ts
+            ),
+        )
+        .unwrap();
+        let out2 = run_statusline_opts(&path, "claude", &home, stdin.as_bytes(), &envs, true);
+        assert!(!out2.contains("proj-yolo!"), "项目不符不升格：{out2}");
         let _ = std::fs::remove_dir_all(&home);
     }
 }

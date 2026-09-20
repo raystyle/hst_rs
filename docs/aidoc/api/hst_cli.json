@@ -1,6 +1,6 @@
 {
   "crate": "hst-cli",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "items": [
     {
       "path": "hst_cli::agents",
@@ -946,6 +946,11 @@
       "path": "hst_cli::yolo::kimi_workspace_key",
       "kind": "function",
       "docs": "yolo 键的kimi_workspace_key面（细则见模块文档与集成测试）。"
+    },
+    {
+      "path": "hst_cli::yolo::project_yolo_interferences",
+      "kind": "function",
+      "docs": "项目级 yolo 干扰只读检测（REQ-017，检测集与\n[`clear_project_yolo_interference`] 同源同键）：claude 项目两层\n（`permissions.defaultMode` 任意值、`ask` 任意形态、\n`blockReadsOutsideWorkingDirectories` 仅 true）加 codex 项目\n`sandbox_mode`/`approval_policy` 加 kimi 项目\n`default_permission_mode`；返回命中描述（文件加键），零改动。家目录\n守卫（D52 同判）：root 为用户家目录时返回空（用户级面不是项目级干\n扰）。命中驱动状态栏 `proj-yolo!` 升格，清除走\n`hst init --clear-project-yolo`。\n# Errors\n\n失败返回 `String` 错误（路径与解析类）。"
     },
     {
       "path": "hst_cli::yolo::retire_project_yolo",
