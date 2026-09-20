@@ -192,17 +192,6 @@ enum IssueCmd {
         /// issue 号（数字）
         n: u64,
     },
-    /// 关单（result 事件引 digest 先行，status=done 收尾；服务端校验须先有 result）
-    Close {
-        /// issue 号（数字）
-        n: u64,
-        /// 完成判据引用（已登记产物 digest，sha256:<64hex>）
-        #[arg(long)]
-        digest: String,
-        /// 备注（随 result 事件）
-        #[arg(long)]
-        note: Option<String>,
-    },
 }
 
 #[derive(Subcommand)]
@@ -226,32 +215,18 @@ enum ArtifactCmd {
         /// 依赖出处（可多次；回溯链即证据链）
         #[arg(long = "dep")]
         deps: Vec<String>,
-        /// 摘要
-        #[arg(long)]
-        summary: Option<String>,
-        /// 成败面（experience 类：success 或 failure）
-        #[arg(long)]
-        outcome: Option<String>,
-        /// 关联 git sha
-        #[arg(long = "git-sha")]
-        git_sha: Option<String>,
-    },
-    /// 产物事件（attest_dev 加 attest_prod 加 verification_failed 加 promote 加 demote 加 supersede；attest_prod 的 env 由服务端强制补）
-    Attest {
-        /// artifact id
-        id: String,
-        /// 事件类型（attest_dev|attest_prod|verification_failed|promote|demote|supersede）
-        #[arg(long)]
-        r#type: String,
-        /// 附加注记（进 payload）
+        /// 说明（随 publish 事件 body）
         #[arg(long)]
         note: Option<String>,
     },
-    /// 提升产物为当前有效（promote 糖）
-    Promote {
+    /// 产物验证事件（只增面：attest_dev 加 attest_prod 加 verification_failed；promote/demote/supersede 与删改归 omc 工作台）
+    Attest {
         /// artifact id
         id: String,
-        /// 附加注记（进 payload）
+        /// 验证类型（attest_dev|attest_prod|verification_failed）
+        #[arg(long)]
+        r#type: String,
+        /// 附加注记（进事件 body）
         #[arg(long)]
         note: Option<String>,
     },
@@ -713,8 +688,9 @@ fn synopsis(cmd: &clap::Command, path: &str) -> String {
     s
 }
 
-/// `hst issue new|list|show|close`：账本 issue 流（REQ-063，真源
-/// ledger.ohmygh.com）。kv 出 marker 行，json 加 jsonl 走 fmtio 三态。
+/// `hst issue new|list|show`：账本 issue 流（REQ-063，真源
+/// ledger.ohmygh.com；只增面，close/status 推进归 omc 工作台）。kv 出
+/// marker 行，json 加 jsonl 走 fmtio 三态。
 fn cmd_issue(cmd: IssueCmd) -> Result<(), String> {
     match cmd {
         IssueCmd::New {
@@ -723,14 +699,52 @@ fn cmd_issue(cmd: IssueCmd) -> Result<(), String> {
             acceptance,
             body,
         } => {
-            let v = hst::ledger::issue_open(&title, &kind, &acceptance, body.as_deref())?;
-            emit_ledger_write("issue-new", v)
+            let title_trim = title.trim();
+            if title_trim.is_empty() || title_trim.chars().count() > 200 {
+                return Err(format!(
+                    "title 必填且至多 200 字符（trim 后），得 {}",
+                    title_trim.chars().count()
+                ));
+            }
+            if !hst::ledger::ISSUE_KINDS.contains(&kind.as_str()) {
+                return Err(format!("kind 仅 bug|improvement，得 {kind}"));
+            }
+            let n = hst::ledger::client()?
+                .issue_new(title_trim, &kind, &acceptance, body.as_deref())
+                .map_err(|e| e.to_string())?;
+            match hst::fmtio::mode() {
+                hst::fmtio::Format::Json => {
+                    let cwd = std::env::current_dir().unwrap_or_default();
+                    print_json(
+                        "issue-new",
+                        &cwd,
+                        Ok(serde_json::json!({ "filed": true, "n": n })),
+                    )?;
+                }
+                hst::fmtio::Format::Jsonl => {
+                    hst::fmtio::print_jsonl(&[serde_json::json!({ "filed": true, "n": n })]);
+                }
+                hst::fmtio::Format::Kv => {
+                    println!("ledger.issue.opened=n{n}");
+                }
+            }
+            Ok(())
         }
         IssueCmd::List { limit, before } => {
             // 家族标准（#52/#53）：默认 100、打满即 stderr 截断提示、count
             // 为返回条数；账本 has_more 由 more=1 恒在（权威信号）。
             let eff = hst::ledger::clamp_issue_limit(limit.unwrap_or(100));
-            let v = hst::ledger::issues_list(eff, before.as_deref())?;
+            let before_n = match before.as_deref() {
+                Some(b) if !b.trim().is_empty() => Some(
+                    b.trim()
+                        .parse::<u64>()
+                        .map_err(|_| format!("before 须数字 issue 号，得 {b}"))?,
+                ),
+                _ => None,
+            };
+            let v = hst::ledger::client()?
+                .issue_list(eff, before_n)
+                .map_err(|e| e.to_string())?;
             let rows = v["issues"].as_array().cloned().unwrap_or_default();
             let saturated = v["has_more"]
                 .as_bool()
@@ -769,7 +783,9 @@ fn cmd_issue(cmd: IssueCmd) -> Result<(), String> {
             Ok(())
         }
         IssueCmd::Show { n } => {
-            let v = hst::ledger::issue_show(n)?;
+            let v = hst::ledger::client()?
+                .issue_show(n)
+                .map_err(|e| e.to_string())?;
             match hst::fmtio::mode() {
                 hst::fmtio::Format::Json => {
                     let cwd = std::env::current_dir().unwrap_or_default();
@@ -786,64 +802,7 @@ fn cmd_issue(cmd: IssueCmd) -> Result<(), String> {
             }
             Ok(())
         }
-        IssueCmd::Close { n, digest, note } => {
-            let evs = hst::ledger::issue_close(n, &digest, note.as_deref())?;
-            match hst::fmtio::mode() {
-                hst::fmtio::Format::Json => {
-                    let cwd = std::env::current_dir().unwrap_or_default();
-                    print_json(
-                        "issue-close",
-                        &cwd,
-                        Ok(serde_json::json!({ "events": evs })),
-                    )?;
-                }
-                hst::fmtio::Format::Jsonl => hst::fmtio::print_jsonl(&evs),
-                hst::fmtio::Format::Kv => {
-                    for ev in &evs {
-                        println!(
-                            "issue.event seq={} type={}",
-                            ev["seq"],
-                            ev["type"].as_str().unwrap_or("-"),
-                        );
-                    }
-                }
-            }
-            Ok(())
-        }
     }
-}
-
-/// 账本写入类回执的 kv marker 面（issue 开单等）：seq 是全局只增序号。
-fn emit_ledger_write(tag: &str, v: serde_json::Value) -> Result<(), String> {
-    match hst::fmtio::mode() {
-        hst::fmtio::Format::Json => {
-            let cwd = std::env::current_dir().unwrap_or_default();
-            print_json(tag, &cwd, Ok(v.clone()))?;
-        }
-        hst::fmtio::Format::Jsonl => hst::fmtio::print_jsonl(&[v.clone()]),
-        hst::fmtio::Format::Kv => {
-            if let Some(n) = v["issue"].as_u64() {
-                println!("ledger.issue.opened=n{n}");
-            }
-            if let Some(id) = v["artifact_id"].as_str() {
-                println!("ledger.artifact.published={id}");
-            }
-            if let Some(ev) = v["event"].as_object() {
-                println!(
-                    "ledger.event.seq={}",
-                    ev.get("seq").cloned().unwrap_or(serde_json::json!("-"))
-                );
-                println!(
-                    "ledger.event.type={}",
-                    ev.get("type").cloned().unwrap_or(serde_json::json!("-"))
-                );
-            }
-            if v.get("replay").and_then(|r| r.as_bool()) == Some(true) {
-                println!("ledger.replay=true");
-            }
-        }
-    }
-    Ok(())
 }
 
 /// issue 详情的 kv 行（projection 加时间线）。
@@ -891,41 +850,80 @@ fn cmd_artifact(cmd: ArtifactCmd) -> Result<(), String> {
             version,
             git_range,
             deps,
-            summary,
-            outcome,
-            git_sha,
+            note,
         } => {
-            let v = hst::ledger::artifact_publish(
-                &name,
-                &kind,
-                &digest,
-                version.as_deref(),
-                git_range.as_deref(),
-                &deps,
-                summary.as_deref(),
-                outcome.as_deref(),
-                git_sha.as_deref(),
-            )?;
-            emit_ledger_write("artifact-publish", v)
+            let name_trim = name.trim();
+            if name_trim.is_empty() || name_trim.chars().count() > 200 {
+                return Err(format!(
+                    "name 必填且至多 200 字符（trim 后），得 {}",
+                    name_trim.chars().count()
+                ));
+            }
+            if !ledger_client::ARTIFACT_KINDS.contains(&kind.as_str()) {
+                return Err(format!(
+                    "kind 仅 {}，得 {kind}",
+                    ledger_client::ARTIFACT_KINDS.join("|")
+                ));
+            }
+            hst::ledger::validate_digest(&digest)?;
+            let id = hst::ledger::client()?
+                .artifact_publish(
+                    name_trim,
+                    &kind,
+                    &digest,
+                    version.as_deref(),
+                    git_range.as_deref(),
+                    &deps,
+                    note.as_deref(),
+                )
+                .map_err(|e| e.to_string())?;
+            match hst::fmtio::mode() {
+                hst::fmtio::Format::Json => {
+                    let cwd = std::env::current_dir().unwrap_or_default();
+                    print_json(
+                        "artifact-publish",
+                        &cwd,
+                        Ok(serde_json::json!({ "published": true, "artifact_id": id })),
+                    )?;
+                }
+                hst::fmtio::Format::Jsonl => {
+                    hst::fmtio::print_jsonl(&[
+                        serde_json::json!({ "published": true, "artifact_id": id }),
+                    ]);
+                }
+                hst::fmtio::Format::Kv => {
+                    println!("ledger.artifact.published={id}");
+                }
+            }
+            Ok(())
         }
         ArtifactCmd::Attest { id, r#type, note } => {
-            let mut payload = serde_json::json!({});
-            if let Some(n) = note.as_deref() {
-                payload["note"] = serde_json::json!(n);
+            if !ledger_client::ATTEST_TYPES.contains(&r#type.as_str()) {
+                return Err(format!(
+                    "type 仅 {}（只增验证面；promote/demote/supersede 归 omc 工作台），得 {ty}",
+                    ty = r#type
+                ));
             }
-            let v = hst::ledger::artifact_attest(&id, &r#type, payload, None)?;
-            emit_ledger_write("artifact-attest", v)
-        }
-        ArtifactCmd::Promote { id, note } => {
-            let mut payload = serde_json::json!({});
-            if let Some(n) = note.as_deref() {
-                payload["note"] = serde_json::json!(n);
+            let v = hst::ledger::client()?
+                .artifact_attest(&id, &r#type, serde_json::json!({}), note.as_deref())
+                .map_err(|e| e.to_string())?;
+            match hst::fmtio::mode() {
+                hst::fmtio::Format::Json => {
+                    let cwd = std::env::current_dir().unwrap_or_default();
+                    print_json("artifact-attest", &cwd, Ok(v.clone()))?;
+                }
+                hst::fmtio::Format::Jsonl => hst::fmtio::print_jsonl(&[v.clone()]),
+                hst::fmtio::Format::Kv => {
+                    println!("ledger.event.seq={}", v["event"]["seq"].clone());
+                    println!("ledger.event.type={}", v["event"]["type"].clone());
+                }
             }
-            let v = hst::ledger::artifact_attest(&id, "promote", payload, None)?;
-            emit_ledger_write("artifact-promote", v)
+            Ok(())
         }
         ArtifactCmd::List { current, env } => {
-            let v = hst::ledger::artifacts_list(current, env.as_deref())?;
+            let v = hst::ledger::client()?
+                .artifact_list(current, env.as_deref())
+                .map_err(|e| e.to_string())?;
             let rows = v["artifacts"].as_array().cloned().unwrap_or_default();
             match hst::fmtio::mode() {
                 hst::fmtio::Format::Json => {

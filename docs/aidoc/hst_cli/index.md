@@ -1,4 +1,4 @@
-# hst-cli 2.6.0
+# hst-cli 2.7.0
 
 hst-cli：HST（Hooks, Statusline, Trace）库面——四家 agent（claude、
 codex、grok、kimi）的部署配置与诊断内核。承载五功能：hook 状态落盘

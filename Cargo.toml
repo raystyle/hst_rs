@@ -13,7 +13,7 @@ missing_panics_doc = "warn"
 
 [package]
 name = "hst-cli"
-version = "2.6.0"
+version = "2.7.0"
 edition = "2021"
 description = "HST（Hooks, Statusline, Trace）：Claude/Codex/Grok/Kimi 四家 hook 落盘、状态栏、只读 trace、doctor 与 yolo 部署配置工具"
 license = "MIT"
@@ -33,8 +33,7 @@ name = "hst"
 aes-gcm = "0.10"
 age = "0.11"
 base64 = "0.22"
-ed25519-dalek = { version = "2", features = ["rand_core"] }
-rand = "0.8"
+ledger-client = { git = "https://github.com/raystyle/ledger-rs", tag = "v0.1.1" }
 getrandom = "0.3"
 clap = { version = "4", features = ["derive"] }
 clap_complete = "4"

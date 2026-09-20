@@ -25,3 +25,5 @@ trace: ledger.rs 单测六件加 cli 集成三件加实弹三验（开单加列�
 ## trace
 
 ledger.rs 单测六件（签名基向量、kid 常量自检、digest 校验、kind 集对服务端契约、keygen 加 load 双通道往返隔离、提示指账本面）；cli 集成三件（publish 本地校验秒红、close digest 校验、keygen 隔离落档不泄 seed）；实弹三验（总台在册后：issue new 201 加 list 投影对加 artifact publish experience 201，回执在 diary）。
+
+- [x] 收口附注（2026-09-20 总台修正令）：权限只增（close 面移除、attest 收窄三验证型、promote 移除）（关删与状态推进归 omc 工作台）；自研客户端退役改引 ledger-client crate（v0.1.1，URL 缺斜杠缺陷本仓实弹报出后总台即修）；密档迁 hex 形 `[实证: crate 面 issue list 投影对加 attest_dev seq=157]`

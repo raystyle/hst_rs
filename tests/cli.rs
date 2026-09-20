@@ -306,12 +306,40 @@ fn ledger_artifact_publish_validates_locally() {
 }
 
 #[test]
-fn ledger_close_validates_digest_and_event_type() {
+fn ledger_close_face_removed_and_attest_narrowed() {
+    // 总台修正令收口：close 面移除（usage 错退出 2）；attest 只增三验
+    // 证型（promote 型本地拒并指 omc）。
     hst()
-        .args(["issue", "close", "1", "--digest", "sha256:abc"])
+        .args([
+            "issue",
+            "close",
+            "1",
+            "--digest",
+            &format!("sha256:{}", "a".repeat(64)),
+        ])
         .assert()
         .failure()
-        .stderr(contains("64hex"));
+        .stderr(contains("unrecognized subcommand"));
+    hst()
+        .args(["artifact", "attest", "x", "--type", "promote"])
+        .assert()
+        .failure()
+        .stderr(contains("omc"));
+    let tmp = std::env::temp_dir().join(format!(
+        "hst-cli-novault-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis()
+    ));
+    hst()
+        .args(["artifact", "attest", "x", "--type", "attest_dev"])
+        .env("HST_ROOT", &tmp)
+        .assert()
+        .failure()
+        .stderr(contains("私钥密档不可读"));
+    let _ = std::fs::remove_dir_all(&tmp);
 }
 
 #[test]
