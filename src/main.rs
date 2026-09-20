@@ -186,7 +186,7 @@ enum IssueCmd {
 
 #[derive(Subcommand)]
 enum YoloCmd {
-    /// 检测项目级 yolo 干扰键（claude 两层加 codex 加 kimi，只读零改动；写 ~/.hst/state/projyolo/ marker，命中时状态栏升格 proj-yolo!；清除走 hst init --clear-project-yolo）
+    /// 检测项目级 yolo 干扰键（claude 两层加 codex 加 kimi，只读零改动；写 ~/.hst/state/projyolo/ marker，命中时状态栏升格 proj-yolo!；清除走 hst init --clear-project-yolo。本命令只出 kv marker 行，不走 fmtio 三态）
     Check {
         /// 项目根；默认当前目录
         #[arg(long)]
@@ -1099,17 +1099,32 @@ fn cmd_yolo_check(project: Option<PathBuf>) -> Result<(), String> {
         .chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
         .collect();
+    // real 字段加双 slug 落盘（评审 G1/G6）：canonicalize 形与给定形各落
+    // 一份同容 marker，状态栏侧任一拼写（符号链接漂移、手动 CTA 的物理
+    // 路径）都能命中。
+    let real = std::fs::canonicalize(&root).unwrap_or_else(|_| root.clone());
+    let real_slug: String = real
+        .to_string_lossy()
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect();
     let marker = serde_json::json!({
         "hit": !hits.is_empty(),
         "project": root.display().to_string(),
+        "real": real.display().to_string(),
         "count": hits.len(),
         "ts": std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0),
     });
-    std::fs::write(marker_dir.join(format!("{slug}.json")), marker.to_string())
+    let body = marker.to_string();
+    std::fs::write(marker_dir.join(format!("{slug}.json")), &body)
         .map_err(|e| format!("write marker: {e}"))?;
+    if real_slug != slug {
+        std::fs::write(marker_dir.join(format!("{real_slug}.json")), &body)
+            .map_err(|e| format!("write marker (real): {e}"))?;
+    }
     Ok(())
 }
 

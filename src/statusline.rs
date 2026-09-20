@@ -367,7 +367,15 @@ if ($state -ne 'no-hook!' -and $HOME -and $dir) {
             $ym = Get-Content -Raw $yMarker | ConvertFrom-Json
             $yFresh = $false
             try { $yFresh = ((([DateTime]::UtcNow - [DateTime]::new(1970,1,1)).TotalSeconds - [double]$ym.ts) -le 1200) } catch {}
-            if ($ym.hit -and ("$($ym.project)" -eq "$dir") -and $yFresh) { $state = 'proj-yolo!' }
+            # project 与 real 任一等值即命中（评审 G1：符号链接漂移与手动
+            # CTA 的物理路径拼写都覆盖）。
+            $yMatch = ("$($ym.project)" -eq "$dir")
+            if (-not $yMatch -and $ym.real) { $yMatch = ("$($ym.real)" -eq "$dir") }
+            if ($ym.hit -and $yMatch -and $yFresh) {
+                # 复合态（评审 G2 裁）：实时态有价值时并显（working/proj-yolo!），
+                # unknown 等低价值态直接替换；色恒红。
+                if ($state -eq 'working' -or $state -eq 'blocked' -or $state -eq 'idle') { $state = "$state/proj-yolo!" } else { $state = 'proj-yolo!' }
+            }
         } catch {}
     }
     $yStamp = Join-Path $yDir ('.check-' + $ySlug)
@@ -397,6 +405,7 @@ $stateColor = switch ($state) {
     'proj-yolo!' { '38;5;203' }
     default { '38;5;245' }
 }
+if ($state -like '*proj-yolo!*') { $stateColor = '38;5;203' }
 $hstTxt = ApplyFmt (Tmpl 'hst') @{ icon = (Ico 'hst'); agent = $agentDisp; state = $state }
 $parts.Add((Seg $hstTxt $stateColor))
 "#;
@@ -2958,6 +2967,26 @@ mod tests {
         .unwrap();
         let out2 = run_statusline_opts(&path, "claude", &home, stdin.as_bytes(), &envs, true);
         assert!(!out2.contains("proj-yolo!"), "项目不符不升格：{out2}");
+        // real 字段命中（评审 G1）：project 指别处而 real 等值仍升格。
+        std::fs::write(
+            dir.join(format!("{slug}.json")),
+            format!(
+                "{{\"hit\":true,\"project\":\"/elsewhere\",\"real\":\"{}\",\"count\":1,\"ts\":{}}}",
+                home.display(),
+                ts
+            ),
+        )
+        .unwrap();
+        let out3 = run_statusline_opts(&path, "claude", &home, stdin.as_bytes(), &envs, true);
+        assert!(out3.contains("proj-yolo!"), "real 等值命中：{out3}");
+        // 复合态（评审 G2）：实时态有价值时并显 working/proj-yolo!。
+        std::fs::write(
+            home.join(".hst").join("state").join("claude.json"),
+            "{\"state\":\"working\"}",
+        )
+        .unwrap();
+        let out4 = run_statusline_opts(&path, "claude", &home, stdin.as_bytes(), &envs, true);
+        assert!(out4.contains("working/proj-yolo!"), "复合态并显：{out4}");
         let _ = std::fs::remove_dir_all(&home);
     }
 }

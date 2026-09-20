@@ -6,7 +6,7 @@ use serde_json::{json, Value as Json};
 use sha2::{Digest, Sha256};
 use toml::Value as Toml;
 
-use crate::pathutil::{abs_display, forward_slash, native_slash};
+use crate::pathutil::{abs_display, forward_slash, native_slash, same_location};
 
 /// 键落盘报告：写入路径清单。
 pub struct ApplyReport {
@@ -555,10 +555,11 @@ pub fn clear_project_yolo_interference(root: &Path) -> Result<Vec<String>, Strin
 pub fn project_yolo_interferences(root: &Path) -> Result<Vec<String>, String> {
     let root = abs_display(root);
     let mut hits = Vec::new();
-    if let Ok(home) = crate::pathutil::user_home() {
-        if root == abs_display(&home) {
-            return Ok(hits);
-        }
+    // 家目录守卫（D52 同判；评审 G4：判据与清除侧同源走 same_location，
+    // 失败语义同判走 ?）。
+    let home = crate::pathutil::user_home()?;
+    if same_location(&root, &home) {
+        return Ok(hits);
     }
     for rel in [".claude/settings.json", ".claude/settings.local.json"] {
         let path = root.join(rel);
