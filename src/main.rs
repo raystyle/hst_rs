@@ -135,12 +135,12 @@ enum Commands {
         #[command(subcommand)]
         cmd: TraceCmd,
     },
-    /// issue 入口（账本 issue 流，真源 ledger.ohmygh.com；旧 issues.ohmygh.com 过渡保役）：开单、列表、详情、关单
+    /// issue 入口（账本 issue 流，真源 ledger.ohmygh.com；只增面）：开单、列表、详情（关单与状态推进归 omc 工作台）
     Issue {
         #[command(subcommand)]
         cmd: IssueCmd,
     },
-    /// 产物共享库面（ledger artifact 流：publish 加 attest 加 promote 加 list；真源 ledger.ohmygh.com）
+    /// 产物共享库面（ledger artifact 流：publish 加 attest（三验证型）加 list；promote/demote/supersede 归 omc 工作台；真源 ledger.ohmygh.com）
     Artifact {
         #[command(subcommand)]
         cmd: ArtifactCmd,
@@ -742,7 +742,7 @@ fn cmd_issue(cmd: IssueCmd) -> Result<(), String> {
                 ),
                 _ => None,
             };
-            let v = hst::ledger::client()?
+            let v = hst::ledger::client_readonly()?
                 .issue_list(eff, before_n)
                 .map_err(|e| e.to_string())?;
             let rows = v["issues"].as_array().cloned().unwrap_or_default();
@@ -783,7 +783,7 @@ fn cmd_issue(cmd: IssueCmd) -> Result<(), String> {
             Ok(())
         }
         IssueCmd::Show { n } => {
-            let v = hst::ledger::client()?
+            let v = hst::ledger::client_readonly()?
                 .issue_show(n)
                 .map_err(|e| e.to_string())?;
             match hst::fmtio::mode() {
@@ -805,23 +805,37 @@ fn cmd_issue(cmd: IssueCmd) -> Result<(), String> {
     }
 }
 
-/// issue 详情的 kv 行（projection 加时间线）。
+/// issue 详情的 kv 行（projection 加时间线；title 与 acceptance 在
+/// timeline 的 issue_open payload 里，服务端 projection 只回状态面——评审
+/// F1）。payload 是嵌套 JSON 字符串，顺手解成对象入行。
 fn render_issue_show_kv(v: &serde_json::Value) -> Vec<String> {
     let mut out = Vec::new();
     let p = &v["projection"];
+    let open = v["timeline"]
+        .as_array()
+        .and_then(|tl| tl.iter().find(|ev| ev["type"] == "issue_open"))
+        .cloned()
+        .unwrap_or(serde_json::json!({}));
+    let payload: serde_json::Value = open["payload"]
+        .as_str()
+        .and_then(|s| serde_json::from_str(s).ok())
+        .unwrap_or(serde_json::json!({}));
     out.push(format!("issue.n={}", v["issue"]));
     out.push(format!(
         "issue.title={}",
-        p["title"].as_str().unwrap_or("-")
+        payload["title"].as_str().unwrap_or("-")
     ));
-    out.push(format!("issue.kind={}", p["kind"].as_str().unwrap_or("-")));
+    out.push(format!(
+        "issue.kind={}",
+        payload["kind"].as_str().unwrap_or("-")
+    ));
     out.push(format!(
         "issue.status={}",
         p["status"].as_str().unwrap_or("-")
     ));
     out.push(format!(
         "issue.acceptance={}",
-        p["acceptance"].as_str().unwrap_or("-")
+        payload["acceptance"].as_str().unwrap_or("-")
     ));
     if let Some(a) = p["assignee"].as_str() {
         out.push(format!("issue.assignee={a}"));
@@ -840,7 +854,7 @@ fn render_issue_show_kv(v: &serde_json::Value) -> Vec<String> {
     out
 }
 
-/// `hst artifact publish|attest|promote|list`：账本 artifact 流（REQ-063）。
+/// `hst artifact publish|attest|list`：账本 artifact 流（REQ-063，只增面）。
 fn cmd_artifact(cmd: ArtifactCmd) -> Result<(), String> {
     match cmd {
         ArtifactCmd::Publish {
@@ -900,8 +914,9 @@ fn cmd_artifact(cmd: ArtifactCmd) -> Result<(), String> {
         ArtifactCmd::Attest { id, r#type, note } => {
             if !ledger_client::ATTEST_TYPES.contains(&r#type.as_str()) {
                 return Err(format!(
-                    "type 仅 {}（只增验证面；promote/demote/supersede 归 omc 工作台），得 {ty}",
-                    ty = r#type
+                    "type 仅 {}（只增验证面；promote/demote/supersede 归 omc 工作台），得 {}",
+                    ledger_client::ATTEST_TYPES.join("|"),
+                    r#type
                 ));
             }
             let v = hst::ledger::client()?
@@ -921,7 +936,7 @@ fn cmd_artifact(cmd: ArtifactCmd) -> Result<(), String> {
             Ok(())
         }
         ArtifactCmd::List { current, env } => {
-            let v = hst::ledger::client()?
+            let v = hst::ledger::client_readonly()?
                 .artifact_list(current, env.as_deref())
                 .map_err(|e| e.to_string())?;
             let rows = v["artifacts"].as_array().cloned().unwrap_or_default();

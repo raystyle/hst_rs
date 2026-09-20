@@ -314,7 +314,6 @@ mod tests {
 
     #[test]
     fn run_is_silent_without_env_or_agent() {
-        let _env_guard = crate::TEST_ENV_LOCK.lock().unwrap();
         let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         env::remove_var("HST_STATE_FILE");
         env::remove_var("HST_AGENT");
@@ -343,7 +342,6 @@ mod tests {
 
     #[test]
     fn run_writes_user_level_session_keyed_pair_without_env() {
-        let _env_guard = crate::TEST_ENV_LOCK.lock().unwrap();
         // D28 用户级 session 分键：HST_ROOT 缝注入临时根，双写
         // <agent>.json 加 <agent>-<session>.json；HookOutcome 报最新键。
         let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
@@ -392,7 +390,6 @@ mod tests {
 
     #[test]
     fn session_end_removes_keyed_file_and_sweep_clears_stale() {
-        let _env_guard = crate::TEST_ENV_LOCK.lock().unwrap();
         let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         env::remove_var("HST_STATE_FILE");
         env::remove_var("HST_AGENT");
@@ -457,7 +454,6 @@ mod tests {
 
     #[test]
     fn guard_blocks_secret_in_pretooluse_command() {
-        let _env_guard = crate::TEST_ENV_LOCK.lock().unwrap();
         let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         env::remove_var("HST_STATE_FILE");
         env::remove_var("HST_AGENT");

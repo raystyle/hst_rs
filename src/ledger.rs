@@ -63,13 +63,66 @@ fn read_seed_hex() -> Result<String, String> {
     Ok(text.trim().to_string())
 }
 
+/// 旧形密档识别与就地迁移（评审 G2）：v2.6.0 期密档是 base64url（43 字
+/// 符），crate 只吃 hex（64 字符）。识别旧形即转 hex 原子落回（kid 不
+/// 变，同一把钥），舰队存量机升级即得迁移路径。返回迁移与否。
+fn migrate_legacy_vault() -> Result<bool, String> {
+    let p = private_key_path()?;
+    let Ok(text) = std::fs::read_to_string(&p) else {
+        return Ok(false);
+    };
+    let t = text.trim();
+    if t.len() == 64 && t.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Ok(false);
+    }
+    // base64url 32 字节（无填充 43 字符）形。
+    if t.len() == 43
+        && t.chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        use base64::Engine;
+        let seed = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(t.as_bytes())
+            .map_err(|e| format!("旧形密档解码失败（{}）：{e}", p.display()))?;
+        let hex_seed: String = seed.iter().map(|b| format!("{b:02x}")).collect();
+        std::fs::write(&p, &hex_seed).map_err(|e| format!("{}: {e}", p.display()))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perm = std::fs::metadata(&p)
+                .map_err(|e| format!("{}: {e}", p.display()))?
+                .permissions();
+            perm.set_mode(0o600);
+            std::fs::set_permissions(&p, perm).map_err(|e| format!("{}: {e}", p.display()))?;
+        }
+        return Ok(true);
+    }
+    Ok(false)
+}
+
 /// 构造标准客户端（ledger-client crate）：env 优先次密档。
 /// # Errors
 ///
 /// 失败返回 `String` 错误（密钥读取与解析类）。
 pub fn client() -> Result<ledger_client::Ledger, String> {
+    let _ = migrate_legacy_vault()?;
     let seed = read_seed_hex()?;
     let key = ledger_client::KeyPair::load_secret_hex(&seed).map_err(|e| e.to_string())?;
+    Ok(ledger_client::Ledger::new(REPO_ID, key))
+}
+
+/// 只读客户端（GET 面免钥，评审 F2）：密钥在位用真钥，缺位用临时生成
+/// 钥（GET 不签名不消费钥，仅满足 crate 构造形）——读面不因密档缺位而
+/// 失能（新机器、CI、只读 agent）。crate 只读构造（`new_readonly`）出
+/// 台后替换此过渡形。
+/// # Errors
+///
+/// 失败返回 `String` 错误（密钥在位但不可解析类）。
+pub fn client_readonly() -> Result<ledger_client::Ledger, String> {
+    let key = match read_seed_hex() {
+        Ok(seed) => ledger_client::KeyPair::load_secret_hex(&seed).map_err(|e| e.to_string())?,
+        Err(_) => ledger_client::KeyPair::generate(),
+    };
     Ok(ledger_client::Ledger::new(REPO_ID, key))
 }
 
@@ -130,14 +183,14 @@ pub fn keygen_write(force: bool) -> Result<(String, String, Option<String>), Str
 ///
 /// 失败返回 `String` 错误（密钥读取类）。
 pub fn pairing_ok() -> Result<Option<bool>, String> {
+    let _ = migrate_legacy_vault()?;
     let seed = match read_seed_hex() {
         Ok(s) => s,
-        Err(_) => return Ok(None),
+        Err(_) => return Ok(None), // absent：密档与 env 双缺位
     };
-    let key = match ledger_client::KeyPair::load_secret_hex(&seed) {
-        Ok(k) => k,
-        Err(_) => return Ok(None),
-    };
+    let key = ledger_client::KeyPair::load_secret_hex(&seed).map_err(|e| {
+        format!("密档在位但不可解析：{e}；v2.6.0 期 base64url 形由迁移器自动处理，若手动改坏可 hst ledger keygen --force 重建")
+    })?;
     Ok(Some(key.public_jwk == PUBKEY_JWK))
 }
 

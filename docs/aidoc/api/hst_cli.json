@@ -383,6 +383,11 @@
       "docs": "构造标准客户端（ledger-client crate）：env 优先次密档。\n# Errors\n\n失败返回 `String` 错误（密钥读取与解析类）。"
     },
     {
+      "path": "hst_cli::ledger::client_readonly",
+      "kind": "function",
+      "docs": "只读客户端（GET 面免钥，评审 F2）：密钥在位用真钥，缺位用临时生成\n钥（GET 不签名不消费钥，仅满足 crate 构造形）——读面不因密档缺位而\n失能（新机器、CI、只读 agent）。crate 只读构造（`new_readonly`）出\n台后替换此过渡形。\n# Errors\n\n失败返回 `String` 错误（密钥在位但不可解析类）。"
+    },
+    {
       "path": "hst_cli::ledger::issue_list_saturated",
       "kind": "function",
       "docs": "issue list 饱和判定（#52 家族标准）：返回条数不少于钳制后 limit 即示\n警；用 `>=` 不用 `==`，服务端若返回多于请求值，`==` 会静默漏报。"

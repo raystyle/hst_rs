@@ -45,12 +45,17 @@ pub mod yolo;
 /// 测试共享 env 互斥：动 HST_ROOT / HST_USER_HOME / SOPS_AGE_KEY_FILE 等
 /// 进程级环境变量的测试跨模块也要互斥（各自局部锁挡不住并发互踩）。
 #[cfg(test)]
-pub(crate) mod testenv {
-    pub static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-}
 
 /// 测试期进程全局 env（HST_ROOT 等）互斥锁：set_var/remove_var 是进程级
 /// 全局态，并行测试竞态会互踩（CI 实弹：ledger roundtrip 撞 hook 测试的
 /// HST_ROOT）。凡动这些 env 的测试先取本锁。
 #[cfg(test)]
-pub(crate) static TEST_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+pub(crate) mod testenv {
+    /// 测试期进程全局 env（HST_ROOT 等）互斥锁：set_var/remove_var 是进程
+    /// 级全局态，并行测试竞态会互踩。凡动这些 env 的测试先取本锁（唯
+    /// 一锁，pathutil 重导出）。
+    pub static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+}
+
+#[cfg(test)]
+pub(crate) use crate::testenv::ENV_LOCK as TEST_ENV_LOCK;
