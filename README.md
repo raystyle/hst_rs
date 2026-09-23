@@ -64,6 +64,9 @@ hst init --yolo=partial      # 分级：编辑自动过，危险操作仍确认
 hst init --clear-project-yolo  # 清项目级对用户级 yolo 的干扰键
 hst trace file src/main.rs   # 单文件轨迹：谁、何时、基于什么意图改的
 hst statusline --example     # 状态栏定制模板
+hst loop set "盯CI发布" --every 5m   # 本会话 durable 定时任务（状态栏 loop/goal 段同源显示）
+hst goal set "改盯发布窗口"          # 改最新 loop 的 goal 文本（不动节奏）
+hst init --compact-pct 70 --yes      # claude 压缩触发阈值 70%（不加 --yes 只预览）
 hst diagnose cache           # 网关缓存命中矩阵（打真 API 烧最小 token）
 hst --json --filter-output blocked doctor   # 信封只留 blocked 键（agent 面）
 ```

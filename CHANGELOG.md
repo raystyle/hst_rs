@@ -147,3 +147,9 @@
 ### 里程碑 2026-09-21
 
 - **ledger 收口轮v2.7.0（总台修正令 2026-09-20 权限只增加统一 crate，v0.1.0 URL 缺陷本仓实弹报出加 v0.1.3 迭代全程对线）**：权限只增（移除 issue close 与 artifact promote 面），attest 收窄三验证型（attest_dev 加 attest_prod 加 verification_failed），close/delete 与 status 推进加 promote/demote/supersede 唯一道归 omc 工作台（herdr 委托）；自研 ledger 客户端整体退役，统一引 ledger-client crate（ledger-rs，v0.1.1：v0.1.0 的 GET/POST URL 缺分隔斜杠缺陷由本仓实弹报出，总台当日修复出 tag）；本仓侧只剩仓身份加密档管理（hex 密档加 keygen 覆盖守卫加配对自检）加本地快检加家族读序三件。实弹复验：issue list 投影对（count 与 has_more 与饱和提示）、attest_dev 写道过 crate 全链（seq=157）；v0.1.3 补 git_sha 第十参加 --git-sha 旗标（REQ-018 尾项销，三旗标齐）；issue show 从 timeline 取 title 与 acceptance、三读面免钥（crate read_only）、旧 base64url 密档原子迁移、测试 env 锁单源化（竞态死锁根修）。
+
+### 里程碑 2026-09-23
+
+- **状态栏 loop 与 goal 段加管理命令面（REQ-019，用户三裁定：两段分立、进默认第二行、仅本会话口径）**：PS1_LOOPPROBE 探针读项目 `.claude/scheduled_tasks.json`（Claude Code durable CronCreate 同源唯一真相，schema 实证 2026-09-23 探针）按 createdBySessionId 过滤本会话；loop 段计数加节拍（×Nm 加 ×Nh 加 ×1h 加 @HH:mm 人性化）、goal 段最新任务 prompt 截 16 字，无任务零噪声，grok ascii 模板。管理面 `hst loop set/list/del`（every 与 at 二选一、latest 与 all 限本会话、外会话不误删、属主 pid 加 procStart 与 Claude Code liveness 同源）加 `hst goal set/show/clear`（改目标不动节奏）；会话三级解析（显式 --session 加 CLAUDE_CODE_SESSION_ID 加 ~/.claude.json 项目表 lastSessionId）。
+- **claude 压缩触发阈值检测加设置（总台功能单，ledger n6，用户令 70% 就压缩）**：配置面双源实证（官方文档加本机 2.1.270 二进制反混淆）：百分比阈值唯一面 = env `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`（未文档，内部名 testPctOverride），窗口面 env 优先于 settings 键与命令面，`CLAUDE_CODE_AUTO_COMPACT_THRESHOLD` 不存在。检测面 doctor 新增 claude compact 检查项（pct 加窗口来源加开关加近似阈值单行）；设置面 `hst init --compact-pct <1-100|off> [--yes]`（预览零写、--yes 落盘回读自证、同值幂等、与 yolo 族互斥）。70% 五端铺面（wsl 加 lan-win 加 lan-mac 加 lan-ubuntu 加 lan-linux）逐端回读阈值 686000 tokens。
+- **评审闸门与部署口径**：本批经 herdr 评审格 hst-codex-review 三轮至终审放行（一轮 F 两件加 G 四件全修：aidoc 漂移再生、--every Nh 小时步进静默放大根修、write_tasks 保顶层兄弟键、compact 与 pre-trust 互斥等）；五端二进制部署裁定随本封版统一升（stable 段）。
