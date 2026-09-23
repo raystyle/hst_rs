@@ -166,6 +166,11 @@ enum Commands {
         #[command(subcommand)]
         cmd: LoopCmd,
     },
+    /// goal 面（REQ-019）：当前会话最新 loop 的 goal 文本设置、查看与清空（改目标不动节奏）
+    Goal {
+        #[command(subcommand)]
+        cmd: GoalCmd,
+    },
 }
 
 #[derive(Subcommand)]
@@ -201,6 +206,39 @@ enum LoopCmd {
         /// 目标：任务 id 或 latest 或 all
         target: String,
         /// 会话 id（latest 与 all 的归属判据；解析序同 set）
+        #[arg(long)]
+        session: Option<String>,
+        /// 项目根；默认当前目录
+        #[arg(long)]
+        project: Option<PathBuf>,
+    },
+}
+
+#[derive(Subcommand)]
+enum GoalCmd {
+    /// 设置当前会话最新 loop 的 goal 文本（prompt 就地改写；无本会话任务报错）
+    Set {
+        /// goal 文本（trim 后非空；状态栏 goal 段显示源）
+        text: String,
+        /// 会话 id；解析序同 loop set
+        #[arg(long)]
+        session: Option<String>,
+        /// 项目根；默认当前目录
+        #[arg(long)]
+        project: Option<PathBuf>,
+    },
+    /// 查看当前会话最新 loop 的 goal（无任务或会话不可解析给 goal.present=false）
+    Show {
+        /// 会话 id；解析序同 loop set
+        #[arg(long)]
+        session: Option<String>,
+        /// 项目根；默认当前目录
+        #[arg(long)]
+        project: Option<PathBuf>,
+    },
+    /// 清空当前会话最新 loop 的 goal（prompt 置空、任务与节奏保留）
+    Clear {
+        /// 会话 id；解析序同 loop set
         #[arg(long)]
         session: Option<String>,
         /// 项目根；默认当前目录
@@ -620,6 +658,15 @@ fn run() -> Result<(), String> {
                 session,
                 project,
             } => cmd_loop_del(&target, session.as_deref(), project),
+        },
+        Commands::Goal { cmd } => match cmd {
+            GoalCmd::Set {
+                text,
+                session,
+                project,
+            } => cmd_goal_set(&text, session.as_deref(), project),
+            GoalCmd::Show { session, project } => cmd_goal_show(session.as_deref(), project),
+            GoalCmd::Clear { session, project } => cmd_goal_clear(session.as_deref(), project),
         },
         Commands::Issue { cmd } => cmd_issue(cmd),
     }
@@ -1492,6 +1539,38 @@ fn cmd_loop_del(
     println!("loop.del count={}", removed.len());
     for id in removed {
         println!("loop.del id={id}");
+    }
+    Ok(())
+}
+
+fn cmd_goal_set(text: &str, session: Option<&str>, project: Option<PathBuf>) -> Result<(), String> {
+    let root = project_root(project)?;
+    let r = loopmgmt::set_goal(&root, text, session)?;
+    println!("goal.set id={}", r.id);
+    println!("goal.set cron={}", r.cron);
+    println!("goal.set text={}", text.trim());
+    Ok(())
+}
+
+fn cmd_goal_show(session: Option<&str>, project: Option<PathBuf>) -> Result<(), String> {
+    let root = project_root(project)?;
+    match loopmgmt::show_goal(&root, session)? {
+        Some(t) => {
+            println!("goal.present=true");
+            println!("goal.id={}", t.id);
+            println!("goal.cron={}", t.cron);
+            println!("goal.text={}", t.goal);
+        }
+        None => println!("goal.present=false"),
+    }
+    Ok(())
+}
+
+fn cmd_goal_clear(session: Option<&str>, project: Option<PathBuf>) -> Result<(), String> {
+    let root = project_root(project)?;
+    match loopmgmt::clear_goal(&root, session)? {
+        Some(id) => println!("goal.clear id={id}"),
+        None => println!("goal.clear count=0"),
     }
     Ok(())
 }

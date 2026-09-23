@@ -278,6 +278,72 @@ pub fn list_tasks(
     ))
 }
 
+/// goal 改写报告：被改任务的 id 与 cron。
+pub struct GoalReport {
+    /// 被改任务 id。
+    pub id: String,
+    /// 被改任务 cron（goal 面不动节奏，原样回显）。
+    pub cron: String,
+}
+
+/// 本会话 createdAt 最新任务的下标（同刻取后入者，与 del latest 同判）。
+fn latest_own_index(tasks: &[Json], sid: &str) -> Option<usize> {
+    tasks
+        .iter()
+        .enumerate()
+        .filter(|(_, t)| task_str(t, "createdBySessionId") == sid)
+        .max_by_key(|(i, t)| (t.get("createdAt").and_then(|v| v.as_u64()).unwrap_or(0), *i))
+        .map(|(i, _)| i)
+}
+
+/// 设置当前会话最新 loop 的 goal 文本（prompt 就地改写，节奏与属主不动；
+/// 无本会话任务报错，先 `hst loop set` 建任务）。
+pub fn set_goal(root: &Path, text: &str, session: Option<&str>) -> Result<GoalReport, String> {
+    let text = text.trim();
+    if text.is_empty() {
+        return Err("goal text is empty (to remove the goal use: hst goal clear)".to_string());
+    }
+    let sid = resolve_session(session, root)?;
+    let mut tasks = read_tasks(root)?;
+    let idx = latest_own_index(&tasks, &sid).ok_or_else(|| {
+        "no loop task for current session (create one with: hst loop set)".to_string()
+    })?;
+    let report = GoalReport {
+        id: task_str(&tasks[idx], "id"),
+        cron: task_str(&tasks[idx], "cron"),
+    };
+    tasks[idx]["prompt"] = json!(text);
+    write_tasks(root, &tasks)?;
+    Ok(report)
+}
+
+/// 清空当前会话最新 loop 的 goal（prompt 置空、任务与节奏保留；返回被改
+/// 任务 id，无本会话任务返回 None）。
+pub fn clear_goal(root: &Path, session: Option<&str>) -> Result<Option<String>, String> {
+    let sid = resolve_session(session, root)?;
+    let mut tasks = read_tasks(root)?;
+    match latest_own_index(&tasks, &sid) {
+        None => Ok(None),
+        Some(idx) => {
+            let id = task_str(&tasks[idx], "id");
+            tasks[idx]["prompt"] = json!("");
+            write_tasks(root, &tasks)?;
+            Ok(Some(id))
+        }
+    }
+}
+
+/// 查看当前会话最新 loop 的 goal（会话不可解析或无任务返回 None，查看面
+/// 不受阻）。
+pub fn show_goal(root: &Path, session: Option<&str>) -> Result<Option<TaskRow>, String> {
+    let sid = match resolve_session(session, root) {
+        Ok(s) => s,
+        Err(_) => return Ok(None),
+    };
+    let tasks = read_tasks(root)?;
+    Ok(latest_own_index(&tasks, &sid).map(|i| task_row(&tasks[i], &Some(sid))))
+}
+
 /// 删除任务：target 为任务 id（精确匹配任意任务，不限会话）、`latest`
 /// （本会话 createdAt 最新一条）或 `all`（本会话全部）；latest / all
 /// 需要可解析的当前会话。返回被删 id 清单（空 = 零改动，合法回执）。
@@ -432,6 +498,48 @@ mod tests {
         assert!(set_loop(&root, "g", None, None, Some("s1")).is_err());
         assert!(set_loop(&root, "g", Some("5m"), Some("10:00"), Some("s1")).is_err());
         assert!(set_loop(&root, "  ", Some("5m"), None, Some("s1")).is_err());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn goal_set_show_clear_roundtrip_on_latest_own() {
+        let root = fresh_dir("gl");
+        write_tasks(
+            &root,
+            &[
+                json!({ "id": "old000001", "cron": "*/5 * * * *", "prompt": "旧",
+                       "createdAt": 100u64, "recurring": true, "createdBySessionId": "s1" }),
+                json!({ "id": "new000002", "cron": "*/7 * * * *", "prompt": "新",
+                       "createdAt": 200u64, "recurring": true, "createdBySessionId": "s1" }),
+                json!({ "id": "foreign01", "cron": "*/9 * * * *", "prompt": "外会话",
+                       "createdAt": 300u64, "recurring": true, "createdBySessionId": "s2" }),
+            ],
+        )
+        .unwrap();
+        // set：改最新本会话任务,节奏不动,外会话不碰。
+        let r = set_goal(&root, "改盯发布窗口", Some("s1")).unwrap();
+        assert_eq!(r.id, "new000002");
+        assert_eq!(r.cron, "*/7 * * * *");
+        let (rows, _) = list_tasks(&root, Some("s1")).unwrap();
+        assert!(rows
+            .iter()
+            .any(|t| t.id == "new000002" && t.goal == "改盯发布窗口"));
+        assert!(rows
+            .iter()
+            .any(|t| t.id == "foreign01" && t.goal == "外会话"));
+        // show 回读最新。
+        let s = show_goal(&root, Some("s1")).unwrap().unwrap();
+        assert_eq!(s.goal, "改盯发布窗口");
+        // clear 置空 prompt、任务保留。
+        let id = clear_goal(&root, Some("s1")).unwrap().unwrap();
+        assert_eq!(id, "new000002");
+        assert_eq!(show_goal(&root, Some("s1")).unwrap().unwrap().goal, "");
+        // 会话不可解析:show 不受阻返回 None。
+        assert!(show_goal(&root, Some("nope")).unwrap().is_none());
+        // 无本会话任务 set 报错;空文本报错;clear 无任务 None。
+        assert!(set_goal(&root, "x", Some("nope")).is_err());
+        assert!(set_goal(&root, "  ", Some("s1")).is_err());
+        assert!(clear_goal(&root, Some("nope")).unwrap().is_none());
         let _ = std::fs::remove_dir_all(&root);
     }
 

@@ -15,15 +15,19 @@ createdByProcStart）；hst 是该文件的读写管理面（set / list / del）
 ## Functions
 
 - `at_to_cron` — 一次性时刻转 cron：`HH:MM`（24 小时制）得 `M H * * *` 加 recurring
+- `clear_goal` — 清空当前会话最新 loop 的 goal（prompt 置空、任务与节奏保留；返回被改
 - `del_loops` — 删除任务：target 为任务 id（精确匹配任意任务，不限会话）、`latest`
 - `every_to_cron` — 周期间隔转 cron：`Nm`（1 至 59）得 `*/N * * * *`；`Nh`（1 至 23）得
 - `list_tasks` — 列出项目定时任务（全量，不按会话过滤；`ours` 标当前会话归属，
 - `resolve_session` — 解析「当前会话」：显式 `--session` 优先，其次 agent 会话内环境变量
 - `scheduled_tasks_path` — 定时任务文件路径（项目根下 `.claude/scheduled_tasks.json`）。
+- `set_goal` — 设置当前会话最新 loop 的 goal 文本（prompt 就地改写，节奏与属主不动；
 - `set_loop` — 设置当前会话 loop：`--every` 与 `--at` 二选一（双缺或双给报错），
+- `show_goal` — 查看当前会话最新 loop 的 goal（会话不可解析或无任务返回 None，查看面
 
 ## Types
 
+- `GoalReport` — goal 改写报告：被改任务的 id 与 cron。
 - `SetReport` — set 落盘报告：新任务的 id、cron、recurring、归属会话与文件路径。
 - `TaskRow` — 任务行（list / del 判据用）：文件内每条任务的展开视图。
 

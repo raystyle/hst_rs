@@ -1217,6 +1217,83 @@ fn loop_set_list_del_roundtrip() {
 }
 
 #[test]
+fn goal_set_show_clear_roundtrip() {
+    // REQ-019 goal 面：loop set 建任务后 goal set 改目标不动节奏、show
+    // 回读、clear 置空任务保留、无任务会话 set 报错。
+    let tmp = std::env::temp_dir().join(format!(
+        "hst-cli-goal-{}-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis(),
+        NEXT_TEST_DIR.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    std::fs::create_dir_all(&tmp).unwrap();
+    hst()
+        .args(["loop", "set", "盯CI", "--every", "5m", "--session", "s1"])
+        .arg("--project")
+        .arg(&tmp)
+        .assert()
+        .success();
+    hst()
+        .args(["goal", "set", "改盯发布", "--session", "s1"])
+        .arg("--project")
+        .arg(&tmp)
+        .assert()
+        .success()
+        .stdout(contains("goal.set cron=*/5 * * * *"))
+        .stdout(contains("goal.set text=改盯发布"));
+    hst()
+        .args(["goal", "show", "--session", "s1"])
+        .arg("--project")
+        .arg(&tmp)
+        .assert()
+        .success()
+        .stdout(contains("goal.present=true"))
+        .stdout(contains("goal.text=改盯发布"));
+    hst()
+        .args(["goal", "clear", "--session", "s1"])
+        .arg("--project")
+        .arg(&tmp)
+        .assert()
+        .success()
+        .stdout(contains("goal.clear id="));
+    // 置空后任务仍在,goal 段文本为空行。
+    hst()
+        .args(["goal", "show", "--session", "s1"])
+        .arg("--project")
+        .arg(&tmp)
+        .assert()
+        .success()
+        .stdout(contains("goal.present=true"))
+        .stdout(contains("goal.text=\n"));
+    hst()
+        .args(["loop", "list"])
+        .arg("--project")
+        .arg(&tmp)
+        .assert()
+        .success()
+        .stdout(contains("loop.count=1"));
+    // 无本会话任务：set 报错,clear 零改动退 0。
+    hst()
+        .args(["goal", "set", "无任务", "--session", "zz"])
+        .arg("--project")
+        .arg(&tmp)
+        .assert()
+        .failure()
+        .stderr(contains("no loop task"));
+    hst()
+        .args(["goal", "clear", "--session", "zz"])
+        .arg("--project")
+        .arg(&tmp)
+        .assert()
+        .success()
+        .stdout(contains("goal.clear count=0"));
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
 fn dies_statusline_script_conflicts_with_builtin_and_example() {
     // clap 互斥：--script 与 --builtin / --example 不能同场。
     hst()
