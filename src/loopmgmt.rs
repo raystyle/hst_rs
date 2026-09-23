@@ -79,6 +79,10 @@ fn write_tasks(root: &Path, tasks: &[Json]) -> Result<PathBuf, String> {
 /// 解析「当前会话」：显式 `--session` 优先，其次 agent 会话内环境变量
 /// `CLAUDE_CODE_SESSION_ID`，再次 `~/.claude.json` 项目表 `lastSessionId`
 /// （键 = 项目根正斜杠形，与 pretrust 面同判）；全落空报错并提示显式给。
+///
+/// # Errors
+///
+/// 三级解析全落空时返回 `String` 错误（提示显式给 --session）。
 pub fn resolve_session(explicit: Option<&str>, root: &Path) -> Result<String, String> {
     if let Some(s) = explicit.map(str::trim).filter(|s| !s.is_empty()) {
         return Ok(s.to_string());
@@ -153,6 +157,10 @@ fn unix_millis() -> u64 {
 /// 周期间隔转 cron：`Nm`（1 至 59）得 `*/N * * * *`；`Nh`（1 至 23）得
 /// `M * * * *`，M 取落盘时刻分钟位并避开 0 与 30（舰队避整点半点纪律）。
 /// 恒为 recurring 形。
+///
+/// # Errors
+///
+/// 形坏或数值越界时返回 `String` 错误。
 pub fn every_to_cron(every: &str) -> Result<(String, bool), String> {
     let spec = every.trim();
     if let Some(n) = spec.strip_suffix('m').and_then(|d| d.parse::<u32>().ok()) {
@@ -180,6 +188,10 @@ pub fn every_to_cron(every: &str) -> Result<(String, bool), String> {
 
 /// 一次性时刻转 cron：`HH:MM`（24 小时制）得 `M H * * *` 加 recurring
 /// false（到点触发后由运行时自动删除）。
+///
+/// # Errors
+///
+/// 时刻形坏或越界时返回 `String` 错误。
 pub fn at_to_cron(at: &str) -> Result<(String, bool), String> {
     let spec = at.trim();
     let parts: Vec<&str> = spec.split(':').collect();
@@ -199,6 +211,10 @@ pub fn at_to_cron(at: &str) -> Result<(String, bool), String> {
 /// 设置当前会话 loop：`--every` 与 `--at` 二选一（双缺或双给报错），
 /// goal 文本 trim 后非空；读改写保留既有任务（含外会话与 agent 原生
 /// 落盘项）。
+///
+/// # Errors
+///
+/// goal 空、节奏旗标双缺或双给、会话不可解析、文件坏损或 IO 失败时返回 `String` 错误。
 pub fn set_loop(
     root: &Path,
     goal: &str,
@@ -266,6 +282,10 @@ fn task_row(t: &Json, session: &Option<String>) -> TaskRow {
 
 /// 列出项目定时任务（全量，不按会话过滤；`ours` 标当前会话归属，
 /// 会话解析失败时返回 None 且 ours 恒 false，列表本身不受阻）。
+///
+/// # Errors
+///
+/// 文件坏损或 IO 失败时返回 `String` 错误（会话解析失败不算错）。
 pub fn list_tasks(
     root: &Path,
     session: Option<&str>,
@@ -298,6 +318,10 @@ fn latest_own_index(tasks: &[Json], sid: &str) -> Option<usize> {
 
 /// 设置当前会话最新 loop 的 goal 文本（prompt 就地改写，节奏与属主不动；
 /// 无本会话任务报错，先 `hst loop set` 建任务）。
+///
+/// # Errors
+///
+/// 文本空、无本会话任务、文件坏损或 IO 失败时返回 `String` 错误。
 pub fn set_goal(root: &Path, text: &str, session: Option<&str>) -> Result<GoalReport, String> {
     let text = text.trim();
     if text.is_empty() {
@@ -319,6 +343,10 @@ pub fn set_goal(root: &Path, text: &str, session: Option<&str>) -> Result<GoalRe
 
 /// 清空当前会话最新 loop 的 goal（prompt 置空、任务与节奏保留；返回被改
 /// 任务 id，无本会话任务返回 None）。
+///
+/// # Errors
+///
+/// 会话不可解析、文件坏损或 IO 失败时返回 `String` 错误。
 pub fn clear_goal(root: &Path, session: Option<&str>) -> Result<Option<String>, String> {
     let sid = resolve_session(session, root)?;
     let mut tasks = read_tasks(root)?;
@@ -335,6 +363,10 @@ pub fn clear_goal(root: &Path, session: Option<&str>) -> Result<Option<String>, 
 
 /// 查看当前会话最新 loop 的 goal（会话不可解析或无任务返回 None，查看面
 /// 不受阻）。
+///
+/// # Errors
+///
+/// 文件坏损或 IO 失败时返回 `String` 错误（会话不可解析返回 None 不算错）。
 pub fn show_goal(root: &Path, session: Option<&str>) -> Result<Option<TaskRow>, String> {
     let sid = match resolve_session(session, root) {
         Ok(s) => s,
@@ -347,6 +379,10 @@ pub fn show_goal(root: &Path, session: Option<&str>) -> Result<Option<TaskRow>, 
 /// 删除任务：target 为任务 id（精确匹配任意任务，不限会话）、`latest`
 /// （本会话 createdAt 最新一条）或 `all`（本会话全部）；latest / all
 /// 需要可解析的当前会话。返回被删 id 清单（空 = 零改动，合法回执）。
+///
+/// # Errors
+///
+/// latest/all 会话不可解析、文件坏损或 IO 失败时返回 `String` 错误。
 pub fn del_loops(root: &Path, target: &str, session: Option<&str>) -> Result<Vec<String>, String> {
     let tasks = read_tasks(root)?;
     let target = target.trim();
@@ -354,7 +390,7 @@ pub fn del_loops(root: &Path, target: &str, session: Option<&str>) -> Result<Vec
         || target.eq_ignore_ascii_case("latest")
     {
         let sid = resolve_session(session, root)?;
-        let mut mine: Vec<(usize, u64)> = tasks
+        let mine: Vec<(usize, u64)> = tasks
             .iter()
             .enumerate()
             .filter(|(_, t)| task_str(t, "createdBySessionId") == sid)
@@ -364,12 +400,14 @@ pub fn del_loops(root: &Path, target: &str, session: Option<&str>) -> Result<Vec
             return Ok(Vec::new());
         }
         if target.eq_ignore_ascii_case("latest") {
-            mine.sort_by_key(|(_, c)| *c);
-            let drop = mine.last().unwrap().0;
+            // max_by_key 同刻取后入者（与 latest_own_index 同判）。
+            let Some((drop, _)) = mine.iter().max_by_key(|(_, c)| *c) else {
+                return Ok(Vec::new());
+            };
             tasks
                 .iter()
                 .enumerate()
-                .filter(|(i, _)| *i != drop)
+                .filter(|(i, _)| i != drop)
                 .map(|(_, t)| t)
                 .collect()
         } else {
@@ -390,7 +428,7 @@ pub fn del_loops(root: &Path, target: &str, session: Option<&str>) -> Result<Vec
     };
     let removed: Vec<String> = tasks
         .iter()
-        .filter(|t| !keep.iter().any(|k| *k == *t))
+        .filter(|t| !keep.contains(t))
         .map(|t| task_str(t, "id"))
         .collect();
     if !removed.is_empty() {
