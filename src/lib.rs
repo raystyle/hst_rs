@@ -25,6 +25,8 @@ pub mod hook;
 pub mod install;
 /// 统一 issue 入口客户端面（issues.ohmygh.com，REQ-057 对齐）。
 pub mod ledger;
+/// `hst loop`：当前会话 durable 定时任务与 goal 管理面（REQ-019）。
+pub mod loopmgmt;
 /// 的路径工具面（细则见模块文档与集成测试）。
 pub mod pathutil;
 /// 的密钥拦截闸面（细则见模块文档与集成测试）。

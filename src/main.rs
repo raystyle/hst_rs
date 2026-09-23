@@ -10,6 +10,7 @@ use hst::agents;
 use hst::doctor;
 use hst::hook;
 use hst::install;
+use hst::loopmgmt;
 use hst::trace;
 use hst::yolo;
 
@@ -159,6 +160,52 @@ enum Commands {
     Diagnose {
         #[command(subcommand)]
         cmd: DiagnoseCmd,
+    },
+    /// loop 与 goal 管理面（REQ-019）：当前会话 durable 定时任务的设置、列表、删除；唯一真相 = 项目 .claude/scheduled_tasks.json，状态栏 loop/goal 段同源显示
+    Loop {
+        #[command(subcommand)]
+        cmd: LoopCmd,
+    },
+}
+
+#[derive(Subcommand)]
+enum LoopCmd {
+    /// 设置当前会话 loop（goal 文本落 prompt 字段；--every 周期形与 --at 一次性形二选一）
+    Set {
+        /// goal 文本（任务 prompt；状态栏 goal 段显示源）
+        goal: String,
+        /// 周期间隔（Nm 分钟 1 至 59、Nh 小时 1 至 23；小时形分钟位取落盘时刻并避开 0 与 30）
+        #[arg(long, conflicts_with = "at")]
+        every: Option<String>,
+        /// 一次性时刻（HH:MM 24 小时制；到点触发后任务自动删除）
+        #[arg(long = "at", conflicts_with = "every")]
+        at: Option<String>,
+        /// 会话 id；缺省解析序：CLAUDE_CODE_SESSION_ID 环境变量回落 ~/.claude.json 项目表 lastSessionId
+        #[arg(long)]
+        session: Option<String>,
+        /// 项目根；默认当前目录
+        #[arg(long)]
+        project: Option<PathBuf>,
+    },
+    /// 列出项目定时任务（全量并标 ours 归属，含非本会话）
+    List {
+        /// 会话 id（ours 归属判据；解析序同 set，失败不影响列表）
+        #[arg(long)]
+        session: Option<String>,
+        /// 项目根；默认当前目录
+        #[arg(long)]
+        project: Option<PathBuf>,
+    },
+    /// 删除定时任务（id 精确删任意任务；latest 本会话最新；all 本会话全部）
+    Del {
+        /// 目标：任务 id 或 latest 或 all
+        target: String,
+        /// 会话 id（latest 与 all 的归属判据；解析序同 set）
+        #[arg(long)]
+        session: Option<String>,
+        /// 项目根；默认当前目录
+        #[arg(long)]
+        project: Option<PathBuf>,
     },
 }
 
@@ -553,6 +600,27 @@ fn run() -> Result<(), String> {
             YoloCmd::Check { project } => cmd_yolo_check(project),
         },
         Commands::Diagnose { cmd } => cmd_diagnose(cmd),
+        Commands::Loop { cmd } => match cmd {
+            LoopCmd::Set {
+                goal,
+                every,
+                at,
+                session,
+                project,
+            } => cmd_loop_set(
+                &goal,
+                every.as_deref(),
+                at.as_deref(),
+                session.as_deref(),
+                project,
+            ),
+            LoopCmd::List { session, project } => cmd_loop_list(session.as_deref(), project),
+            LoopCmd::Del {
+                target,
+                session,
+                project,
+            } => cmd_loop_del(&target, session.as_deref(), project),
+        },
         Commands::Issue { cmd } => cmd_issue(cmd),
     }
 }
@@ -1376,6 +1444,56 @@ fn agent_report_row(r: &agents::Report) -> Value {
             "hint": format!("ark install {}", r.agent),
         }),
     }
+}
+
+fn cmd_loop_set(
+    goal: &str,
+    every: Option<&str>,
+    at: Option<&str>,
+    session: Option<&str>,
+    project: Option<PathBuf>,
+) -> Result<(), String> {
+    let root = project_root(project)?;
+    let r = loopmgmt::set_loop(&root, goal, every, at, session)?;
+    println!("loop.set id={}", r.id);
+    println!("loop.set cron={}", r.cron);
+    println!("loop.set recurring={}", r.recurring);
+    println!("loop.set session={}", r.session);
+    println!("loop.set file={}", r.file.display());
+    println!(
+        "loop.hint=durable 任务由 Claude Code 会话载入执行（会话启动时载入；已在跑会话对盘上外部写入的即时接管面无上游承诺，重开会话必载入）"
+    );
+    Ok(())
+}
+
+fn cmd_loop_list(session: Option<&str>, project: Option<PathBuf>) -> Result<(), String> {
+    let root = project_root(project)?;
+    let (rows, resolved) = loopmgmt::list_tasks(&root, session)?;
+    println!("loop.count={}", rows.len());
+    if let Some(s) = resolved {
+        println!("loop.session={s}");
+    }
+    for t in rows {
+        println!(
+            "loop.task id={} cron=\"{}\" recurring={} session={} ours={} goal={}",
+            t.id, t.cron, t.recurring, t.session, t.ours, t.goal
+        );
+    }
+    Ok(())
+}
+
+fn cmd_loop_del(
+    target: &str,
+    session: Option<&str>,
+    project: Option<PathBuf>,
+) -> Result<(), String> {
+    let root = project_root(project)?;
+    let removed = loopmgmt::del_loops(&root, target, session)?;
+    println!("loop.del count={}", removed.len());
+    for id in removed {
+        println!("loop.del id={id}");
+    }
+    Ok(())
 }
 
 fn cmd_yolo_check(project: Option<PathBuf>) -> Result<(), String> {

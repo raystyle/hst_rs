@@ -534,6 +534,84 @@ if ($mcpCount) {
 }
 "#;
 
+/// loop/goal 探针（REQ-019）：本会话 durable 定时任务面。自解析会话 id
+/// （不依赖 hst 段先注入）与项目根（`workspace.project_dir` 回落
+/// `current_dir` 回落 `cwd` 回落 `Get-Location`；cwd 可能在子目录，
+/// scheduled_tasks.json 在 Claude Code 项目根）；读 `.claude/
+/// scheduled_tasks.json` 过滤 `createdBySessionId` 等值，产出
+/// `$loopCount`（int）、`$loopCadence`（最新任务 cron 简单形人性化，
+/// 间隔形 ×Nm/×1h、一次性形 @HH:mm，解析不出空串）、`$loopGoalText`
+/// （最新任务 prompt，折行归一截断 16 字符）。文件缺失、会话 id 缺失、
+/// JSON 坏损皆静默零命中（数据驱动退化，codex/kimi/grok 无此文件自然
+/// 无段）。
+const PS1_LOOPPROBE: &str = r#"
+# ── loop/goal 探针（REQ-019）：本会话 durable 定时任务 ──
+$loopCount = 0
+$loopCadence = ''
+$loopGoalText = ''
+$loopSid2 = $null
+if ($d) {
+    if ($d.session_id) { $loopSid2 = "$($d.session_id)" }
+    elseif ($d.sessionId) { $loopSid2 = "$($d.sessionId)" }
+}
+if ($loopSid2) {
+    $lpDir = $null
+    if ($d.workspace -and $d.workspace.project_dir) { $lpDir = "$($d.workspace.project_dir)" }
+    if ((-not $lpDir -or $lpDir -eq '.') -and $d.workspace) { $lpDir = "$($d.workspace.current_dir)" }
+    if (-not $lpDir -or $lpDir -eq '.') { $lpDir = "$($d.cwd)" }
+    if (-not $lpDir -or $lpDir -eq '.') { $lpDir = "$(Get-Location)" }
+    if ($lpDir) {
+        $lpFile = Join-Path (Join-Path $lpDir '.claude') 'scheduled_tasks.json'
+        if (Test-Path -LiteralPath $lpFile) {
+            try {
+                $lt = Get-Content -Raw $lpFile | ConvertFrom-Json
+                $mine = @($lt.tasks | Where-Object { "$($_.createdBySessionId)" -eq $loopSid2 })
+                $loopCount = $mine.Count
+                if ($loopCount -gt 0) {
+                    $newest = $mine | Sort-Object -Property createdAt -Descending | Select-Object -First 1
+                    $lc = "$($newest.cron)"
+                    if ($lc -match '^\*/(\d+)\s+\*\s+\*\s+\*\s+\*$') {
+                        $n = [int]$Matches[1]
+                        if ($n -ge 60 -and ($n % 60) -eq 0) { $loopCadence = [string]('×{0}h' -f ($n / 60)) }
+                        else { $loopCadence = [string]('×{0}m' -f $n) }
+                    } elseif ($lc -match '^(\d+)\s+\*\s+\*\s+\*\s+\*$') {
+                        $loopCadence = '×1h'
+                    } elseif ($lc -match '^(\d{1,2})\s+(\d{1,2})\s+\*\s+\*\s+\*$') {
+                        $loopCadence = ('@{0:d2}:{1:d2}' -f [int]$Matches[2], [int]$Matches[1])
+                    }
+                    $lg = "$($newest.prompt)"
+                    $lg = ($lg -replace '\r?\n', ' ').Trim()
+                    if ($lg.Length -gt 16) { $lg = $lg.Substring(0, 16) + '…' }
+                    $loopGoalText = $lg
+                }
+            } catch {}
+        }
+    }
+}
+"#;
+
+/// loop 段（REQ-019）：本会话 durable 定时任务计数加节拍；探针
+/// `$loopCount` 零时整段隐藏。
+const SEG_LOOP: &str = r#"
+# ── loop 段：本会话定时任务计数与节拍（REQ-019）──
+if ($loopCount -gt 0) {
+    $lpTxt = ApplyFmt (Tmpl 'loop') @{ icon = (Ico 'loop'); count = [string]$loopCount; cadence = $loopCadence }
+    $lp = Seg $lpTxt '38;5;114'
+    if ($lp) { $parts.Add($lp) }
+}
+"#;
+
+/// goal 段（REQ-019）：最新任务 goal 文本（探针已折行归一截断）；
+/// 空文本时整段隐藏（loop 在而 goal 空是合法态，如 prompt 空串）。
+const SEG_GOAL: &str = r#"
+# ── goal 段：最新任务 goal 文本（REQ-019）──
+if ($loopGoalText) {
+    $lgTxt = ApplyFmt (Tmpl 'goal') @{ icon = (Ico 'goal'); goal = $loopGoalText }
+    $lg = Seg $lgTxt '38;5;179'
+    if ($lg) { $parts.Add($lg) }
+}
+"#;
+
 /// tokens 段：token 用量绝对值（已用/窗口；D40 入默认行、D43 起退出默认
 /// 行改为显式选用，token 绝对值缺省并入 context 段括号）。
 const SEG_TOKENS: &str = r#"
@@ -845,6 +923,8 @@ fn segment_block(id: &str) -> Result<&'static str, String> {
         "mcp" => SEG_MCP,
         "tokens" => SEG_TOKENS,
         "duration" => SEG_DURATION,
+        "loop" => SEG_LOOP,
+        "goal" => SEG_GOAL,
         "git" => SEG_GIT,
         "clock" => SEG_CLOCK,
         "package" => SEG_PACKAGE,
@@ -865,10 +945,13 @@ pub(crate) const DEFAULT_SEGMENTS: &[&str] = &[
     "shell", "dir", "git", "package", "python", "rust", "node", "zig", "go", "cpp", "clock",
 ];
 
-/// 默认第二行「agent 状态」（D43 精修、D45 段更名 hst）：agent 态 / 模型
-/// / context 百分比加 token 绝对值（`46% [449k/977k]` 形，构成 mix 退位）
-/// / 耗时。`segments2` 键缺省回落此序。
-pub(crate) const DEFAULT_SEGMENTS2: &[&str] = &["hst", "model", "context", "duration"];
+/// 默认第二行「agent 状态」（D43 精修、D45 段更名 hst、REQ-019 加 loop 与
+/// goal 尾段）：agent 态 / 模型 / context 百分比加 token 绝对值（`46%
+/// [449k/977k]` 形，构成 mix 退位）/ 耗时 / 本会话 durable 定时任务计数
+/// 加节拍与 goal 文本（无任务时两段隐藏零噪声）。`segments2` 键缺省回落
+/// 此序。
+pub(crate) const DEFAULT_SEGMENTS2: &[&str] =
+    &["hst", "model", "context", "duration", "loop", "goal"];
 
 /// 默认第三行（D44 用户令「去掉第三行」）：默认空 = 两行布局；tools /
 /// mcp 计数与 token 用量三段同退默认位，显式写 `segments3` 才有第三行。
@@ -891,6 +974,10 @@ const DEFAULT_TEMPLATES: &[(&str, &str)] = &[
     ("tokens", "{icon}{used}/{window}"),
     ("tokens-ascii", "{used}/{window}"),
     ("duration", "{icon}{duration}"),
+    ("loop", "{icon}{count}{cadence}"),
+    ("loop-ascii", "{count}{cadence}"),
+    ("goal", "{icon}{goal}"),
+    ("goal-ascii", "{goal}"),
     ("git", "{branch}{flags}"),
     ("clock", "{icon}{datetime}"),
     ("package", "{icon}{version}"),
@@ -916,6 +1003,8 @@ const DEFAULT_ICONS: &[(&str, &str)] = &[
     ("mcp", "\u{f233} "),
     ("tokens", "\u{f080} "),
     ("duration", "\u{f0150} "),
+    ("loop", "\u{f021} "),
+    ("goal", "\u{f140} "),
     ("package", "\u{f03d7} "),
     ("python", "\u{f0320} "),
     ("rust", "\u{f1617} "),
@@ -972,13 +1061,15 @@ fn render_cfg_block(cfg: &StatuslineConfig) -> String {
     out
 }
 
-/// 按段序拼装状态栏脚本（D42 三行分组、D43 五点精修）：HEAD 加烘焙定制块
-/// 加（按需）COMMON / CTXPROBE / PROBE 加逐行段块与排间断点加多行尾。
+/// 按段序拼装状态栏脚本（D42 三行分组、D43 五点精修、REQ-019 加
+/// LOOPPROBE）：HEAD 加烘焙定制块加（按需）COMMON / CTXPROBE / PROBE /
+/// LOOPPROBE 加逐行段块与排间断点加多行尾。
 /// COMMON 在任一行含 dir / hst / mcp 时拼入（rev-parse 与目录消费）；
 /// CTXPROBE 在含 tools 段、或 context 段且生效模板（nerd 与 ascii 任一）
 /// 显式含 {mix} 时拼入（D43：{mix} 退出缺省模板，纯「百分比加绝对值」
 /// 配置无消费者不白跑 transcript 尾段解析）；PROBE 在含 package 或任一
-/// 工具链段时拼入。跨行重复段 id、未知段 id、未知模板
+/// 工具链段时拼入；LOOPPROBE 在含 loop / goal 时拼入（REQ-019：读项目
+/// `.claude/scheduled_tasks.json` 本会话过滤）。跨行重复段 id、未知段 id、未知模板
 /// 或图标键报错；`single_line = true` 时全行并一（kimi / grok 运行时也
 /// 自动并一）；空行不出空行；全空产出空栏（用户显式所为）。
 pub(crate) fn assemble_statusline_ps1(
@@ -1037,6 +1128,11 @@ pub(crate) fn assemble_statusline_ps1(
         )
     }) {
         out.push_str(PS1_PROBE);
+    }
+    // REQ-019 LOOPPROBE 门控：loop / goal 任一在场即注入（两段消费同一
+    // 探针产出的 $loopCount / $loopCadence / $loopGoalText）。
+    if all.iter().any(|id| matches!(*id, "loop" | "goal")) {
+        out.push_str(PS1_LOOPPROBE);
     }
     for (i, row) in rows.iter().enumerate() {
         for id in *row {
@@ -1456,14 +1552,17 @@ pub const EXAMPLE_TOML: &str = r#"# ~/.hst/statusline.toml —— 状态栏用�
 # 改完本文件重跑一次 hst statusline 生效。
 # 键级缺省回落：没写的键用内嵌默认；坏文件硬错退出 1。
 
-# 段落清单（D44 用户四令后的默认两行）：
+# 段落清单（D44 用户四令后的默认两行；REQ-019 加 loop / goal）：
 # segments = 第一行项目状态（shell / cwd / git 分支 / 包版本与工具链尾巴）、
 # segments2 = 第二行 agent 状态（agent 态 / 模型 / context 百分比加 token
-# 绝对值 / 耗时），段 id 数组即全量（显隐加顺序）。
+# 绝对值 / 耗时 / 本会话 durable 定时任务 loop 加 goal，无任务时两段隐藏），
+# 段 id 数组即全量（显隐加顺序）。
 # segments3 = 第三行（D44 起默认空 = 无第三行；可用段 id：tools / mcp /
 # tokens 等显式选用才出现，如要看工具与 MCP 计数：
 #   segments3 = ["tools", "mcp"]
 # ）。
+# loop / goal 段的任务经 `hst loop set "goal 文本" --every 5m` 设置、
+# `hst loop list` 列出、`hst loop del latest` 删除（REQ-019）。
 # 例（隐藏 shell 与时长段、git 提到目录前）：
 #   segments = ["dir", "git"]
 #   segments2 = ["hst", "model", "context"]
@@ -1471,7 +1570,7 @@ pub const EXAMPLE_TOML: &str = r#"# ~/.hst/statusline.toml —— 状态栏用�
 # 退单行（kimi / grok 运行时自动并一行；显式退单行用）：
 #   single_line = true
 segments = ["shell", "dir", "git", "package", "python", "rust", "node", "zig", "go", "cpp", "clock"]
-segments2 = ["hst", "model", "context", "duration"]
+segments2 = ["hst", "model", "context", "duration", "loop", "goal"]
 segments3 = []
 
 # 段内模板（[template]）：每段一条格式串；`<段>-ascii` 是 grok 的 ASCII 形
@@ -1481,6 +1580,9 @@ segments3 = []
 #   占比 [sN tN mN]，transcript 可解析时才有）
 #   tools {icon}{count} / mcp {icon}{count} / tokens {icon}{used}{window}
 #   duration {icon}{duration} / git {branch}{flags}
+#   loop {icon}{count}{cadence} / goal {icon}{goal}（REQ-019：本会话 durable
+#   定时任务计数加节拍（×Nm / ×1h / @HH:mm，解析不出留空）与最新任务
+#   goal 文本截断 16 字符）
 #   package 与七工具链段（含 ts）{icon}{version}
 #   clock {icon}{datetime}（D51：年月日加当前时间，分钟精度）
 # 例（hst 段去图标改方括号态）：
@@ -1489,7 +1591,8 @@ segments3 = []
 
 # 图标映射（[icons]）：键级回落；hst 机器人宽字形默认跟两空格。
 # 可用键：shell / shell-pwsh / hst / model / context / tools / mcp / tokens
-#         / duration / package / python / rust / node / ts / zig / go / cpp
+#         / duration / loop / goal（REQ-019 加）
+#         / package / python / rust / node / ts / zig / go / cpp
 #         / clock（D51 加）
 # 例：
 # [icons]
@@ -2395,6 +2498,11 @@ mod tests {
             !bare.contains("CTXPROBE"),
             "CTXPROBE skipped without context/tools consumers"
         );
+        // REQ-019：loop/goal 不在场不拼 LOOPPROBE（无 scheduled_tasks 消费）。
+        assert!(
+            !bare.contains("scheduled_tasks.json"),
+            "LOOPPROBE skipped without loop/goal consumers"
+        );
         let probe_only =
             assemble_statusline_ps1(&[&["package"]], &StatuslineConfig::default()).unwrap();
         assert!(probe_only.contains("Cargo.toml"), "PROBE in for package");
@@ -2429,6 +2537,151 @@ mod tests {
             ctx_mix.contains("CTXPROBE"),
             "explicit {{mix}} template keeps CTXPROBE"
         );
+        // REQ-019：loop / goal 任一在场即拼 LOOPPROBE（共享探针）。
+        let loop_only =
+            assemble_statusline_ps1(&[&["loop"]], &StatuslineConfig::default()).unwrap();
+        assert!(
+            loop_only.contains("scheduled_tasks.json"),
+            "LOOPPROBE in for loop consumer"
+        );
+        let goal_only =
+            assemble_statusline_ps1(&[&["goal"]], &StatuslineConfig::default()).unwrap();
+        assert!(
+            goal_only.contains("scheduled_tasks.json"),
+            "LOOPPROBE in for goal consumer"
+        );
+    }
+
+    /// REQ-019 测试夹具：往项目根写 scheduled_tasks.json（本会话两条 +
+    /// 外会话一条，最新为 5m 形），返回可直接喂状态栏的 stdin JSON。
+    fn seed_sched(root: &std::path::Path, own: &str, tasks: &str) -> Vec<u8> {
+        let dir = root.join(".claude");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("scheduled_tasks.json"),
+            format!(r#"{{"tasks":{tasks}}}"#),
+        )
+        .unwrap();
+        serde_json::json!({
+            "session_id": own,
+            "workspace": { "current_dir": root.to_string_lossy() },
+        })
+        .to_string()
+        .into_bytes()
+    }
+
+    #[test]
+    fn loop_goal_segments_render_own_session_only() {
+        // REQ-019 行为面：计数取本会话、cadence 取最新任务简单形、goal 取
+        // 最新任务 prompt、外会话与旧任务不入场。
+        if !pwsh_on_path() {
+            return;
+        }
+        let home = scratch("lp-own");
+        let p = deploy_script(&home).unwrap();
+        let stdin = seed_sched(
+            &home,
+            "s1",
+            r#"[
+                {"id":"a1","cron":"*/7 * * * *","prompt":"旧任务盯CI","createdAt":100,"recurring":true,"createdBySessionId":"s1"},
+                {"id":"a2","cron":"*/5 * * * *","prompt":"新任务盯发布","createdAt":200,"recurring":true,"createdBySessionId":"s1"},
+                {"id":"f1","cron":"*/9 * * * *","prompt":"外会话任务","createdAt":300,"recurring":true,"createdBySessionId":"s2"}
+            ]"#,
+        );
+        let out = run_statusline(&p, "claude", &home, &stdin);
+        assert!(out.contains("2×5m"), "own count with cadence: {out}");
+        assert!(out.contains("新任务盯发布"), "newest goal text: {out}");
+        assert!(!out.contains("外会话任务"), "foreign excluded: {out}");
+        assert!(
+            !out.contains("旧任务盯CI"),
+            "older own task not goal: {out}"
+        );
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn loop_goal_hidden_without_file_foreign_or_sid() {
+        // REQ-019 退化面：无文件、仅外会话任务、session_id 缺失，三态均
+        // 不渲染两段（零噪声）。
+        if !pwsh_on_path() {
+            return;
+        }
+        let home = scratch("lp-hid");
+        let p = deploy_script(&home).unwrap();
+        let out = run_statusline(&p, "claude", &home, br#"{"session_id":"s1"}"#);
+        assert!(!out.contains('×'), "no file no cadence: {out}");
+        // 仅外会话任务。
+        let stdin = seed_sched(
+            &home,
+            "s1",
+            r#"[{"id":"f1","cron":"*/9 * * * *","prompt":"外会话任务","createdAt":300,"recurring":true,"createdBySessionId":"s2"}]"#,
+        );
+        let out = run_statusline(&p, "claude", &home, &stdin);
+        assert!(!out.contains('×'), "foreign only hidden: {out}");
+        assert!(!out.contains("外会话任务"), "foreign goal hidden: {out}");
+        // session_id 缺失（codex/kimi/grok 同型）。
+        let out = run_statusline(&p, "claude", &home, br#"{"version":"9.9.9"}"#);
+        assert!(!out.contains('×'), "no sid hidden: {out}");
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn loop_cadence_humanized_forms_and_truncation_no_residue() {
+        // REQ-019 cadence 三形:每小时 ×1h、一次性 @HH:mm、解析不出留空
+        // 不留残迹;goal 超 16 字符截断加省略号。
+        if !pwsh_on_path() {
+            return;
+        }
+        let home = scratch("lp-cad");
+        let p = deploy_script(&home).unwrap();
+        let run = |tasks: &str| {
+            let stdin = seed_sched(&home, "s1", tasks);
+            run_statusline(&p, "claude", &home, &stdin)
+        };
+        let out = run(
+            r#"[{"id":"h1","cron":"17 * * * *","prompt":"每小时任务","createdAt":100,"recurring":true,"createdBySessionId":"s1"}]"#,
+        );
+        assert!(out.contains("×1h"), "hourly form: {out}");
+        let out = run(
+            r#"[{"id":"o1","cron":"30 14 * * *","prompt":"0123456789012345aaaaaaaa","createdAt":100,"recurring":false,"createdBySessionId":"s1"}]"#,
+        );
+        assert!(out.contains("@14:30"), "one-shot form: {out}");
+        assert!(
+            out.contains("0123456789012345…"),
+            "goal truncated at 16: {out}"
+        );
+        assert!(!out.contains("0123456789012345a"), "no 17th char: {out}");
+        let out = run(
+            r#"[{"id":"w1","cron":"0 0 1 1 *","prompt":"解析不出形","createdAt":100,"recurring":true,"createdBySessionId":"s1"}]"#,
+        );
+        assert!(
+            !out.contains('×') && !out.contains('@'),
+            "no residue: {out}"
+        );
+        assert!(out.contains("解析不出形"), "goal still shows: {out}");
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn loop_goal_grok_ascii_path_has_no_icon() {
+        // REQ-019 grok ASCII 路径:loop-ascii / goal-ascii 模板生效,无
+        // nerd 字形。
+        if !pwsh_on_path() {
+            return;
+        }
+        let home = scratch("lp-grok");
+        let p = deploy_script(&home).unwrap();
+        let stdin = seed_sched(
+            &home,
+            "s1",
+            r#"[{"id":"a2","cron":"*/5 * * * *","prompt":"盯发布","createdAt":200,"recurring":true,"createdBySessionId":"s1"}]"#,
+        );
+        let out = run_statusline(&p, "grok", &home, &stdin);
+        assert!(out.contains("1×5m"), "ascii loop renders: {out}");
+        assert!(out.contains("盯发布"), "ascii goal renders: {out}");
+        assert!(!out.contains('\u{f021}'), "no loop icon: {out}");
+        assert!(!out.contains('\u{f140}'), "no goal icon: {out}");
+        let _ = std::fs::remove_dir_all(&home);
     }
 
     #[test]

@@ -1111,7 +1111,109 @@ fn statusline_example_prints_customization_template() {
         .stdout(contains("rust / node / ts / zig / go / cpp"))
         // D51：--example 随默认段同步（codex F1：漂移会误导照抄丢时钟段）。
         .stdout(contains("\"clock\"]"))
-        .stdout(contains("clock {icon}{datetime}"));
+        .stdout(contains("clock {icon}{datetime}"))
+        // REQ-019：loop / goal 两段进默认第二行与模板文档。
+        .stdout(contains("\"duration\", \"loop\", \"goal\"]"))
+        .stdout(contains("loop {icon}{count}{cadence}"));
+}
+
+#[test]
+fn loop_set_list_del_roundtrip() {
+    // REQ-019 命令面：set 落盘（cron 形与 kv 回显）、list 标 ours 归属、
+    // del latest 只删本会话最新（外会话保留）、del 无目标零改动退 0。
+    let tmp = std::env::temp_dir().join(format!(
+        "hst-cli-loop-{}-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis(),
+        NEXT_TEST_DIR.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    std::fs::create_dir_all(&tmp).unwrap();
+    // 外会话既有任务（模拟 agent 原生落盘）。
+    std::fs::create_dir_all(tmp.join(".claude")).unwrap();
+    std::fs::write(
+        tmp.join(".claude").join("scheduled_tasks.json"),
+        r#"{"tasks":[{"id":"fgn00001","cron":"*/9 * * * *","prompt":"外会话","createdAt":1,"recurring":true,"createdBySessionId":"other"}]}"#,
+    )
+    .unwrap();
+    hst()
+        .args([
+            "loop",
+            "set",
+            "盯CI发布",
+            "--every",
+            "5m",
+            "--session",
+            "s1",
+        ])
+        .arg("--project")
+        .arg(&tmp)
+        .assert()
+        .success()
+        .stdout(contains("loop.set id="))
+        .stdout(contains("loop.set cron=*/5 * * * *"))
+        .stdout(contains("loop.set recurring=true"))
+        .stdout(contains("loop.set session=s1"));
+    hst()
+        .args([
+            "loop",
+            "set",
+            "定点提醒",
+            "--at",
+            "14:30",
+            "--session",
+            "s1",
+        ])
+        .arg("--project")
+        .arg(&tmp)
+        .assert()
+        .success()
+        .stdout(contains("loop.set cron=30 14 * * *"))
+        .stdout(contains("loop.set recurring=false"));
+    hst()
+        .args(["loop", "list", "--session", "s1"])
+        .arg("--project")
+        .arg(&tmp)
+        .assert()
+        .success()
+        .stdout(contains("loop.count=3"))
+        .stdout(contains("ours=true").and(contains("ours=false")))
+        .stdout(contains("goal=外会话"));
+    // del latest：删本会话 createdAt 最新（定点提醒），外会话与 5m 保留。
+    hst()
+        .args(["loop", "del", "latest", "--session", "s1"])
+        .arg("--project")
+        .arg(&tmp)
+        .assert()
+        .success()
+        .stdout(contains("loop.del count=1"));
+    // del all：本会话清零，外会话仍在；再跑零改动退 0。
+    hst()
+        .args(["loop", "del", "all", "--session", "s1"])
+        .arg("--project")
+        .arg(&tmp)
+        .assert()
+        .success()
+        .stdout(contains("loop.del count=1"));
+    hst()
+        .args(["loop", "list"])
+        .arg("--project")
+        .arg(&tmp)
+        .assert()
+        .success()
+        .stdout(contains("loop.count=1"))
+        .stdout(contains("goal=外会话"));
+    // 校验错：--every 与 --at 双缺。
+    hst()
+        .args(["loop", "set", "缺节奏", "--session", "s1"])
+        .arg("--project")
+        .arg(&tmp)
+        .assert()
+        .failure()
+        .stderr(contains("exactly one of --every / --at"));
+    let _ = std::fs::remove_dir_all(&tmp);
 }
 
 #[test]
