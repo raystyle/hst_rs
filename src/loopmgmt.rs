@@ -396,7 +396,6 @@ pub fn show_goal(root: &Path, session: Option<&str>) -> Result<Option<TaskRow>, 
 /// latest/all 会话不可解析、文件坏损或 IO 失败时返回 `String` 错误。
 pub fn del_loops(root: &Path, target: &str, session: Option<&str>) -> Result<Vec<String>, String> {
     let tasks = read_tasks(root)?;
-    let target = target.trim();
     let spec = target.trim();
     // 评审二轮 G4 遗留：drop 下标集单源驱动 removed 与 kept（值等值反推
     // 在字节相同的重复任务上会失真，评审实证两同刻任务 del latest 静默
