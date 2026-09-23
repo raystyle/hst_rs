@@ -135,7 +135,7 @@
     {
       "path": "hst_cli::compact::apply_pct",
       "kind": "function",
-      "docs": "写 pct（1 至 100）或摘键（None）到用户级 settings env 块，读改写保留\n其余键；目标态与现态等值时零写（幂等）。返回变更文件路径清单。\n\n# Errors\n\n文件在而 JSON 坏损或 IO 失败时返回 `String` 错误。"
+      "docs": "写 pct（1 至 100）或摘键（None）到用户级 settings env 块，读改写保留\n其余键；目标态与现态等值时零写（幂等）。返回变更文件路径清单。\n\n# Panics\n\n正常路径不 panic；内部 unwrap 仅出现在构造不变量上（env 键刚建必为\n对象）。\n# Errors\n\n文件在而 JSON 坏损或 IO 失败时返回 `String` 错误。"
     },
     {
       "path": "hst_cli::compact::read_state",
@@ -485,32 +485,32 @@
     {
       "path": "hst_cli::loopmgmt::at_to_cron",
       "kind": "function",
-      "docs": "一次性时刻转 cron：`HH:MM`（24 小时制）得 `M H * * *` 加 recurring\nfalse（到点触发后由运行时自动删除）。"
+      "docs": "一次性时刻转 cron：`HH:MM`（24 小时制）得 `M H * * *` 加 recurring\nfalse（到点触发后由运行时自动删除）。\n\n# Errors\n\n时刻形坏或越界时返回 `String` 错误。"
     },
     {
       "path": "hst_cli::loopmgmt::clear_goal",
       "kind": "function",
-      "docs": "清空当前会话最新 loop 的 goal（prompt 置空、任务与节奏保留；返回被改\n任务 id，无本会话任务返回 None）。"
+      "docs": "清空当前会话最新 loop 的 goal（prompt 置空、任务与节奏保留；返回被改\n任务 id，无本会话任务返回 None）。\n\n# Errors\n\n会话不可解析、文件坏损或 IO 失败时返回 `String` 错误。"
     },
     {
       "path": "hst_cli::loopmgmt::del_loops",
       "kind": "function",
-      "docs": "删除任务：target 为任务 id（精确匹配任意任务，不限会话）、`latest`\n（本会话 createdAt 最新一条）或 `all`（本会话全部）；latest / all\n需要可解析的当前会话。返回被删 id 清单（空 = 零改动，合法回执）。"
+      "docs": "删除任务：target 为任务 id（精确匹配任意任务，不限会话）、`latest`\n（本会话 createdAt 最新一条）或 `all`（本会话全部）；latest / all\n需要可解析的当前会话。返回被删 id 清单（空 = 零改动，合法回执）。\n\n# Errors\n\nlatest/all 会话不可解析、文件坏损或 IO 失败时返回 `String` 错误。"
     },
     {
       "path": "hst_cli::loopmgmt::every_to_cron",
       "kind": "function",
-      "docs": "周期间隔转 cron：`Nm`（1 至 59）得 `*/N * * * *`；`Nh`（1 至 23）得\n`M * * * *`，M 取落盘时刻分钟位并避开 0 与 30（舰队避整点半点纪律）。\n恒为 recurring 形。"
+      "docs": "周期间隔转 cron：`Nm`（1 至 59）得 `*/N * * * *`；`Nh`（1 至 23）得\n`M */N * * *`（评审 F2：N 必须进小时步进位，否则 6h 静默放大成每小\n时），M 取落盘时刻分钟位并避开 0 与 30（舰队避整点半点纪律）。恒为\nrecurring 形。\n\n# Errors\n\n形坏或数值越界时返回 `String` 错误。"
     },
     {
       "path": "hst_cli::loopmgmt::list_tasks",
       "kind": "function",
-      "docs": "列出项目定时任务（全量，不按会话过滤；`ours` 标当前会话归属，\n会话解析失败时返回 None 且 ours 恒 false，列表本身不受阻）。"
+      "docs": "列出项目定时任务（全量，不按会话过滤；`ours` 标当前会话归属，\n会话解析失败时返回 None 且 ours 恒 false，列表本身不受阻）。\n\n# Errors\n\n文件坏损或 IO 失败时返回 `String` 错误（会话解析失败不算错）。"
     },
     {
       "path": "hst_cli::loopmgmt::resolve_session",
       "kind": "function",
-      "docs": "解析「当前会话」：显式 `--session` 优先，其次 agent 会话内环境变量\n`CLAUDE_CODE_SESSION_ID`，再次 `~/.claude.json` 项目表 `lastSessionId`\n（键 = 项目根正斜杠形，与 pretrust 面同判）；全落空报错并提示显式给。"
+      "docs": "解析「当前会话」：显式 `--session` 优先，其次 agent 会话内环境变量\n`CLAUDE_CODE_SESSION_ID`，再次 `~/.claude.json` 项目表 `lastSessionId`\n（键 = 项目根正斜杠形，与 pretrust 面同判）；全落空报错并提示显式给。\n\n# Errors\n\n三级解析全落空时返回 `String` 错误（提示显式给 --session）。"
     },
     {
       "path": "hst_cli::loopmgmt::scheduled_tasks_path",
@@ -520,17 +520,17 @@
     {
       "path": "hst_cli::loopmgmt::set_goal",
       "kind": "function",
-      "docs": "设置当前会话最新 loop 的 goal 文本（prompt 就地改写，节奏与属主不动；\n无本会话任务报错，先 `hst loop set` 建任务）。"
+      "docs": "设置当前会话最新 loop 的 goal 文本（prompt 就地改写，节奏与属主不动；\n无本会话任务报错，先 `hst loop set` 建任务）。\n\n# Errors\n\n文本空、无本会话任务、文件坏损或 IO 失败时返回 `String` 错误。"
     },
     {
       "path": "hst_cli::loopmgmt::set_loop",
       "kind": "function",
-      "docs": "设置当前会话 loop：`--every` 与 `--at` 二选一（双缺或双给报错），\ngoal 文本 trim 后非空；读改写保留既有任务（含外会话与 agent 原生\n落盘项）。"
+      "docs": "设置当前会话 loop：`--every` 与 `--at` 二选一（双缺或双给报错），\ngoal 文本 trim 后非空；读改写保留既有任务（含外会话与 agent 原生\n落盘项）。\n\n# Errors\n\ngoal 空、节奏旗标双缺或双给、会话不可解析、文件坏损或 IO 失败时返回 `String` 错误。"
     },
     {
       "path": "hst_cli::loopmgmt::show_goal",
       "kind": "function",
-      "docs": "查看当前会话最新 loop 的 goal（会话不可解析或无任务返回 None，查看面\n不受阻）。"
+      "docs": "查看当前会话最新 loop 的 goal（会话不可解析或无任务返回 None，查看面\n不受阻）。\n\n# Errors\n\n文件坏损或 IO 失败时返回 `String` 错误（会话不可解析返回 None 不算错）。"
     },
     {
       "path": "hst_cli::pathutil",

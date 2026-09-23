@@ -1389,6 +1389,15 @@ fn init_compact_pct_preview_apply_off_and_doctor_check() {
         .assert()
         .failure()
         .stderr(contains("--yes"));
+    // 评审 G2：compact 面与 --pre-trust 互斥（不静默吞旗标）。
+    hst()
+        .args(["init", "--compact-pct", "70", "--pre-trust"])
+        .arg("--project")
+        .arg(&proj)
+        .env("HST_USER_HOME", &home)
+        .assert()
+        .failure()
+        .stderr(contains("--pre-trust"));
     let _ = std::fs::remove_dir_all(&home);
     let _ = std::fs::remove_dir_all(&proj);
 }

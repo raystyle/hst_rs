@@ -86,7 +86,7 @@ enum Commands {
         #[arg(
             long = "compact-pct",
             value_name = "1-100|off",
-            conflicts_with_all = ["yolo", "project_yolo", "clear_project_yolo"]
+            conflicts_with_all = ["yolo", "project_yolo", "clear_project_yolo", "pretrust"]
         )]
         compact_pct: Option<String>,
         /// 确认落盘（配 --compact-pct；不带则预览）
@@ -1383,12 +1383,12 @@ fn cmd_init(
     if let Some(spec) = compact_pct {
         let home = hst::pathutil::user_home()?;
         let settings = home.join(".claude").join("settings.json");
-        let off = spec.eq_ignore_ascii_case("off");
+        let spec_trim = spec.trim();
+        let off = spec_trim.eq_ignore_ascii_case("off");
         let pct = if off {
             None
         } else {
-            let p: u8 = spec
-                .trim()
+            let p: u8 = spec_trim
                 .parse()
                 .map_err(|_| format!("invalid --compact-pct (expect 1-100 or off): {spec}"))?;
             if !(1..=100).contains(&p) {

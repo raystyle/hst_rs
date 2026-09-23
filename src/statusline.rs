@@ -574,6 +574,8 @@ if ($loopSid2) {
                         $n = [int]$Matches[1]
                         if ($n -ge 60 -and ($n % 60) -eq 0) { $loopCadence = [string]('×{0}h' -f ($n / 60)) }
                         else { $loopCadence = [string]('×{0}m' -f $n) }
+                    } elseif ($lc -match '^(\d+)\s+\*/(\d+)\s+\*\s+\*\s+\*$') {
+                        $loopCadence = [string]('×{0}h' -f [int]$Matches[2])
                     } elseif ($lc -match '^(\d+)\s+\*\s+\*\s+\*\s+\*$') {
                         $loopCadence = '×1h'
                     } elseif ($lc -match '^(\d{1,2})\s+(\d{1,2})\s+\*\s+\*\s+\*$') {
@@ -581,7 +583,12 @@ if ($loopSid2) {
                     }
                     $lg = "$($newest.prompt)"
                     $lg = ($lg -replace '\r?\n', ' ').Trim()
-                    if ($lg.Length -gt 16) { $lg = $lg.Substring(0, 16) + '…' }
+                    if ($lg.Length -gt 16) {
+                        # 评审 G4：UTF-16 计数截断防劈代理对（星面字符）。
+                        $cut = 16
+                        if ([char]::IsHighSurrogate($lg[15])) { $cut = 15 }
+                        $lg = $lg.Substring(0, $cut) + '…'
+                    }
                     $loopGoalText = $lg
                 }
             } catch {}
@@ -2642,6 +2649,11 @@ mod tests {
             r#"[{"id":"h1","cron":"17 * * * *","prompt":"每小时任务","createdAt":100,"recurring":true,"createdBySessionId":"s1"}]"#,
         );
         assert!(out.contains("×1h"), "hourly form: {out}");
+        // 评审 F2 配套:M */N 小时步进形人性化。
+        let out = run(
+            r#"[{"id":"h2","cron":"7 */2 * * *","prompt":"两小时任务","createdAt":100,"recurring":true,"createdBySessionId":"s1"}]"#,
+        );
+        assert!(out.contains("×2h"), "hour-step form: {out}");
         let out = run(
             r#"[{"id":"o1","cron":"30 14 * * *","prompt":"0123456789012345aaaaaaaa","createdAt":100,"recurring":false,"createdBySessionId":"s1"}]"#,
         );

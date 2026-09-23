@@ -67,8 +67,18 @@ fn read_tasks(root: &Path) -> Result<Vec<Json>, String> {
 
 fn write_tasks(root: &Path, tasks: &[Json]) -> Result<PathBuf, String> {
     let path = scheduled_tasks_path(root);
-    let text =
-        serde_json::to_string_pretty(&json!({ "tasks": tasks })).map_err(|e| e.to_string())? + "\n";
+    // 评审 G1：读改写保顶层兄弟键（该文件属主是 Claude Code，schema 可能
+    // 长，只换 tasks 键，与 apply_pct 对 settings 的纪律同款）。
+    let mut v = if path.exists() {
+        crate::yolo::read_json(&path)?
+    } else {
+        json!({})
+    };
+    if !v.is_object() {
+        v = json!({});
+    }
+    v["tasks"] = Json::Array(tasks.to_vec());
+    let text = serde_json::to_string_pretty(&v).map_err(|e| e.to_string())? + "\n";
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     }
@@ -155,8 +165,9 @@ fn unix_millis() -> u64 {
 }
 
 /// 周期间隔转 cron：`Nm`（1 至 59）得 `*/N * * * *`；`Nh`（1 至 23）得
-/// `M * * * *`，M 取落盘时刻分钟位并避开 0 与 30（舰队避整点半点纪律）。
-/// 恒为 recurring 形。
+/// `M */N * * *`（评审 F2：N 必须进小时步进位，否则 6h 静默放大成每小
+/// 时），M 取落盘时刻分钟位并避开 0 与 30（舰队避整点半点纪律）。恒为
+/// recurring 形。
 ///
 /// # Errors
 ///
@@ -177,7 +188,7 @@ pub fn every_to_cron(every: &str) -> Result<(String, bool), String> {
             } else if m == 30 {
                 m = 37;
             }
-            return Ok((format!("{m} * * * *"), true));
+            return Ok((format!("{m} */{n} * * *"), true));
         }
         return Err(format!("invalid --every hour range (1-23): {spec}"));
     }
@@ -386,8 +397,9 @@ pub fn show_goal(root: &Path, session: Option<&str>) -> Result<Option<TaskRow>, 
 pub fn del_loops(root: &Path, target: &str, session: Option<&str>) -> Result<Vec<String>, String> {
     let tasks = read_tasks(root)?;
     let target = target.trim();
-    let keep: Vec<&Json> = if target.eq_ignore_ascii_case("all")
-        || target.eq_ignore_ascii_case("latest")
+    let spec = target.trim();
+    let keep: Vec<&Json> = if spec.eq_ignore_ascii_case("all")
+        || spec.eq_ignore_ascii_case("latest")
     {
         let sid = resolve_session(session, root)?;
         let mine: Vec<(usize, u64)> = tasks
@@ -399,7 +411,7 @@ pub fn del_loops(root: &Path, target: &str, session: Option<&str>) -> Result<Vec
         if mine.is_empty() {
             return Ok(Vec::new());
         }
-        if target.eq_ignore_ascii_case("latest") {
+        if spec.eq_ignore_ascii_case("latest") {
             // max_by_key 同刻取后入者（与 latest_own_index 同判）。
             let Some((drop, _)) = mine.iter().max_by_key(|(_, c)| *c) else {
                 return Ok(Vec::new());
@@ -426,13 +438,27 @@ pub fn del_loops(root: &Path, target: &str, session: Option<&str>) -> Result<Vec
             .filter(|t| task_str(t, "id") != target)
             .collect()
     };
+    // 评审 G4：removed 按下标集反推（值等值反推在字节相同的重复任务上
+    // 会多报计数，文件本体不受影响但回执要准）。
+    let keep_idx: std::collections::HashSet<usize> = tasks
+        .iter()
+        .enumerate()
+        .filter(|(_, t)| keep.contains(t))
+        .map(|(i, _)| i)
+        .collect();
     let removed: Vec<String> = tasks
         .iter()
-        .filter(|t| !keep.contains(t))
-        .map(|t| task_str(t, "id"))
+        .enumerate()
+        .filter(|(i, _)| !keep_idx.contains(i))
+        .map(|(_, t)| task_str(t, "id"))
         .collect();
     if !removed.is_empty() {
-        let kept: Vec<Json> = keep.into_iter().cloned().collect();
+        let kept: Vec<Json> = tasks
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| keep_idx.contains(i))
+            .map(|(_, t)| t.clone())
+            .collect();
         write_tasks(root, &kept)?;
     }
     Ok(removed)
@@ -455,15 +481,12 @@ mod tests {
     #[test]
     fn set_list_del_roundtrip_preserves_foreign() {
         let root = fresh_dir("rt");
-        // 外会话既有任务先行落盘（模拟 agent 原生写入）。
-        write_tasks(
-            &root,
-            &[json!({
-                "id": "foreign01", "cron": "*/9 * * * *", "prompt": "外会话任务",
-                "createdAt": 1u64, "recurring": true,
-                "createdBySessionId": "other-session", "createdByPid": 1u64,
-                "createdByProcStart": "1",
-            })],
+        // 外会话既有任务先行落盘（模拟 agent 原生写入）;顶层带外来兄弟键
+        // version（评审 G1：读改写必须保留）。
+        std::fs::create_dir_all(root.join(".claude")).unwrap();
+        std::fs::write(
+            root.join(".claude").join("scheduled_tasks.json"),
+            r#"{"version":7,"tasks":[{"id":"foreign01","cron":"*/9 * * * *","prompt":"外会话任务","createdAt":1,"recurring":true,"createdBySessionId":"other-session","createdByPid":1,"createdByProcStart":"1"}]}"#,
         )
         .unwrap();
         let r1 = set_loop(&root, "盯CI发布", Some("5m"), None, Some("s1")).unwrap();
@@ -474,6 +497,12 @@ mod tests {
         let r2 = set_loop(&root, "十四点半提醒", None, Some("14:30"), Some("s1")).unwrap();
         assert_eq!(r2.cron, "30 14 * * *");
         assert!(!r2.recurring);
+        // G1：顶层兄弟键在读写后幸存。
+        let after: Json = serde_json::from_str(
+            &std::fs::read_to_string(root.join(".claude").join("scheduled_tasks.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(after["version"], 7, "top-level siblings survive");
         // list：三行,ours 两行。
         let (rows, sid) = list_tasks(&root, Some("s1")).unwrap();
         assert_eq!(sid.as_deref(), Some("s1"));
@@ -521,8 +550,8 @@ mod tests {
         );
         let (hc, recurring) = every_to_cron("2h").unwrap();
         assert!(recurring);
-        assert!(hc.ends_with("* * * *"));
-        assert!(hc.split(' ').next().unwrap().parse::<u32>().is_ok());
+        assert!(hc.contains("*/2"), "hour step must carry N: {hc}");
+        assert_eq!(hc.split(' ').count(), 5);
         assert!(every_to_cron("60m").is_err());
         assert!(every_to_cron("24h").is_err());
         assert!(every_to_cron("abc").is_err());
