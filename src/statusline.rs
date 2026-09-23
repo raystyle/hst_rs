@@ -540,7 +540,7 @@ if ($mcpCount) {
 /// scheduled_tasks.json 在 Claude Code 项目根）；读 `.claude/
 /// scheduled_tasks.json` 过滤 `createdBySessionId` 等值，产出
 /// `$loopCount`（int）、`$loopCadence`（最新任务 cron 简单形人性化，
-/// 间隔形 ×Nm/×1h、一次性形 @HH:mm，解析不出空串）、`$loopGoalText`
+/// 间隔形 ×Nm/×Nh/×1h、一次性形 @HH:mm，解析不出空串）、`$loopGoalText`
 /// （最新任务 prompt，折行归一截断 16 字符）。文件缺失、会话 id 缺失、
 /// JSON 坏损皆静默零命中（数据驱动退化，codex/kimi/grok 无此文件自然
 /// 无段）。
@@ -1588,7 +1588,7 @@ segments3 = []
 #   tools {icon}{count} / mcp {icon}{count} / tokens {icon}{used}{window}
 #   duration {icon}{duration} / git {branch}{flags}
 #   loop {icon}{count}{cadence} / goal {icon}{goal}（REQ-019：本会话 durable
-#   定时任务计数加节拍（×Nm / ×1h / @HH:mm，解析不出留空）与最新任务
+#   定时任务计数加节拍（×Nm / ×Nh / ×1h / @HH:mm，解析不出留空）与最新任务
 #   goal 文本截断 16 字符）
 #   package 与七工具链段（含 ts）{icon}{version}
 #   clock {icon}{datetime}（D51：年月日加当前时间，分钟精度）

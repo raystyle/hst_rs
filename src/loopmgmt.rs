@@ -398,65 +398,49 @@ pub fn del_loops(root: &Path, target: &str, session: Option<&str>) -> Result<Vec
     let tasks = read_tasks(root)?;
     let target = target.trim();
     let spec = target.trim();
-    let keep: Vec<&Json> = if spec.eq_ignore_ascii_case("all")
-        || spec.eq_ignore_ascii_case("latest")
-    {
-        let sid = resolve_session(session, root)?;
-        let mine: Vec<(usize, u64)> = tasks
-            .iter()
-            .enumerate()
-            .filter(|(_, t)| task_str(t, "createdBySessionId") == sid)
-            .map(|(i, t)| (i, t.get("createdAt").and_then(|v| v.as_u64()).unwrap_or(0)))
-            .collect();
-        if mine.is_empty() {
-            return Ok(Vec::new());
-        }
-        if spec.eq_ignore_ascii_case("latest") {
-            // max_by_key 同刻取后入者（与 latest_own_index 同判）。
-            let Some((drop, _)) = mine.iter().max_by_key(|(_, c)| *c) else {
+    // 评审二轮 G4 遗留：drop 下标集单源驱动 removed 与 kept（值等值反推
+    // 在字节相同的重复任务上会失真，评审实证两同刻任务 del latest 静默
+    // 无操作）。
+    let drop_idx: std::collections::HashSet<usize> =
+        if spec.eq_ignore_ascii_case("all") || spec.eq_ignore_ascii_case("latest") {
+            let sid = resolve_session(session, root)?;
+            let mine: Vec<(usize, u64)> = tasks
+                .iter()
+                .enumerate()
+                .filter(|(_, t)| task_str(t, "createdBySessionId") == sid)
+                .map(|(i, t)| (i, t.get("createdAt").and_then(|v| v.as_u64()).unwrap_or(0)))
+                .collect();
+            if mine.is_empty() {
                 return Ok(Vec::new());
-            };
-            tasks
-                .iter()
-                .enumerate()
-                .filter(|(i, _)| i != drop)
-                .map(|(_, t)| t)
-                .collect()
+            }
+            if spec.eq_ignore_ascii_case("latest") {
+                // max_by_key 同刻取后入者（与 latest_own_index 同判）。
+                let Some((drop, _)) = mine.iter().max_by_key(|(_, c)| *c) else {
+                    return Ok(Vec::new());
+                };
+                std::iter::once(*drop).collect()
+            } else {
+                mine.iter().map(|(i, _)| *i).collect()
+            }
         } else {
-            // all：本会话全删，保留外会话任务。
-            let mine_idx: std::collections::HashSet<usize> = mine.iter().map(|(i, _)| *i).collect();
             tasks
                 .iter()
                 .enumerate()
-                .filter(|(i, _)| !mine_idx.contains(i))
-                .map(|(_, t)| t)
+                .filter(|(_, t)| task_str(t, "id") == spec)
+                .map(|(i, _)| i)
                 .collect()
-        }
-    } else {
-        tasks
-            .iter()
-            .filter(|t| task_str(t, "id") != target)
-            .collect()
-    };
-    // 评审 G4：removed 按下标集反推（值等值反推在字节相同的重复任务上
-    // 会多报计数，文件本体不受影响但回执要准）。
-    let keep_idx: std::collections::HashSet<usize> = tasks
-        .iter()
-        .enumerate()
-        .filter(|(_, t)| keep.contains(t))
-        .map(|(i, _)| i)
-        .collect();
+        };
     let removed: Vec<String> = tasks
         .iter()
         .enumerate()
-        .filter(|(i, _)| !keep_idx.contains(i))
+        .filter(|(i, _)| drop_idx.contains(i))
         .map(|(_, t)| task_str(t, "id"))
         .collect();
     if !removed.is_empty() {
         let kept: Vec<Json> = tasks
             .iter()
             .enumerate()
-            .filter(|(i, _)| keep_idx.contains(i))
+            .filter(|(i, _)| !drop_idx.contains(i))
             .map(|(_, t)| t.clone())
             .collect();
         write_tasks(root, &kept)?;
