@@ -103,6 +103,46 @@
       "docs": "指令集能力的detect面（细则见模块文档与集成测试）。"
     },
     {
+      "path": "hst_cli::compact",
+      "kind": "module",
+      "docs": "claude 压缩触发（auto-compact）配置读写面（总台功能单 2026-09-23，ledger n6）。\nclaude 压缩触发（auto-compact）配置面（总台功能单 2026-09-23，ledger\nissue n6）。配置面实证（本机 claude 2.1.270 二进制反混淆，2026-09-23）：\n百分比阈值唯一面 = 环境变量 `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`\n（parseFloat，0 < 值 <= 100，百分数刻度，\"70\" 即 70%；二进制内名\ntestPctOverride，官方文档无此键，未文档面，升级可能变）；窗口面 =\n环境变量 `CLAUDE_CODE_AUTO_COMPACT_WINDOW`（裸 token 数，界\n[100000, 1000000]，优先于 settings 顶层键 `autoCompactWindow`、\n/autocompact 命令与 --autocompact 旗标）；`autoCompactEnabled` 顶层\n键缺省 true。阈值算式：有效窗口 = 窗口 - min(模型输出上限, 20000)；\n阈值 = min(floor(有效窗口 × pct / 100), 有效窗口 - 13000)；无 pct 时\n阈值 = 有效窗口 - 13000（缺省）。`CLAUDE_CODE_AUTO_COMPACT_THRESHOLD`\n不存在；`autoCompactThreshold` 是计算态遥测字段非配置键。hst 写面 =\n`hst init --compact-pct <1-100|off> [--yes]`（预览不加 --yes），\n读面 = `hst doctor` 的 claude compact 检查项。"
+    },
+    {
+      "path": "hst_cli::compact::CompactState",
+      "kind": "struct",
+      "docs": "压缩触发配置快照（原文保留，解析宽容：坏值不报错按缺省口径报告）。"
+    },
+    {
+      "path": "hst_cli::compact::DEFAULT_RESERVE",
+      "kind": "constant",
+      "docs": "缺省阈值预留（无 pct 时阈值 = 有效窗口 - 此值）。"
+    },
+    {
+      "path": "hst_cli::compact::ENV_PCT",
+      "kind": "constant",
+      "docs": "env 键：百分比阈值覆盖（未文档面，0 < 值 <= 100 百分数刻度）。"
+    },
+    {
+      "path": "hst_cli::compact::ENV_WINDOW",
+      "kind": "constant",
+      "docs": "env 键：窗口覆盖（裸 token 数，优先于 settings 键与命令面）。"
+    },
+    {
+      "path": "hst_cli::compact::OUTPUT_RESERVE_CAP",
+      "kind": "constant",
+      "docs": "输出预留上限（阈值算式常量，随二进制实证）。"
+    },
+    {
+      "path": "hst_cli::compact::apply_pct",
+      "kind": "function",
+      "docs": "写 pct（1 至 100）或摘键（None）到用户级 settings env 块，读改写保留\n其余键；目标态与现态等值时零写（幂等）。返回变更文件路径清单。\n\n# Errors\n\n文件在而 JSON 坏损或 IO 失败时返回 `String` 错误。"
+    },
+    {
+      "path": "hst_cli::compact::read_state",
+      "kind": "function",
+      "docs": "读用户级 `~/.claude/settings.json` 压缩触发快照（BOM 容忍，文件\n缺席 = 全空快照）。\n\n# Errors\n\n文件在而 JSON 坏损时返回 `String` 错误（不吞真数据问题）。"
+    },
+    {
       "path": "hst_cli::deploy",
       "kind": "module",
       "docs": "`hst init` 部署层：hook 注册四家用户级、shim 落位、状态栏面与 ours 技能目录清扫（D53/ADR-0005）。\n`hst init` hook deployment（D28：hook 注册与 shim 常驻用户级）。\n用户级注册面（用户裁 2026-09-11「hook 应用户全局」，对齐 codex 用户层）：\nclaude `~/.claude/settings.json`（settings 家族用户层生效，S015）、codex\n`~/.codex/hooks.json` 加 `~/.codex/config.toml` features 与 trusted_hash\n预种、grok `~/.grok/hooks/ohmyagents-state.json`（global 层）、kimi\n`~/.kimi-code/config.toml [[hooks]]`（kimi 仅用户级，S015）。shim 常驻\n`~/.hst/hooks/`，状态按 session 分键写 `~/.hst/state/`（D28）。项目级\n旧注册与 `.oma/hooks/` 由 init 迁移退役（未 init 项目零数据根因消除）。\nskill 面已退役（ADR-0005/D54）：两级生成面删，在位 ours 技能目录由\ninit 幂等清扫；AGENTS/CLAUDE 说明仍是项目级（项目内语义）。Schemas are\nfirst-hand verified in S015 (official docs + openai/codex, xai-org/grok-build,\nMoonshotAI/kimi-code sources)."

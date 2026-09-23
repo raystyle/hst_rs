@@ -1294,6 +1294,106 @@ fn goal_set_show_clear_roundtrip() {
 }
 
 #[test]
+fn init_compact_pct_preview_apply_off_and_doctor_check() {
+    // 总台功能单（ledger n6）：预览零写、--yes 落盘回读自证、同值幂等、
+    // off 摘键、doctor 的 claude compact 检查项回显、坏值与裸 --yes 拒收。
+    let uniq = format!(
+        "{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis()
+    );
+    let home = std::env::temp_dir().join(format!("hst-cli-cpt-home-{uniq}"));
+    let proj = std::env::temp_dir().join(format!("hst-cli-cpt-proj-{uniq}"));
+    std::fs::create_dir_all(&home).unwrap();
+    std::fs::create_dir_all(&proj).unwrap();
+    let settings = home.join(".claude").join("settings.json");
+    // 预览：零写（settings 缺席也不建）。
+    hst()
+        .args(["init", "--compact-pct", "70"])
+        .arg("--project")
+        .arg(&proj)
+        .env("HST_USER_HOME", &home)
+        .assert()
+        .success()
+        .stdout(contains("compact.preview=true"))
+        .stdout(contains(
+            "compact.plan key=CLAUDE_AUTOCOMPACT_PCT_OVERRIDE value=70",
+        ))
+        .stdout(contains("init.hooks=skipped"));
+    assert!(!settings.exists(), "preview must not write");
+    // 种窗口覆盖键（doctor 阈值行需要窗口可知）。
+    std::fs::create_dir_all(home.join(".claude")).unwrap();
+    std::fs::write(
+        &settings,
+        "{\"env\":{\"CLAUDE_CODE_AUTO_COMPACT_WINDOW\":\"1000000\"}}",
+    )
+    .unwrap();
+    // 落盘：写加回读自证。
+    hst()
+        .args(["init", "--compact-pct", "70", "--yes"])
+        .arg("--project")
+        .arg(&proj)
+        .env("HST_USER_HOME", &home)
+        .assert()
+        .success()
+        .stdout(contains("compact.write file="))
+        .stdout(contains("compact.readback pct=70"));
+    let body = std::fs::read_to_string(&settings).unwrap();
+    assert!(body.contains("\"CLAUDE_AUTOCOMPACT_PCT_OVERRIDE\": \"70\""));
+    // 同值幂等。
+    hst()
+        .args(["init", "--compact-pct", "70", "--yes"])
+        .arg("--project")
+        .arg(&proj)
+        .env("HST_USER_HOME", &home)
+        .assert()
+        .success()
+        .stdout(contains("compact.write=none"));
+    // doctor：claude compact 检查行回显 pct（fresh home 的 yolo block 不
+    // 妨碍行存在性断言，退码 1 属契约）。
+    hst()
+        .args(["doctor"])
+        .arg("--project")
+        .arg(&proj)
+        .env("HST_USER_HOME", &home)
+        .assert()
+        .stdout(contains("check=compact"))
+        .stdout(contains("pct=70"))
+        .stdout(contains("threshold~686000"));
+    // off：摘键回读 unset。
+    hst()
+        .args(["init", "--compact-pct", "off", "--yes"])
+        .arg("--project")
+        .arg(&proj)
+        .env("HST_USER_HOME", &home)
+        .assert()
+        .success()
+        .stdout(contains("compact.readback pct=unset"));
+    // 坏值与裸 --yes 拒收。
+    hst()
+        .args(["init", "--compact-pct", "101"])
+        .arg("--project")
+        .arg(&proj)
+        .env("HST_USER_HOME", &home)
+        .assert()
+        .failure()
+        .stderr(contains("invalid --compact-pct"));
+    hst()
+        .args(["init", "--yes"])
+        .arg("--project")
+        .arg(&proj)
+        .env("HST_USER_HOME", &home)
+        .assert()
+        .failure()
+        .stderr(contains("--yes"));
+    let _ = std::fs::remove_dir_all(&home);
+    let _ = std::fs::remove_dir_all(&proj);
+}
+
+#[test]
 fn dies_statusline_script_conflicts_with_builtin_and_example() {
     // clap 互斥：--script 与 --builtin / --example 不能同场。
     hst()

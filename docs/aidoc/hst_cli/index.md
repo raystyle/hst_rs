@@ -12,6 +12,7 @@ docs/research 与 docs/adr；输出信封契约见 fmtio 模块文档。
 - [`agents`](agents.md): 四家 agent 探测（PATH、env、hst 自管根、默认目录四源）。
 - [`archive`](archive.md): 的通用归档工具面（细则见模块文档与集成测试）。
 - [`caps`](caps.md): CPU 指令集能力与探针退出形态分类（S021/P0018）。
+- [`compact`](compact.md): claude 压缩触发（auto-compact）配置读写面（总台功能单 2026-09-23，ledger n6）。
 - [`deploy`](deploy.md): `hst init` 部署层：hook 注册四家用户级、shim 落位、状态栏面与 ours 技能目录清扫（D53/ADR-0005）。
 - [`diagnose`](diagnose.md): `hst diagnose` 活性诊断族：网关缓存命中矩阵与配置活性（D21）。
 - [`doctor`](doctor.md): `hst doctor` 只读体检：yolo、信任、二进制、登录态、hook 形态、状态栏与状态面。

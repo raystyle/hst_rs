@@ -82,6 +82,16 @@ enum Commands {
         /// 一键清除项目级对用户级 yolo 的干扰键（ours 与外来都摘，让用户级生效；REQ-009/D55；与 --yolo/--project-yolo 互斥）
         #[arg(long, conflicts_with_all = ["yolo", "project_yolo"])]
         clear_project_yolo: bool,
+        /// 写 claude 压缩触发阈值（仅 compact 面：env CLAUDE_AUTOCOMPACT_PCT_OVERRIDE，1-100 百分数，off 摘键；与 yolo 族互斥；缺省预览零写，加 --yes 落盘）
+        #[arg(
+            long = "compact-pct",
+            value_name = "1-100|off",
+            conflicts_with_all = ["yolo", "project_yolo", "clear_project_yolo"]
+        )]
+        compact_pct: Option<String>,
+        /// 确认落盘（配 --compact-pct；不带则预览）
+        #[arg(long, requires = "compact_pct")]
+        yes: bool,
         /// 预写用户家目录信任库（claude/codex/kimi/grok）
         #[arg(long = "pre-trust")]
         pretrust: bool,
@@ -570,8 +580,18 @@ fn run() -> Result<(), String> {
             project_yolo,
             clear_project_yolo,
             pretrust,
+            compact_pct,
+            yes,
             project,
-        } => cmd_init(yolo, project_yolo, clear_project_yolo, pretrust, project),
+        } => cmd_init(
+            yolo,
+            project_yolo,
+            clear_project_yolo,
+            pretrust,
+            compact_pct,
+            yes,
+            project,
+        ),
         Commands::Doctor { project } => cmd_doctor(project),
         Commands::Agents { cmd } => match cmd {
             None => {
@@ -1351,10 +1371,80 @@ fn cmd_init(
     project_yolo: Option<yolo::YoloLevel>,
     clear_project_yolo: bool,
     pretrust: bool,
+    compact_pct: Option<String>,
+    yes: bool,
     project: Option<PathBuf>,
 ) -> Result<(), String> {
     let root = project_root(project)?;
     std::fs::create_dir_all(&root).map_err(|e| format!("{}: {e}", root.display()))?;
+    // 压缩触发面（总台功能单 2026-09-23，ledger n6）：仅 compact 面的
+    // scoped 旗标（同 --yolo 先例，与 yolo 族互斥由 clap 保证）。预览
+    // （缺省，零写）加 --yes 落盘加回读自证；键面实证见 compact 模块文档。
+    if let Some(spec) = compact_pct {
+        let home = hst::pathutil::user_home()?;
+        let settings = home.join(".claude").join("settings.json");
+        let off = spec.eq_ignore_ascii_case("off");
+        let pct = if off {
+            None
+        } else {
+            let p: u8 = spec
+                .trim()
+                .parse()
+                .map_err(|_| format!("invalid --compact-pct (expect 1-100 or off): {spec}"))?;
+            if !(1..=100).contains(&p) {
+                return Err(format!(
+                    "invalid --compact-pct (expect 1-100 or off): {spec}"
+                ));
+            }
+            Some(p)
+        };
+        if yes {
+            let changed = hst::compact::apply_pct(&home, pct)?;
+            if changed.is_empty() {
+                println!("compact.write=none (already at target, idempotent)");
+            } else {
+                for c in &changed {
+                    println!("compact.write file={c}");
+                }
+            }
+            // 回读自证：落盘态必须与目标态等值。
+            let st = hst::compact::read_state(&home)?;
+            let want = pct.map(|p| p.to_string());
+            if st.pct_raw != want {
+                return Err(format!(
+                    "compact readback mismatch: want {:?}, got {:?}",
+                    want, st.pct_raw
+                ));
+            }
+            match pct {
+                Some(p) => println!("compact.readback pct={p}"),
+                None => println!("compact.readback pct=unset"),
+            }
+            if let Some((thr, by_pct)) = st.threshold_approx() {
+                println!(
+                    "compact.threshold tokens={thr} by_pct={by_pct} (输出预留按 20000 上限近似,窗口 {})",
+                    st.effective_window().unwrap_or(0)
+                );
+            }
+        } else {
+            match pct {
+                Some(p) => println!(
+                    "compact.plan key={} value={p} file={}",
+                    hst::compact::ENV_PCT,
+                    settings.display()
+                ),
+                None => println!(
+                    "compact.plan key={} remove=true file={}",
+                    hst::compact::ENV_PCT,
+                    settings.display()
+                ),
+            }
+            println!("compact.preview=true (zero-write; add --yes to apply)");
+        }
+        println!("init.hooks=skipped");
+        println!("init.scope=compact");
+        return Ok(());
+    }
     // Default init is the full deployment: user-level yolo keys plus user-level
     // hook registration, statusline and ours skill-dir retirement (D28 round 2:
     // yolo keys are user-level too; ADR-0005: skill face retired). Round 3:

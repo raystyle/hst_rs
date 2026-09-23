@@ -898,6 +898,29 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
         detail: crate::caps::caps_line(&caps),
     });
 
+    // 压缩触发检测（总台功能单 2026-09-23，ledger n6）：claude 用户级
+    // settings 的 auto-compact 面（键面实证见 compact 模块文档）。信息型
+    // 检查恒 ok（未配置走缺省口径也是健康态）；settings 坏损 warn。
+    {
+        let cs_path = home.join(".claude").join("settings.json");
+        match crate::compact::read_state(&home) {
+            Ok(cs) => findings.push(Finding {
+                agent: "claude".into(),
+                check: "compact",
+                status: Status::Ok,
+                path: cs_path.display().to_string(),
+                detail: cs.detail_line(),
+            }),
+            Err(e) => findings.push(Finding {
+                agent: "claude".into(),
+                check: "compact",
+                status: Status::Warn,
+                path: cs_path.display().to_string(),
+                detail: format!("settings unreadable: {e}"),
+            }),
+        }
+    }
+
     // D28 第 3 轮：yolo 两级显式（--yolo 用户级、--project-yolo 项目级），
     // doctor 双级接受；项目键在场时按 agent 分层规则遮蔽用户键（报告项目
     // 面为准）。D50：项目层补 settings.local.json 读取（local 优先于

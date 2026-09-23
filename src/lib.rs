@@ -11,6 +11,8 @@ pub mod agents;
 pub mod archive;
 /// CPU 指令集能力与探针退出形态分类（S021/P0018）。
 pub mod caps;
+/// claude 压缩触发（auto-compact）配置读写面（总台功能单 2026-09-23，ledger n6）。
+pub mod compact;
 /// `hst init` 部署层：hook 注册四家用户级、shim 落位、状态栏面与 ours 技能目录清扫（D53/ADR-0005）。
 pub mod deploy;
 /// `hst diagnose` 活性诊断族：网关缓存命中矩阵与配置活性（D21）。
