@@ -30,6 +30,7 @@ ark install hst
 # Windows：https://hst.ohmygh.com/hst/stable/hst-x86_64-pc-windows-gnu.zip 解压进 PATH
 # Linux/WSL：https://hst.ohmygh.com/hst/stable/hst-x86_64-unknown-linux-gnu.tar.gz
 # macOS：https://hst.ohmygh.com/hst/stable/hst-aarch64-apple-darwin.tar.gz
+# macOS（Intel）：https://hst.ohmygh.com/hst/stable/hst-x86_64-apple-darwin.tar.gz
 ```
 
 二进制校验：GitHub Release 逐包带 `.sha256` 边车，`sha256sum -c hst-x86_64-unknown-linux-gnu.tar.gz.sha256`。

@@ -3,7 +3,9 @@
 # CI 不再建正式 Release；本 workflow 面 = 测试岗（docs-gate）加 dev 轻岗（豁免在册：
 # push main 建 dev prerelease 滚动源）加播种（从 Release 资产拉，stable 走 release
 # published 事件，dev 轻岗链内触发——GITHUB_TOKEN 建档不触发 release 事件）。
-# 资产名即编译目标（selfupdate 按目标三元组映射）；mac 只要 arm64 不要 intel（用户裁决）。
+# 资产名即编译目标（selfupdate 按目标三元组映射）；mac 双档（2026-09-25 翻转
+# 2026-09-17「只要 arm64」用户裁决：舰队新收编 Intel MacBook 需 x86_64 档，
+# ADR-0007 后记）。
 name: dev-release
 
 on:
@@ -71,6 +73,12 @@ jobs:
           - os: macos-latest
             target: aarch64-apple-darwin
             archive: tar.gz
+          # 2026-09-25 档扩：intel mac 交叉岗（arm64 runner 编 x86_64，同 OS
+          # 交叉零链配；Test 跳过同 win-gnu 先例，host 测试与 arm64 岗重复，
+          # 测试面由 linux 与 arm64 mac 双岗覆盖）。
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            archive: tar.gz
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -84,7 +92,7 @@ jobs:
         with:
           key: ${{ matrix.target }}
       - name: Test
-        if: matrix.target != 'x86_64-pc-windows-gnu'
+        if: matrix.target != 'x86_64-pc-windows-gnu' && matrix.target != 'x86_64-apple-darwin'
         run: cargo test --locked
       - name: Build
         run: cargo build --release --locked --target ${{ matrix.target }} --bins

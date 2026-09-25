@@ -25,3 +25,4 @@ tags: ['release', 'build-release', 'D57']
 - 好：（护栏三件批 B/C 落齐）编译产地自控可复现（工具链不受 runner 漂移）；CI 面瘦（测试岗加播种）；镜像段制完整（版本段 immutable 加 stable 滚动加 dev 随仓裁）；护栏三件齐（一致性闸加零上传红灯加 dispatch 补推）；自升级判新全锚边车无降级面。
 - 坏：本地发布依赖主开发机与 lan-mac 在线（mac 实机构建链 ssh 单点）；发布人切换需重配 gh 与 rclone 环境；dev 轻岗豁免是标准外形态，舰队读序统一时需回收。
 - 后记（2026-09-18）：批 D 一的退役条件（舰队判新读序统一镜像优先）随总台家族自更新统一标准轮进入触发态，dev 滚动段镜像迁移另立批次再启；批 D 二的 ADR-0004 豁免随 ADR-0004 被 ADR-0008 替代收束（hst 缺省已是镜像优先）。
+- 后记（2026-09-25）：舰队新收编 Intel MacBook（omc 第六端 agent 机，macOS 12.7.6）无件可装，release 矩阵补 x86_64-apple-darwin 档（v2.8.1 起，资产四档）；dev-release.yml 头注所录 2026-09-17「mac 只要 arm64 不要 intel」用户裁决随之翻转。x86_64 档 lan-mac 同机交叉编（arm64 实机加 rustup target），冒烟宿主 = intelMBP 实机（仓外邻机，ssh 别名 macbook，见 guides/环境事实）；既有三平台产物名与压缩形不动（omc catalog pin 对账面）。
