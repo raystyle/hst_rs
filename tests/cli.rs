@@ -1238,7 +1238,45 @@ fn loop_set_list_del_roundtrip() {
         .assert()
         .failure()
         .stderr(contains("loop error=bad_every"));
+    // 评审 G6 回填：corrupt 短码端到端（tasks 键非数组拒覆写，评审 F2）。
+    let bad = std::env::temp_dir().join(format!(
+        "hst-cli-loopbad-{}-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis(),
+        NEXT_TEST_DIR.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    std::fs::create_dir_all(bad.join(".claude")).unwrap();
+    std::fs::write(
+        bad.join(".claude").join("scheduled_tasks.json"),
+        r#"{"tasks":{"weird":1}}"#,
+    )
+    .unwrap();
+    hst()
+        .args(["loop", "list"])
+        .arg("--project")
+        .arg(&bad)
+        .assert()
+        .failure()
+        .stderr(contains("loop error=corrupt"))
+        .stderr(contains("not an array"));
+    // 评审 G6 回填：no_session 短码端到端（剥会话环境加空家目录，三级
+    // 解析全落空）。
+    let empty_home = bad.join("empty-home");
+    std::fs::create_dir_all(&empty_home).unwrap();
+    hst()
+        .args(["loop", "del", "latest"])
+        .arg("--project")
+        .arg(&tmp)
+        .env_remove("CLAUDE_CODE_SESSION_ID")
+        .env("HST_USER_HOME", &empty_home)
+        .assert()
+        .failure()
+        .stderr(contains("loop error=no_session"));
     let _ = std::fs::remove_dir_all(&tmp);
+    let _ = std::fs::remove_dir_all(&bad);
 }
 
 #[test]

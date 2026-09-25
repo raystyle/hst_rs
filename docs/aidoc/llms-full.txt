@@ -337,7 +337,9 @@ createdByProcStart）；hst 是该文件的读写管理面（set / list / del）
 类型契约（REQ-021）：节拍互斥由 Cadence 枚举在类型层表达（双缺
 或双给的检查上移 CLI 解析层）；任务行由 Task 结构体 typed 承载
 （缺键容忍默认、错型响亮报错、未知键 flatten 保真）；错误由
-LoopError 枚举承载（LoopError::code 给 agent 稳定短码）。
+LoopError 枚举承载（LoopError::code 给 agent 稳定短码，CLI 错误面
+「loop error=<code>:」前缀即 agent 判别契约；结构化短码字段面候裁
+REQ-011，评审 G3 回填）。
 
 ## Functions
 
@@ -358,7 +360,7 @@ LoopError 枚举承载（LoopError::code 给 agent 稳定短码）。
 - `GoalReport` — goal 改写报告：被改任务的 id 与 cron。
 - `LoopError` — loop 与 goal 面错误（REQ-021）：`Display` 面向人，[`LoopError::code`]
 - `SetReport` — set 落盘报告：新任务的 id、cron、recurring、归属会话与文件路径。
-- `Task` — scheduled_tasks.json 的任务行（REQ-021 typed 承载）：核心八字段
+- `Task` — scheduled_tasks.json 的任务行（REQ-021 typed 承载）：核心八字段加
 - `TaskRow` — 任务行（list / del 判据用）：文件内每条任务的展开视图。
 
 

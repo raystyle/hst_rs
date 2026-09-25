@@ -465,7 +465,7 @@
     {
       "path": "hst_cli::loopmgmt",
       "kind": "module",
-      "docs": "`hst loop`：当前会话 durable 定时任务与 goal 管理面（REQ-019）。\nloop 与 goal 管理面（REQ-019、REQ-021 类型契约化试点）。hst 侧唯一\n真相 = 项目根 `.claude/scheduled_tasks.json`（Claude Code durable\nCronCreate 的同源落盘形，实证 2026-09-23 探针：tasks[] 含 id / cron /\nprompt / recurring / createdAt / createdBySessionId / createdByPid /\ncreatedByProcStart）；hst 是该文件的读写管理面（set / list / del），\n状态栏 loop 与 goal 段同源只读消费，不自建第二状态文件。会话归属\n判据 = `createdBySessionId` 与当前会话 id 等值。goal 语义 = 任务\n`prompt` 文本。并发面与 Claude Code 同款读改写（无锁，后写覆盖先写）；\n同一会话内混用 hst 与 agent 原生 cron 工具会互相覆盖盘上变更，管理\n纪律是单向（要么全经 hst，要么全经会话内工具）。已在跑会话不接管\n盘上外部写入（2026-09-26 探针实证阴性：agent 进程 inotify 盯着项目\n.claude 目录但任务变更不被采纳，会话运行期调度器状态在内存注册表，盘上\n文件是重启装载的持久化镜像而非活输入通道）。重启装载面同日实证\n阳性：新会话启动装载本文件，missed 一次性任务以补触发形浮出（带\n用户确认门，prompt 即 goal 文本）并自删；hst 写盘后重开会话即生效。\n\n类型契约（REQ-021）：节拍互斥由 Cadence 枚举在类型层表达（双缺\n或双给的检查上移 CLI 解析层）；任务行由 Task 结构体 typed 承载\n（缺键容忍默认、错型响亮报错、未知键 flatten 保真）；错误由\nLoopError 枚举承载（LoopError::code 给 agent 稳定短码）。"
+      "docs": "`hst loop`：当前会话 durable 定时任务与 goal 管理面（REQ-019）。\nloop 与 goal 管理面（REQ-019、REQ-021 类型契约化试点）。hst 侧唯一\n真相 = 项目根 `.claude/scheduled_tasks.json`（Claude Code durable\nCronCreate 的同源落盘形，实证 2026-09-23 探针：tasks[] 含 id / cron /\nprompt / recurring / createdAt / createdBySessionId / createdByPid /\ncreatedByProcStart）；hst 是该文件的读写管理面（set / list / del），\n状态栏 loop 与 goal 段同源只读消费，不自建第二状态文件。会话归属\n判据 = `createdBySessionId` 与当前会话 id 等值。goal 语义 = 任务\n`prompt` 文本。并发面与 Claude Code 同款读改写（无锁，后写覆盖先写）；\n同一会话内混用 hst 与 agent 原生 cron 工具会互相覆盖盘上变更，管理\n纪律是单向（要么全经 hst，要么全经会话内工具）。已在跑会话不接管\n盘上外部写入（2026-09-26 探针实证阴性：agent 进程 inotify 盯着项目\n.claude 目录但任务变更不被采纳，会话运行期调度器状态在内存注册表，盘上\n文件是重启装载的持久化镜像而非活输入通道）。重启装载面同日实证\n阳性：新会话启动装载本文件，missed 一次性任务以补触发形浮出（带\n用户确认门，prompt 即 goal 文本）并自删；hst 写盘后重开会话即生效。\n\n类型契约（REQ-021）：节拍互斥由 Cadence 枚举在类型层表达（双缺\n或双给的检查上移 CLI 解析层）；任务行由 Task 结构体 typed 承载\n（缺键容忍默认、错型响亮报错、未知键 flatten 保真）；错误由\nLoopError 枚举承载（LoopError::code 给 agent 稳定短码，CLI 错误面\n「loop error=<code>:」前缀即 agent 判别契约；结构化短码字段面候裁\nREQ-011，评审 G3 回填）。"
     },
     {
       "path": "hst_cli::loopmgmt::Cadence",
@@ -490,7 +490,7 @@
     {
       "path": "hst_cli::loopmgmt::Task",
       "kind": "struct",
-      "docs": "scheduled_tasks.json 的任务行（REQ-021 typed 承载）：核心八字段\n（字段序与 Claude Code 落盘形同序）加 flatten 未知键保真。缺键容忍\n默认（历史文件可能短字段），错型响亮报错（schema 漂移不静默吞）；\n文件属主是 Claude Code，schema 可能长，未知键读改写幸存。"
+      "docs": "scheduled_tasks.json 的任务行（REQ-021 typed 承载）：核心八字段加\nflatten 未知键保真。五字段（createdAt/recurring/createdBy 三件）\n`#[serde(default)]` 容忍缺键（历史文件可能短字段；外会话行经 hst\n写盘会补全默认值，属接受的可见变化，评审 G5 回填）；id/cron/prompt\n三必需字段缺失或错型均响亮报错（缺 id 会让 del 定位失准，不给默认，\n评审 F1 回填）。键序不承诺与原生落盘形同序（hst 写盘按结构体字段序\n重排、未知键居末，JSON 消费方不受影响，评审 G4 回填）；文件属主是\nClaude Code，schema 可能长，未知键读改写幸存。"
     },
     {
       "path": "hst_cli::loopmgmt::TaskRow",

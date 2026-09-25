@@ -17,7 +17,9 @@
 //! 类型契约（REQ-021）：节拍互斥由 Cadence 枚举在类型层表达（双缺
 //! 或双给的检查上移 CLI 解析层）；任务行由 Task 结构体 typed 承载
 //! （缺键容忍默认、错型响亮报错、未知键 flatten 保真）；错误由
-//! LoopError 枚举承载（LoopError::code 给 agent 稳定短码）。
+//! LoopError 枚举承载（LoopError::code 给 agent 稳定短码，CLI 错误面
+//! 「loop error=<code>:」前缀即 agent 判别契约；结构化短码字段面候裁
+//! REQ-011，评审 G3 回填）。
 
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -43,6 +45,9 @@ pub enum Cadence<'a> {
 pub enum LoopError {
     /// goal 文本 trim 后为空。
     EmptyGoal,
+    /// goal 文本 trim 后为空（goal 改写面专用；Display 带 `hst goal
+    /// clear` 指引尾巴，评审 G1 回填：原 set_goal 可操作文案不丢）。
+    EmptyGoalClear,
     /// `--every` 形坏或越界（携带原文）。
     BadEvery(String),
     /// `--at` 时刻形坏或越界（携带原文）。
@@ -71,7 +76,7 @@ impl LoopError {
     /// agent 面稳定短码（CLI 错误输出 `error=<code>` 的取值源）。
     pub fn code(&self) -> &'static str {
         match self {
-            LoopError::EmptyGoal => "empty_goal",
+            LoopError::EmptyGoal | LoopError::EmptyGoalClear => "empty_goal",
             LoopError::BadEvery(_) => "bad_every",
             LoopError::BadAt(_) => "bad_at",
             LoopError::SessionUnresolved(_) => "no_session",
@@ -86,6 +91,10 @@ impl std::fmt::Display for LoopError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             LoopError::EmptyGoal => write!(f, "goal text is empty"),
+            LoopError::EmptyGoalClear => write!(
+                f,
+                "goal text is empty (to remove the goal use: hst goal clear)"
+            ),
             LoopError::BadEvery(spec) => {
                 write!(f, "invalid --every (expect Nm 1-59 or Nh 1-23): {spec}")
             }
@@ -103,10 +112,14 @@ impl std::fmt::Display for LoopError {
     }
 }
 
-/// scheduled_tasks.json 的任务行（REQ-021 typed 承载）：核心八字段
-/// （字段序与 Claude Code 落盘形同序）加 flatten 未知键保真。缺键容忍
-/// 默认（历史文件可能短字段），错型响亮报错（schema 漂移不静默吞）；
-/// 文件属主是 Claude Code，schema 可能长，未知键读改写幸存。
+/// scheduled_tasks.json 的任务行（REQ-021 typed 承载）：核心八字段加
+/// flatten 未知键保真。五字段（createdAt/recurring/createdBy 三件）
+/// `#[serde(default)]` 容忍缺键（历史文件可能短字段；外会话行经 hst
+/// 写盘会补全默认值，属接受的可见变化，评审 G5 回填）；id/cron/prompt
+/// 三必需字段缺失或错型均响亮报错（缺 id 会让 del 定位失准，不给默认，
+/// 评审 F1 回填）。键序不承诺与原生落盘形同序（hst 写盘按结构体字段序
+/// 重排、未知键居末，JSON 消费方不受影响，评审 G4 回填）；文件属主是
+/// Claude Code，schema 可能长，未知键读改写幸存。
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Task {
     /// 任务 id。
@@ -181,16 +194,25 @@ fn read_tasks(root: &Path) -> Result<Vec<Task>, LoopError> {
         path: path.display().to_string(),
         cause: e,
     })?;
-    let arr = v
-        .get("tasks")
-        .and_then(|t| t.as_array())
-        .cloned()
-        .unwrap_or_default();
+    let arr = match v.get("tasks") {
+        None => return Ok(Vec::new()),
+        // 评审 F2 回填：tasks 键在场而非数组 = 真数据在场，硬错绝不
+        // 覆写（静默当空集会让下一次写盘整段盖掉它）。
+        Some(t) => t.as_array().cloned().ok_or_else(|| LoopError::Corrupt {
+            path: path.display().to_string(),
+            cause: "tasks key is present but not an array (refusing to overwrite \
+                    real data)"
+                .to_string(),
+        })?,
+    };
     arr.iter()
-        .map(|t| {
+        .enumerate()
+        .map(|(i, t)| {
+            // 评审 F1 加 G2 回填：必需字段缺失或错型统一文案响亮报错，
+            // 点名行下标供多行文件定位。
             serde_json::from_value(t.clone()).map_err(|e| LoopError::Corrupt {
                 path: path.display().to_string(),
-                cause: format!("wrong-typed task field: {e}"),
+                cause: format!("bad task row at tasks[{i}]: {e}"),
             })
         })
         .collect()
@@ -487,7 +509,7 @@ fn latest_own_index(tasks: &[Task], sid: &str) -> Option<usize> {
 pub fn set_goal(root: &Path, text: &str, session: Option<&str>) -> Result<GoalReport, LoopError> {
     let text = text.trim();
     if text.is_empty() {
-        return Err(LoopError::EmptyGoal);
+        return Err(LoopError::EmptyGoalClear);
     }
     let sid = resolve_session(session, root)?;
     let mut tasks = read_tasks(root)?;
@@ -775,8 +797,89 @@ mod tests {
         let err = list_tasks(&root, None).unwrap_err();
         assert_eq!(err.code(), "corrupt");
         assert!(
-            err.to_string().contains("wrong-typed task field"),
-            "error should name the cause: {err}"
+            err.to_string().contains("bad task row at tasks[0]"),
+            "error should name row and cause: {err}"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn tasks_not_array_refuses_overwrite() {
+        let root = fresh_dir("na");
+        std::fs::create_dir_all(root.join(".claude")).unwrap();
+        let raw = r#"{"tasks":{"weird":1}}"#;
+        let f = root.join(".claude").join("scheduled_tasks.json");
+        std::fs::write(&f, raw).unwrap();
+        // 只读面：硬错不静默当空集（评审 F2 实证复现面）。
+        let err = list_tasks(&root, None).unwrap_err();
+        assert_eq!(err.code(), "corrupt");
+        assert!(err.to_string().contains("not an array"), "{err}");
+        // 写面：拒绝覆写真数据，文件字节不动。
+        assert!(set_loop(&root, "x", Cadence::Every("5m"), Some("s1")).is_err());
+        assert_eq!(std::fs::read_to_string(&f).unwrap(), raw);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn missing_required_field_loud_with_row_index() {
+        let root = fresh_dir("mr");
+        std::fs::create_dir_all(root.join(".claude")).unwrap();
+        // 前行合法、后行缺 id：报错点名 tasks[1]（评审 F1 加 G2 回填）。
+        std::fs::write(
+            root.join(".claude").join("scheduled_tasks.json"),
+            r#"{"tasks":[{"id":"ok1","cron":"* * * * *","prompt":"a"},{"cron":"* * * * *","prompt":"b"}]}"#,
+        )
+        .unwrap();
+        let err = list_tasks(&root, None).unwrap_err();
+        assert_eq!(err.code(), "corrupt");
+        let msg = err.to_string();
+        assert!(msg.contains("bad task row at tasks[1]"), "{msg}");
+        assert!(msg.contains("missing field `id`"), "{msg}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn foreign_missing_optional_keys_get_defaulted_visibly() {
+        let root = fresh_dir("fd");
+        write_tasks(
+            &root,
+            &[jt(
+                json!({ "id": "f1", "cron": "*/5 * * * *", "prompt": "外",
+                     "createdBySessionId": "s2", "createdAt": 9u64 }),
+            )],
+        )
+        .unwrap();
+        // 评审 G5 回填：缺 recurring/pid/procStart 的外会话行经 hst 写盘
+        // 补全默认（false/0/空串），属接受的可见变化。
+        set_goal(&root, "改写", Some("s2")).unwrap();
+        let after: Json = serde_json::from_str(
+            &std::fs::read_to_string(root.join(".claude").join("scheduled_tasks.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(after["tasks"][0]["recurring"], false);
+        assert_eq!(after["tasks"][0]["createdByPid"], 0);
+        assert_eq!(after["tasks"][0]["createdByProcStart"], "");
+        assert_eq!(after["tasks"][0]["prompt"], "改写");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn goal_empty_error_keeps_clear_hint() {
+        // 评审 G1 回填：set_goal 空文本保留 hst goal clear 指引尾巴。
+        let root = fresh_dir("gh");
+        write_tasks(
+            &root,
+            &[jt(
+                json!({ "id": "g1", "cron": "*/5 * * * *", "prompt": "p",
+                     "createdAt": 1u64, "createdBySessionId": "s1" }),
+            )],
+        )
+        .unwrap();
+        let err = set_goal(&root, "  ", Some("s1")).unwrap_err();
+        assert_eq!(err.code(), "empty_goal");
+        assert!(
+            err.to_string().contains("hst goal clear"),
+            "guidance tail must survive: {err}"
         );
         let _ = std::fs::remove_dir_all(&root);
     }
