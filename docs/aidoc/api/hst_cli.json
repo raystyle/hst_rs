@@ -133,6 +133,11 @@
       "docs": "输出预留上限（阈值算式常量，随二进制实证）。"
     },
     {
+      "path": "hst_cli::compact::Threshold",
+      "kind": "enum",
+      "docs": "阈值近似口径变体（REQ-022 推广批）：pct 生效形与缺省形，阈值由\n变体携带（非法中间态「缺省形却带 pct」在类型层不可表示）。"
+    },
+    {
       "path": "hst_cli::compact::apply_pct",
       "kind": "function",
       "docs": "写 pct（1 至 100）或摘键（None）到用户级 settings env 块，读改写保留\n其余键；目标态与现态等值时零写（幂等）。返回变更文件路径清单。\n\n# Panics\n\n正常路径不 panic；内部 unwrap 仅出现在构造不变量上（env 键刚建必为\n对象）。\n# Errors\n\n文件在而 JSON 坏损或 IO 失败时返回 `String` 错误。"

@@ -24,6 +24,7 @@ testPctOverride，官方文档无此键，未文档面，升级可能变）；�
 ## Types
 
 - `CompactState` — 压缩触发配置快照（原文保留，解析宽容：坏值不报错按缺省口径报告）。
+- `Threshold` — 阈值近似口径变体（REQ-022 推广批）：pct 生效形与缺省形，阈值由
 
 ## Constants
 

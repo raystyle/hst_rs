@@ -27,6 +27,16 @@ pub const OUTPUT_RESERVE_CAP: u64 = 20_000;
 /// 缺省阈值预留（无 pct 时阈值 = 有效窗口 - 此值）。
 pub const DEFAULT_RESERVE: u64 = 13_000;
 
+/// 阈值近似口径变体（REQ-022 推广批）：pct 生效形与缺省形，阈值由
+/// 变体携带（非法中间态「缺省形却带 pct」在类型层不可表示）。
+#[derive(Debug, PartialEq)]
+pub enum Threshold {
+    /// pct 生效形：阈值 = 有效窗口乘 pct 除 100 取下整，封顶缺省形。
+    ByPct(u64),
+    /// 缺省形：阈值 = 有效窗口减 13000。
+    Default(u64),
+}
+
 /// 压缩触发配置快照（原文保留，解析宽容：坏值不报错按缺省口径报告）。
 pub struct CompactState {
     /// pct 覆盖 env 原文（parse 后 1 至 100 才算生效）。
@@ -87,17 +97,18 @@ impl CompactState {
     }
 
     /// 阈值 tokens 近似口径（输出预留按 20000 上限取，模型输出上限小于
-    /// 此值时实际阈值更高）：返回 (阈值, 是否 pct 生效)；窗口未知 None。
-    pub fn threshold_approx(&self) -> Option<(u64, bool)> {
+    /// 此值时实际阈值更高）：ByPct = pct 生效形，Default = 缺省形；窗口
+    /// 未知 None。REQ-022 推广批撤原 `(u64, bool)` 元组（bool 与
+    /// `effective_pct().is_some()` 冗余，语义应由变体承载）。
+    pub fn threshold_approx(&self) -> Option<Threshold> {
         let window = self.effective_window()?;
         let effective = window.saturating_sub(OUTPUT_RESERVE_CAP);
         let default_thr = effective.saturating_sub(DEFAULT_RESERVE);
         match self.effective_pct() {
-            Some(p) => Some((
+            Some(p) => Some(Threshold::ByPct(
                 ((effective as f64 * p / 100.0).floor() as u64).min(default_thr),
-                true,
             )),
-            None => Some((default_thr, false)),
+            None => Some(Threshold::Default(default_thr)),
         }
     }
 
@@ -124,7 +135,8 @@ impl CompactState {
             None => "enabled=true(缺省)".to_string(),
         };
         let thr = match self.threshold_approx() {
-            Some((t, by_pct)) => format!(" threshold~{t}(by_pct={by_pct})"),
+            Some(Threshold::ByPct(t)) => format!(" threshold~{t}(by_pct=true)"),
+            Some(Threshold::Default(t)) => format!(" threshold~{t}(by_pct=false)"),
             None => String::new(),
         };
         format!("{pct} {window} {enabled}{thr} (pct键未文档,2.1.270实证)")
@@ -236,7 +248,7 @@ mod tests {
             window_setting: None,
             enabled: None,
         };
-        assert_eq!(cs.threshold_approx(), Some((686_000, true)));
+        assert_eq!(cs.threshold_approx(), Some(Threshold::ByPct(686_000)));
         // 无 pct:缺省 = 有效 - 13000。
         let cs = CompactState {
             pct_raw: None,
@@ -244,7 +256,7 @@ mod tests {
             window_setting: None,
             enabled: None,
         };
-        assert_eq!(cs.threshold_approx(), Some((967_000, false)));
+        assert_eq!(cs.threshold_approx(), Some(Threshold::Default(967_000)));
         // 钳制:99% 的 floor(970200) 钳到缺省 967000。
         let cs = CompactState {
             pct_raw: Some("99".into()),
@@ -252,7 +264,7 @@ mod tests {
             window_setting: None,
             enabled: None,
         };
-        assert_eq!(cs.threshold_approx(), Some((967_000, true)));
+        assert_eq!(cs.threshold_approx(), Some(Threshold::ByPct(967_000)));
         // env 缺席回落 settings 键:200k 窗口缺省 167000。
         let cs = CompactState {
             pct_raw: None,
@@ -261,7 +273,7 @@ mod tests {
             enabled: Some(true),
         };
         assert_eq!(cs.effective_window(), Some(200_000));
-        assert_eq!(cs.threshold_approx(), Some((167_000, false)));
+        assert_eq!(cs.threshold_approx(), Some(Threshold::Default(167_000)));
         // 坏值宽容:pct "abc" 与窗口 "99" 都按缺省口径。
         let cs = CompactState {
             pct_raw: Some("abc".into()),
@@ -291,7 +303,7 @@ mod tests {
         assert_eq!(cs.pct_raw.as_deref(), Some("70"));
         assert_eq!(cs.window_env_raw.as_deref(), Some("1000000"));
         assert_eq!(cs.enabled, Some(false));
-        assert_eq!(cs.threshold_approx(), Some((686_000, true)));
+        assert_eq!(cs.threshold_approx(), Some(Threshold::ByPct(686_000)));
         assert!(cs.detail_line().contains("enabled=false"));
         // 文件缺席 = 全空快照。
         std::fs::remove_file(&settings).unwrap();

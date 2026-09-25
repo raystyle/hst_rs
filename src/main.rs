@@ -1420,11 +1420,16 @@ fn cmd_init(
                 Some(p) => println!("compact.readback pct={p}"),
                 None => println!("compact.readback pct=unset"),
             }
-            if let Some((thr, by_pct)) = st.threshold_approx() {
-                println!(
-                    "compact.threshold tokens={thr} by_pct={by_pct} (输出预留按 20000 上限近似,窗口 {})",
+            match st.threshold_approx() {
+                Some(hst::compact::Threshold::ByPct(thr)) => println!(
+                    "compact.threshold tokens={thr} by_pct=true (输出预留按 20000 上限近似,窗口 {})",
                     st.effective_window().unwrap_or(0)
-                );
+                ),
+                Some(hst::compact::Threshold::Default(thr)) => println!(
+                    "compact.threshold tokens={thr} by_pct=false (输出预留按 20000 上限近似,窗口 {})",
+                    st.effective_window().unwrap_or(0)
+                ),
+                None => {}
             }
         } else {
             match pct {

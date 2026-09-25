@@ -25,3 +25,4 @@
 | REQ-019 | implemented | must | 状态栏loop与goal段加管理命令面 | loopmgmt 单测五件加 statusline 单测四件加门控扩加 cli 集成三件加实弹（loop 与 goal 回环加部署脚本直跑） |
 | REQ-020 | implemented | should | doctor增loop与goal健康检查 | loopmgmt 单测三件加 doctor 单测三态三件 |
 | REQ-021 | implemented | should | loopmgmt类型契约化试点 | loopmgmt 单测十一件（含评审回填五面）加 cli 集成五断言面（双缺加双给加 bad_every 加 corrupt 加 no_session 短码） |
+| REQ-022 | implemented | should | 类型契约化推广裁定与compact收尾 | compact 单测三件加推广面实测盘点 |
