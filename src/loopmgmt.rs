@@ -194,6 +194,14 @@ fn read_tasks(root: &Path) -> Result<Vec<Task>, LoopError> {
         path: path.display().to_string(),
         cause: e,
     })?;
+    // 评审二轮 G8 回填：顶层非对象（如裸数组）= 真数据在场，硬错绝不
+    // 静默当无 tasks 处理（下一次写盘会整段重置掉它）。
+    if !v.is_object() {
+        return Err(LoopError::Corrupt {
+            path: path.display().to_string(),
+            cause: "top-level is not an object (refusing to overwrite real data)".to_string(),
+        });
+    }
     let arr = match v.get("tasks") {
         None => return Ok(Vec::new()),
         // 评审 F2 回填：tasks 键在场而非数组 = 真数据在场，硬错绝不
@@ -230,8 +238,13 @@ fn write_tasks(root: &Path, tasks: &[Task]) -> Result<PathBuf, LoopError> {
     } else {
         json!({})
     };
+    // 评审二轮 G8 回填：顶层非对象由读侧硬错拦截，写侧不再静默重置
+    //（原 `v = json!({})` 会把 [1,2,3] 类真数据整段盖掉）。
     if !v.is_object() {
-        v = json!({});
+        return Err(LoopError::Corrupt {
+            path: path.display().to_string(),
+            cause: "top-level is not an object (refusing to overwrite real data)".to_string(),
+        });
     }
     let rows: Vec<Json> = tasks
         .iter()
@@ -623,6 +636,72 @@ pub fn del_loops(
     Ok(removed)
 }
 
+/// doctor 消费的 loop 面健康快照（REQ-020）：计数面；坏损走 Err 不在
+/// 快照里表达。
+pub struct LoopHealth {
+    /// 任务总数（文件缺失或空 tasks 为 0，零任务合法态）。
+    pub total: usize,
+    /// 本会话任务数（会话不可解析为 None，doctor 注记不告警）。
+    pub ours: Option<usize>,
+    /// 死属主任务数（pid 非零且进程不在或 procStart 不匹配）。
+    pub dead_owner: usize,
+    /// 是否做了属主活性判（仅 Linux；false 时 doctor 该子面降 ok 加
+    /// 无判据注记，Status 模型无 info 档，同 compact 信息型先例）。
+    pub owner_check: bool,
+}
+
+/// loop 面健康快照（REQ-020）：读项目 scheduled_tasks.json 计总数、本
+/// 会话数与死属主；文件缺失或空任务合法返回零计数；坏损（顶层非对象、
+/// tasks 键非数组、任务行缺必需字段或错型）返回 Err 带 LoopError 文案。
+///
+/// # Errors
+///
+/// 文件坏损或 IO 失败时返回 `String` 错误（LoopError 的 Display 形）。
+pub fn health(root: &Path) -> Result<LoopHealth, String> {
+    let tasks = read_tasks(root).map_err(|e| e.to_string())?;
+    let owner_check = cfg!(target_os = "linux");
+    let dead_owner = if owner_check {
+        tasks
+            .iter()
+            .filter(|t| !owner_alive(t.created_by_pid, &t.created_by_proc_start))
+            .count()
+    } else {
+        0
+    };
+    let ours = resolve_session(None, root).ok().map(|sid| {
+        tasks
+            .iter()
+            .filter(|t| t.created_by_session_id == sid)
+            .count()
+    });
+    Ok(LoopHealth {
+        total: tasks.len(),
+        ours,
+        dead_owner,
+        owner_check,
+    })
+}
+
+/// 属主活性判（liveness 同源 /proc 第 22 字段）：pid 为 0 = 归属未知不
+/// 算死；进程不在算死；procStart 落盘非空且与活动进程第 22 字段不等
+/// （pid 复用）算死；procStart 落盘为空只查进程在否。非 Linux 恒活
+///（调用方以 owner_check 分流该子面）。
+fn owner_alive(pid: u64, proc_start: &str) -> bool {
+    if pid == 0 || !cfg!(target_os = "linux") {
+        return true;
+    }
+    let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) else {
+        return false;
+    };
+    let Some(rest) = stat.rsplit(')').next() else {
+        return false;
+    };
+    match rest.split_whitespace().nth(19) {
+        Some(tok) => proc_start.is_empty() || tok == proc_start,
+        None => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -881,6 +960,66 @@ mod tests {
             err.to_string().contains("hst goal clear"),
             "guidance tail must survive: {err}"
         );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn g8_top_level_non_object_refuses_overwrite() {
+        let root = fresh_dir("g8");
+        std::fs::create_dir_all(root.join(".claude")).unwrap();
+        let raw = r#"[1,2,3]"#;
+        let f = root.join(".claude").join("scheduled_tasks.json");
+        std::fs::write(&f, raw).unwrap();
+        // 评审二轮 G8 回填：顶层非对象读写两面都硬错，文件字节不动。
+        let err = list_tasks(&root, None).unwrap_err();
+        assert_eq!(err.code(), "corrupt");
+        assert!(
+            err.to_string().contains("top-level is not an object"),
+            "{err}"
+        );
+        assert!(set_loop(&root, "x", Cadence::Every("5m"), Some("s1")).is_err());
+        assert!(set_goal(&root, "y", Some("s1")).is_err());
+        assert_eq!(std::fs::read_to_string(&f).unwrap(), raw);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn health_zero_when_file_missing() {
+        // REQ-020：文件缺失是合法零任务态，健康快照零计数非错误。
+        let root = fresh_dir("hz");
+        let h = health(&root).unwrap();
+        assert_eq!(h.total, 0);
+        assert_eq!(h.dead_owner, 0);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn health_dead_owner_only_for_vanished_pid_linux() {
+        if !cfg!(target_os = "linux") {
+            return;
+        }
+        let root = fresh_dir("hd");
+        write_tasks(
+            &root,
+            &[
+                jt(json!({ "id": "d1", "cron": "*/5 * * * *", "prompt": "a",
+                         "createdAt": 1u64, "createdBySessionId": "s1",
+                         "createdByPid": 4000000u64, "createdByProcStart": "1" })),
+                jt(json!({ "id": "a0", "cron": "*/7 * * * *", "prompt": "b",
+                         "createdAt": 2u64, "createdBySessionId": "s1",
+                         "createdByPid": 0u64, "createdByProcStart": "" })),
+                jt(json!({ "id": "me", "cron": "*/9 * * * *", "prompt": "c",
+                         "createdAt": 3u64, "createdBySessionId": "s1",
+                         "createdByPid": std::process::id() as u64,
+                         "createdByProcStart": "" })),
+            ],
+        )
+        .unwrap();
+        let h = health(&root).unwrap();
+        assert_eq!(h.total, 3);
+        // 只有消失 pid 算死：pid=0 归属未知不算、本测试进程活着（procStart
+        // 落盘为空只查进程在否）不算。
+        assert_eq!(h.dead_owner, 1);
         let _ = std::fs::remove_dir_all(&root);
     }
 

@@ -30,6 +30,7 @@ REQ-011，评审 G3 回填）。
 - `clear_goal` — 清空当前会话最新 loop 的 goal（prompt 置空、任务与节奏保留；返回被改
 - `del_loops` — 删除任务：target 为任务 id（精确匹配任意任务，不限会话）、`latest`
 - `every_to_cron` — 周期间隔转 cron：`Nm`（1 至 59）得 `*/N * * * *`；`Nh`（1 至 23）得
+- `health` — loop 面健康快照（REQ-020）：读项目 scheduled_tasks.json 计总数、本
 - `list_tasks` — 列出项目定时任务（全量，不按会话过滤；`ours` 标当前会话归属，
 - `resolve_session` — 解析「当前会话」：显式 `--session` 优先，其次 agent 会话内环境变量
 - `scheduled_tasks_path` — 定时任务文件路径（项目根下 `.claude/scheduled_tasks.json`）。
@@ -42,6 +43,7 @@ REQ-011，评审 G3 回填）。
 - `Cadence` — 节拍规格（REQ-021）：`--every` 周期形与 `--at` 一次性形的互斥枚举，
 - `GoalReport` — goal 改写报告：被改任务的 id 与 cron。
 - `LoopError` — loop 与 goal 面错误（REQ-021）：`Display` 面向人，[`LoopError::code`]
+- `LoopHealth` — doctor 消费的 loop 面健康快照（REQ-020）：计数面；坏损走 Err 不在
 - `SetReport` — set 落盘报告：新任务的 id、cron、recurring、归属会话与文件路径。
 - `Task` — scheduled_tasks.json 的任务行（REQ-021 typed 承载）：核心八字段加
 - `TaskRow` — 任务行（list / del 判据用）：文件内每条任务的展开视图。

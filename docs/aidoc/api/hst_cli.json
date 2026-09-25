@@ -483,6 +483,11 @@
       "docs": "loop 与 goal 面错误（REQ-021）：`Display` 面向人，[`LoopError::code`]\n给 agent 稳定短码（机器判别不靠字符串前缀分流）。"
     },
     {
+      "path": "hst_cli::loopmgmt::LoopHealth",
+      "kind": "struct",
+      "docs": "doctor 消费的 loop 面健康快照（REQ-020）：计数面；坏损走 Err 不在\n快照里表达。"
+    },
+    {
       "path": "hst_cli::loopmgmt::SetReport",
       "kind": "struct",
       "docs": "set 落盘报告：新任务的 id、cron、recurring、归属会话与文件路径。"
@@ -516,6 +521,11 @@
       "path": "hst_cli::loopmgmt::every_to_cron",
       "kind": "function",
       "docs": "周期间隔转 cron：`Nm`（1 至 59）得 `*/N * * * *`；`Nh`（1 至 23）得\n`M */N * * *`（评审 F2：N 必须进小时步进位，否则 6h 静默放大成每小\n时），M 取落盘时刻分钟位并避开 0 与 30（舰队避整点半点纪律）。恒为\nrecurring 形（由 [`Cadence::Every`] 变体决定，不再以布尔元组携带）。\n\n# Errors\n\n形坏或数值越界时返回 [`LoopError::BadEvery`]。"
+    },
+    {
+      "path": "hst_cli::loopmgmt::health",
+      "kind": "function",
+      "docs": "loop 面健康快照（REQ-020）：读项目 scheduled_tasks.json 计总数、本\n会话数与死属主；文件缺失或空任务合法返回零计数；坏损（顶层非对象、\ntasks 键非数组、任务行缺必需字段或错型）返回 Err 带 LoopError 文案。\n\n# Errors\n\n文件坏损或 IO 失败时返回 `String` 错误（LoopError 的 Display 形）。"
     },
     {
       "path": "hst_cli::loopmgmt::list_tasks",

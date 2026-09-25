@@ -921,6 +921,60 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
         }
     }
 
+    // REQ-020：loop/goal 面健康检查（scheduled_tasks.json 属主是 Claude
+    // Code，hst 是管理面）。文件缺失或零任务判 ok（零任务合法态）；坏损
+    // warn（顶层非对象、tasks 键非数组、任务行错型，loopmgmt read_tasks
+    // 同判）；Linux 死属主 warn（pid 在而进程不在或 procStart 不匹配），
+    // 非 Linux 该子面无判据降 ok 加注记（Status 无 info 档，同 compact
+    // 信息型先例）；本会话与外会话计数为对账面不告警。
+    {
+        let lt_path = root.join(".claude").join("scheduled_tasks.json");
+        match crate::loopmgmt::health(&root) {
+            Ok(h) => {
+                let session_face = match h.ours {
+                    Some(o) => format!("ours={o} foreign={}", h.total - o),
+                    None => "session unresolved".to_string(),
+                };
+                if h.dead_owner > 0 {
+                    push_status(
+                        &mut findings,
+                        "claude",
+                        "loop",
+                        Status::Warn,
+                        &lt_path,
+                        format!(
+                            "tasks={} {session_face} dead_owner={} (owning pid gone or \
+                             procStart mismatch; reload happens on new session start)",
+                            h.total, h.dead_owner
+                        ),
+                    );
+                } else {
+                    let liveness = if h.owner_check {
+                        "dead_owner=0".to_string()
+                    } else {
+                        "owner liveness unchecked (non-linux)".to_string()
+                    };
+                    push_status(
+                        &mut findings,
+                        "claude",
+                        "loop",
+                        Status::Ok,
+                        &lt_path,
+                        format!("tasks={} {session_face} {liveness}", h.total),
+                    );
+                }
+            }
+            Err(e) => push_status(
+                &mut findings,
+                "claude",
+                "loop",
+                Status::Warn,
+                &lt_path,
+                format!("scheduled tasks unreadable: {e}"),
+            ),
+        }
+    }
+
     // D28 第 3 轮：yolo 两级显式（--yolo 用户级、--project-yolo 项目级），
     // doctor 双级接受；项目键在场时按 agent 分层规则遮蔽用户键（报告项目
     // 面为准）。D50：项目层补 settings.local.json 读取（local 优先于
@@ -2262,6 +2316,71 @@ mod tests {
                 .unwrap()
                 .as_millis()
         ))
+    }
+
+    // ===== REQ-020：loop/goal 面健康检查三态 =====
+
+    #[test]
+    fn loop_check_ok_when_no_tasks() {
+        let root = temp_root("lpo");
+        fs::create_dir_all(&root).unwrap();
+        let d = diagnose(&root).expect("diagnose");
+        assert_eq!(d.status("claude", "loop"), Some(Status::Ok));
+        let row = d.findings.iter().find(|f| f.check == "loop").unwrap();
+        assert!(row.detail.contains("tasks=0"), "detail: {}", row.detail);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn loop_check_warn_on_corrupt_tasks_file() {
+        let root = temp_root("lpc");
+        fs::create_dir_all(root.join(".claude")).unwrap();
+        fs::write(
+            root.join(".claude").join("scheduled_tasks.json"),
+            r#"{"tasks":{"weird":1}}"#,
+        )
+        .unwrap();
+        let d = diagnose(&root).expect("diagnose");
+        assert_eq!(d.status("claude", "loop"), Some(Status::Warn));
+        let row = d.findings.iter().find(|f| f.check == "loop").unwrap();
+        assert!(
+            row.detail.contains("not an array"),
+            "detail names cause: {}",
+            row.detail
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn loop_check_warn_on_dead_owner_linux() {
+        // 死属主：pid 在而进程不在（4_000_000 取超界不活跃 pid）；pid=0
+        //（归属未知）不算死。非 Linux 该子面无判据，跳断言。
+        if !cfg!(target_os = "linux") {
+            return;
+        }
+        let root = temp_root("lpd");
+        fs::create_dir_all(root.join(".claude")).unwrap();
+        fs::write(
+            root.join(".claude").join("scheduled_tasks.json"),
+            r#"{"tasks":[
+                {"id":"dead1","cron":"*/5 * * * *","prompt":"a","createdAt":1,
+                 "recurring":true,"createdBySessionId":"s1",
+                 "createdByPid":4000000,"createdByProcStart":"1"},
+                {"id":"anon0","cron":"*/7 * * * *","prompt":"b","createdAt":2,
+                 "recurring":true,"createdBySessionId":"s1",
+                 "createdByPid":0,"createdByProcStart":""}
+            ]}"#,
+        )
+        .unwrap();
+        let d = diagnose(&root).expect("diagnose");
+        assert_eq!(d.status("claude", "loop"), Some(Status::Warn));
+        let row = d.findings.iter().find(|f| f.check == "loop").unwrap();
+        assert!(
+            row.detail.contains("dead_owner=1"),
+            "only the vanished pid counts dead: {}",
+            row.detail
+        );
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]
