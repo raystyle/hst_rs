@@ -631,6 +631,90 @@ pub fn del_loops(
     Ok(removed)
 }
 
+/// 指令文本卫生：换行与回车压空格（herdr agent.prompt 整段提交，行断
+/// 会造成半截指令），trim 收边。
+fn flatten_inline(s: &str) -> String {
+    s.chars()
+        .map(|c| if c == '\n' || c == '\r' { ' ' } else { c })
+        .collect::<String>()
+        .trim()
+        .to_string()
+}
+
+const ARM_GUARD: &str = "只用原生 Cron 工具（CronList/CronCreate/CronDelete），勿手改盘上 scheduled_tasks.json、勿用 hst CLI 改盘（本会话调度器不认盘上外部变更）。完成后简报结果。";
+
+/// 远端 set 指令（ADR-0009 即时通道）：节奏由本侧翻译单源（every_to_cron
+/// /at_to_cron），目标 agent 只执行 CronCreate。
+///
+/// # Errors
+///
+/// 节拍形坏或越界时返回 [`LoopError`]（同 set_loop 判据）。
+pub fn arm_set_text(goal: &str, cadence: Cadence<'_>) -> Result<(String, bool, String), LoopError> {
+    let goal = goal.trim();
+    if goal.is_empty() {
+        return Err(LoopError::EmptyGoal);
+    }
+    let cron = match cadence {
+        Cadence::Every(e) => every_to_cron(e)?,
+        Cadence::At(a) => at_to_cron(a)?,
+    };
+    let recurring = matches!(cadence, Cadence::Every(_));
+    let text = format!(
+        "请立即用 CronCreate 建 durable 定时任务（hst 经 herdr 即时通道派发）：cron「{cron}」、\
+         prompt「{}」、recurring={recurring}、durable=true。{ARM_GUARD}",
+        flatten_inline(goal)
+    );
+    Ok((cron, recurring, text))
+}
+
+/// 远端 del 指令：target 为任务 id 精确、`latest`（own 最新）或 `all`
+///（own 全部）；own 判据 = 任务 createdBySessionId 与目标 agent 当前
+/// 会话 id（其环境变量 CLAUDE_CODE_SESSION_ID）等值，同本地面语义（空
+/// spec 走 id 分支零改动回执）。
+pub fn arm_del_text(target: &str) -> String {
+    let spec = target.trim();
+    let own_pick = "用 CronList 列任务，own 判据 = 任务 createdBySessionId 与你当前会话 id（环境变量 CLAUDE_CODE_SESSION_ID）等值";
+    let body = if spec.eq_ignore_ascii_case("latest") {
+        format!("{own_pick}，取 createdAt 最新一条，CronDelete 它并简报其 id")
+    } else if spec.eq_ignore_ascii_case("all") {
+        format!("{own_pick}，逐个 CronDelete 并简报 id 清单（空清单也是合法回执）")
+    } else {
+        format!("用 CronDelete 删除任务 id「{spec}」（先 CronList 核对存在，不存在简报零改动）")
+    };
+    format!("hst 经 herdr 即时通道派发删除指令。{body}。{ARM_GUARD}")
+}
+
+/// 远端 goal set 指令：own-latest 删旧建新保节奏（原生无 prompt 就地改写
+/// 面；任务 id 与 createdAt 会换新，与本地 goal set 保 id 的语义差异明示
+/// 于 REQ-023）。
+///
+/// # Errors
+///
+/// 文本空时返回 [`LoopError`]。
+pub fn arm_goal_set_text(text: &str) -> Result<String, LoopError> {
+    let text = text.trim();
+    if text.is_empty() {
+        return Err(LoopError::EmptyGoalClear);
+    }
+    Ok(format!(
+        "hst 经 herdr 即时通道派发 goal 改写指令。用 CronList 列任务，own 判据 = 任务 \
+         createdBySessionId 与你当前会话 id（环境变量 CLAUDE_CODE_SESSION_ID）等值；取 createdAt \
+         最新一条，记下其 cron 与 recurring，CronDelete 它并立即用 CronCreate 重建：同 cron、同 \
+         recurring、prompt「{}」、durable=true（原生无就地改写面，删旧建新会换任务 id）。{ARM_GUARD}",
+        flatten_inline(text)
+    ))
+}
+
+/// 远端 goal clear 指令：own-latest 整任务退役（原生无空 prompt 重建形，
+/// 清空即连节奏一并停，与本地 clear 保任务的语义差异明示于 REQ-023）。
+pub fn arm_goal_clear_text() -> String {
+    format!(
+        "hst 经 herdr 即时通道派发 goal 清空指令。用 CronList 列任务，own 判据 = 任务 \
+         createdBySessionId 与你当前会话 id（环境变量 CLAUDE_CODE_SESSION_ID）等值；取 createdAt \
+         最新一条并 CronDelete（原生无空 prompt 形，清空即整任务退役、节奏一并停）。{ARM_GUARD}"
+    )
+}
+
 /// doctor 消费的 loop 面健康快照（REQ-020）：计数面；坏损走 Err 不在
 /// 快照里表达。
 pub struct LoopHealth {
@@ -949,6 +1033,39 @@ mod tests {
         assert_eq!(after["tasks"][0]["createdByProcStart"], "");
         assert_eq!(after["tasks"][0]["prompt"], "改写");
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn arm_texts_are_selfcontained_and_flatten_newlines() {
+        // REQ-023 指令面：节奏翻译单源、自含守卫（只用原生 Cron 工具）、
+        // 换行压空格防半截提交。
+        let (cron, recurring, text) = arm_set_text("盯CI\n发布", Cadence::Every("5m")).unwrap();
+        assert_eq!(cron, "*/5 * * * *");
+        assert!(recurring);
+        assert!(text.contains("CronCreate"), "{text}");
+        assert!(text.contains("durable=true"), "{text}");
+        assert!(text.contains("盯CI 发布"), "newline flattened: {text}");
+        assert!(!text.contains('\n'), "single-line instruction: {text}");
+        assert!(text.contains("勿手改盘上"), "{text}");
+        assert_eq!(
+            arm_set_text("  ", Cadence::Every("5m")).unwrap_err().code(),
+            "empty_goal"
+        );
+        // del 三形。
+        let by_id = arm_del_text("abc123");
+        assert!(
+            by_id.contains("CronDelete") && by_id.contains("abc123"),
+            "{by_id}"
+        );
+        assert!(arm_del_text("latest").contains("createdAt 最新"));
+        assert!(arm_del_text("ALL").contains("逐个 CronDelete"));
+        // goal set：空文本带 clear 指引错；正常形自含删旧建新。
+        assert_eq!(arm_goal_set_text(" ").unwrap_err().code(), "empty_goal");
+        let g = arm_goal_set_text("新目标").unwrap();
+        assert!(g.contains("CronDelete") && g.contains("CronCreate"), "{g}");
+        assert!(g.contains("新目标") && !g.contains('\n'));
+        // goal clear：整任务退役语义。
+        assert!(arm_goal_clear_text().contains("整任务退役"));
     }
 
     #[test]

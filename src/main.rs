@@ -201,6 +201,9 @@ enum LoopCmd {
         /// 项目根；默认当前目录
         #[arg(long)]
         project: Option<PathBuf>,
+        /// herdr 即时通道目标（agent 名或 pane id；ADR-0009/REQ-023）：经 agent.prompt 派原生 CronCreate 指令到在跑会话即时生效；session 与 project 在此路径忽略；缺省走盘面（重启装载生效）
+        #[arg(long = "via-herdr", value_name = "target")]
+        via_herdr: Option<String>,
     },
     /// 列出项目定时任务（全量并标 ours 归属，含非本会话）
     List {
@@ -221,6 +224,9 @@ enum LoopCmd {
         /// 项目根；默认当前目录
         #[arg(long)]
         project: Option<PathBuf>,
+        /// herdr 即时通道目标（ADR-0009/REQ-023）：派 CronDelete 指令到在跑会话即时删（own 判据同本地面）
+        #[arg(long = "via-herdr", value_name = "target")]
+        via_herdr: Option<String>,
     },
 }
 
@@ -236,6 +242,9 @@ enum GoalCmd {
         /// 项目根；默认当前目录
         #[arg(long)]
         project: Option<PathBuf>,
+        /// herdr 即时通道目标（ADR-0009/REQ-023）：派 own-latest 删旧建新保节奏指令到在跑会话（任务 id 换新，与本地保 id 形语义差异在册）
+        #[arg(long = "via-herdr", value_name = "target")]
+        via_herdr: Option<String>,
     },
     /// 查看当前会话最新 loop 的 goal（无任务或会话不可解析给 goal.present=false）
     Show {
@@ -254,6 +263,9 @@ enum GoalCmd {
         /// 项目根；默认当前目录
         #[arg(long)]
         project: Option<PathBuf>,
+        /// herdr 即时通道目标（ADR-0009/REQ-023）：派 own-latest 整任务退役指令到在跑会话（原生无空 prompt 形，节奏一并停，语义差异在册）
+        #[arg(long = "via-herdr", value_name = "target")]
+        via_herdr: Option<String>,
     },
 }
 
@@ -665,28 +677,36 @@ fn run() -> Result<(), String> {
                 at,
                 session,
                 project,
+                via_herdr,
             } => cmd_loop_set(
                 &goal,
                 every.as_deref(),
                 at.as_deref(),
                 session.as_deref(),
                 project,
+                via_herdr.as_deref(),
             ),
             LoopCmd::List { session, project } => cmd_loop_list(session.as_deref(), project),
             LoopCmd::Del {
                 target,
                 session,
                 project,
-            } => cmd_loop_del(&target, session.as_deref(), project),
+                via_herdr,
+            } => cmd_loop_del(&target, session.as_deref(), project, via_herdr.as_deref()),
         },
         Commands::Goal { cmd } => match cmd {
             GoalCmd::Set {
                 text,
                 session,
                 project,
-            } => cmd_goal_set(&text, session.as_deref(), project),
+                via_herdr,
+            } => cmd_goal_set(&text, session.as_deref(), project, via_herdr.as_deref()),
             GoalCmd::Show { session, project } => cmd_goal_show(session.as_deref(), project),
-            GoalCmd::Clear { session, project } => cmd_goal_clear(session.as_deref(), project),
+            GoalCmd::Clear {
+                session,
+                project,
+                via_herdr,
+            } => cmd_goal_clear(session.as_deref(), project, via_herdr.as_deref()),
         },
         Commands::Issue { cmd } => cmd_issue(cmd),
     }
@@ -1588,12 +1608,25 @@ fn agent_report_row(r: &agents::Report) -> Value {
     }
 }
 
+/// herdr 即时通道派发共用腿（ADR-0009/REQ-023）：发 agent.prompt（wait
+/// 含 blocked，timeout 120s），返回目标 agent 回执态。
+fn herdr_arm(target: &str, text: &str) -> Result<String, String> {
+    let resp = hst::herdrrpc::agent_prompt(target, text, 120_000)
+        .map_err(|e| format!("herdr error={}: {e}", e.code()))?;
+    Ok(resp
+        .get("agent_status")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown")
+        .to_string())
+}
+
 fn cmd_loop_set(
     goal: &str,
     every: Option<&str>,
     at: Option<&str>,
     session: Option<&str>,
     project: Option<PathBuf>,
+    via_herdr: Option<&str>,
 ) -> Result<(), String> {
     let root = project_root(project)?;
     // REQ-021：互斥检查归 CLI 解析层（lib 面由 Cadence 枚举在类型层
@@ -1608,6 +1641,17 @@ fn cmd_loop_set(
             )
         }
     };
+    if let Some(target) = via_herdr {
+        let (cron, recurring, text) = loopmgmt::arm_set_text(goal, cadence)
+            .map_err(|e| format!("loop error={}: {e}", e.code()))?;
+        let status = herdr_arm(target, &text)?;
+        println!("loop.arm target={target}");
+        println!("loop.arm cron={cron}");
+        println!("loop.arm recurring={recurring}");
+        println!("loop.arm agent_status={status}");
+        println!("loop.arm hint=指令已派发目标会话原生 CronCreate 通道即时生效；目标回执见其窗格");
+        return Ok(());
+    }
     let r = loopmgmt::set_loop(&root, goal, cadence, session)
         .map_err(|e| format!("loop error={}: {e}", e.code()))?;
     println!("loop.set id={}", r.id);
@@ -1616,7 +1660,7 @@ fn cmd_loop_set(
     println!("loop.set session={}", r.session);
     println!("loop.set file={}", r.file.display());
     println!(
-        "loop.hint=durable 任务由 Claude Code 会话载入执行（会话启动时载入；已在跑会话不接管盘上外部写入，2026-09-26 实证阴性，写入后重开会话生效）"
+        "loop.hint=durable 任务由 Claude Code 会话载入执行（会话启动时载入；已在跑会话不接管盘上外部写入，2026-09-26 实证阴性，写入后重开会话生效；在跑会话即时生效走 --via-herdr 派原生 CronCreate 指令，ADR-0009）"
     );
     Ok(())
 }
@@ -1642,7 +1686,17 @@ fn cmd_loop_del(
     target: &str,
     session: Option<&str>,
     project: Option<PathBuf>,
+    via_herdr: Option<&str>,
 ) -> Result<(), String> {
+    if let Some(dst) = via_herdr {
+        let text = loopmgmt::arm_del_text(target);
+        let status = herdr_arm(dst, &text)?;
+        println!("loop.arm-del target={dst}");
+        println!("loop.arm-del spec={}", target.trim());
+        println!("loop.arm-del agent_status={status}");
+        println!("loop.arm-del hint=CronDelete 指令已派发目标会话即时执行；回执见其窗格");
+        return Ok(());
+    }
     let root = project_root(project)?;
     let removed = loopmgmt::del_loops(&root, target, session)
         .map_err(|e| format!("loop error={}: {e}", e.code()))?;
@@ -1653,7 +1707,21 @@ fn cmd_loop_del(
     Ok(())
 }
 
-fn cmd_goal_set(text: &str, session: Option<&str>, project: Option<PathBuf>) -> Result<(), String> {
+fn cmd_goal_set(
+    text: &str,
+    session: Option<&str>,
+    project: Option<PathBuf>,
+    via_herdr: Option<&str>,
+) -> Result<(), String> {
+    if let Some(dst) = via_herdr {
+        let text = loopmgmt::arm_goal_set_text(text)
+            .map_err(|e| format!("goal error={}: {e}", e.code()))?;
+        let status = herdr_arm(dst, &text)?;
+        println!("goal.arm target={dst}");
+        println!("goal.arm agent_status={status}");
+        println!("goal.arm hint=own-latest 删旧建新保节奏指令已派发（任务 id 换新，与本地保 id 形差异在册 REQ-023）；回执见其窗格");
+        return Ok(());
+    }
     let root = project_root(project)?;
     let r = loopmgmt::set_goal(&root, text, session)
         .map_err(|e| format!("goal error={}: {e}", e.code()))?;
@@ -1679,7 +1747,19 @@ fn cmd_goal_show(session: Option<&str>, project: Option<PathBuf>) -> Result<(), 
     Ok(())
 }
 
-fn cmd_goal_clear(session: Option<&str>, project: Option<PathBuf>) -> Result<(), String> {
+fn cmd_goal_clear(
+    session: Option<&str>,
+    project: Option<PathBuf>,
+    via_herdr: Option<&str>,
+) -> Result<(), String> {
+    if let Some(dst) = via_herdr {
+        let text = loopmgmt::arm_goal_clear_text();
+        let status = herdr_arm(dst, &text)?;
+        println!("goal.arm-clear target={dst}");
+        println!("goal.arm-clear agent_status={status}");
+        println!("goal.arm-clear hint=own-latest 整任务退役指令已派发（原生无空 prompt 形，节奏一并停）；回执见其窗格");
+        return Ok(());
+    }
     let root = project_root(project)?;
     match loopmgmt::clear_goal(&root, session)
         .map_err(|e| format!("goal error={}: {e}", e.code()))?

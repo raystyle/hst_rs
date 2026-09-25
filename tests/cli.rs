@@ -2248,3 +2248,140 @@ fn update_version_output_parses() {
         .find(|t| t.chars().next().is_some_and(|c| c.is_ascii_digit()));
     assert_eq!(dotted, Some(env!("CARGO_PKG_VERSION")), "输出形：{s}");
 }
+
+#[cfg(unix)]
+#[test]
+fn loop_via_herdr_speaks_agent_prompt_ndjson() {
+    // REQ-023 假服务器协议测试：hst 侧 NDJSON 请求 schema（agent.prompt
+    // 加 wait 含 blocked）与响应三态（idle 成功、api 错误透传、blocked
+    // 分流）端到端；socket 缺席报错不回落写盘。真 herdr 实弹另在 diary
+    // 记（CI 无 herdr）。
+    use std::io::{BufRead, BufReader, Read, Write};
+    use std::os::unix::net::UnixListener;
+    use std::sync::mpsc::channel;
+    use std::time::Duration;
+
+    let dir = std::env::temp_dir().join(format!(
+        "hst-cli-herdr-{}-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis(),
+        NEXT_TEST_DIR.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    std::fs::create_dir_all(&dir).unwrap();
+    let sock = dir.join("fake.sock");
+    let listener = UnixListener::bind(&sock).unwrap();
+    let (tx, rx) = channel::<serde_json::Value>();
+    let srv = std::thread::spawn(move || {
+        // 恰收四次连接（成功 set、api 错 del、blocked goal set、clear 成功）。
+        for _ in 0..4 {
+            let Ok((mut s, _)) = listener.accept() else {
+                break;
+            };
+            let mut line = String::new();
+            let mut clone = s.try_clone().unwrap();
+            BufReader::new(&mut clone).read_line(&mut line).unwrap();
+            let req: serde_json::Value = serde_json::from_str(line.trim()).unwrap();
+            let id = req["id"].as_str().unwrap().to_string();
+            let resp = match req["params"]["target"].as_str() {
+                Some("err-target") => serde_json::json!({
+                    "id": id,
+                    "error": {"code": "agent_not_found", "message": "no such agent"}
+                }),
+                Some("blocked-target") => serde_json::json!({
+                    "id": id,
+                    "result": {"type": "agent_prompted", "agent_status": "blocked"}
+                }),
+                _ => serde_json::json!({
+                    "id": id,
+                    "result": {"type": "agent_prompted", "agent_status": "idle"}
+                }),
+            };
+            s.write_all((resp.to_string() + "\n").as_bytes()).unwrap();
+            let _ = s.read(&mut []); // 对端半关前保持活连接
+            if tx.send(req).is_err() {
+                break;
+            }
+        }
+    });
+
+    // 成功：loop set --via-herdr 全链（请求 schema 断言在收包后）。
+    hst()
+        .args([
+            "loop",
+            "set",
+            "盯CI发布",
+            "--every",
+            "5m",
+            "--via-herdr",
+            "w9:p1",
+        ])
+        .env("HERDR_SOCKET_PATH", &sock)
+        .assert()
+        .success()
+        .stdout(contains("loop.arm target=w9:p1"))
+        .stdout(contains("loop.arm cron=*/5 * * * *"))
+        .stdout(contains("loop.arm agent_status=idle"));
+    let req = rx.recv_timeout(Duration::from_secs(5)).unwrap();
+    assert_eq!(req["method"], "agent.prompt", "request: {req}");
+    assert_eq!(req["params"]["target"], "w9:p1");
+    let text = req["params"]["text"].as_str().unwrap();
+    assert!(
+        text.contains("CronCreate") && text.contains("durable=true"),
+        "text: {text}"
+    );
+    let until: Vec<&str> = req["params"]["wait"]["until"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|v| v.as_str())
+        .collect();
+    assert!(until.contains(&"blocked"), "wait until: {until:?}");
+    assert_eq!(req["params"]["wait"]["timeout_ms"], 120_000);
+
+    // api 错误透传：del 目标不存在。
+    hst()
+        .args(["loop", "del", "latest", "--via-herdr", "err-target"])
+        .env("HERDR_SOCKET_PATH", &sock)
+        .assert()
+        .failure()
+        .stderr(contains("herdr error=agent_not_found"));
+
+    // blocked 分流：goal set 打进权限框的格。
+    hst()
+        .args(["goal", "set", "新目标", "--via-herdr", "blocked-target"])
+        .env("HERDR_SOCKET_PATH", &sock)
+        .assert()
+        .failure()
+        .stderr(contains("herdr error=agent_blocked"));
+
+    // goal clear 成功形。
+    hst()
+        .args(["goal", "clear", "--via-herdr", "w9:p1"])
+        .env("HERDR_SOCKET_PATH", &sock)
+        .assert()
+        .success()
+        .stdout(contains("goal.arm-clear target=w9:p1"))
+        .stdout(contains("goal.arm-clear agent_status=idle"));
+
+    // socket 缺席：报错退出，不静默回落写盘。
+    hst()
+        .args(["loop", "set", "g", "--every", "5m", "--via-herdr", "w9:p1"])
+        .env("HERDR_SOCKET_PATH", dir.join("missing.sock"))
+        .assert()
+        .failure()
+        .stderr(contains("herdr error=no_socket"));
+    assert!(
+        !dir.join(".claude").exists()
+            || std::fs::read_to_string(dir.join(".claude").join("scheduled_tasks.json"))
+                .map(|s| s.trim().is_empty() || s.contains("\"tasks\": []"))
+                .unwrap_or(true),
+        "via-herdr 失败路径绝不写盘"
+    );
+
+    drop(rx);
+    let _ = srv.join();
+    let _ = std::fs::remove_dir_all(&dir);
+}

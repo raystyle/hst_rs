@@ -18,6 +18,7 @@ docs/research 与 docs/adr；输出信封契约见 fmtio 模块文档。
 - [`diagnose`](diagnose.md): `hst diagnose` 活性诊断族：网关缓存命中矩阵与配置活性（D21）。
 - [`doctor`](doctor.md): `hst doctor` 只读体检：yolo、信任、二进制、登录态、hook 形态、状态栏与状态面。
 - [`fmtio`](fmtio.md): 全局输出三态（kv/json/jsonl）与结构化错误出口契约。
+- [`herdrrpc`](herdrrpc.md): herdr 本地 NDJSON RPC 最小客户端（ADR-0009、REQ-023）：ping 探活与
 - [`hook`](hook.md): `hst hook`：事件到四态映射、用户级 session 分键 state 落盘与密钥拦截分流（D28/S030）。
 - [`install`](install.md): hst 根解析与共享下载件（self update 复用）。
 - [`ledger`](ledger.md): 统一 issue 入口客户端面（issues.ohmygh.com，REQ-057 对齐）。
@@ -248,6 +249,33 @@ serde_json 开 preserve_order：JSON 字段序与 kv 行序一致（ome S003 实
 - `Format` — 输出格式三态：kv 人读 marker 行、json 信封、jsonl 逐行对象。
 
 
+<!-- hst_cli/herdrrpc.md -->
+# hst-cli::herdrrpc
+
+herdr 本地 NDJSON RPC 最小客户端（ADR-0009、REQ-023）：ping 探活与
+agent.prompt 派发两方法，一连接一请求短连接，传输零新依赖。
+herdr 本地 NDJSON RPC 最小客户端（ADR-0009、REQ-023）：仅 `ping` 探
+活与 `agent.prompt`（带 wait）派发两方法，一连接一请求短连接，不做
+事件流长连接。传输零新依赖：Unix 走 std UnixStream，Windows 命名管
+道按文件开（`\\.\pipe\` 前缀映射，对齐 herdr 二进制 strings 实证）；
+serde_json 组帧；sha256 请求 id（tokio/thiserror/uuid/dirs 不进
+Cargo.toml）。socket 路径解析序：`HERDR_SOCKET_PATH` 到
+`HERDR_SESSION`（`~/.config/herdr/sessions/<名>/herdr.sock`）到缺省
+`~/.config/herdr/herdr.sock`。`HERDR_SOCKET_PASSWORD` 是本机管道口
+令非 LLM token（D20 禁令不动，ADR-0009），设了自动进 params.password。
+
+## Functions
+
+- `agent_prompt` — 派发即回执：`agent.prompt` 带 wait（until 三态含 blocked，blocked 单
+- `call` — 发一次 NDJSON RPC（一连接一请求）：写请求行，读一行响应，id 配对
+- `ping` — 探活：`ping` 一发（返回 pong result 原样）。
+- `socket_path` — socket 路径解析：`HERDR_SOCKET_PATH` 到 `HERDR_SESSION`
+
+## Types
+
+- `HerdrError` — herdr RPC 面错误（REQ-023）：`Display` 面向人，`code` 给 agent 短码
+
+
 <!-- hst_cli/hook.md -->
 # hst-cli::hook
 
@@ -344,6 +372,10 @@ REQ-011，评审 G3 回填）。
 
 ## Functions
 
+- `arm_del_text` — 远端 del 指令：target 为任务 id 精确、`latest`（own 最新）或 `all`
+- `arm_goal_clear_text` — 远端 goal clear 指令：own-latest 整任务退役（原生无空 prompt 重建形，
+- `arm_goal_set_text` — 远端 goal set 指令：own-latest 删旧建新保节奏（原生无 prompt 就地改写
+- `arm_set_text` — 远端 set 指令（ADR-0009 即时通道）：节奏由本侧翻译单源（every_to_cron
 - `at_to_cron` — 一次性时刻转 cron：`HH:MM`（24 小时制）得 `M H * * *`（到点触发后由
 - `clear_goal` — 清空当前会话最新 loop 的 goal（prompt 置空、任务与节奏保留；返回被改
 - `del_loops` — 删除任务：target 为任务 id（精确匹配任意任务，不限会话）、`latest`

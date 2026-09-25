@@ -17,6 +17,7 @@ docs/research 与 docs/adr；输出信封契约见 fmtio 模块文档。
 - [`diagnose`](diagnose.md): `hst diagnose` 活性诊断族：网关缓存命中矩阵与配置活性（D21）。
 - [`doctor`](doctor.md): `hst doctor` 只读体检：yolo、信任、二进制、登录态、hook 形态、状态栏与状态面。
 - [`fmtio`](fmtio.md): 全局输出三态（kv/json/jsonl）与结构化错误出口契约。
+- [`herdrrpc`](herdrrpc.md): herdr 本地 NDJSON RPC 最小客户端（ADR-0009、REQ-023）：ping 探活与
 - [`hook`](hook.md): `hst hook`：事件到四态映射、用户级 session 分键 state 落盘与密钥拦截分流（D28/S030）。
 - [`install`](install.md): hst 根解析与共享下载件（self update 复用）。
 - [`ledger`](ledger.md): 统一 issue 入口客户端面（issues.ohmygh.com，REQ-057 对齐）。

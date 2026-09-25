@@ -26,6 +26,10 @@ REQ-011，评审 G3 回填）。
 
 ## Functions
 
+- `arm_del_text` — 远端 del 指令：target 为任务 id 精确、`latest`（own 最新）或 `all`
+- `arm_goal_clear_text` — 远端 goal clear 指令：own-latest 整任务退役（原生无空 prompt 重建形，
+- `arm_goal_set_text` — 远端 goal set 指令：own-latest 删旧建新保节奏（原生无 prompt 就地改写
+- `arm_set_text` — 远端 set 指令（ADR-0009 即时通道）：节奏由本侧翻译单源（every_to_cron
 - `at_to_cron` — 一次性时刻转 cron：`HH:MM`（24 小时制）得 `M H * * *`（到点触发后由
 - `clear_goal` — 清空当前会话最新 loop 的 goal（prompt 置空、任务与节奏保留；返回被改
 - `del_loops` — 删除任务：target 为任务 id（精确匹配任意任务，不限会话）、`latest`

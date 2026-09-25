@@ -21,6 +21,9 @@ pub mod diagnose;
 pub mod doctor;
 /// 全局输出三态（kv/json/jsonl）与结构化错误出口契约。
 pub mod fmtio;
+/// herdr 本地 NDJSON RPC 最小客户端（ADR-0009、REQ-023）：ping 探活与
+/// agent.prompt 派发两方法，一连接一请求短连接，传输零新依赖。
+pub mod herdrrpc;
 /// `hst hook`：事件到四态映射、用户级 session 分键 state 落盘与密钥拦截分流（D28/S030）。
 pub mod hook;
 /// hst 根解析与共享下载件（self update 复用）。
