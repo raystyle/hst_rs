@@ -1591,7 +1591,20 @@ fn cmd_loop_set(
     project: Option<PathBuf>,
 ) -> Result<(), String> {
     let root = project_root(project)?;
-    let r = loopmgmt::set_loop(&root, goal, every, at, session)?;
+    // REQ-021：互斥检查归 CLI 解析层（lib 面由 Cadence 枚举在类型层
+    // 不可表示双缺/双给）。
+    let cadence = match (every, at) {
+        (Some(e), None) => loopmgmt::Cadence::Every(e),
+        (None, Some(a)) => loopmgmt::Cadence::At(a),
+        _ => {
+            return Err(
+                "exactly one of --every / --at is required (they are mutually exclusive)"
+                    .to_string(),
+            )
+        }
+    };
+    let r = loopmgmt::set_loop(&root, goal, cadence, session)
+        .map_err(|e| format!("loop error={}: {e}", e.code()))?;
     println!("loop.set id={}", r.id);
     println!("loop.set cron={}", r.cron);
     println!("loop.set recurring={}", r.recurring);
@@ -1605,7 +1618,8 @@ fn cmd_loop_set(
 
 fn cmd_loop_list(session: Option<&str>, project: Option<PathBuf>) -> Result<(), String> {
     let root = project_root(project)?;
-    let (rows, resolved) = loopmgmt::list_tasks(&root, session)?;
+    let (rows, resolved) = loopmgmt::list_tasks(&root, session)
+        .map_err(|e| format!("loop error={}: {e}", e.code()))?;
     println!("loop.count={}", rows.len());
     if let Some(s) = resolved {
         println!("loop.session={s}");
@@ -1625,7 +1639,8 @@ fn cmd_loop_del(
     project: Option<PathBuf>,
 ) -> Result<(), String> {
     let root = project_root(project)?;
-    let removed = loopmgmt::del_loops(&root, target, session)?;
+    let removed = loopmgmt::del_loops(&root, target, session)
+        .map_err(|e| format!("loop error={}: {e}", e.code()))?;
     println!("loop.del count={}", removed.len());
     for id in removed {
         println!("loop.del id={id}");
@@ -1635,7 +1650,8 @@ fn cmd_loop_del(
 
 fn cmd_goal_set(text: &str, session: Option<&str>, project: Option<PathBuf>) -> Result<(), String> {
     let root = project_root(project)?;
-    let r = loopmgmt::set_goal(&root, text, session)?;
+    let r = loopmgmt::set_goal(&root, text, session)
+        .map_err(|e| format!("goal error={}: {e}", e.code()))?;
     println!("goal.set id={}", r.id);
     println!("goal.set cron={}", r.cron);
     println!("goal.set text={}", text.trim());
@@ -1644,7 +1660,9 @@ fn cmd_goal_set(text: &str, session: Option<&str>, project: Option<PathBuf>) -> 
 
 fn cmd_goal_show(session: Option<&str>, project: Option<PathBuf>) -> Result<(), String> {
     let root = project_root(project)?;
-    match loopmgmt::show_goal(&root, session)? {
+    match loopmgmt::show_goal(&root, session)
+        .map_err(|e| format!("goal error={}: {e}", e.code()))?
+    {
         Some(t) => {
             println!("goal.present=true");
             println!("goal.id={}", t.id);
@@ -1658,7 +1676,9 @@ fn cmd_goal_show(session: Option<&str>, project: Option<PathBuf>) -> Result<(), 
 
 fn cmd_goal_clear(session: Option<&str>, project: Option<PathBuf>) -> Result<(), String> {
     let root = project_root(project)?;
-    match loopmgmt::clear_goal(&root, session)? {
+    match loopmgmt::clear_goal(&root, session)
+        .map_err(|e| format!("goal error={}: {e}", e.code()))?
+    {
         Some(id) => println!("goal.clear id={id}"),
         None => println!("goal.clear count=0"),
     }

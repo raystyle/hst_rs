@@ -1213,6 +1213,31 @@ fn loop_set_list_del_roundtrip() {
         .assert()
         .failure()
         .stderr(contains("exactly one of --every / --at"));
+    // REQ-021：双给由 clap conflicts_with 先拦（解析层互斥）。
+    hst()
+        .args([
+            "loop",
+            "set",
+            "双给",
+            "--every",
+            "5m",
+            "--at",
+            "10:00",
+            "--session",
+            "s1",
+        ])
+        .arg("--project")
+        .arg(&tmp)
+        .assert()
+        .failure()
+        .stderr(contains("cannot be used with"));
+    hst()
+        .args(["loop", "set", "越界", "--every", "60m", "--session", "s1"])
+        .arg("--project")
+        .arg(&tmp)
+        .assert()
+        .failure()
+        .stderr(contains("loop error=bad_every"));
     let _ = std::fs::remove_dir_all(&tmp);
 }
 

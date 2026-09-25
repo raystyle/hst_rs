@@ -465,7 +465,12 @@
     {
       "path": "hst_cli::loopmgmt",
       "kind": "module",
-      "docs": "`hst loop`：当前会话 durable 定时任务与 goal 管理面（REQ-019）。\nloop 与 goal 管理面（REQ-019）。hst 侧唯一真相 = 项目根\n`.claude/scheduled_tasks.json`（Claude Code durable CronCreate 的同源\n落盘形，实证 2026-09-23 探针：tasks[] 含 id / cron / prompt /\nrecurring / createdAt / createdBySessionId / createdByPid /\ncreatedByProcStart）；hst 是该文件的读写管理面（set / list / del），\n状态栏 loop 与 goal 段同源只读消费，不自建第二状态文件。会话归属\n判据 = `createdBySessionId` 与当前会话 id 等值。goal 语义 = 任务\n`prompt` 文本。并发面与 Claude Code 同款读改写（无锁，后写覆盖先写）；\n同一会话内混用 hst 与 agent 原生 cron 工具会互相覆盖盘上变更，管理\n纪律是单向（要么全经 hst，要么全经会话内工具）。已在跑会话不接管\n盘上外部写入（2026-09-26 探针实证阴性：agent 进程 inotify 盯着项目\n.claude 目录但任务变更不被采纳，会话运行期调度器状态在内存注册表，盘上\n文件是重启装载的持久化镜像而非活输入通道）。重启装载面同日实证\n阳性：新会话启动装载本文件，missed 一次性任务以补触发形浮出（带\n用户确认门，prompt 即 goal 文本）并自删；hst 写盘后重开会话即生效。"
+      "docs": "`hst loop`：当前会话 durable 定时任务与 goal 管理面（REQ-019）。\nloop 与 goal 管理面（REQ-019、REQ-021 类型契约化试点）。hst 侧唯一\n真相 = 项目根 `.claude/scheduled_tasks.json`（Claude Code durable\nCronCreate 的同源落盘形，实证 2026-09-23 探针：tasks[] 含 id / cron /\nprompt / recurring / createdAt / createdBySessionId / createdByPid /\ncreatedByProcStart）；hst 是该文件的读写管理面（set / list / del），\n状态栏 loop 与 goal 段同源只读消费，不自建第二状态文件。会话归属\n判据 = `createdBySessionId` 与当前会话 id 等值。goal 语义 = 任务\n`prompt` 文本。并发面与 Claude Code 同款读改写（无锁，后写覆盖先写）；\n同一会话内混用 hst 与 agent 原生 cron 工具会互相覆盖盘上变更，管理\n纪律是单向（要么全经 hst，要么全经会话内工具）。已在跑会话不接管\n盘上外部写入（2026-09-26 探针实证阴性：agent 进程 inotify 盯着项目\n.claude 目录但任务变更不被采纳，会话运行期调度器状态在内存注册表，盘上\n文件是重启装载的持久化镜像而非活输入通道）。重启装载面同日实证\n阳性：新会话启动装载本文件，missed 一次性任务以补触发形浮出（带\n用户确认门，prompt 即 goal 文本）并自删；hst 写盘后重开会话即生效。\n\n类型契约（REQ-021）：节拍互斥由 Cadence 枚举在类型层表达（双缺\n或双给的检查上移 CLI 解析层）；任务行由 Task 结构体 typed 承载\n（缺键容忍默认、错型响亮报错、未知键 flatten 保真）；错误由\nLoopError 枚举承载（LoopError::code 给 agent 稳定短码）。"
+    },
+    {
+      "path": "hst_cli::loopmgmt::Cadence",
+      "kind": "enum",
+      "docs": "节拍规格（REQ-021）：`--every` 周期形与 `--at` 一次性形的互斥枚举，\n非法组合（双缺或双给）在类型层不可表示，检查归 CLI 解析层。"
     },
     {
       "path": "hst_cli::loopmgmt::GoalReport",
@@ -473,9 +478,19 @@
       "docs": "goal 改写报告：被改任务的 id 与 cron。"
     },
     {
+      "path": "hst_cli::loopmgmt::LoopError",
+      "kind": "enum",
+      "docs": "loop 与 goal 面错误（REQ-021）：`Display` 面向人，[`LoopError::code`]\n给 agent 稳定短码（机器判别不靠字符串前缀分流）。"
+    },
+    {
       "path": "hst_cli::loopmgmt::SetReport",
       "kind": "struct",
       "docs": "set 落盘报告：新任务的 id、cron、recurring、归属会话与文件路径。"
+    },
+    {
+      "path": "hst_cli::loopmgmt::Task",
+      "kind": "struct",
+      "docs": "scheduled_tasks.json 的任务行（REQ-021 typed 承载）：核心八字段\n（字段序与 Claude Code 落盘形同序）加 flatten 未知键保真。缺键容忍\n默认（历史文件可能短字段），错型响亮报错（schema 漂移不静默吞）；\n文件属主是 Claude Code，schema 可能长，未知键读改写幸存。"
     },
     {
       "path": "hst_cli::loopmgmt::TaskRow",
@@ -485,32 +500,32 @@
     {
       "path": "hst_cli::loopmgmt::at_to_cron",
       "kind": "function",
-      "docs": "一次性时刻转 cron：`HH:MM`（24 小时制）得 `M H * * *` 加 recurring\nfalse（到点触发后由运行时自动删除）。\n\n# Errors\n\n时刻形坏或越界时返回 `String` 错误。"
+      "docs": "一次性时刻转 cron：`HH:MM`（24 小时制）得 `M H * * *`（到点触发后由\n运行时自动删除；非 recurring 形由 [`Cadence::At`] 变体决定）。\n\n# Errors\n\n时刻形坏或越界时返回 [`LoopError::BadAt`]。"
     },
     {
       "path": "hst_cli::loopmgmt::clear_goal",
       "kind": "function",
-      "docs": "清空当前会话最新 loop 的 goal（prompt 置空、任务与节奏保留；返回被改\n任务 id，无本会话任务返回 None）。\n\n# Errors\n\n会话不可解析、文件坏损或 IO 失败时返回 `String` 错误。"
+      "docs": "清空当前会话最新 loop 的 goal（prompt 置空、任务与节奏保留；返回被改\n任务 id，无本会话任务返回 None）。\n\n# Errors\n\n会话不可解析、文件坏损或 IO 失败时返回 [`LoopError`]。"
     },
     {
       "path": "hst_cli::loopmgmt::del_loops",
       "kind": "function",
-      "docs": "删除任务：target 为任务 id（精确匹配任意任务，不限会话）、`latest`\n（本会话 createdAt 最新一条）或 `all`（本会话全部）；latest / all\n需要可解析的当前会话。返回被删 id 清单（空 = 零改动，合法回执）。\n\n# Errors\n\nlatest/all 会话不可解析、文件坏损或 IO 失败时返回 `String` 错误。"
+      "docs": "删除任务：target 为任务 id（精确匹配任意任务，不限会话）、`latest`\n（本会话 createdAt 最新一条）或 `all`（本会话全部）；latest / all\n需要可解析的当前会话。返回被删 id 清单（空 = 零改动，合法回执）。\n\n# Errors\n\nlatest/all 会话不可解析、文件坏损或 IO 失败时返回 [`LoopError`]。"
     },
     {
       "path": "hst_cli::loopmgmt::every_to_cron",
       "kind": "function",
-      "docs": "周期间隔转 cron：`Nm`（1 至 59）得 `*/N * * * *`；`Nh`（1 至 23）得\n`M */N * * *`（评审 F2：N 必须进小时步进位，否则 6h 静默放大成每小\n时），M 取落盘时刻分钟位并避开 0 与 30（舰队避整点半点纪律）。恒为\nrecurring 形。\n\n# Errors\n\n形坏或数值越界时返回 `String` 错误。"
+      "docs": "周期间隔转 cron：`Nm`（1 至 59）得 `*/N * * * *`；`Nh`（1 至 23）得\n`M */N * * *`（评审 F2：N 必须进小时步进位，否则 6h 静默放大成每小\n时），M 取落盘时刻分钟位并避开 0 与 30（舰队避整点半点纪律）。恒为\nrecurring 形（由 [`Cadence::Every`] 变体决定，不再以布尔元组携带）。\n\n# Errors\n\n形坏或数值越界时返回 [`LoopError::BadEvery`]。"
     },
     {
       "path": "hst_cli::loopmgmt::list_tasks",
       "kind": "function",
-      "docs": "列出项目定时任务（全量，不按会话过滤；`ours` 标当前会话归属，\n会话解析失败时返回 None 且 ours 恒 false，列表本身不受阻）。\n\n# Errors\n\n文件坏损或 IO 失败时返回 `String` 错误（会话解析失败不算错）。"
+      "docs": "列出项目定时任务（全量，不按会话过滤；`ours` 标当前会话归属，\n会话解析失败时返回 None 且 ours 恒 false，列表本身不受阻）。\n\n# Errors\n\n文件坏损（含任务字段错型）或 IO 失败时返回 [`LoopError`]（会话解析\n失败不算错）。"
     },
     {
       "path": "hst_cli::loopmgmt::resolve_session",
       "kind": "function",
-      "docs": "解析「当前会话」：显式 `--session` 优先，其次 agent 会话内环境变量\n`CLAUDE_CODE_SESSION_ID`，再次 `~/.claude.json` 项目表 `lastSessionId`\n（键 = 项目根正斜杠形，与 pretrust 面同判）；全落空报错并提示显式给。\n\n# Errors\n\n三级解析全落空时返回 `String` 错误（提示显式给 --session）。"
+      "docs": "解析「当前会话」：显式 `--session` 优先，其次 agent 会话内环境变量\n`CLAUDE_CODE_SESSION_ID`，再次 `~/.claude.json` 项目表 `lastSessionId`\n（键 = 项目根正斜杠形，与 pretrust 面同判）；全落空报错并提示显式给。\n\n# Errors\n\n三级解析全落空时返回 [`LoopError::SessionUnresolved`]（提示显式给\n--session）。"
     },
     {
       "path": "hst_cli::loopmgmt::scheduled_tasks_path",
@@ -520,17 +535,17 @@
     {
       "path": "hst_cli::loopmgmt::set_goal",
       "kind": "function",
-      "docs": "设置当前会话最新 loop 的 goal 文本（prompt 就地改写，节奏与属主不动；\n无本会话任务报错，先 `hst loop set` 建任务）。\n\n# Errors\n\n文本空、无本会话任务、文件坏损或 IO 失败时返回 `String` 错误。"
+      "docs": "设置当前会话最新 loop 的 goal 文本（prompt 就地改写，节奏与属主不动；\n无本会话任务报错，先 `hst loop set` 建任务）。\n\n# Errors\n\n文本空、无本会话任务、文件坏损或 IO 失败时返回 [`LoopError`]。"
     },
     {
       "path": "hst_cli::loopmgmt::set_loop",
       "kind": "function",
-      "docs": "设置当前会话 loop：`--every` 与 `--at` 二选一（双缺或双给报错），\ngoal 文本 trim 后非空；读改写保留既有任务（含外会话与 agent 原生\n落盘项）。\n\n# Errors\n\ngoal 空、节奏旗标双缺或双给、会话不可解析、文件坏损或 IO 失败时返回 `String` 错误。"
+      "docs": "设置当前会话 loop：节拍由 [`Cadence`] 枚举承载（互斥在类型层成立），\ngoal 文本 trim 后非空；读改写保留既有任务（含外会话与 agent 原生\n落盘项）。\n\n# Errors\n\ngoal 空、节拍形坏或越界、会话不可解析、文件坏损或 IO 失败时返回\n[`LoopError`]。"
     },
     {
       "path": "hst_cli::loopmgmt::show_goal",
       "kind": "function",
-      "docs": "查看当前会话最新 loop 的 goal（会话不可解析或无任务返回 None，查看面\n不受阻）。\n\n# Errors\n\n文件坏损或 IO 失败时返回 `String` 错误（会话不可解析返回 None 不算错）。"
+      "docs": "查看当前会话最新 loop 的 goal（会话不可解析或无任务返回 None，查看面\n不受阻）。\n\n# Errors\n\n文件坏损（含任务字段错型）或 IO 失败时返回 [`LoopError`]（会话不可\n解析返回 None 不算错）。"
     },
     {
       "path": "hst_cli::pathutil",
