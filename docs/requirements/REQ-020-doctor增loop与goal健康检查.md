@@ -18,7 +18,7 @@ trace: loopmgmt 单测 health 两件加 g8 一件加 doctor 单测三态三件�
 
 - [x] doctor 的 claude 族新增 check=loop 行：读项目根 `.claude/scheduled_tasks.json`，缺文件或空 tasks 判 ok（零任务合法态，同 yolo 未配置口径）
 - [x] 文件在场但不可解析判 warn（同 yolo.parse 形，detail 点名路径与原因）
-- [x] Linux 属主活性子面：createdByPid 非零且 `/proc/<pid>` 不在、或 createdByProcStart 与 stat 第 22 字段不匹配的任务计 dead_owner，大于零判 warn；非 Linux 平台该子面降 ok 加无判据注记（Status 模型无 info 档，同 compact 信息型先例）
-- [x] detail 行含任务计数加 dead_owner 计数；会话可解析时附本会话 ours 计数与外会话计数（堆积对账面，info 性质不告警）
-- [x] doctor 集成测试三态断言：正常（ok）、坏损（warn）、死属主（warn）
+- [x] Linux 属主活性子面：createdByPid 非零且 `/proc/<pid>` 目录不在、或 createdByProcStart 落盘非空且与 stat 第 22 字段不匹配的任务计 dead_owner（目录在而 stat 不可读如 hidepid 属未知不判死；procStart 落盘为空只查进程在否），大于零判 warn；非 Linux 平台该子面降 ok 加无判据注记（Status 模型无 info 档，同 compact 信息型先例）
+- [x] detail 行含任务计数加 dead_owner 计数；会话可解析时附本会话 ours 计数与外会话计数（堆积对账面，info 性质不告警；非 Linux 的 ok 分支以无判据注记替代 dead_owner 计数）
+- [x] doctor 单测三态三件（diagnose 直调）：正常（ok）、坏损（warn）、死属主（warn）
 - [x] 实现后回填 frontmatter 的 trace，状态改 implemented

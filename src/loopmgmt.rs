@@ -328,14 +328,9 @@ fn owner_proc() -> (u64, String) {
         .and_then(|v| v.trim().parse().ok())
         .unwrap_or(0);
     let mut start = String::new();
-    if pid > 0 && cfg!(target_os = "linux") {
-        if let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) {
-            // comm 字段可含空格括号，取末个 ')' 之后 token 19（全行第 22 字段）。
-            if let Some(rest) = stat.rsplit(')').next() {
-                if let Some(tok) = rest.split_whitespace().nth(19) {
-                    start = tok.to_string();
-                }
-            }
+    if pid > 0 {
+        if let Some(tok) = proc_start_field(pid) {
+            start = tok;
         }
     }
     (pid, start)
@@ -652,13 +647,14 @@ pub struct LoopHealth {
 
 /// loop 面健康快照（REQ-020）：读项目 scheduled_tasks.json 计总数、本
 /// 会话数与死属主；文件缺失或空任务合法返回零计数；坏损（顶层非对象、
-/// tasks 键非数组、任务行缺必需字段或错型）返回 Err 带 LoopError 文案。
+/// tasks 键非数组、任务行缺必需字段或错型）返回 Err。
 ///
 /// # Errors
 ///
-/// 文件坏损或 IO 失败时返回 `String` 错误（LoopError 的 Display 形）。
-pub fn health(root: &Path) -> Result<LoopHealth, String> {
-    let tasks = read_tasks(root).map_err(|e| e.to_string())?;
+/// 文件坏损或 IO 失败时返回 [`LoopError`]（评审 G2 回填：不再走模块
+/// 唯一 String 出口，doctor 侧 Display 直渲）。
+pub fn health(root: &Path) -> Result<LoopHealth, LoopError> {
+    let tasks = read_tasks(root)?;
     let owner_check = cfg!(target_os = "linux");
     let dead_owner = if owner_check {
         tasks
@@ -682,23 +678,36 @@ pub fn health(root: &Path) -> Result<LoopHealth, String> {
     })
 }
 
+/// 读 Linux `/proc/<pid>/stat` 第 22 字段（进程启动刻，liveness 同源
+/// 形）：comm 可含空格括号，取末个 ')' 之后 token 19；读不到返回
+/// None。owner_proc 与 owner_alive 单源共用（评审 G3 回填）。
+fn proc_start_field(pid: u64) -> Option<String> {
+    if !cfg!(target_os = "linux") {
+        return None;
+    }
+    let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    stat.rsplit(')')
+        .next()?
+        .split_whitespace()
+        .nth(19)
+        .map(str::to_string)
+}
+
 /// 属主活性判（liveness 同源 /proc 第 22 字段）：pid 为 0 = 归属未知不
-/// 算死；进程不在算死；procStart 落盘非空且与活动进程第 22 字段不等
-/// （pid 复用）算死；procStart 落盘为空只查进程在否。非 Linux 恒活
-///（调用方以 owner_check 分流该子面）。
+/// 算死；`/proc/<pid>` 目录不在 = 死；目录在而 stat 不可读（hidepid 等
+/// 权限面）= 未知不判死（评审 G4 回填）；procStart 落盘非空且与活动
+/// 进程第 22 字段不等（pid 复用）= 死；procStart 落盘为空只查进程在
+/// 否。非 Linux 恒活（调用方以 owner_check 分流该子面）。
 fn owner_alive(pid: u64, proc_start: &str) -> bool {
     if pid == 0 || !cfg!(target_os = "linux") {
         return true;
     }
-    let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) else {
+    if !Path::new(&format!("/proc/{pid}")).exists() {
         return false;
-    };
-    let Some(rest) = stat.rsplit(')').next() else {
-        return false;
-    };
-    match rest.split_whitespace().nth(19) {
+    }
+    match proc_start_field(pid) {
+        None => true,
         Some(tok) => proc_start.is_empty() || tok == proc_start,
-        None => false,
     }
 }
 

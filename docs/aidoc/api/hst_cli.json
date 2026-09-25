@@ -525,7 +525,7 @@
     {
       "path": "hst_cli::loopmgmt::health",
       "kind": "function",
-      "docs": "loop 面健康快照（REQ-020）：读项目 scheduled_tasks.json 计总数、本\n会话数与死属主；文件缺失或空任务合法返回零计数；坏损（顶层非对象、\ntasks 键非数组、任务行缺必需字段或错型）返回 Err 带 LoopError 文案。\n\n# Errors\n\n文件坏损或 IO 失败时返回 `String` 错误（LoopError 的 Display 形）。"
+      "docs": "loop 面健康快照（REQ-020）：读项目 scheduled_tasks.json 计总数、本\n会话数与死属主；文件缺失或空任务合法返回零计数；坏损（顶层非对象、\ntasks 键非数组、任务行缺必需字段或错型）返回 Err。\n\n# Errors\n\n文件坏损或 IO 失败时返回 [`LoopError`]（评审 G2 回填：不再走模块\n唯一 String 出口，doctor 侧 Display 直渲）。"
     },
     {
       "path": "hst_cli::loopmgmt::list_tasks",
