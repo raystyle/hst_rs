@@ -23,3 +23,4 @@
 | REQ-017 | implemented | should | 项目级yolo干扰检测告警 | yolo.rs 检测单测加 cli 集成加 statusline 单测两件加实弹 |
 | REQ-018 | implemented | must | ledger账本集成 | ledger.rs 单测六件加 cli 集成三件加实弹三验 |
 | REQ-019 | implemented | must | 状态栏loop与goal段加管理命令面 | loopmgmt 单测五件加 statusline 单测四件加门控扩加 cli 集成三件加实弹（loop 与 goal 回环加部署脚本直跑） |
+| REQ-020 | draft | should | doctor增loop与goal健康检查 | |
