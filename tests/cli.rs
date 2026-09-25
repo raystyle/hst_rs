@@ -1425,7 +1425,9 @@ fn init_compact_pct_preview_apply_off_and_doctor_check() {
         .assert()
         .stdout(contains("check=compact"))
         .stdout(contains("pct=70"))
-        .stdout(contains("threshold~686000"));
+        .stdout(contains("threshold~686000"))
+        // G1 评审回填：by_pct 字面进集成锁（枚举改写不回退输出契约）。
+        .stdout(contains("(by_pct=true)"));
     // off：摘键回读 unset。
     hst()
         .args(["init", "--compact-pct", "off", "--yes"])

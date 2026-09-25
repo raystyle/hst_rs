@@ -249,6 +249,8 @@ mod tests {
             enabled: None,
         };
         assert_eq!(cs.threshold_approx(), Some(Threshold::ByPct(686_000)));
+        // G1 评审回填：by_pct 字面双形锁（输出串逐字保形的测试面）。
+        assert!(cs.detail_line().contains("threshold~686000(by_pct=true)"));
         // 无 pct:缺省 = 有效 - 13000。
         let cs = CompactState {
             pct_raw: None,
@@ -257,6 +259,7 @@ mod tests {
             enabled: None,
         };
         assert_eq!(cs.threshold_approx(), Some(Threshold::Default(967_000)));
+        assert!(cs.detail_line().contains("threshold~967000(by_pct=false)"));
         // 钳制:99% 的 floor(970200) 钳到缺省 967000。
         let cs = CompactState {
             pct_raw: Some("99".into()),
