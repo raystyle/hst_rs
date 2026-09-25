@@ -327,7 +327,10 @@ createdByProcStart）；hst 是该文件的读写管理面（set / list / del）
 判据 = `createdBySessionId` 与当前会话 id 等值。goal 语义 = 任务
 `prompt` 文本。并发面与 Claude Code 同款读改写（无锁，后写覆盖先写）；
 同一会话内混用 hst 与 agent 原生 cron 工具会互相覆盖盘上变更，管理
-纪律是单向（要么全经 hst，要么全经会话内工具）。
+纪律是单向（要么全经 hst，要么全经会话内工具）。已在跑会话不接管
+盘上外部写入（2026-09-26 探针实证阴性：agent 进程 inotify 盯着项目
+.claude 目录但任务变更不被采纳，运行中调度器真相在内存注册表，盘上
+文件是重启装载的持久化镜像而非活输入通道）。
 
 ## Functions
 

@@ -1598,7 +1598,7 @@ fn cmd_loop_set(
     println!("loop.set session={}", r.session);
     println!("loop.set file={}", r.file.display());
     println!(
-        "loop.hint=durable 任务由 Claude Code 会话载入执行（会话启动时载入；已在跑会话对盘上外部写入的即时接管面无上游承诺，重开会话必载入）"
+        "loop.hint=durable 任务由 Claude Code 会话载入执行（会话启动时载入；已在跑会话不接管盘上外部写入，2026-09-26 实证阴性，写入后重开会话生效）"
     );
     Ok(())
 }
