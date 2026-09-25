@@ -1,7 +1,7 @@
 # hst-cli::loopmgmt
 
 `hst loop`：当前会话 durable 定时任务与 goal 管理面（REQ-019）。
-loop 与 goal 管理面（REQ-019）。唯一真相 = 项目根
+loop 与 goal 管理面（REQ-019）。hst 侧唯一真相 = 项目根
 `.claude/scheduled_tasks.json`（Claude Code durable CronCreate 的同源
 落盘形，实证 2026-09-23 探针：tasks[] 含 id / cron / prompt /
 recurring / createdAt / createdBySessionId / createdByPid /
@@ -12,7 +12,7 @@ createdByProcStart）；hst 是该文件的读写管理面（set / list / del）
 同一会话内混用 hst 与 agent 原生 cron 工具会互相覆盖盘上变更，管理
 纪律是单向（要么全经 hst，要么全经会话内工具）。已在跑会话不接管
 盘上外部写入（2026-09-26 探针实证阴性：agent 进程 inotify 盯着项目
-.claude 目录但任务变更不被采纳，运行中调度器真相在内存注册表，盘上
+.claude 目录但任务变更不被采纳，会话运行期调度器状态在内存注册表，盘上
 文件是重启装载的持久化镜像而非活输入通道）。重启装载面同日实证
 阳性：新会话启动装载本文件，missed 一次性任务以补触发形浮出（带
 用户确认门，prompt 即 goal 文本）并自删；hst 写盘后重开会话即生效。
