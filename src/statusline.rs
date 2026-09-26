@@ -1095,8 +1095,8 @@ pub(crate) fn assemble_statusline_ps1(
             return Err(format!("unknown statusline icon key: {k}"));
         }
     }
-    // D44 空行剔除（默认第三行为空 = 干净两行脚本，不出残余收线）；
-    // 单行 / 多行判定在剔除后做。
+    // 空行剔除（REQ-024 起默认第三行是 loop/goal 专属位：无任务时
+    // 两段皆隐，行空被剔除回干净两行）；单行 / 多行判定在剔除后做。
     let rows_owned: Vec<&[&str]> = rows.iter().copied().filter(|r| !r.is_empty()).collect();
     let rows: &[&[&str]] = &rows_owned;
     // 多行态 = 非 single_line 且至少两行非空；单行态全段并一行。
@@ -1273,7 +1273,8 @@ fn parse_config(text: &str) -> Result<StatuslineConfig, String> {
     Ok(cfg)
 }
 
-/// 段序生效值（D42 三行、D44 默认两行）：各行取用户清单或默认序（未知与
+/// 段序生效值（D42 三行、D44 曾默认两行、REQ-024 起默认三行：第三行
+/// loop/goal 专属，无任务时行空即剔除）：各行取用户清单或默认序（未知与
 /// 跨行重复 id 由拼装器拒，空行由拼装器剔除）。**老配置原样升级语义**
 /// （codex D42 评审 F1/H1 两轮收口）：用户显式写过 `segments` 而未写任何
 /// 后续行键时，未写的行**不补默认**（D18 老单排与 v1.1.0 双排两种老形态
@@ -2422,10 +2423,10 @@ mod tests {
 
     #[test]
     fn assemble_keeps_default_segment_order() {
-        // 期望值来自段块的注释标记（源内容，独立于拼装逻辑）。D44 用户四
-        // 令后的默认两行：一行项目状态（shell/dir/git/包版本与工具链尾
-        // 巴），二行 agent 状态（hst/model/context/duration）；第三行去掉
-        //（tokens、tools、mcp 三段都退出默认位，显式选用才出现）。
+        // 期望值来自段块的注释标记（源内容，独立于拼装逻辑）。REQ-024 起
+        // 默认三行：一行项目状态（shell/dir/git/包版本与工具链尾巴），
+        // 二行 agent 状态（hst/model/context/duration），三行 loop/goal
+        // 专属（tokens、tools、mcp 三段仍退出默认位，显式选用才出现）。
         let ps1 = default_statusline_ps1();
         let mut last = 0usize;
         for marker in [
@@ -2708,6 +2709,24 @@ mod tests {
             !out.contains("0123456789012345678901234567890123456789012345678901234567890123456789"),
             "no 61st char: {out}"
         );
+        // G1 评审回填：59 个 ASCII 加 1 个星面字符（U+1F680，UTF-16 双
+        // 单元），60 号单元是高代理 → $cut=59 分支生效，输出不以孤立
+        // 高代理结尾。
+        let out = run(
+            r#"[{"id":"s1","cron":"30 14 * * *","prompt":"01234567890123456789012345678901234567890123456789012345678🚀","createdAt":100,"recurring":false,"createdBySessionId":"s1"}]"#,
+        );
+        assert!(
+            !out.contains('\u{1F680}'),
+            "astral char dropped whole at cut=59 (no half rocket): {out}"
+        );
+        assert!(
+            !out.contains('\u{FFFD}'),
+            "no replacement char (no broken surrogate leaks): {out}"
+        );
+        assert!(
+            out.contains("01234567890123456789012345678901234567890123456789012345678…"),
+            "59 ascii kept then ellipsis: {out}"
+        );
         let out = run(
             r#"[{"id":"w1","cron":"0 0 1 1 *","prompt":"解析不出形","createdAt":100,"recurring":true,"createdBySessionId":"s1"}]"#,
         );
@@ -2769,12 +2788,14 @@ mod tests {
     }
 
     #[test]
-    fn default_layout_renders_two_lines_and_explicit_third_row_opts_in() {
-        // D44 行为判据（pwsh 闸门）：默认两行——一行项目状态（shell 与
-        // cwd 与 git 与包版本工具链尾巴），二行 agent 状态（agent 态与
-        // 模型与 context 百分比带 token 绝对值（构成 mix 退位）与耗时）；
-        // 第三行去掉（tools 与 mcp 两计数、token 用量三段显式选用才出
-        // 现）。codex D40 评审 G2 顺带钉 kimi 退化：同配置下 kimi 并一行。
+    fn default_layout_no_tasks_two_rows_with_dedicated_row_when_armed() {
+        // REQ-024 行为判据（pwsh 闸门，本件夹具无任务）：无任务时两行——
+        // 一行项目状态（shell 与 cwd 与 git 与包版本工具链尾巴），二行
+        // agent 状态（agent 态与模型与 context 百分比带 token 绝对值
+        //（构成 mix 退位）与耗时）；loop/goal 专属第三行整行隐藏（有任务
+        // 时回来，见 loop_goal_own_exclusive_third_line 件）；tools 与
+        // mcp 两计数、token 用量三段仍显式选用才出现。codex D40 评审 G2
+        // 顺带钉 kimi 退化：同配置下 kimi 并一行。
         if !pwsh_on_path() {
             // pwsh 闸门 skip；eprintln 标痕防无 pwsh 环境静默空跑（codex
             // 评审 O3：CI 两岗带 pwsh 不空跑，本机缺位时四条判据全不跑
