@@ -2371,19 +2371,29 @@ fn loop_via_herdr_speaks_agent_prompt_ndjson() {
         .stdout(contains("goal.arm.clear target=w9:p1"))
         .stdout(contains("goal.arm.clear agent_status=idle"));
 
-    // socket 缺席：报错退出，不静默回落写盘。
+    // socket 缺席：报错退出，不静默回落写盘。G2 评审回填：钉 --project
+    // 到临时根并断言仓库自身 scheduled_tasks.json 字节不动（hst() 子进程
+    // cwd = 仓库根，早退回归被写的会是仓库盘，查 dir/.claude 恒真无效）。
+    let repo_tasks = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join(".claude")
+        .join("scheduled_tasks.json");
+    let before = std::fs::read(&repo_tasks).unwrap_or_default();
     hst()
         .args(["loop", "set", "g", "--every", "5m", "--via-herdr", "w9:p1"])
+        .arg("--project")
+        .arg(&dir)
         .env("HERDR_SOCKET_PATH", dir.join("missing.sock"))
         .assert()
         .failure()
         .stderr(contains("herdr error=no_socket"));
     assert!(
-        !dir.join(".claude").exists()
-            || std::fs::read_to_string(dir.join(".claude").join("scheduled_tasks.json"))
-                .map(|s| s.trim().is_empty() || s.contains("\"tasks\": []"))
-                .unwrap_or(true),
-        "via-herdr 失败路径绝不写盘"
+        !dir.join(".claude").exists(),
+        "via-herdr 失败路径绝不写项目盘"
+    );
+    assert_eq!(
+        std::fs::read(&repo_tasks).unwrap_or_default(),
+        before,
+        "via-herdr 失败路径绝不写仓库盘"
     );
 
     drop(rx);
