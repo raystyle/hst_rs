@@ -887,18 +887,19 @@ fn state_color(state: &str) -> &'static str {
     }
 }
 
-/// hook 功能别名清单（用户令 2026-09-27「用一个hook功能的别名代替」续令
-/// 「比如herdr hook，组织一个hook别名清单」）：已知 hook 按命令干 stem
-/// 映射功能别名，未收录的回落 stem 本名；清单含外来 hook（herdr 等）。
+/// hook 功能别名清单（用户令 2026-09-27 多轮收敛）：别名带属主进程前缀
+/// （「别名 加上什么进程」，例序 herdr 在先），分隔符 ` | ` 与他行段分隔
+/// 同形；预对齐解耦后命令名 `hst token` 与 `hst state`（REQ-028 候裁）。
+/// 未收录的回落 stem 本名；清单含外来 hook（herdr 等）。
 const HOOK_ALIASES: &[(&str, &str)] = &[
-    // hst-state 双职责 hook：①事件映射四态写 ~/.hst/state（S025/D28）；
-    // ②PreToolUse/UserPromptSubmit 透传 payload 跑 secretguard 密钥拦截
-    //（S030：API key 命中 exit 2 阻断）。别名并列两职责（用户令
-    // 2026-09-27 定名 agent状态 加 token护栏）。
-    ("hst-state", "agent状态 token护栏"),
-    // herdr 会话上报 hook：SessionStart 把会话登记推 herdr server（舰队
-    // pane 与会话绑定的可观测面）。
-    ("herdr-agent-state", "会话上报"),
+    // herdr agent 状态监控 hook：claude/grok 面 SessionStart 会话登记推
+    // herdr server（pane 与会话绑定），kimi 面每事件推 working/idle 态。
+    ("herdr-agent-state", "herdr agent状态监控"),
+    // hst-state 双职责 hook（REQ-028 解耦后即 hst token 加 hst state 两
+    // 命令）：①PreToolUse/UserPromptSubmit 跑 secretguard 密钥拦截（S030：
+    // API key 命中 exit 2 阻断）；②事件映射四态写 ~/.hst/state 会话键
+    //（S025/D28）。
+    ("hst-state", "hst token护栏 | hst 会话状态同步"),
 ];
 
 /// 新增 hook 收录指引（评审 G3）：只改 HOOK_ALIASES 一处加 stem 判定回
@@ -951,8 +952,10 @@ fn seg_hookstate(ctx: &Ctx) -> Option<String> {
 
 /// 注册面 hook 别名清单：按 agent 定位注册文件，收集全部 hook 命令
 ///（ours 与外来都在场），stem 去重后按别名表序稳定排列（未收录 stem
-/// 字典序殿后）映射别名。文件缺失、坏损或零挂载返回空串。codex 虽无
-/// 外部状态栏面，手动 render 亦可得清单。
+/// 字典序殿后）映射别名，分隔符 ` | ` 与他行段分隔同形（用户令
+/// 2026-09-27 两轮收敛）。文件缺失、
+/// 坏损或零挂载返回空串。codex 虽无外部状态栏面，手动 render 亦可得
+/// 清单。
 fn hooked_aliases(agent: &str) -> String {
     match user_home() {
         Ok(h) => hooked_aliases_at(&h, agent),
@@ -1005,7 +1008,7 @@ fn hooked_aliases_at(home: &Path, agent: &str) -> String {
             .filter(|s| !known.contains(&s.as_str()))
             .map(String::as_str),
     );
-    out.join(" ")
+    out.join(" | ")
 }
 
 /// 命令到 hook 干 stem：已知 stem 子串直配（解释器前缀与引号都拦不住）；
@@ -1047,7 +1050,7 @@ fn hook_stem(cmd: &str) -> Option<String> {
     };
     let rest = &toks[start.min(toks.len())..];
     // 分隔符须在首字符之后（`/c`、`-File` 旗标形首字符即分隔符，不是
-    // 路径）；或 token 含点（裸名加扩展形 privacy-guard.sh）。
+    // 路径）；或 token 含点（裸名加扩展形 metric-bridge.sh）。
     let sep_after_first = |t: &str| t.chars().skip(1).any(|c| c == '/' || c == '\\');
     let tok = rest
         .iter()
@@ -1633,13 +1636,13 @@ mod tests {
         std::fs::create_dir_all(&claude_dir).unwrap();
         std::fs::write(
             claude_dir.join("settings.json"),
-            r#"{"hooks":{"Stop":[{"matcher":"*","hooks":[{"type":"command","command":"\"/x/.hst/hooks/hst-state.sh\" claude"}]}],"SessionStart":[{"matcher":"*","hooks":[{"type":"command","command":"bash '/other/herdr-agent-state.sh' session"},{"type":"command","command":"\"/x/.hst/hooks/hst-state.sh\" claude"}]}],"Notification":[{"matcher":"*","hooks":[{"type":"command","command":"bash /only/privacy-guard.sh"}]}]}}"#,
+            r#"{"hooks":{"Stop":[{"matcher":"*","hooks":[{"type":"command","command":"\"/x/.hst/hooks/hst-state.sh\" claude"}]}],"SessionStart":[{"matcher":"*","hooks":[{"type":"command","command":"bash '/other/herdr-agent-state.sh' session"},{"type":"command","command":"\"/x/.hst/hooks/hst-state.sh\" claude"}]}],"Notification":[{"matcher":"*","hooks":[{"type":"command","command":"bash /only/metric-bridge.sh"}]}]}}"#,
         )
         .unwrap();
-        // 别名表序（agent状态先于会话上报），未收录 privacy-guard 回落本名殿后。
+        // 别名表序（herdr 在先，用户例序），未收录 metric-bridge 回落本名殿后。
         assert_eq!(
             hooked_aliases_at(&tmp, "claude"),
-            "agent状态 token护栏 会话上报 privacy-guard"
+            "herdr agent状态监控 | hst token护栏 | hst 会话状态同步 | metric-bridge"
         );
         // kimi TOML 面：ours 加外来同列。
         let kimi_dir = tmp.join(".kimi-code");
@@ -1651,7 +1654,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             hooked_aliases_at(&tmp, "kimi"),
-            "agent状态 token护栏 会话上报"
+            "herdr agent状态监控 | hst token护栏 | hst 会话状态同步"
         );
         // grok 多文件注册面（评审 F）：hst 的 ohmyagents-state.json 与
         // herdr 的 herdr.json 双文件合并收集。
@@ -1669,7 +1672,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             hooked_aliases_at(&tmp, "grok"),
-            "agent状态 token护栏 会话上报"
+            "herdr agent状态监控 | hst token护栏 | hst 会话状态同步"
         );
         // 坏损 JSON 零命中不炸。
         std::fs::write(claude_dir.join("settings.json"), "{ not json").unwrap();
@@ -1701,8 +1704,8 @@ mod tests {
             "bat carrier with backslash path"
         );
         assert_eq!(
-            hook_stem("privacy-guard.sh --on").as_deref(),
-            Some("privacy-guard")
+            hook_stem("metric-bridge.sh --on").as_deref(),
+            Some("metric-bridge")
         );
         // 已知 stem 子串直配不受启发式影响（引号与解释器前缀都拦不住）。
         assert_eq!(

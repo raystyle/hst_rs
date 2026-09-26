@@ -10,6 +10,8 @@
 
 3. **hst-state 双职责补全（用户纠偏「我们不是有检测token key的检测么」）**：上一答与流水 2 断言「本机无任何 token 检测类 hook」是错的，读 hst-state.sh shim 尾段实证：PreToolUse/UserPromptSubmit 事件把 payload 透传 `hst hook status --agent`，跑 secretguard 密钥拦截（S030：API key 命中 exit 2 阻断、八层防误报、M060a 透传白名单只认 hst 自判 block），即用户所说 token 护栏。别名改双职责并列：hst-state 映射「agent状态 token护栏」（用户定名），herdr-agent-state 维持「会话上报」。实弹：第5行 `agent状态 token护栏 会话上报` `[实证: shim 尾段源码加 hook.rs guard 分派加双面直跑]`。教训：盘点「hook 做什么」须读到 shim 全文与 hook 命令分派层，只看注册面 command 字符串会漏第二职责（注册面只见 hst-state.sh 一个 stem）。
 
+4. **别名终形：属主前缀加管道分隔（用户四令收敛）**：别名带属主进程前缀（「别名 加上什么进程」，例序 herdr 在先）加分隔符 ` | `（与他行段分隔同形，先令裸 `|` 后令带空格对齐）；定名 herdr-agent-state 映射「herdr agent状态监控」（kimi 面每事件推态、claude/grok 面会话登记，舰队侧 agent 监控本体）、hst-state 双职责映射「hst token护栏 | hst 会话状态同步」（用户定名，预对齐 REQ-028 候裁的 hst token 与 hst state 解耦命令名）。夹具纠偏一笔：未收录回落例原名 privacy-guard 被用户点破「privacy-guard 就是 hst token护栏」（隐私保护例的本体即密钥拦截，非独立 hook），改中性名 metric-bridge 走回落分支。实弹：第5行 `herdr agent状态监控 | hst token护栏 | hst 会话状态同步` `[实证: 本会话 id 直跑 release]`。全测 253 加 49 绿 `[实证: 本机全测输出]`。
+
 ## 自省
 
 - python heredoc 转义塌陷同型二犯（09-26 流水 18 的 \n 塌真换行、本次 \" 塌裸引号）：夹具类改码一律 Edit 工具实落或 python raw 字符串，不再走普通字符串 heredoc。按「同型二犯升格」惯例此条记档待升 guides 工作流条目。
