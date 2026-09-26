@@ -144,7 +144,7 @@ fn render_rows(
     for row in rows {
         let mut parts: Vec<String> = Vec::new();
         for id in *row {
-            if let Some(p) = render_segment(&ctx, id) {
+            if let Some(p) = render_segment(&ctx, id)? {
                 if !p.trim().is_empty() {
                     parts.push(p);
                 }
@@ -182,7 +182,42 @@ fn tmpl_of(ctx: &Ctx, key: &str) -> String {
     crate::statusline::default_template(key)
 }
 
-fn render_segment(ctx: &Ctx, id: &str) -> Option<String> {
+/// 段派发（评审二轮 G3：未知段 id 响亮报错对齐 pwsh 部署期硬错；配置
+/// typo 不静默丢段）。已知 id 清单镜像 statusline.rs 段注册表。
+fn render_segment(ctx: &Ctx, id: &str) -> Result<Option<String>, String> {
+    const KNOWN: &[&str] = &[
+        "shell",
+        "dir",
+        "hst",
+        "model",
+        "context",
+        "tools",
+        "mcp",
+        "tokens",
+        "duration",
+        "loop",
+        "goal",
+        "goalmode",
+        "hookstate",
+        "git",
+        "clock",
+        "package",
+        "python",
+        "rust",
+        "node",
+        "zig",
+        "go",
+        "cpp",
+    ];
+    if !KNOWN.contains(&id) {
+        return Err(format!(
+            "unknown statusline segment: {id}（检查 ~/.hst/statusline.toml 的 segments 清单）"
+        ));
+    }
+    Ok(segment_opt(ctx, id))
+}
+
+fn segment_opt(ctx: &Ctx, id: &str) -> Option<String> {
     match id {
         "shell" => seg_shell(ctx),
         "dir" => Some(ansi(
@@ -267,13 +302,14 @@ fn render_segment(ctx: &Ctx, id: &str) -> Option<String> {
                         ("window", fmt_tok(win)),
                     ],
                 ),
-                "38;5;180",
+                "38;5;117",
             ))
         }
-        "python" | "rust" | "node" | "zig" | "go" | "cpp" => seg_tool(ctx, id),
+        "node" => seg_node(ctx),
+        "python" | "rust" | "zig" | "go" | "cpp" => seg_tool(ctx, id),
         // tools 段（显式选用面）首版渲染为空（REQ-026 已知边界）。
         "tools" => None,
-        other => Err(format!("unknown statusline segment: {other}")).ok(),
+        _ => None,
     }
 }
 
@@ -575,8 +611,33 @@ fn probe_project(dir: &str) -> (String, String) {
                     let v = v.get("version")?.as_str()?.to_string();
                     Some((v, "node".into()))
                 }
-                "pyproject.toml" | "requirements.txt" => Some((String::new(), "python".into())),
-                "build.zig" => Some((String::new(), "zig".into())),
+                // pyproject 版本行与 build.zig.zon 的 .version（评审二轮
+                // F-new4，pwsh PROBE 同源；requirements.txt 无版本面）。
+                "pyproject.toml" | "requirements.txt" => {
+                    let v = std::fs::read_to_string(&p).ok().and_then(|t| {
+                        t.lines().find_map(|l| {
+                            let rest = l.trim_start().strip_prefix("version")?.trim_start();
+                            let rest = rest.strip_prefix('=')?.trim_start();
+                            let rest = rest.strip_prefix('"')?;
+                            let end = rest.find('"')?;
+                            (!rest[..end].is_empty()).then(|| rest[..end].to_string())
+                        })
+                    });
+                    Some((v.unwrap_or_default(), "python".into()))
+                }
+                "build.zig" => {
+                    let zon = probe.join("build.zig.zon");
+                    let v = std::fs::read_to_string(&zon).ok().and_then(|t| {
+                        t.lines().find_map(|l| {
+                            let rest = l.trim_start().strip_prefix(".version")?.trim_start();
+                            let rest = rest.strip_prefix('=')?.trim_start();
+                            let rest = rest.strip_prefix('"')?;
+                            let end = rest.find('"')?;
+                            (!rest[..end].is_empty()).then(|| rest[..end].to_string())
+                        })
+                    });
+                    Some((v.unwrap_or_default(), "zig".into()))
+                }
                 "go.mod" => Some((String::new(), "go".into())),
                 "CMakeLists.txt" | "meson.build" => Some((String::new(), "cpp".into())),
                 _ => None,
@@ -630,7 +691,7 @@ fn seg_tool(ctx: &Ctx, id: &str) -> Option<String> {
         "node" => ("node", &["--version"], "38;5;078"),
         "zig" => ("zig", &["version"], "38;5;178"),
         "go" => ("go", &["version"], "38;5;080"),
-        "cpp" => ("c++", &["--version"], "38;5;081"),
+        "cpp" => ("c++", &["--version"], "38;5;110"),
         _ => return None,
     };
     let out = std::process::Command::new(bin)
@@ -659,6 +720,41 @@ fn seg_tool(ctx: &Ctx, id: &str) -> Option<String> {
         ),
         color,
     ))
+}
+
+/// node 段（评审二轮 F-new1）：node 版本段加 ts 子段（pwsh node 块内
+/// 探针：就近四层找 node_modules/typescript/package.json 读版本，不起
+/// tsc 子进程；ts 非独立段 id，是 node 块的第二 part，两 part 各自包
+/// ANSI 后以行分隔符拼回，渲染逐字等形）。
+fn seg_node(ctx: &Ctx) -> Option<String> {
+    let node_seg = seg_tool(ctx, "node")?;
+    let mut ts_probe = PathBuf::from(&ctx.dir);
+    for _ in 0..4 {
+        let ts_pj = ts_probe
+            .join("node_modules")
+            .join("typescript")
+            .join("package.json");
+        if let Ok(v) = crate::yolo::read_json(&ts_pj) {
+            if let Some(ver) = v.get("version").and_then(|x| x.as_str()) {
+                let ts = ansi(
+                    &apply_fmt(
+                        &tmpl_of(ctx, "ts"),
+                        &[("icon", icon_of(ctx, "ts")), ("version", format!("v{ver}"))],
+                    ),
+                    "38;5;067",
+                );
+                if !ts.is_empty() {
+                    return Some(format!("{node_seg} | {ts}"));
+                }
+            }
+            break;
+        }
+        match ts_probe.parent() {
+            Some(p) => ts_probe = p.to_path_buf(),
+            None => break,
+        }
+    }
+    Some(node_seg)
 }
 
 /// 前缀后随数字点串（pwsh `prefix\s+([\d.]+)` 口径）：逐出现位找首个
