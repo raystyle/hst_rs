@@ -1,10 +1,15 @@
 //! 状态栏原生渲染引擎（ADR-0010、REQ-026）：`hst statusline render <agent>`
-//! 读 stdin agent JSON 出状态行，契约与退役中的 pwsh 脚本逐字对齐。复用
-//! 单源：段序与模板配置走 statusline.rs 的 StatuslineConfig 加
-//! effective_orders；loop/goal 探针走 loopmgmt；goalmode 倒序分块扫描
-//! 本模块 Rust 形。性能面：无 pwsh 冷启动（约 300ms）加 memmap 倒扫
-//!（105MB transcript 毫秒级）。已知边界：tools 段（显式选用面）首版
-//! 渲染为空，见 REQ-026。
+//! 读 stdin agent JSON 出状态行，契约与退役中的 pwsh 脚本逐字对齐（对版
+//! 口径：pwsh 侧强制 `$PSStyle.OutputRendering='Ansi'` 后逐字相同；管道
+//! 缺省形态 PowerShell Host 渲染器会剥 ANSI，旧载体在 agent 实际调用里
+//! 无色，原生缺省带色，评审 F1）。复用单源：段序与模板配置走
+//! statusline.rs 的 StatuslineConfig 加 effective_orders；loop/goal 探针走
+//! loopmgmt；goalmode 倒序分块扫描本模块 Rust 形（流式倒扫）。性能面：无
+//! pwsh 冷启动（约 300ms）加流式倒扫（105MB transcript 毫秒级）。ANSI 退
+//! 裸文本开关：`NO_COLOR` 或 `HST_STATUSLINE_NO_ANSI` 任一非空（评审 F1）。
+//! 已知边界：tools 段（显式选用面）首版渲染为空、版本本地探测缓存面
+//!（D46）未移植（payload version 字段归一承载）、REQ-014/REQ-017 哨兵面
+//! 未移植，见 REQ-026。
 
 use std::path::{Path, PathBuf};
 
@@ -47,7 +52,17 @@ fn ansi(text: &str, code: &str) -> String {
     if text.trim().is_empty() {
         return String::new();
     }
+    if no_ansi() {
+        return text.to_string();
+    }
     format!("\x1b[{code}m{text}\x1b[0m")
+}
+
+/// ANSI 退裸文本开关（评审 F1）：NO_COLOR（标准约定）或
+/// HST_STATUSLINE_NO_ANSI 任一非空即剥色。
+fn no_ansi() -> bool {
+    std::env::var_os("NO_COLOR").is_some_and(|v| !v.is_empty())
+        || std::env::var_os("HST_STATUSLINE_NO_ANSI").is_some_and(|v| !v.is_empty())
 }
 
 /// 模板占位符替换（与 PS1 ApplyFmt 同语义：未知占位符原样保留）。
@@ -93,16 +108,26 @@ fn render_rows(
         }
         dir
     };
-    let root = std::process::Command::new("git")
-        .arg("-C")
-        .arg(&dir)
-        .arg("rev-parse")
-        .arg("--show-toplevel")
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-        .unwrap_or_default();
+    // root 探测门控（评审 G5，pwsh COMMON 同判）：仅 dir/hst/mcp/hookstate
+    // 消费 root（目录显示、状态文件定位）；无消费者的配置不 spawn git。
+    let need_root = rows.iter().any(|r| {
+        r.iter()
+            .any(|id| matches!(*id, "dir" | "hst" | "mcp" | "hookstate"))
+    });
+    let root = if need_root {
+        std::process::Command::new("git")
+            .arg("-C")
+            .arg(&dir)
+            .arg("rev-parse")
+            .arg("--show-toplevel")
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+            .unwrap_or_default()
+    } else {
+        String::new()
+    };
     let (pkg_ver, proj_kind) = probe_project(&dir);
     let ctx = Ctx {
         d,
@@ -141,8 +166,11 @@ fn icon_of(ctx: &Ctx, key: &str) -> String {
     if !ctx.nerd {
         return String::new();
     }
-    // 与 DEFAULT_ICONS 同表（statusline.rs 常量非 pub，此处按键取值经
-    // 模板配置覆盖优先；表值以 statusline.rs 为单一权威，经公开 getter）。
+    // 用户 [icons] 键级覆盖优先（评审 F3：pwsh 烘焙表 = 默认并覆盖），
+    // 回落 statusline.rs 单一权威默认表。
+    if let Some((_, v)) = ctx.cfg.icons.iter().find(|(k, _)| k == key) {
+        return v.clone();
+    }
     crate::statusline::default_icon(key)
 }
 
@@ -176,7 +204,7 @@ fn render_segment(ctx: &Ctx, id: &str) -> Option<String> {
         "package" => seg_package(ctx),
         "hst" => seg_hst(ctx),
         "model" => {
-            let m = s(ctx.d, &["model", "display_name"]);
+            let m = model_name(ctx.d);
             if m.is_empty() {
                 return None;
             }
@@ -190,12 +218,14 @@ fn render_segment(ctx: &Ctx, id: &str) -> Option<String> {
         }
         "context" => seg_context(ctx),
         "duration" => {
-            let ms = f64_at(ctx.d, &["cost", "total_duration_ms"]).unwrap_or(0.0);
-            let txt = fmt_dur(ms);
+            let ms = duration_ms(ctx.d)?;
             Some(ansi(
                 &apply_fmt(
                     &tmpl_of(ctx, "duration"),
-                    &[("icon", icon_of(ctx, "duration")), ("duration", txt)],
+                    &[
+                        ("icon", icon_of(ctx, "duration")),
+                        ("duration", fmt_dur(ms)),
+                    ],
                 ),
                 "38;5;245",
             ))
@@ -205,12 +235,13 @@ fn render_segment(ctx: &Ctx, id: &str) -> Option<String> {
         "goal" => seg_goal(ctx),
         "goalmode" => seg_goalmode(ctx),
         "mcp" => {
-            let n = ctx
-                .d
-                .get("mcp_servers")
-                .and_then(|v| v.as_object())
-                .map(|o| o.len())
-                .unwrap_or(0);
+            let cj = user_home()
+                .ok()
+                .map(|h| h.join(".claude.json"))
+                .filter(|p| p.is_file());
+            let mj = Path::new(&ctx.dir).join(".mcp.json");
+            let mj = if mj.is_file() { Some(mj) } else { None };
+            let n = mcp_count(ctx.d, cj.as_deref(), mj.as_deref());
             if n == 0 {
                 return None;
             }
@@ -293,7 +324,8 @@ fn fmt_dur(ms: f64) -> String {
 }
 
 fn seg_shell(ctx: &Ctx) -> Option<String> {
-    // Unix 祖先链（与 PS1 同判）：跳过 agent 本体，向上找最近 shell。
+    // Unix 祖先链（与 PS1 同判）：跳过 agent 本体，向上找最近 shell；
+    // 匹配是包含语义（PS1 -match 无锚，路径形 comm 同样命中）。
     let shells = [
         "pwsh",
         "powershell",
@@ -330,34 +362,48 @@ fn seg_shell(ctx: &Ctx) -> Option<String> {
             }
         }
     } else {
+        // macOS/bsd 无 /proc（评审 G2）：单次 ps -ax 全表建 pid 加 ppid
+        // 映射再走链，等价 PS1 的逐级 ps 兜底但不逐级 spawn。
         let out = std::process::Command::new("ps")
-            .args(["-o", "ppid=,comm=", "-p", &std::process::id().to_string()])
+            .args(["-o", "pid=,ppid=,comm=", "-ax"])
             .output()
             .ok()?;
-        let txt = String::from_utf8_lossy(&out.stdout).trim().to_lowercase();
-        let mut ppid: Option<u32> = None;
-        for tok in txt.split_whitespace() {
-            if let Ok(p) = tok.parse::<u32>() {
-                ppid = Some(p);
+        let txt = String::from_utf8_lossy(&out.stdout);
+        let mut map: std::collections::HashMap<u32, (u32, String)> =
+            std::collections::HashMap::new();
+        for l in txt.lines() {
+            let mut it = l.split_whitespace();
+            let (Some(pid), Some(ppid)) = (it.next(), it.next()) else {
+                continue;
+            };
+            let (Ok(pid), Ok(ppid)) = (pid.parse::<u32>(), ppid.parse::<u32>()) else {
+                continue;
+            };
+            let comm = it.collect::<Vec<_>>().join(" ").to_lowercase();
+            map.insert(pid, (ppid, comm));
+        }
+        let mut cur = std::process::id();
+        for _ in 0..8 {
+            let Some((ppid, comm)) = map.get(&cur) else {
+                break;
+            };
+            if *ppid <= 1 {
                 break;
             }
-        }
-        if let Some(p) = ppid {
-            if let Ok(comm) = std::fs::read_to_string(format!("/proc/{p}/comm")) {
-                chain.push(comm.trim().to_lowercase());
-            }
+            chain.push(comm.clone());
+            cur = *ppid;
         }
     }
     let agent_idx = chain
         .iter()
-        .position(|c| agent_stems.iter().any(|a| c.starts_with(a)));
+        .position(|c| agent_stems.iter().any(|a| c.contains(a)));
     let search: &[String] = match agent_idx {
         Some(i) if i + 1 < chain.len() => &chain[i + 1..],
         _ => &chain,
     };
     let mut name = search
         .iter()
-        .find(|c| shells.iter().any(|sh| c.starts_with(sh)))
+        .find(|c| shells.iter().any(|sh| c.contains(sh)))
         .cloned()
         .map(|c| c.trim_end_matches(".exe").to_string());
     if name.is_none() {
@@ -572,18 +618,19 @@ fn seg_package(ctx: &Ctx) -> Option<String> {
     ))
 }
 
-/// 工具链段（PS1 同判：projKind 门控加裸 spawn 加版本正则）。
+/// 工具链段（PS1 同判：projKind 门控加裸 spawn 加版本提取；提取器按各
+/// 家正则口径手写，评审 F8：regex_lite 字面前缀法对 go/zig/cpp 三型失效）。
 fn seg_tool(ctx: &Ctx, id: &str) -> Option<String> {
     if !ctx.nerd || ctx.proj_kind != id {
         return None;
     }
-    let (bin, args, re, color): (&str, &[&str], &str, &str) = match id {
-        "python" => ("python", &["--version"], r"Python ([\d.]+)", "38;5;143"),
-        "rust" => ("rustc", &["--version"], r"rustc ([\d.]+)", "38;5;180"),
-        "node" => ("node", &["--version"], r"v([\d.]+)", "38;5;078"),
-        "zig" => ("zig", &["version"], r"^([\d.]+)", "38;5;178"),
-        "go" => ("go", &["version"], r"go([\d.]+)", "38;5;080"),
-        "cpp" => ("c++", &["--version"], r"([\d]+\.[\d]+\.[\d]+)", "38;5;081"),
+    let (bin, args, color): (&str, &[&str], &str) = match id {
+        "python" => ("python", &["--version"], "38;5;143"),
+        "rust" => ("rustc", &["--version"], "38;5;180"),
+        "node" => ("node", &["--version"], "38;5;078"),
+        "zig" => ("zig", &["version"], "38;5;178"),
+        "go" => ("go", &["version"], "38;5;080"),
+        "cpp" => ("c++", &["--version"], "38;5;081"),
         _ => return None,
     };
     let out = std::process::Command::new(bin)
@@ -592,8 +639,19 @@ fn seg_tool(ctx: &Ctx, id: &str) -> Option<String> {
         .ok()
         .filter(|o| o.status.success())?;
     let txt = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    let ver = regex_lite(&txt, re)?;
-    let _ = color;
+    // 正则口径逐家对齐：python/rustc 前缀后随版本（\s+ 空白容忍）、go
+    // 逐出现位扫描（首个 go 后随数字串，"go version go1.27" 形跳过首个
+    // go）、zig 串首锚（^）、node 首段数字串（v? 无点要求）、cpp 首段
+    // 含点数字串（\d+\.\d+(\.\d+)?）。
+    let ver = match id {
+        "python" => after_prefix(&txt, "Python "),
+        "rust" => after_prefix(&txt, "rustc "),
+        "node" => first_num_run(&txt, false),
+        "zig" => anchored_num_run(&txt),
+        "go" => after_prefix(&txt, "go"),
+        "cpp" => first_num_run(&txt, true),
+        _ => None,
+    }?;
     Some(ansi(
         &apply_fmt(
             &tmpl_of(ctx, id),
@@ -603,38 +661,56 @@ fn seg_tool(ctx: &Ctx, id: &str) -> Option<String> {
     ))
 }
 
-/// 极简首捕获组正则（工具链版本形足够；不引 regex 依赖）。
-fn regex_lite(txt: &str, pat: &str) -> Option<String> {
-    // pat 形如 r"prefix\s+([\d.]+)"：按字面前缀 + 捕获 [\d.]+ 处理。
-    let (prefix, tail) = pat.split_once('(')?;
-    let take_dots = tail.contains(r"[\d.]");
-    let anchor_start = tail.starts_with('^');
-    let _ = anchor_start;
-    let hay = if anchor_start { txt } else { txt };
-    let pos = hay.find(prefix.trim_end())?;
-    let rest = &hay[pos + prefix.len()..];
-    let end = rest
-        .char_indices()
-        .find(|(_, c)| {
-            if take_dots {
-                !(c.is_ascii_digit() || *c == '.')
-            } else {
-                !c.is_ascii_digit()
-            }
-        })
-        .map(|(i, _)| i)
-        .unwrap_or(rest.len());
-    let v = &rest[..end];
-    if v.is_empty() {
-        None
-    } else {
-        Some(v.to_string())
+/// 前缀后随数字点串（pwsh `prefix\s+([\d.]+)` 口径）：逐出现位找首个
+/// 前缀，跳过后随空白取数字点串；该位不中续找下一出现位（go 的
+/// "go version go1.27" 形靠此跳过首个 go）。
+fn after_prefix(hay: &str, prefix: &str) -> Option<String> {
+    let mut from = 0usize;
+    while let Some(rel) = hay[from..].find(prefix) {
+        let rest = hay[from + rel + prefix.len()..].trim_start();
+        let end = rest
+            .char_indices()
+            .find(|(_, c)| !(c.is_ascii_digit() || *c == '.'))
+            .map(|(i, _)| i)
+            .unwrap_or(rest.len());
+        if end > 0 {
+            return Some(rest[..end].to_string());
+        }
+        from += rel + 1;
     }
+    None
 }
 
-#[allow(dead_code)]
-fn seg_package_old(_ctx: &Ctx) -> Option<String> {
+/// 首段数字点串（pwsh `([\d.]+)` / `v?([\d.]+)` 口径）：need_dot 时只认
+/// 含点串（cpp 的 `\d+\.\d+` 形），否则首段数字串即中（node 形）。
+fn first_num_run(hay: &str, need_dot: bool) -> Option<String> {
+    let b = hay.as_bytes();
+    let mut i = 0usize;
+    while i < b.len() {
+        if b[i].is_ascii_digit() {
+            let start = i;
+            while i < b.len() && (b[i].is_ascii_digit() || b[i] == b'.') {
+                i += 1;
+            }
+            let cand = &hay[start..i];
+            if !need_dot || cand.contains('.') {
+                return Some(cand.to_string());
+            }
+        } else {
+            i += 1;
+        }
+    }
     None
+}
+
+/// 串首锚数字点串（pwsh `^([\d.]+)` 口径：zig version 输出直起版本）。
+fn anchored_num_run(hay: &str) -> Option<String> {
+    let end = hay
+        .char_indices()
+        .find(|(_, c)| !(c.is_ascii_digit() || *c == '.'))
+        .map(|(i, _)| i)
+        .unwrap_or(hay.len());
+    (end > 0).then(|| hay[..end].to_string())
 }
 
 /// hook 状态读序（D28，hst 段与 hookstate 段共享，与 pwsh 同序）：1)
@@ -683,9 +759,11 @@ fn hook_state(ctx: &Ctx) -> (String, bool) {
             cands.push(proj);
         }
     }
-    for (i, p) in cands.iter().enumerate() {
-        // 首候选（会话键）构造恒匹配；其余带会话闸。
-        if let Some(st) = read_state_gated(p, &sid, i > 0) {
+    for p in cands.iter() {
+        // 会话闸对全部候选生效（评审 F2：pwsh 同判；会话键文件按构造
+        // session 恒匹配，序号免闸在会话键缺位时把用户级 agent 键错放
+        // 成免闸候选，跨会话态泄漏）。
+        if let Some(st) = read_state_gated(p, &sid, true) {
             return (st, true);
         }
     }
@@ -784,16 +862,15 @@ fn seg_hst(ctx: &Ctx) -> Option<String> {
 }
 
 fn seg_context(ctx: &Ctx) -> Option<String> {
-    let win = f64_at(ctx.d, &["context_window", "context_window_size"])?;
-    let pct = f64_at(ctx.d, &["context_window", "used_percentage"])?;
-    let used = win * pct / 100.0;
+    let (pct, win) = ctx_pct_win(ctx.d)?;
+    let used = win * pct as f64 / 100.0;
     let key = if ctx.nerd { "context" } else { "context-ascii" };
     Some(ansi(
         &apply_fmt(
             &tmpl_of(ctx, key),
             &[
                 ("icon", icon_of(ctx, "context")),
-                ("pct", format!("{pct:.0}")),
+                ("pct", pct.to_string()),
                 ("used", fmt_tok(used)),
                 ("window", fmt_tok(win)),
                 ("mix", String::new()),
@@ -801,6 +878,61 @@ fn seg_context(ctx: &Ctx) -> Option<String> {
         ),
         "38;5;116",
     ))
+}
+
+/// context 段取值（pwsh 同口径，评审 F5）：used_percentage 向下取整
+/// 显示；缺 used 时 remaining_percentage 回退 100 减其向下取整；token
+/// 绝对值由取整后百分比反推（显示与计算同源）。
+fn ctx_pct_win(d: &Json) -> Option<(u64, f64)> {
+    let win = f64_at(d, &["context_window", "context_window_size"])?;
+    let pct = match f64_at(d, &["context_window", "used_percentage"]) {
+        Some(u) => u.floor(),
+        None => 100.0 - f64_at(d, &["context_window", "remaining_percentage"])?.floor(),
+    };
+    Some((pct as u64, win))
+}
+
+/// model 段名（pwsh 同判：display_name 优先回落 id，双缺空串）。
+fn model_name(d: &Json) -> String {
+    let m = s(d, &["model", "display_name"]);
+    if m.is_empty() {
+        return s(d, &["model", "id"]);
+    }
+    m
+}
+
+/// duration 段取值（pwsh 同判：字段在场且不低于 1000ms 才出段）。
+fn duration_ms(d: &Json) -> Option<f64> {
+    f64_at(d, &["cost", "total_duration_ms"]).filter(|ms| *ms >= 1000.0)
+}
+
+/// mcp 计数（pwsh 同序，评审 F9）：stdin mcp_servers 优先（数组取长、
+/// 对象取键数；pwsh PSCustomObject 管道坑把对象形计 1，原生按真实键数，
+/// 口径差记 REQ-026），回落 `~/.claude.json` mcpServers 键数加项目
+/// `.mcp.json` 键数（用户级加项目级合计）。
+fn mcp_count(d: &Json, claude_json: Option<&Path>, mcp_json: Option<&Path>) -> usize {
+    let mut n = match d.get("mcp_servers") {
+        Some(Json::Array(a)) => a.len(),
+        Some(Json::Object(o)) => o.len(),
+        _ => 0,
+    };
+    if n == 0 {
+        if let Some(p) = claude_json {
+            if let Ok(v) = crate::yolo::read_json(p) {
+                if let Some(o) = v.get("mcpServers").and_then(|x| x.as_object()) {
+                    n += o.len();
+                }
+            }
+        }
+    }
+    if let Some(p) = mcp_json {
+        if let Ok(v) = crate::yolo::read_json(p) {
+            if let Some(o) = v.get("mcpServers").and_then(|x| x.as_object()) {
+                n += o.len();
+            }
+        }
+    }
+    n
 }
 
 fn seg_loop(ctx: &Ctx) -> Option<String> {
@@ -1053,50 +1185,52 @@ struct Marker {
 
 fn scan_markers(chunk: &str) -> Vec<Marker> {
     let mut out = Vec::new();
-    let full = r#""role":"user","content":"<task-notification>\n<summary>Goal check-in:"#;
-    let short = r#""role":"user","content":"Goal check-in: «"#;
+    // pwsh 正则逐字对齐（评审 F10 松锚假阳回修）：全链形要求 summary 段
+    // （[^"]*）加闭合链 `</summary>…</task-notification>…<system-reminder>`
+    // 加 `Goal check-in: «»» is still active` 尾缀；短形同样要求
+    // `» is still active` 尾缀。头对而链不全、尾缀缺位的引文一律不中。
+    let full_head = r#""role":"user","content":"<task-notification>\n<summary>Goal check-in:"#;
+    let full_mid = r#"</summary>\n</task-notification>\n<system-reminder>\nGoal check-in: «"#;
+    let short_head = r#""role":"user","content":"Goal check-in: «"#;
+    let still = "» is still active";
     let paused = r#""type":"system","subtype":"informational","content":"Goal paused"#;
     let clear = r#""role":"user","content":"/goal "#;
     let mut i = 0;
     let b = chunk.as_bytes();
     while i < b.len() {
         let mut found: Option<(usize, Marker)> = None;
-        if chunk[i..].starts_with(full) {
-            // 捕获 «文本»（同内容串内随后的 system-reminder 段）。
-            let rest = &chunk[i..];
-            if let Some(p) = rest.find("«") {
-                // « 与 » 均 2 字节（U+00AB/U+00BB），非 3。
-                let after = &rest[p + 2..];
-                if let Some(q) = after.find('»') {
-                    let t = after[..q].to_string();
+        if chunk[i..].starts_with(full_head) {
+            // summary 段 [^"]* 后随闭合链：首个 full_mid 出现位之前不得
+            // 有引号（[^"]* 不跨引号；跨过引号的链是别处的引文）。
+            let rest = &chunk[i + full_head.len()..];
+            if let Some(m) = rest.find(full_mid) {
+                if !rest[..m].contains('"') {
+                    let t = &rest[m + full_mid.len()..];
+                    if let Some(e) = t.find('»') {
+                        if t[e..].starts_with(still) {
+                            found = Some((
+                                full_head.len() + m + full_mid.len() + e + still.len(),
+                                Marker {
+                                    kind: MarkerKind::Active,
+                                    text: Some(t[..e].to_string()),
+                                },
+                            ));
+                        }
+                    }
+                }
+            }
+        } else if chunk[i..].starts_with(short_head) {
+            let t = &chunk[i + short_head.len()..];
+            if let Some(e) = t.find('»') {
+                if t[e..].starts_with(still) {
                     found = Some((
-                        full.len(),
+                        short_head.len() + e + still.len(),
                         Marker {
                             kind: MarkerKind::Active,
-                            text: Some(t),
+                            text: Some(t[..e].to_string()),
                         },
                     ));
                 }
-            }
-            if found.is_none() {
-                found = Some((
-                    full.len(),
-                    Marker {
-                        kind: MarkerKind::Active,
-                        text: None,
-                    },
-                ));
-            }
-        } else if chunk[i..].starts_with(short) {
-            let rest = &chunk[i + short.len()..];
-            if let Some(q) = rest.find('»') {
-                found = Some((
-                    short.len() + q + 2,
-                    Marker {
-                        kind: MarkerKind::Active,
-                        text: Some(rest[..q].to_string()),
-                    },
-                ));
             }
         } else if chunk[i..].starts_with(paused) {
             found = Some((
@@ -1176,5 +1310,213 @@ mod tests {
     fn fmt_forms() {
         assert_eq!(fmt_tok(449_152.0), "439k");
         assert_eq!(fmt_dur(295_200_000.0), "3d10h");
+    }
+
+    #[test]
+    fn version_extractors_six_toolchains() {
+        // 评审 F8 回归锁：go/zig/cpp 三型在 regex_lite 时代恒不出。
+        assert_eq!(
+            after_prefix("go version go1.27.0 linux/amd64", "go").as_deref(),
+            Some("1.27.0")
+        );
+        assert_eq!(
+            anchored_num_run("0.16.0\n").as_deref(),
+            Some("0.16.0"),
+            "zig anchored form"
+        );
+        assert!(anchored_num_run("zig 0.16").is_none(), "non-digit head");
+        assert_eq!(
+            first_num_run("Apple clang version 15 (c++ 13.3.0)", true).as_deref(),
+            Some("13.3.0"),
+            "cpp skips version-less runs (need dot)"
+        );
+        assert_eq!(
+            after_prefix("rustc 1.98.1 (abc) stable", "rustc ").as_deref(),
+            Some("1.98.1")
+        );
+        assert_eq!(
+            after_prefix("Python 3.12.8", "Python ").as_deref(),
+            Some("3.12.8")
+        );
+        assert_eq!(
+            first_num_run("v24.3.0", false).as_deref(),
+            Some("24.3.0"),
+            "node v-prefix form"
+        );
+    }
+
+    #[test]
+    fn scan_markers_strict_rejections() {
+        // 评审 F10 松锚假阳回归锁：短形无尾缀、全链头对链不全、链外引文
+        // 三形一律不中（ghost 防线）。
+        let loose_short = r#"{"role":"user","content":"Goal check-in: «松锚引文» 别的文本"}"#;
+        assert!(scan_markers(loose_short).is_empty(), "no suffix");
+        let head_only = r#"{"role":"user","content":"<task-notification>\n<summary>Goal check-in: continuing</summary>\n</task-notification>\n后续无 system-reminder"}"#;
+        assert!(scan_markers(head_only).is_empty(), "head without chain");
+        let off_chain = r#"{"role":"user","content":"<task-notification>\n<summary>Goal check-in: x</summary>\n</task-notification>\n<system-reminder>\n别的话«链外引文»尾缀不接» is still active"}"#;
+        assert!(
+            scan_markers(off_chain).is_empty(),
+            "chain without Goal-check-in tail"
+        );
+        // 跨值劈链：头在上一 JSON 值、链在下一值（rest[..m] 含引号），
+        // 头不自中、链不被借；下一值自身完整的真标记照常命中。
+        let cross_line = "{\"role\":\"user\",\"content\":\"<task-notification>\\n<summary>Goal check-in: 截断\"}\n{\"role\":\"user\",\"content\":\"<task-notification>\\n<summary>Goal check-in: ok</summary>\\n</task-notification>\\n<system-reminder>\\nGoal check-in: «真目标» is still active\"}";
+        let ms = scan_markers(cross_line);
+        assert_eq!(ms.len(), 1, "only the complete chain matches");
+        assert_eq!(ms[0].text.as_deref(), Some("真目标"));
+        // 真全链仍中（链内 «» 后紧跟尾缀）。
+        let real = r#"{"role":"user","content":"<task-notification>\n<summary>Goal check-in: c</summary>\n</task-notification>\n<system-reminder>\nGoal check-in: «真目标» is still active."}"#;
+        let ms = scan_markers(real);
+        assert_eq!(ms.len(), 1);
+        assert_eq!(ms[0].text.as_deref(), Some("真目标"));
+    }
+
+    #[test]
+    fn ctx_pct_win_floor_and_remaining_fallback() {
+        // 评审 F5：used 向下取整（46.7 出 46 非 47）；缺 used 时
+        // remaining 回退 100 减其向下取整。
+        let d: Json = serde_json::from_str(
+            r#"{"context_window":{"context_window_size":977000,"used_percentage":46.7}}"#,
+        )
+        .unwrap();
+        assert_eq!(ctx_pct_win(&d), Some((46, 977_000.0)));
+        let d: Json = serde_json::from_str(
+            r#"{"context_window":{"context_window_size":1000,"remaining_percentage":30.9}}"#,
+        )
+        .unwrap();
+        assert_eq!(ctx_pct_win(&d), Some((70, 1000.0)), "100 - floor(30.9)");
+        let d: Json =
+            serde_json::from_str(r#"{"context_window":{"context_window_size":1000}}"#).unwrap();
+        assert!(ctx_pct_win(&d).is_none(), "both missing hides segment");
+    }
+
+    #[test]
+    fn duration_threshold_and_model_fallback() {
+        // 评审 F4/F6：<1000ms 或字段缺失整段隐；model.id 回落。
+        let d: Json = serde_json::from_str(r#"{"cost":{"total_duration_ms":999}}"#).unwrap();
+        assert!(duration_ms(&d).is_none());
+        let d: Json = serde_json::from_str(r#"{"cost":{"total_duration_ms":1000}}"#).unwrap();
+        assert_eq!(duration_ms(&d), Some(1000.0));
+        assert!(duration_ms(&Json::Null).is_none());
+        let d: Json = serde_json::from_str(r#"{"model":{"id":"claude-x-1"}}"#).unwrap();
+        assert_eq!(model_name(&d), "claude-x-1");
+        let d: Json =
+            serde_json::from_str(r#"{"model":{"display_name":"GLM","id":"glm-5"}}"#).unwrap();
+        assert_eq!(model_name(&d), "GLM");
+        assert_eq!(model_name(&Json::Null), "");
+    }
+
+    #[test]
+    fn hook_state_gates_all_candidates_and_keeps_order() {
+        // 评审 F2：会话闸对全部候选生效（会话键缺位时用户级 agent 键
+        // 不得免闸，跨会话遗留态续找不泄漏）。
+        let tmp = std::env::temp_dir().join(format!("hst-hs-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let home = tmp.join("hsthome");
+        std::fs::create_dir_all(home.join("state")).unwrap();
+        std::fs::write(
+            home.join("state").join("claude.json"),
+            r#"{"state":"idle","session":"OTHER"}"#,
+        )
+        .unwrap();
+        std::env::remove_var("HST_STATE_FILE");
+        let cfg = StatuslineConfig::default();
+        let d: Json = serde_json::from_str(r#"{"session_id":"s2"}"#).unwrap();
+        let ctx = Ctx {
+            d: &d,
+            agent: "claude".to_string(),
+            nerd: true,
+            cfg: &cfg,
+            home: &home,
+            dir: String::new(),
+            root: String::new(),
+            proj_kind: String::new(),
+            pkg_ver: String::new(),
+        };
+        assert_eq!(hook_state(&ctx), ("unknown".to_string(), false));
+        // 会话键命中优先于 agent 键。
+        std::fs::write(
+            home.join("state").join("claude-s2.json"),
+            r#"{"state":"working","session":"s2"}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            hook_state(&ctx),
+            ("working".to_string(), true),
+            "session-keyed wins"
+        );
+        // 无 session 字段的 agent 键不被闸（pwsh 同判：闸只看记录带
+        // session 且不符）。
+        let _ = std::fs::remove_file(home.join("state").join("claude-s2.json"));
+        std::fs::write(
+            home.join("state").join("claude.json"),
+            r#"{"state":"blocked"}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            hook_state(&ctx),
+            ("blocked".to_string(), true),
+            "record without session field is ungated"
+        );
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn mcp_count_falls_back_to_config_files() {
+        // 评审 F9：payload 缺 mcp_servers 时回落 ~/.claude.json 加项目
+        // .mcp.json 键数合计。
+        let tmp = std::env::temp_dir().join(format!("hst-mcp-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let cj = tmp.join("claude.json");
+        std::fs::write(&cj, r#"{"mcpServers":{"a":{},"b":{}}}"#).unwrap();
+        let mj = tmp.join("mcp.json");
+        std::fs::write(&mj, r#"{"mcpServers":{"c":{}}}"#).unwrap();
+        let d: Json = serde_json::from_str(r#"{"mcp_servers":["x"]}"#).unwrap();
+        // pwsh 同判：payload 在场短路用户级回落，项目 .mcp.json 无条件叠加。
+        assert_eq!(
+            mcp_count(&d, Some(&cj), Some(&mj)),
+            2,
+            "payload 1 + project 1"
+        );
+        let d: Json = serde_json::from_str("{}").unwrap();
+        assert_eq!(mcp_count(&d, Some(&cj), Some(&mj)), 3, "user 2 + project 1");
+        assert_eq!(mcp_count(&d, None, None), 0);
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn icon_of_honors_user_override() {
+        // 评审 F3：[icons] 键级覆盖优先于默认表；非 nerd 恒空。
+        let cfg = StatuslineConfig {
+            icons: vec![("loop".to_string(), "LOOP ".to_string())],
+            ..Default::default()
+        };
+        let d: Json = serde_json::from_str("{}").unwrap();
+        let ctx = Ctx {
+            d: &d,
+            agent: "claude".to_string(),
+            nerd: true,
+            cfg: &cfg,
+            home: Path::new("/tmp"),
+            dir: String::new(),
+            root: String::new(),
+            proj_kind: String::new(),
+            pkg_ver: String::new(),
+        };
+        assert_eq!(icon_of(&ctx, "loop"), "LOOP ");
+        assert_eq!(icon_of(&ctx, "hst"), "\u{f06a9}  ", "default survives");
+        let ctx_ascii = Ctx {
+            d: &d,
+            agent: "grok".to_string(),
+            nerd: false,
+            cfg: &cfg,
+            home: Path::new("/tmp"),
+            dir: String::new(),
+            root: String::new(),
+            proj_kind: String::new(),
+            pkg_ver: String::new(),
+        };
+        assert_eq!(icon_of(&ctx_ascii, "loop"), "");
     }
 }

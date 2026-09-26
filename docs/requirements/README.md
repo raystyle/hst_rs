@@ -30,3 +30,4 @@
 | REQ-024 | implemented | must | 状态栏第三行loop与goal专属行 | statusline 单测四件改加加实弹三行渲染（goal 截断放宽 60） |
 | REQ-025 | implemented | must | 状态栏第四行goalmode专属行 | goalmode 四态单测加实弹（105MB 真机 transcript 倒序分块扫描） |
 | REQ-026 | implemented | must | 状态栏渲染原生化与hookstate专属行 | statusrender 单测三件加 statusline plumbing 加实弹（第5行渲染、0.217s 对 0.95s、BYTE-IDENTICAL diff 空；ADR-0010） |
+| REQ-027 | draft | should | 原生渲染哨兵面回填 | 待实施后回填（REQ-014 加 REQ-017 哨兵面，pwsh 弃用期收尾前必办） |
