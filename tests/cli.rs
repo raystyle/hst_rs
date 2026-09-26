@@ -1112,8 +1112,9 @@ fn statusline_example_prints_customization_template() {
         // D51：--example 随默认段同步（codex F1：漂移会误导照抄丢时钟段）。
         .stdout(contains("\"clock\"]"))
         .stdout(contains("clock {icon}{datetime}"))
-        // REQ-019：loop / goal 两段进默认第二行与模板文档。
-        .stdout(contains("\"duration\", \"loop\", \"goal\"]"))
+        // REQ-024：loop / goal 两段移默认第三行专属行与模板文档。
+        .stdout(contains("\"context\", \"duration\"]"))
+        .stdout(contains("segments3 = [\"loop\", \"goal\"]"))
         .stdout(contains("loop {icon}{count}{cadence}"));
 }
 

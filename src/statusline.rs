@@ -541,7 +541,7 @@ if ($mcpCount) {
 /// scheduled_tasks.json` 过滤 `createdBySessionId` 等值，产出
 /// `$loopCount`（int）、`$loopCadence`（最新任务 cron 简单形人性化，
 /// 间隔形 ×Nm/×Nh/×1h、一次性形 @HH:mm，解析不出空串）、`$loopGoalText`
-/// （最新任务 prompt，折行归一截断 16 字符）。文件缺失、会话 id 缺失、
+/// （最新任务 prompt，折行归一截断 60 字符，REQ-024 专属行放宽）。文件缺失、会话 id 缺失、
 /// JSON 坏损皆静默零命中（数据驱动退化，codex/kimi/grok 无此文件自然
 /// 无段）。
 const PS1_LOOPPROBE: &str = r#"
@@ -583,10 +583,11 @@ if ($loopSid2) {
                     }
                     $lg = "$($newest.prompt)"
                     $lg = ($lg -replace '\r?\n', ' ').Trim()
-                    if ($lg.Length -gt 16) {
-                        # 评审 G4：UTF-16 计数截断防劈代理对（星面字符）。
-                        $cut = 16
-                        if ([char]::IsHighSurrogate($lg[15])) { $cut = 15 }
+                    if ($lg.Length -gt 60) {
+                        # 评审 G4：UTF-16 计数截断防劈代理对（星面字符）；
+                        # REQ-024 专属行放宽 16 至 60。
+                        $cut = 60
+                        if ([char]::IsHighSurrogate($lg[59])) { $cut = 59 }
                         $lg = $lg.Substring(0, $cut) + '…'
                     }
                     $loopGoalText = $lg
@@ -608,7 +609,8 @@ if ($loopCount -gt 0) {
 }
 "#;
 
-/// goal 段（REQ-019）：最新任务 goal 文本（探针已折行归一截断）；
+/// goal 段（REQ-019、REQ-024 第三行专属）：最新任务 goal 文本（探针已
+/// 折行归一截断 60 字符）；
 /// 空文本时整段隐藏（loop 在而 goal 空是合法态，如 prompt 空串）。
 const SEG_GOAL: &str = r#"
 # ── goal 段：最新任务 goal 文本（REQ-019）──
@@ -952,17 +954,17 @@ pub(crate) const DEFAULT_SEGMENTS: &[&str] = &[
     "shell", "dir", "git", "package", "python", "rust", "node", "zig", "go", "cpp", "clock",
 ];
 
-/// 默认第二行「agent 状态」（D43 精修、D45 段更名 hst、REQ-019 加 loop 与
-/// goal 尾段）：agent 态 / 模型 / context 百分比加 token 绝对值（`46%
-/// [449k/977k]` 形，构成 mix 退位）/ 耗时 / 本会话 durable 定时任务计数
-/// 加节拍与 goal 文本（无任务时两段隐藏零噪声）。`segments2` 键缺省回落
-/// 此序。
-pub(crate) const DEFAULT_SEGMENTS2: &[&str] =
-    &["hst", "model", "context", "duration", "loop", "goal"];
+/// 默认第二行「agent 状态」（D43 精修、D45 段更名 hst、REQ-019 曾加 loop
+/// 与 goal 尾段，REQ-024 移第三行专属行）：agent 态 / 模型 / context
+/// 百分比加 token 绝对值（`46% [449k/977k]` 形，构成 mix 退位）/ 耗时。
+/// `segments2` 键缺省回落此序。
+pub(crate) const DEFAULT_SEGMENTS2: &[&str] = &["hst", "model", "context", "duration"];
 
-/// 默认第三行（D44 用户令「去掉第三行」）：默认空 = 两行布局；tools /
-/// mcp 计数与 token 用量三段同退默认位，显式写 `segments3` 才有第三行。
-pub(crate) const DEFAULT_SEGMENTS3: &[&str] = &[];
+/// 默认第三行 = loop/goal 专属行（REQ-024 翻转 D44 默认空）：本会话
+/// durable 定时任务计数加节拍与 goal 文本；无任务时两段皆隐、整行剔除
+/// 回两行布局（零噪声不变）。tools / mcp / tokens 三段仍可显式写
+/// `segments3` 与专属段同线换位或替换。`segments3` 键缺省回落此序。
+pub(crate) const DEFAULT_SEGMENTS3: &[&str] = &["loop", "goal"];
 
 /// 内嵌默认模板（D18）。键 = 段 id；`context-ascii` 是 grok 的结构差异项
 /// （nerd 版带 used/window 括号对，ascii 版只有百分比加 ctx 后缀）。
@@ -1559,15 +1561,15 @@ pub const EXAMPLE_TOML: &str = r#"# ~/.hst/statusline.toml —— 状态栏用�
 # 改完本文件重跑一次 hst statusline 生效。
 # 键级缺省回落：没写的键用内嵌默认；坏文件硬错退出 1。
 
-# 段落清单（D44 用户四令后的默认两行；REQ-019 加 loop / goal）：
+# 段落清单（REQ-024 起默认三行，loop/goal 专属第三行）：
 # segments = 第一行项目状态（shell / cwd / git 分支 / 包版本与工具链尾巴）、
 # segments2 = 第二行 agent 状态（agent 态 / 模型 / context 百分比加 token
-# 绝对值 / 耗时 / 本会话 durable 定时任务 loop 加 goal，无任务时两段隐藏），
-# 段 id 数组即全量（显隐加顺序）。
-# segments3 = 第三行（D44 起默认空 = 无第三行；可用段 id：tools / mcp /
-# tokens 等显式选用才出现，如要看工具与 MCP 计数：
-#   segments3 = ["tools", "mcp"]
-# ）。
+# 绝对值 / 耗时）、
+# segments3 = 第三行 loop/goal 专属行（本会话 durable 定时任务计数加节拍
+# 与 goal 文本，无任务时整行隐藏回两行），
+# 段 id 数组即全量（显隐加顺序）；tools / mcp / tokens 三段仍可显式写入
+# segments3 与专属段同线换位，如：
+#   segments3 = ["loop", "goal", "tools", "mcp"]
 # loop / goal 段的任务经 `hst loop set "goal 文本" --every 5m` 设置、
 # `hst loop list` 列出、`hst loop del latest` 删除（REQ-019）。
 # 例（隐藏 shell 与时长段、git 提到目录前）：
@@ -1577,8 +1579,8 @@ pub const EXAMPLE_TOML: &str = r#"# ~/.hst/statusline.toml —— 状态栏用�
 # 退单行（kimi / grok 运行时自动并一行；显式退单行用）：
 #   single_line = true
 segments = ["shell", "dir", "git", "package", "python", "rust", "node", "zig", "go", "cpp", "clock"]
-segments2 = ["hst", "model", "context", "duration", "loop", "goal"]
-segments3 = []
+segments2 = ["hst", "model", "context", "duration"]
+segments3 = ["loop", "goal"]
 
 # 段内模板（[template]）：每段一条格式串；`<段>-ascii` 是 grok 的 ASCII 形
 #（缺省同用 nerd 模板、图标恒空）。可用占位符：
@@ -2461,9 +2463,15 @@ mod tests {
             !ps1.contains("# ── MCP 计数："),
             "mcp segment out of default rows since D44"
         );
+        // REQ-024：默认第三行 = loop/goal 专属行（翻转 D44 默认空）。
         assert!(
-            !ps1.contains("$slRow3"),
-            "empty default row 3 leaves no vestigial split since D44"
+            ps1.contains("$slRow3"),
+            "dedicated loop/goal row 3 exists since REQ-024"
+        );
+        // 段块按行序排布：loop 段块在二行尾段（duration/会话累计）之后。
+        assert!(
+            ps1.find("# ── loop 段").unwrap() > ps1.find("# ── 会话累计：").unwrap(),
+            "loop/goal segments live after row-2 tail = row 3"
         );
         assert!(
             ps1.contains("'context' = '{icon}{pct}% [{used}/{window}]'"),
@@ -2607,6 +2615,40 @@ mod tests {
     }
 
     #[test]
+    fn loop_goal_own_exclusive_third_line() {
+        // REQ-024 判据：loop/goal 专属第三行——有本会话任务时三行布局、
+        // 节拍与 goal 文本只落第三行（一二行无 × 无 goal 文本）；无任务
+        // 时整行剔除回两行。
+        if !pwsh_on_path() {
+            eprintln!("skip: pwsh not on path (pwsh gate)");
+            return;
+        }
+        let home = scratch("lp-row3");
+        let p = deploy_script(&home).unwrap();
+        let stdin = seed_sched(
+            &home,
+            "s1",
+            r#"[{"id":"a1","cron":"*/5 * * * *","prompt":"盯发布窗口","createdAt":100,"recurring":true,"createdBySessionId":"s1"}]"#,
+        );
+        let out = run_statusline(&p, "claude", &home, &stdin);
+        let lines: Vec<&str> = out.lines().filter(|l| !l.trim().is_empty()).collect();
+        assert_eq!(lines.len(), 3, "dedicated third row: {out}");
+        assert!(
+            lines[2].contains("×5m") && lines[2].contains("盯发布窗口"),
+            "cadence and goal live on row 3: {out}"
+        );
+        assert!(
+            !lines[0].contains('×') && !lines[0].contains("盯发布窗口"),
+            "row 1 clean: {out}"
+        );
+        assert!(
+            !lines[1].contains('×') && !lines[1].contains("盯发布窗口"),
+            "row 2 clean: {out}"
+        );
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
     fn loop_goal_hidden_without_file_foreign_or_sid() {
         // REQ-019 退化面：无文件、仅外会话任务、session_id 缺失，三态均
         // 不渲染两段（零噪声）。
@@ -2635,7 +2677,7 @@ mod tests {
     #[test]
     fn loop_cadence_humanized_forms_and_truncation_no_residue() {
         // REQ-019 cadence 三形:每小时 ×1h、一次性 @HH:mm、解析不出留空
-        // 不留残迹;goal 超 16 字符截断加省略号。
+        // 不留残迹;goal 超 60 字符截断加省略号（REQ-024 专属行放宽）。
         if !pwsh_on_path() {
             return;
         }
@@ -2655,14 +2697,17 @@ mod tests {
         );
         assert!(out.contains("×2h"), "hour-step form: {out}");
         let out = run(
-            r#"[{"id":"o1","cron":"30 14 * * *","prompt":"0123456789012345aaaaaaaa","createdAt":100,"recurring":false,"createdBySessionId":"s1"}]"#,
+            r#"[{"id":"o1","cron":"30 14 * * *","prompt":"0123456789012345678901234567890123456789012345678901234567890123456789","createdAt":100,"recurring":false,"createdBySessionId":"s1"}]"#,
         );
         assert!(out.contains("@14:30"), "one-shot form: {out}");
         assert!(
-            out.contains("0123456789012345…"),
-            "goal truncated at 16: {out}"
+            out.contains("012345678901234567890123456789012345678901234567890123456789…"),
+            "goal truncated at 60: {out}"
         );
-        assert!(!out.contains("0123456789012345a"), "no 17th char: {out}");
+        assert!(
+            !out.contains("0123456789012345678901234567890123456789012345678901234567890123456789"),
+            "no 61st char: {out}"
+        );
         let out = run(
             r#"[{"id":"w1","cron":"0 0 1 1 *","prompt":"解析不出形","createdAt":100,"recurring":true,"createdBySessionId":"s1"}]"#,
         );
