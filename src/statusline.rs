@@ -1133,8 +1133,8 @@ const DEFAULT_TEMPLATES: &[(&str, &str)] = &[
     ("goal-ascii", "{goal}"),
     ("goalmode", "{icon}  {text}"),
     ("goalmode-ascii", "{text}"),
-    ("hookstate", "{icon}hook {state}"),
-    ("hookstate-ascii", "hook {state}"),
+    ("hookstate", "{icon}  {events} {state}"),
+    ("hookstate-ascii", "{events} {state}"),
     ("git", "{branch}{flags}"),
     ("clock", "{icon}{datetime}"),
     ("package", "{icon}{version}"),
@@ -1827,6 +1827,8 @@ segments5 = ["hookstate"]
 #   duration {icon}{duration} / git {branch}{flags}
 #   loop {icon}  {every} / {goal}（图标后双空格对齐 hst 段形；循环时间参数；{every} 为
 #   自然节拍 30m 形，{cadence} ×30m 形与 {count} 可自配）/ goal {icon}{goal}（可选段：任务 prompt 单显）
+#   hookstate {icon}  {events} {state}（第5行；hst 状态 hook 挂载的事件
+#   清单加通道态，events 空时回落泛称 hook）
 #   package 与七工具链段（含 ts）{icon}{version}
 #   clock {icon}{datetime}（D51：年月日加当前时间，分钟精度）
 # 例（hst 段去图标改方括号态）：

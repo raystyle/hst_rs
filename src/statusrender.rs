@@ -887,8 +887,10 @@ fn state_color(state: &str) -> &'static str {
     }
 }
 
-/// hookstate 段（第 5 行，用户令 2026-09-26）：hook 通道状态独占一行；
-/// 状态文件不在场整行隐藏（无 hook 会话零噪声）。
+/// hookstate 段（第 5 行，用户令 2026-09-26，同日二令迭代）：hst 状态
+/// hook 实际挂载的事件清单加通道状态独占一行（用户令「hook了什么事件」）；
+/// 状态文件不在场整行隐藏（无 hook 会话零噪声）；注册面读不出事件时回
+/// 落泛称 `hook` 保语义。
 fn seg_hookstate(ctx: &Ctx) -> Option<String> {
     let (state, present) = hook_state(ctx);
     if !present {
@@ -900,13 +902,134 @@ fn seg_hookstate(ctx: &Ctx) -> Option<String> {
     } else {
         "hookstate-ascii"
     };
+    let events = {
+        let ev = hooked_events(&ctx.agent);
+        if ev.is_empty() {
+            "hook".to_string()
+        } else {
+            ev
+        }
+    };
     Some(ansi(
         &apply_fmt(
             &tmpl_of(ctx, key),
-            &[("icon", icon_of(ctx, "hookstate")), ("state", state)],
+            &[
+                ("icon", icon_of(ctx, "hookstate")),
+                ("events", events),
+                ("state", state),
+            ],
         ),
         color,
     ))
+}
+
+/// 注册面事件清单（用户令 2026-09-26「hook了什么事件」）：按 agent 定位
+/// 注册文件，取 hst 状态 hook（command 含 `hst-state` 干 stem，REQ-014
+/// 同源标记）挂载的事件名，按部署事件序稳定排列（未知事件名字典序殿后）。
+/// 文件缺失、坏损或零挂载返回空串。codex 虽无外部状态栏面，手动 render
+/// 亦可得清单。
+fn hooked_events(agent: &str) -> String {
+    match user_home() {
+        Ok(h) => hooked_events_at(&h, agent),
+        Err(_) => String::new(),
+    }
+}
+
+/// hooked_events 的可测形（home 显式透传）。
+fn hooked_events_at(home: &Path, agent: &str) -> String {
+    const ORDER: &[&str] = &[
+        "SessionStart",
+        "UserPromptSubmit",
+        "PreToolUse",
+        "PostToolUse",
+        "PermissionRequest",
+        "Notification",
+        "Stop",
+        "SessionEnd",
+    ];
+    let mut found: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    match agent {
+        // claude/codex/grok 注册面同构（hooks.<Event>[].hooks[].command）。
+        "claude" => collect_json_events(&home.join(".claude").join("settings.json"), &mut found),
+        "codex" => collect_json_events(&home.join(".codex").join("hooks.json"), &mut found),
+        "grok" => collect_json_events(
+            &home
+                .join(".grok")
+                .join("hooks")
+                .join("ohmyagents-state.json"),
+            &mut found,
+        ),
+        // kimi 是 [[hooks]] 表项（event 加 command 平铺）。
+        "kimi" => collect_toml_events(&home.join(".kimi-code").join("config.toml"), &mut found),
+        _ => {}
+    }
+    let mut out: Vec<&str> = ORDER
+        .iter()
+        .filter(|e| found.contains(**e))
+        .copied()
+        .collect();
+    out.extend(
+        found
+            .iter()
+            .filter(|e| !ORDER.contains(&e.as_str()))
+            .map(String::as_str),
+    );
+    out.join(" ")
+}
+
+/// JSON 注册面（claude/codex/grok）事件收集：ours 判定 = 任一分组
+/// hooks[].command 含 hst-state。
+fn collect_json_events(path: &Path, found: &mut std::collections::BTreeSet<String>) {
+    let Ok(v) = crate::yolo::read_json(path) else {
+        return;
+    };
+    let Some(obj) = v.get("hooks").and_then(|h| h.as_object()) else {
+        return;
+    };
+    for (event, groups) in obj {
+        let Some(groups) = groups.as_array() else {
+            continue;
+        };
+        let ours = groups.iter().any(|g| {
+            g.get("hooks")
+                .and_then(|h| h.as_array())
+                .map(|hs| {
+                    hs.iter().any(|h| {
+                        h.get("command")
+                            .and_then(|c| c.as_str())
+                            .is_some_and(|c| c.contains("hst-state"))
+                    })
+                })
+                .unwrap_or(false)
+        });
+        if ours {
+            found.insert(event.clone());
+        }
+    }
+}
+
+/// TOML 注册面（kimi [[hooks]]）事件收集：ours 判定同干 stem。
+fn collect_toml_events(path: &Path, found: &mut std::collections::BTreeSet<String>) {
+    let Ok(text) = std::fs::read_to_string(path) else {
+        return;
+    };
+    let Ok(v) = toml::from_str::<toml::Value>(&text) else {
+        return;
+    };
+    let Some(items) = v.get("hooks").and_then(|h| h.as_array()) else {
+        return;
+    };
+    for item in items {
+        let ours = item
+            .get("command")
+            .and_then(|c| c.as_str())
+            .is_some_and(|c| c.contains("hst-state"));
+        if ours {
+            if let Some(ev) = item.get("event").and_then(|e| e.as_str()) {
+                found.insert(ev.to_string());
+            }
+        }
+    }
 }
 
 fn seg_hst(ctx: &Ctx) -> Option<String> {
@@ -1427,6 +1550,36 @@ mod tests {
         // 数字缺失的坏形按 0 处理不出标记。
         let hdr = "## main...origin/main [ahead x]";
         assert_eq!(ahead_behind_of(hdr, "ahead ", true, "\u{21e1}", '+'), "");
+    }
+
+    #[test]
+    fn hooked_events_reads_registration_and_orders() {
+        // 用户令「hook了什么事件」：注册面实读（ours = hst-state 干 stem），
+        // 外来 hook 不混入，部署事件序稳定输出，缺文件零命中。
+        let tmp = std::env::temp_dir().join(format!("hst-hev-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let claude_dir = tmp.join(".claude");
+        std::fs::create_dir_all(&claude_dir).unwrap();
+        std::fs::write(
+            claude_dir.join("settings.json"),
+            r#"{"hooks":{"Stop":[{"matcher":"*","hooks":[{"type":"command","command":"\"/x/.hst/hooks/hst-state.sh\" claude"}]}],"SessionStart":[{"matcher":"*","hooks":[{"type":"command","command":"bash /other/herdr-agent-state.sh session"},{"type":"command","command":"\"/x/.hst/hooks/hst-state.sh\" claude"}]}],"UserPromptSubmit":[{"matcher":"*","hooks":[{"type":"command","command":"bash /only/foreign.sh"}]}]}}"#,
+        )
+        .unwrap();
+        // 部署序稳定（文件内 Stop 在前、纯外来 UserPromptSubmit 不算）。
+        assert_eq!(hooked_events_at(&tmp, "claude"), "SessionStart Stop");
+        // kimi TOML 面：ours 表项命中、外来表项排除。
+        let kimi_dir = tmp.join(".kimi-code");
+        std::fs::create_dir_all(&kimi_dir).unwrap();
+        std::fs::write(
+            kimi_dir.join("config.toml"),
+            "[[hooks]]\nevent = \"PreToolUse\"\ncommand = \"/x/.hst/hooks/hst-state.sh kimi\"\n\n[[hooks]]\nevent = \"Stop\"\ncommand = \"/foreign/other.sh\"\n",
+        )
+        .unwrap();
+        assert_eq!(hooked_events_at(&tmp, "kimi"), "PreToolUse");
+        // 缺文件零命中空串（段内回落泛称 hook）。
+        std::fs::remove_file(claude_dir.join("settings.json")).unwrap();
+        assert_eq!(hooked_events_at(&tmp, "claude"), "");
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 
     #[test]
