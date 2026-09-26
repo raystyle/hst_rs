@@ -8,6 +8,8 @@
 
 2. **四令终裁与评审 F/G 一并吸收**（用户令「不需要working这些状态 显示hook功能的别名 参考 agent状态 token护栏 这些功能别名」）：模板改 `{icon}  {alias}`（态文本退出缺省显示仅以行色暗示，{state} 占位符保留自配）；别名定名 hst-state 映射「agent状态」（用户点名，事件映射四态写 ~/.hst/state 的功能本体）、herdr-agent-state 映射「会话上报」（读 hook 本体实证：SessionStart 把会话登记推 herdr server 的 pane.report_agent_session，非 token 检测面；本机无任何 token 检测类 hook，第2行 token 百分比来自状态栏 payload 非 hook）。评审快核回执吸收：F（grok 多文件注册面：本机 herdr 的 grok 挂载在 ~/.grok/hooks/herdr.json 而 hst 在 ohmyagents-state.json，单文件映射漏列外来 hook）即修：grok 臂全目录 *.json 排序合并收集；G1 加 G2（stem 提取扩展白名单漏 .bat/.exe/.py/.js 载体、末 token 启发式在参数位脚本路径时误取）即修：解释器跳过后取首个「分隔符在首字符之后或含点」token 的 basename 去末扩展（`/c` 与 `-File` 旗标形不误判，自查实弹修正一次）；G3 采纳（HOOK_ALIASES 旁注新增 hook 收录指引与 grok 多文件提醒）。单测两件九断言面（别名清单四态加 grok 双文件、stem 启发式七形含 bat 反斜杠与旗标形）。实弹：本工位 claude 面第5行 `agent状态 会话上报`、grok 面双文件合并同清单 `[实证: 双面直跑 release 加注册文件对读]`。全测 253 加 49 绿 `[实证: 本机全测输出]`。
 
+3. **hst-state 双职责补全（用户纠偏「我们不是有检测token key的检测么」）**：上一答与流水 2 断言「本机无任何 token 检测类 hook」是错的，读 hst-state.sh shim 尾段实证：PreToolUse/UserPromptSubmit 事件把 payload 透传 `hst hook status --agent`，跑 secretguard 密钥拦截（S030：API key 命中 exit 2 阻断、八层防误报、M060a 透传白名单只认 hst 自判 block），即用户所说 token 护栏。别名改双职责并列：hst-state 映射「agent状态 token护栏」（用户定名），herdr-agent-state 维持「会话上报」。实弹：第5行 `agent状态 token护栏 会话上报` `[实证: shim 尾段源码加 hook.rs guard 分派加双面直跑]`。教训：盘点「hook 做什么」须读到 shim 全文与 hook 命令分派层，只看注册面 command 字符串会漏第二职责（注册面只见 hst-state.sh 一个 stem）。
+
 ## 自省
 
 - python heredoc 转义塌陷同型二犯（09-26 流水 18 的 \n 塌真换行、本次 \" 塌裸引号）：夹具类改码一律 Edit 工具实落或 python raw 字符串，不再走普通字符串 heredoc。按「同型二犯升格」惯例此条记档待升 guides 工作流条目。

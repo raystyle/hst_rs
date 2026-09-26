@@ -891,9 +891,11 @@ fn state_color(state: &str) -> &'static str {
 /// 「比如herdr hook，组织一个hook别名清单」）：已知 hook 按命令干 stem
 /// 映射功能别名，未收录的回落 stem 本名；清单含外来 hook（herdr 等）。
 const HOOK_ALIASES: &[(&str, &str)] = &[
-    // hst agent 状态 hook：事件映射四态写 ~/.hst/state（S025/D28，状态栏
-    // 与 doctor 消费）；用户令 2026-09-27 定名「agent状态」。
-    ("hst-state", "agent状态"),
+    // hst-state 双职责 hook：①事件映射四态写 ~/.hst/state（S025/D28）；
+    // ②PreToolUse/UserPromptSubmit 透传 payload 跑 secretguard 密钥拦截
+    //（S030：API key 命中 exit 2 阻断）。别名并列两职责（用户令
+    // 2026-09-27 定名 agent状态 加 token护栏）。
+    ("hst-state", "agent状态 token护栏"),
     // herdr 会话上报 hook：SessionStart 把会话登记推 herdr server（舰队
     // pane 与会话绑定的可观测面）。
     ("herdr-agent-state", "会话上报"),
@@ -1637,7 +1639,7 @@ mod tests {
         // 别名表序（agent状态先于会话上报），未收录 privacy-guard 回落本名殿后。
         assert_eq!(
             hooked_aliases_at(&tmp, "claude"),
-            "agent状态 会话上报 privacy-guard"
+            "agent状态 token护栏 会话上报 privacy-guard"
         );
         // kimi TOML 面：ours 加外来同列。
         let kimi_dir = tmp.join(".kimi-code");
@@ -1647,7 +1649,10 @@ mod tests {
             "[[hooks]]\nevent = \"PreToolUse\"\ncommand = \"/x/.hst/hooks/hst-state.sh kimi\"\n\n[[hooks]]\nevent = \"Stop\"\ncommand = \"/y/herdr-agent-state.sh\"\n",
         )
         .unwrap();
-        assert_eq!(hooked_aliases_at(&tmp, "kimi"), "agent状态 会话上报");
+        assert_eq!(
+            hooked_aliases_at(&tmp, "kimi"),
+            "agent状态 token护栏 会话上报"
+        );
         // grok 多文件注册面（评审 F）：hst 的 ohmyagents-state.json 与
         // herdr 的 herdr.json 双文件合并收集。
         let grok_dir = tmp.join(".grok").join("hooks");
@@ -1662,7 +1667,10 @@ mod tests {
             r#"{"hooks":{"SessionStart":[{"matcher":"*","hooks":[{"type":"command","command":"/z/herdr-agent-state.sh session"}]}]}}"#,
         )
         .unwrap();
-        assert_eq!(hooked_aliases_at(&tmp, "grok"), "agent状态 会话上报");
+        assert_eq!(
+            hooked_aliases_at(&tmp, "grok"),
+            "agent状态 token护栏 会话上报"
+        );
         // 坏损 JSON 零命中不炸。
         std::fs::write(claude_dir.join("settings.json"), "{ not json").unwrap();
         assert_eq!(hooked_aliases_at(&tmp, "claude"), "");
