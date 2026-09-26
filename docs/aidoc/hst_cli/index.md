@@ -26,6 +26,7 @@ docs/research 与 docs/adr；输出信封契约见 fmtio 模块文档。
 - [`secretguard`](secretguard.md): 的密钥拦截闸面（细则见模块文档与集成测试）。
 - [`shim`](shim.md): shim 三形态自包含状态写入器：cmd/ps1/sh 加 grok 包装（D27/D28/D39）。
 - [`statusline`](statusline.md): `hst statusline`：四家状态栏写入面幂等合并与拆段拼装（S025/D18/D42 至 D51）。
+- [`statusrender`](statusrender.md): 状态栏原生渲染引擎（ADR-0010、REQ-026）：hst statusline render 子命令
 - [`trace`](trace.md): trace 六视图：联邦读四家原生会话库归一检索（P0013/P0014，D19）。
 - [`update`](update.md): `hst self update`：dev 滚动与 stable 正式版自更新、镜像腿与缺省回退（S028/D16/D48）。
 - [`verify`](verify.md): `hst agents verify`：四家无头验收两层判据（D17/S033）。

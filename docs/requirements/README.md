@@ -29,3 +29,4 @@
 | REQ-023 | implemented | must | herdr通道loop即时生效面 | herdrrpc 加 arm 单测加假服务器集成加真 socket ping 实弹（ADR-0009） |
 | REQ-024 | implemented | must | 状态栏第三行loop与goal专属行 | statusline 单测四件改加加实弹三行渲染（goal 截断放宽 60） |
 | REQ-025 | implemented | must | 状态栏第四行goalmode专属行 | goalmode 四态单测加实弹（105MB 真机 transcript 倒序分块扫描） |
+| REQ-026 | implemented | must | 状态栏渲染原生化与hookstate专属行 | statusrender 单测三件加 statusline plumbing 加实弹（第5行渲染、0.217s 对 0.95s、BYTE-IDENTICAL diff 空；ADR-0010） |

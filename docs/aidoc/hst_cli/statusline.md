@@ -15,14 +15,18 @@ agent 宿主 shell（macOS 走 ps 兜底）。
 ## Functions
 
 - `custom_active` — 自备脚本当前是否在场（kv 面 statusline.custom 用）。
+- `default_icon` — 内嵌默认图标（码位与拆段前脚本逐字对齐；hst 机器人宽字形跟两空格，
+- `default_template` — 内嵌默认模板（D18）。键 = 段 id；`context-ascii` 是 grok 的结构差异项
 - `deploy_custom_script` — # Errors
 - `deploy_script` — # Errors
+- `effective_orders_pub` — 段序生效值（D42 三行、D44 曾默认两行、REQ-024 起默认三行：第三行
 - `merge_claude` — # Errors
 - `merge_codex` — # Errors
 - `merge_grok` — # Errors
 - `merge_kimi` — # Errors
 - `pwsh_on_path` — pwsh is the statusline runtime on every platform. Advisory only: the
 - `read_config` — # Errors
+- `read_config_pub` — 原生渲染引擎（ADR-0010）复用口：等价 read_config。
 - `restore_builtin_script` — # Errors
 
 ## Types

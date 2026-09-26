@@ -115,11 +115,14 @@ enum Commands {
         #[command(subcommand)]
         cmd: HookCmd,
     },
-    /// 配置四家状态栏（幂等：claude/codex/kimi/grok 各自配置面，脚本随 hst 释放）
+    /// 配置四家状态栏（幂等：claude/codex/kimi/grok 各自配置面）；ADR-0010 起渲染走 hst 二进制原生子命令
     Statusline {
         /// 指定 agent（claude/codex/kimi/grok）；缺省四家都配
         #[arg(value_name = "名")]
         names: Vec<String>,
+        /// 原生渲染一次（ADR-0010/REQ-026）：stdin 喂 agent JSON，stdout 出状态行；供 statusLine 配置指向
+        #[arg(long, conflicts_with_all = ["example", "script", "builtin"])]
+        render: bool,
         /// 打印 ~/.hst/statusline.toml 定制示例模板后退出（D18）
         #[arg(long)]
         example: bool,
@@ -641,7 +644,19 @@ fn run() -> Result<(), String> {
             example,
             script,
             builtin,
-        } => cmd_agents_statusline(names, example, script, builtin),
+            render,
+        } => {
+            if render {
+                let agent = names.first().map(String::as_str).unwrap_or("agent");
+                let mut buf = Vec::new();
+                std::io::Read::read_to_end(&mut std::io::stdin(), &mut buf)
+                    .map_err(|e| e.to_string())?;
+                let out = hst::statusrender::render(&buf, agent)?;
+                print!("{out}");
+                return Ok(());
+            }
+            cmd_agents_statusline(names, example, script, builtin)
+        }
         Commands::SelfGroup { cmd } => match cmd {
             SelfSub::Update {
                 repo,

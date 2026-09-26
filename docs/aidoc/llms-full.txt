@@ -27,6 +27,7 @@ docs/research 与 docs/adr；输出信封契约见 fmtio 模块文档。
 - [`secretguard`](secretguard.md): 的密钥拦截闸面（细则见模块文档与集成测试）。
 - [`shim`](shim.md): shim 三形态自包含状态写入器：cmd/ps1/sh 加 grok 包装（D27/D28/D39）。
 - [`statusline`](statusline.md): `hst statusline`：四家状态栏写入面幂等合并与拆段拼装（S025/D18/D42 至 D51）。
+- [`statusrender`](statusrender.md): 状态栏原生渲染引擎（ADR-0010、REQ-026）：hst statusline render 子命令
 - [`trace`](trace.md): trace 六视图：联邦读四家原生会话库归一检索（P0013/P0014，D19）。
 - [`update`](update.md): `hst self update`：dev 滚动与 stable 正式版自更新、镜像腿与缺省回退（S028/D16/D48）。
 - [`verify`](verify.md): `hst agents verify`：四家无头验收两层判据（D17/S033）。
@@ -511,14 +512,18 @@ agent 宿主 shell（macOS 走 ps 兜底）。
 ## Functions
 
 - `custom_active` — 自备脚本当前是否在场（kv 面 statusline.custom 用）。
+- `default_icon` — 内嵌默认图标（码位与拆段前脚本逐字对齐；hst 机器人宽字形跟两空格，
+- `default_template` — 内嵌默认模板（D18）。键 = 段 id；`context-ascii` 是 grok 的结构差异项
 - `deploy_custom_script` — # Errors
 - `deploy_script` — # Errors
+- `effective_orders_pub` — 段序生效值（D42 三行、D44 曾默认两行、REQ-024 起默认三行：第三行
 - `merge_claude` — # Errors
 - `merge_codex` — # Errors
 - `merge_grok` — # Errors
 - `merge_kimi` — # Errors
 - `pwsh_on_path` — pwsh is the statusline runtime on every platform. Advisory only: the
 - `read_config` — # Errors
+- `read_config_pub` — 原生渲染引擎（ADR-0010）复用口：等价 read_config。
 - `restore_builtin_script` — # Errors
 
 ## Types
@@ -528,6 +533,24 @@ agent 宿主 shell（macOS 走 ps 兜底）。
 ## Constants
 
 - `EXAMPLE_TOML` — `hst statusline --example` 打印的带注释全量示例（存到
+
+
+<!-- hst_cli/statusrender.md -->
+# hst-cli::statusrender
+
+ 状态栏原生渲染引擎（ADR-0010、REQ-026）：hst statusline render 子命令
+ 的 Rust 实现，退役 pwsh 脚本载体。
+ 状态栏原生渲染引擎（ADR-0010、REQ-026）：`hst statusline render <agent>`
+ 读 stdin agent JSON 出状态行，契约与退役中的 pwsh 脚本逐字对齐。复用
+ 单源：段序与模板配置走 statusline.rs 的 StatuslineConfig 加
+ effective_orders；loop/goal 探针走 loopmgmt；goalmode 倒序分块扫描
+ 本模块 Rust 形。性能面：无 pwsh 冷启动（约 300ms）加 memmap 倒扫
+（105MB transcript 毫秒级）。已知边界：tools 段（显式选用面）首版
+ 渲染为空，见 REQ-026。
+
+## Functions
+
+- `render` — 渲染入口：stdin 全量字节加 agent 名，出多行状态串（行间 `\n`）。
 
 
 <!-- hst_cli/trace.md -->

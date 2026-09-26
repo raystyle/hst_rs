@@ -1055,6 +1055,8 @@ fn segment_block(id: &str) -> Result<&'static str, String> {
         "loop" => SEG_LOOP,
         "goal" => SEG_GOAL,
         "goalmode" => SEG_GOALMODE,
+        // REQ-026：hookstate 段原生渲染独占（pwsh 弃用期不出，行隐）。
+        "hookstate" => "",
         "git" => SEG_GIT,
         "clock" => SEG_CLOCK,
         "package" => SEG_PACKAGE,
@@ -1094,9 +1096,23 @@ pub(crate) const DEFAULT_SEGMENTS3: &[&str] = &["loop"];
 /// 隐藏回三行（零噪声）。`segments4` 键缺省回落此序。
 pub(crate) const DEFAULT_SEGMENTS4: &[&str] = &["goalmode"];
 
+/// 默认第五行 = hookstate 专属行（REQ-026，用户令 2026-09-26）：hook
+/// 通道状态独占一行（原生渲染独占段，pwsh 弃用期不出）；状态文件不在
+/// 场整行隐藏。`segments5` 键缺省回落此序。
+pub(crate) const DEFAULT_SEGMENTS5: &[&str] = &["hookstate"];
+
 /// 内嵌默认模板（D18）。键 = 段 id；`context-ascii` 是 grok 的结构差异项
 /// （nerd 版带 used/window 括号对，ascii 版只有百分比加 ctx 后缀）。
 /// 各段可用占位符见 `hst statusline --example`；git 段默认前导空格在 branch / flags 变量里。
+/// 原生渲染引擎取默认模板（单一权威表）。
+pub fn default_template(key: &str) -> String {
+    DEFAULT_TEMPLATES
+        .iter()
+        .find(|(k, _)| *k == key)
+        .map(|(_, v)| v.to_string())
+        .unwrap_or_default()
+}
+
 const DEFAULT_TEMPLATES: &[(&str, &str)] = &[
     ("shell", "{icon}{name}"),
     ("dir", "{path}"),
@@ -1117,6 +1133,8 @@ const DEFAULT_TEMPLATES: &[(&str, &str)] = &[
     ("goal-ascii", "{goal}"),
     ("goalmode", "{icon}  {text}"),
     ("goalmode-ascii", "{text}"),
+    ("hookstate", "{icon}hook {state}"),
+    ("hookstate-ascii", "hook {state}"),
     ("git", "{branch}{flags}"),
     ("clock", "{icon}{datetime}"),
     ("package", "{icon}{version}"),
@@ -1132,6 +1150,15 @@ const DEFAULT_TEMPLATES: &[(&str, &str)] = &[
 /// 内嵌默认图标（码位与拆段前脚本逐字对齐；hst 机器人宽字形跟两空格，
 /// D45 前键名 oma）。
 /// Grok ASCII 路径图标恒空串（M046）。
+/// 原生渲染引擎取默认图标（单一权威表）。
+pub fn default_icon(key: &str) -> String {
+    DEFAULT_ICONS
+        .iter()
+        .find(|(k, _)| *k == key)
+        .map(|(_, v)| v.to_string())
+        .unwrap_or_default()
+}
+
 const DEFAULT_ICONS: &[(&str, &str)] = &[
     ("shell-pwsh", "\u{ebc7} "),
     ("shell", "\u{ea85} "),
@@ -1145,6 +1172,7 @@ const DEFAULT_ICONS: &[(&str, &str)] = &[
     ("loop", "\u{f021}"),
     ("goal", "\u{f140} "),
     ("goalmode", "\u{f140}"),
+    ("hookstate", "\u{f0f1}"),
     ("package", "\u{f03d7} "),
     ("python", "\u{f0320} "),
     ("rust", "\u{f1617} "),
@@ -1313,6 +1341,7 @@ pub(crate) fn default_statusline_ps1() -> String {
             DEFAULT_SEGMENTS2,
             DEFAULT_SEGMENTS3,
             DEFAULT_SEGMENTS4,
+            DEFAULT_SEGMENTS5,
         ],
         &StatuslineConfig::default(),
     )
@@ -1335,6 +1364,9 @@ pub struct StatuslineConfig {
     /// `segments4`（REQ-025）：第四行（goalmode 专属行）段 id 数组；键
     /// 缺省回落 `DEFAULT_SEGMENTS4`，空数组 = 不出第四行。
     pub segments4: Option<Vec<String>>,
+    /// `segments5`（REQ-026）：第五行（hookstate 专属行）段 id 数组；键
+    /// 缺省回落 `DEFAULT_SEGMENTS5`，空数组 = 不出第五行。
+    pub segments5: Option<Vec<String>>,
     /// `single_line`（D40）：退单排开关（两排段并一行；默认 false 双排）。
     /// kimi / grok 的多行渲染未实证时的逃生门。
     pub single_line: bool,
@@ -1358,6 +1390,15 @@ pub(crate) fn config_path(home: &Path) -> PathBuf {
 /// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
 /// 读用户定制配置；文件不存在回落全默认（不是错误）。
 pub fn read_config(home: &Path) -> Result<StatuslineConfig, String> {
+    read_config_pub_alias(home)
+}
+
+/// 原生渲染引擎（ADR-0010）复用口：等价 read_config。
+pub fn read_config_pub(home: &Path) -> Result<StatuslineConfig, String> {
+    read_config_pub_alias(home)
+}
+
+fn read_config_pub_alias(home: &Path) -> Result<StatuslineConfig, String> {
     let p = config_path(home);
     if !p.exists() {
         return Ok(StatuslineConfig::default());
@@ -1402,6 +1443,14 @@ fn parse_config(text: &str) -> Result<StatuslineConfig, String> {
         }
         cfg.segments4 = Some(out);
     }
+    if let Some(segs) = v.get("segments5") {
+        let arr = segs.as_array().ok_or("segments5 必须是段 id 字符串数组")?;
+        let mut out = Vec::with_capacity(arr.len());
+        for s in arr {
+            out.push(s.as_str().ok_or("segments5 元素必须是字符串")?.to_string());
+        }
+        cfg.segments5 = Some(out);
+    }
     if let Some(sl) = v.get("single_line") {
         cfg.single_line = sl.as_bool().ok_or("single_line 必须是布尔值")?;
     }
@@ -1440,15 +1489,23 @@ fn parse_config(text: &str) -> Result<StatuslineConfig, String> {
 /// 行键（segments2 或 segments3）时，未写的行**补默认并去重**（显式段
 /// id 从默认行剔除，防跨行重复硬错）。显式写的行不去重（跨行重复仍由拼
 /// 装器拒）。
+/// 原生渲染引擎（ADR-0010）复用口：等价 effective_orders。
+pub fn effective_orders_pub(cfg: &StatuslineConfig) -> Result<Vec<Vec<&str>>, String> {
+    effective_orders(cfg)
+}
+
 fn effective_orders(cfg: &StatuslineConfig) -> Result<Vec<Vec<&str>>, String> {
     let rows = [
         (&cfg.segments, DEFAULT_SEGMENTS),
         (&cfg.segments2, DEFAULT_SEGMENTS2),
         (&cfg.segments3, DEFAULT_SEGMENTS3),
         (&cfg.segments4, DEFAULT_SEGMENTS4),
+        (&cfg.segments5, DEFAULT_SEGMENTS5),
     ];
-    let any_later_row_written =
-        cfg.segments2.is_some() || cfg.segments3.is_some() || cfg.segments4.is_some();
+    let any_later_row_written = cfg.segments2.is_some()
+        || cfg.segments3.is_some()
+        || cfg.segments4.is_some()
+        || cfg.segments5.is_some();
     // 老配置形态 = 用户写过 segments 且没写任何后续行键 → 后续缺省行不补
     // （原样单行升级）。新装（segments 也缺省）与写过后续键的配置照常补
     // 默认（去重）。
@@ -1474,6 +1531,14 @@ fn effective_orders(cfg: &StatuslineConfig) -> Result<Vec<Vec<&str>>, String> {
         })
         .filter(|row| !row.is_empty())
         .collect())
+}
+
+/// 部署方 hst 二进制绝对路径（ADR-0010 statusline 命令锚）：current_exe
+/// 失败回落裸 `hst`（PATH 形）。
+pub(crate) fn hst_bin_path() -> String {
+    std::env::current_exe()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|_| "hst".to_string())
 }
 
 pub(crate) fn script_path(home: &Path) -> PathBuf {
@@ -1502,7 +1567,9 @@ fn grok_command_line(script_str: &str) -> String {
     }
     #[cfg(not(windows))]
     {
-        format!("pwsh -NoProfile -File \"{script_str}\" grok")
+        // ADR-0010：grok 同指原生渲染（部署方绝对路径）。
+        let _ = script_str;
+        format!("\"{}\" statusline --render grok", hst_bin_path())
     }
 }
 
@@ -1614,10 +1681,11 @@ pub fn merge_claude(home: &Path, user_home: &Path) -> Result<String, String> {
     } else {
         json!({})
     };
-    let cmd = format!(
-        "pwsh -NoProfile -File \"{}\" claude",
-        script.display().to_string().replace('\\', "/")
-    );
+    // ADR-0010：原生渲染（hst 二进制 stdin/stdout），pwsh 脚本弃用期保留。
+    // 命令用部署方 hst 绝对路径（PATH 上旧版 hst 不带 --render 面；
+    // stable v2.9.1 起全体带面后可回 hook 先例的裸 PATH 形）。
+    let _ = script;
+    let cmd = format!("\"{}\" statusline --render claude", hst_bin_path());
     v["statusLine"] = json!({ "type": "command", "command": cmd });
     let body = serde_json::to_string_pretty(&v).map_err(|e| e.to_string())? + "\n";
     // D53（codex F2）：内容判等幂等（init 重跑不搅 mtime）。
@@ -1658,7 +1726,9 @@ fn apply_kimi_status_line(toml: &mut toml::Value, script_str: &str) -> Result<bo
         toml::Value::Table(t) => t,
         _ => return Err("kimi [status_line] is not a table".into()),
     };
-    let command = format!("pwsh -NoProfile -File \"{script_str}\" kimi");
+    // ADR-0010：kimi 同指原生渲染（部署方绝对路径）。
+    let _ = script_str;
+    let command = format!("\"{}\" statusline --render kimi", hst_bin_path());
     let changed = sl.get("command").and_then(|v| v.as_str()) != Some(command.as_str());
     if changed {
         sl.insert("command".into(), toml::Value::String(command));
@@ -1745,6 +1815,7 @@ segments = ["shell", "dir", "git", "package", "python", "rust", "node", "zig", "
 segments2 = ["hst", "model", "context", "duration"]
 segments3 = ["loop"]
 segments4 = ["goalmode"]
+segments5 = ["hookstate"]
 
 # 段内模板（[template]）：每段一条格式串；`<段>-ascii` 是 grok 的 ASCII 形
 #（缺省同用 nerd 模板、图标恒空）。可用占位符：
@@ -2045,6 +2116,7 @@ mod tests {
                 DEFAULT_SEGMENTS2,
                 DEFAULT_SEGMENTS3,
                 DEFAULT_SEGMENTS4,
+                DEFAULT_SEGMENTS5,
             ],
             &cfg,
         )
@@ -2060,6 +2132,7 @@ mod tests {
                 DEFAULT_SEGMENTS2,
                 DEFAULT_SEGMENTS3,
                 DEFAULT_SEGMENTS4,
+                DEFAULT_SEGMENTS5,
             ],
             &cfg,
         )
@@ -3497,10 +3570,8 @@ mod tests {
         }
         #[cfg(not(windows))]
         {
-            assert_eq!(
-                cmd,
-                "pwsh -NoProfile -File \"C:/Users/ray/.ohmyagents/statusline/hst-statusline.ps1\" grok"
-            );
+            // ADR-0010：grok 指原生渲染（裸 PATH 形）。
+            assert!(cmd.ends_with("statusline --render grok"), "{cmd}");
         }
     }
 
@@ -3531,10 +3602,9 @@ mod tests {
         let kimi_t = kimi.as_table().unwrap();
         assert_eq!(kimi_t.get("theme").unwrap().as_str(), Some("dark"));
         let sl = kimi_t.get("status_line").unwrap().as_table().unwrap();
-        assert_eq!(
-            sl.get("command").unwrap().as_str(),
-            Some("pwsh -NoProfile -File \"C:/x/hst-statusline.ps1\" kimi")
-        );
+        // ADR-0010：kimi 指原生渲染。
+        let kc = sl.get("command").and_then(|v| v.as_str()).unwrap_or("");
+        assert!(kc.ends_with("statusline --render kimi"), "{kc}");
         assert_eq!(
             sl.get("items").unwrap().as_array().unwrap().len(),
             1,
@@ -3557,10 +3627,10 @@ mod tests {
         assert_eq!(sl.get("type").unwrap().as_str(), Some("command"));
         let grok_cmd = sl.get("command").unwrap().as_str().unwrap();
         assert_eq!(grok_cmd, grok_command_line("C:/x/hst-statusline.ps1"));
-        #[cfg(windows)]
-        assert_eq!(grok_cmd, "C:/x/hst-statusline-grok.cmd");
-        #[cfg(not(windows))]
-        assert!(grok_cmd.ends_with("\" grok"));
+        assert!(
+            grok_cmd.ends_with("statusline --render grok"),
+            "ADR-0010 native render: {grok_cmd}"
+        );
     }
 
     #[test]

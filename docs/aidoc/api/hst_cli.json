@@ -793,6 +793,16 @@
       "docs": "自备脚本当前是否在场（kv 面 statusline.custom 用）。"
     },
     {
+      "path": "hst_cli::statusline::default_icon",
+      "kind": "function",
+      "docs": "内嵌默认图标（码位与拆段前脚本逐字对齐；hst 机器人宽字形跟两空格，\nD45 前键名 oma）。\nGrok ASCII 路径图标恒空串（M046）。\n原生渲染引擎取默认图标（单一权威表）。"
+    },
+    {
+      "path": "hst_cli::statusline::default_template",
+      "kind": "function",
+      "docs": "内嵌默认模板（D18）。键 = 段 id；`context-ascii` 是 grok 的结构差异项\n（nerd 版带 used/window 括号对，ascii 版只有百分比加 ctx 后缀）。\n各段可用占位符见 `hst statusline --example`；git 段默认前导空格在 branch / flags 变量里。\n原生渲染引擎取默认模板（单一权威表）。"
+    },
+    {
       "path": "hst_cli::statusline::deploy_custom_script",
       "kind": "function",
       "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n部署用户自备脚本（D18 整脚本替换）：拷到部署位，agent 配置命令行不动\n（claude / kimi / grok 调用约定不变：首参 agent 名，stdin 喂 agent JSON，\nstdout 单行状态栏）；marker 记源路径，此后无 `--script` 的重跑跳过内嵌\n覆盖。codex 无脚本面（M045），对 codex 只有 `[codex] items` 生效。"
@@ -801,6 +811,11 @@
       "path": "hst_cli::statusline::deploy_script",
       "kind": "function",
       "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n释放状态栏脚本（幂等覆写）。按 `~/.hst/statusline.toml` 生成时烘焙：\nsegments 键控段序与显隐，缺省回落内嵌默认（D18）。自备脚本标记在场时\n跳过覆写（只保 grok .cmd 壳，见 D18 整脚本替换）。"
+    },
+    {
+      "path": "hst_cli::statusline::effective_orders_pub",
+      "kind": "function",
+      "docs": "段序生效值（D42 三行、D44 曾默认两行、REQ-024 起默认三行：第三行\nloop/goal 专属，无任务时行空即剔除）：各行取用户清单或默认序（未知与\n跨行重复 id 由拼装器拒，空行由拼装器剔除）。**老配置原样升级语义**\n（codex D42 评审 F1/H1 两轮收口）：用户显式写过 `segments` 而未写任何\n后续行键时，未写的行**不补默认**（D18 老单排与 v1.1.0 双排两种老形态\n原样升级，行为零漂移；新装用户键全缺省得两行默认）；用户写过任一后续\n行键（segments2 或 segments3）时，未写的行**补默认并去重**（显式段\nid 从默认行剔除，防跨行重复硬错）。显式写的行不去重（跨行重复仍由拼\n装器拒）。\n原生渲染引擎（ADR-0010）复用口：等价 effective_orders。"
     },
     {
       "path": "hst_cli::statusline::merge_claude",
@@ -833,9 +848,24 @@
       "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n读用户定制配置；文件不存在回落全默认（不是错误）。"
     },
     {
+      "path": "hst_cli::statusline::read_config_pub",
+      "kind": "function",
+      "docs": "原生渲染引擎（ADR-0010）复用口：等价 read_config。"
+    },
+    {
       "path": "hst_cli::statusline::restore_builtin_script",
       "kind": "function",
       "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n状态栏的还原内嵌脚本面（细则见模块文档与集成测试）。"
+    },
+    {
+      "path": "hst_cli::statusrender",
+      "kind": "module",
+      "docs": " 状态栏原生渲染引擎（ADR-0010、REQ-026）：hst statusline render 子命令\n 的 Rust 实现，退役 pwsh 脚本载体。\n 状态栏原生渲染引擎（ADR-0010、REQ-026）：`hst statusline render <agent>`\n 读 stdin agent JSON 出状态行，契约与退役中的 pwsh 脚本逐字对齐。复用\n 单源：段序与模板配置走 statusline.rs 的 StatuslineConfig 加\n effective_orders；loop/goal 探针走 loopmgmt；goalmode 倒序分块扫描\n 本模块 Rust 形。性能面：无 pwsh 冷启动（约 300ms）加 memmap 倒扫\n（105MB transcript 毫秒级）。已知边界：tools 段（显式选用面）首版\n 渲染为空，见 REQ-026。"
+    },
+    {
+      "path": "hst_cli::statusrender::render",
+      "kind": "function",
+      "docs": "渲染入口：stdin 全量字节加 agent 名，出多行状态串（行间 `\\n`）。\n\n# Errors\n\nstdin 不可读、配置坏损或渲染内部错误时返回 `String`。"
     },
     {
       "path": "hst_cli::trace",

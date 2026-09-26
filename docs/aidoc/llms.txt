@@ -22,6 +22,7 @@
 - [hst-cli::secretguard](hst_cli/secretguard.md): 的密钥拦截闸面（细则见模块文档与集成测试）。
 - [hst-cli::shim](hst_cli/shim.md): shim 三形态自包含状态写入器：cmd/ps1/sh 加 grok 包装（D27/D28/D39）。
 - [hst-cli::statusline](hst_cli/statusline.md): `hst statusline`：四家状态栏写入面幂等合并与拆段拼装（S025/D18/D42 至 D51）。
+- [hst-cli::statusrender](hst_cli/statusrender.md): 状态栏原生渲染引擎（ADR-0010、REQ-026）：hst statusline render 子命令
 - [hst-cli::trace](hst_cli/trace.md): trace 六视图：联邦读四家原生会话库归一检索（P0013/P0014，D19）。
 - [hst-cli::update](hst_cli/update.md): `hst self update`：dev 滚动与 stable 正式版自更新、镜像腿与缺省回退（S028/D16/D48）。
 - [hst-cli::verify](hst_cli/verify.md): `hst agents verify`：四家无头验收两层判据（D17/S033）。

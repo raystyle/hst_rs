@@ -40,6 +40,9 @@ pub mod secretguard;
 pub mod shim;
 /// `hst statusline`：四家状态栏写入面幂等合并与拆段拼装（S025/D18/D42 至 D51）。
 pub mod statusline;
+/// 状态栏原生渲染引擎（ADR-0010、REQ-026）：hst statusline render 子命令
+/// 的 Rust 实现，退役 pwsh 脚本载体。
+pub mod statusrender;
 /// trace 六视图：联邦读四家原生会话库归一检索（P0013/P0014，D19）。
 pub mod trace;
 /// `hst self update`：dev 滚动与 stable 正式版自更新、镜像腿与缺省回退（S028/D16/D48）。
