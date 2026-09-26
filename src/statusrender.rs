@@ -462,6 +462,22 @@ fn seg_shell(ctx: &Ctx) -> Option<String> {
     ))
 }
 
+/// porcelain 头行 ahead/behind 标记（评审三轮 F：token 带 `]` 尾随
+/// `2]` 直接 parse 恒败按 0 处理，ahead/behind 标记整体丢失；取 token
+/// 前导数字段再 parse，pwsh `ahead (\d+)` 同口径）。nerd 形重复箭头字
+/// 形、ascii 形正负加数字。
+fn ahead_behind_of(hdr: &str, key: &str, nerd: bool, glyph: &str, sign: char) -> String {
+    let Some(tok) = hdr.split(key).nth(1) else {
+        return String::new();
+    };
+    let digits: String = tok.chars().take_while(|c| c.is_ascii_digit()).collect();
+    let n: usize = digits.parse().unwrap_or(0);
+    if nerd {
+        return glyph.repeat(n);
+    }
+    (n > 0).then(|| format!("{sign}{n}")).unwrap_or_default()
+}
+
 fn seg_git(ctx: &Ctx) -> Option<String> {
     let mut branch = s(ctx.d, &["worktree", "branch"]);
     if branch.is_empty() {
@@ -492,28 +508,8 @@ fn seg_git(ctx: &Ctx) -> Option<String> {
                     }
                 }
             }
-            if let Some(n) = l
-                .split("ahead ")
-                .nth(1)
-                .and_then(|t| t.split([' ', ',']).next())
-            {
-                if ctx.nerd {
-                    ahead_behind.push_str(&"\u{21e1}".repeat(n.parse::<usize>().unwrap_or(0)));
-                } else {
-                    ahead_behind.push_str(&format!("+{n}"));
-                }
-            }
-            if let Some(n) = l
-                .split("behind ")
-                .nth(1)
-                .and_then(|t| t.split([' ', ',']).next())
-            {
-                if ctx.nerd {
-                    ahead_behind.push_str(&"\u{21e3}".repeat(n.parse::<usize>().unwrap_or(0)));
-                } else {
-                    ahead_behind.push_str(&format!("-{n}"));
-                }
-            }
+            ahead_behind.push_str(&ahead_behind_of(l, "ahead ", ctx.nerd, "\u{21e1}", '+'));
+            ahead_behind.push_str(&ahead_behind_of(l, "behind ", ctx.nerd, "\u{21e3}", '-'));
             continue;
         }
         let b = l.as_bytes();
@@ -1400,6 +1396,37 @@ mod tests {
         assert!(matches!(scan_markers(paused)[0].kind, MarkerKind::Paused));
         let clear = r#"{"role":"user","content":"/goal clear"}"#;
         assert!(matches!(scan_markers(clear)[0].kind, MarkerKind::Clear));
+    }
+
+    #[test]
+    fn git_ahead_behind_and_ascii_forms() {
+        // 评审三轮 F 回归锁：token 带 `]` 尾（"2]"）直接 parse 恒败，
+        // ahead/behind 标记整体丢失；前导数字段提取后三形俱全。
+        let hdr = "## main...origin/main [ahead 2]";
+        assert_eq!(
+            ahead_behind_of(hdr, "ahead ", true, "\u{21e1}", '+'),
+            "\u{21e1}\u{21e1}"
+        );
+        assert_eq!(ahead_behind_of(hdr, "behind ", true, "\u{21e3}", '-'), "");
+        assert_eq!(ahead_behind_of(hdr, "ahead ", false, "\u{21e1}", '+'), "+2");
+        let hdr = "## main...origin/main [behind 3, ahead 1]";
+        assert_eq!(
+            ahead_behind_of(hdr, "behind ", true, "\u{21e3}", '-'),
+            "\u{21e3}\u{21e3}\u{21e3}"
+        );
+        assert_eq!(
+            ahead_behind_of(hdr, "ahead ", true, "\u{21e1}", '+'),
+            "\u{21e1}"
+        );
+        assert_eq!(
+            ahead_behind_of(hdr, "behind ", false, "\u{21e3}", '-'),
+            "-3"
+        );
+        let hdr = "## main...origin/main";
+        assert_eq!(ahead_behind_of(hdr, "ahead ", true, "\u{21e1}", '+'), "");
+        // 数字缺失的坏形按 0 处理不出标记。
+        let hdr = "## main...origin/main [ahead x]";
+        assert_eq!(ahead_behind_of(hdr, "ahead ", true, "\u{21e1}", '+'), "");
     }
 
     #[test]
