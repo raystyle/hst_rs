@@ -548,6 +548,7 @@ const PS1_LOOPPROBE: &str = r#"
 # ── loop/goal 探针（REQ-019）：本会话 durable 定时任务 ──
 $loopCount = 0
 $loopCadence = ''
+$loopEvery = ''
 $loopGoalText = ''
 $loopSid2 = $null
 if ($d) {
@@ -581,6 +582,7 @@ if ($loopSid2) {
                     } elseif ($lc -match '^(\d{1,2})\s+(\d{1,2})\s+\*\s+\*\s+\*$') {
                         $loopCadence = ('@{0:d2}:{1:d2}' -f [int]$Matches[2], [int]$Matches[1])
                     }
+                    $loopEvery = $loopCadence -replace '^×', ''
                     $lg = "$($newest.prompt)"
                     $lg = ($lg -replace '\r?\n', ' ').Trim()
                     if ($lg.Length -gt 60) {
@@ -628,11 +630,13 @@ if ($lpDir -and $loopSid2) {
             $gmHaveState = $false
             $gmHaveTxt = $false
             # 顶层结构锚（假阳二轮回填）：真通知是顶层 user content 字符串
-            # （未转义引号与单层转义换行）；会话内任何引文（思考、工具
-            # 输入、读屏、文件变更提醒）在 transcript 里都被再编码一层
-            # （\" 与 \\n），全链锚永不命中——本仓自身 49 处引文与
-            # 文件提醒回显实证。
-            $gmr = [regex]'"role":"user","content":"<task-notification>\\n<summary>Goal check-in:[^"]*</summary>\\n</task-notification>\\n<system-reminder>\\nGoal check-in: «([^»]+)» is still active|"type":"system","subtype":"informational","content":"Goal paused|"role":"user","content":"/goal (?:clear|off|stop)'
+            # （未转义引号与单层转义换行）；会话内字符串值内嵌的引文
+            # （思考、工具结果、读屏、文件变更提醒）被再编码一层（\" 与
+            # \\n）不命中。已知边界：tool_use.input 等嵌套对象载体不被
+            # 再编码保护（评审 G1）；queue-operation 入队副本不认（交付
+            # 时刻态更新，秒级滞后）。
+            # 真交付两形（评审真档实证 2026-09-26）：全链形与短形。
+            $gmr = [regex]'"role":"user","content":"<task-notification>\\n<summary>Goal check-in:[^"]*</summary>\\n</task-notification>\\n<system-reminder>\\nGoal check-in: «([^»]+)» is still active|"role":"user","content":"Goal check-in: «([^»]+)» is still active|"type":"system","subtype":"informational","content":"Goal paused|"role":"user","content":"/goal (?:clear|off|stop)'
             $gmFs = [System.IO.File]::Open($gpFile, 'Open', 'Read', 'ReadWrite')
             try {
                 # PowerShell 变量名大小写不敏感：尺寸常量与解码串必须
@@ -667,13 +671,19 @@ if ($lpDir -and $loopSid2) {
                     for ($gi = $gmMs.Count - 1; $gi -ge 0; $gi--) {
                         $m = $gmMs[$gi]
                         if (-not $gmHaveState) {
-                            if ($m.Value -like '"role":"user","content":"<task-notification>*') { $gmLast = 'active'; $gmHaveState = $true }
+                            if ($m.Value -like '"role":"user","content":"<task-notification>*' -or $m.Value -like '"role":"user","content":"Goal check-in:*') { $gmLast = 'active'; $gmHaveState = $true }
                             elseif ($m.Value -like '"type":"system","subtype*') { $gmLast = 'paused'; $gmHaveState = $true }
                             elseif ($m.Value -like '"role":"user","content":"/goal*') { $gmLast = ''; $gmTxt = ''; $gmHaveState = $true; $gmHaveTxt = $true }
                         }
-                        if (-not $gmHaveTxt -and $m.Groups[1].Success) {
-                            $gmTxt = $m.Groups[1].Value
-                            $gmHaveTxt = $true
+                        if (-not $gmHaveTxt) {
+                            # 双分支双捕获组（全链形 G1、短形 G2），取命中者。
+                            if ($m.Groups[1].Success) {
+                                $gmTxt = $m.Groups[1].Value
+                                $gmHaveTxt = $true
+                            } elseif ($m.Groups[2].Success) {
+                                $gmTxt = $m.Groups[2].Value
+                                $gmHaveTxt = $true
+                            }
                         }
                     }
                 }
@@ -700,7 +710,7 @@ if ($lpDir -and $loopSid2) {
 const SEG_LOOP: &str = r#"
 # ── loop 段：本会话定时任务原始参数文本（REQ-019、REQ-025 风格统一）──
 if ($loopCount -gt 0) {
-    $lpTxt = ApplyFmt (Tmpl 'loop') @{ icon = (Ico 'loop'); count = [string]$loopCount; cadence = $loopCadence; goal = $loopGoalText }
+    $lpTxt = ApplyFmt (Tmpl 'loop') @{ icon = (Ico 'loop'); count = [string]$loopCount; cadence = $loopCadence; every = $loopEvery; goal = $loopGoalText }
     $lp = Seg $lpTxt '38;5;114'
     if ($lp) { $parts.Add($lp) }
 }
@@ -720,7 +730,7 @@ if ($loopGoalText) {
 "#;
 
 /// goalmode 段（REQ-025 第四行专属，风格统一）：`/goal` Goal Mode 原始
-/// 参数文本（`goal 文本` 形，态不入默认显示，$gmState 仍产出供自配）；探针
+/// 参数文本（icon 加文本形，态不入默认显示，$gmState 仍产出供自配）；探针
 /// `$gmText` 空时整段隐藏（无 goal 会话零噪声）。
 const SEG_GOALMODE: &str = r#"
 # ── goalmode 段：/goal 原始参数文本（REQ-025 风格统一，态不入显示）──
@@ -1073,8 +1083,8 @@ pub(crate) const DEFAULT_SEGMENTS2: &[&str] = &["hst", "model", "context", "dura
 
 /// 默认第三行 = loop 专属行（REQ-024 翻转 D44 默认空；REQ-025 风格
 /// 统一后任务 prompt 文本并入 loop 行，goal 段退可选段）：本会话
-/// durable 定时任务原始参数文本（`loop 文本` 形，用户令 2026-09-26 去
-/// 冒号）；无任务时整行剔除回两行布局（零噪声不变）。tools / mcp /
+/// durable 定时任务循环时间参数加原始参数文本（`节拍 文本` 形，用户令
+/// 2026-09-26 第四轮收敛）；无任务时整行剔除回两行布局（零噪声不变）。tools / mcp /
 /// tokens 与 goal 段仍可显式写 `segments3` 换位。`segments3` 键缺省回
 /// 落此序。
 pub(crate) const DEFAULT_SEGMENTS3: &[&str] = &["loop"];
@@ -1101,12 +1111,12 @@ const DEFAULT_TEMPLATES: &[(&str, &str)] = &[
     ("tokens", "{icon}{used}/{window}"),
     ("tokens-ascii", "{used}/{window}"),
     ("duration", "{icon}{duration}"),
-    ("loop", "{icon}loop {goal}"),
-    ("loop-ascii", "loop {goal}"),
+    ("loop", "{icon} {every} / {goal}"),
+    ("loop-ascii", "{every} / {goal}"),
     ("goal", "{icon}{goal}"),
     ("goal-ascii", "{goal}"),
-    ("goalmode", "{icon}goal {text}"),
-    ("goalmode-ascii", "goal {text}"),
+    ("goalmode", "{icon} {text}"),
+    ("goalmode-ascii", "{text}"),
     ("git", "{branch}{flags}"),
     ("clock", "{icon}{datetime}"),
     ("package", "{icon}{version}"),
@@ -1132,9 +1142,9 @@ const DEFAULT_ICONS: &[(&str, &str)] = &[
     ("mcp", "\u{f233} "),
     ("tokens", "\u{f080} "),
     ("duration", "\u{f0150} "),
-    ("loop", "\u{f021} "),
+    ("loop", "\u{f021}"),
     ("goal", "\u{f140} "),
-    ("goalmode", "\u{f02b} "),
+    ("goalmode", "\u{f140}"),
     ("package", "\u{f03d7} "),
     ("python", "\u{f0320} "),
     ("rust", "\u{f1617} "),
@@ -1739,13 +1749,13 @@ segments4 = ["goalmode"]
 # 段内模板（[template]）：每段一条格式串；`<段>-ascii` 是 grok 的 ASCII 形
 #（缺省同用 nerd 模板、图标恒空）。可用占位符：
 #   shell {icon}{name} / dir {path} / hst {icon}{agent}{state}
-#   goalmode {icon}goal {text}（/goal 原始参数文本；可自配 {state}）
+#   goalmode {icon}{text}（/goal 原始参数文本；可自配 {state}）
 #   model {icon}{model} / context {icon}{pct}{used}{window}{mix}（mix = 构成
 #   占比 [sN tN mN]，transcript 可解析时才有）
 #   tools {icon}{count} / mcp {icon}{count} / tokens {icon}{used}{window}
 #   duration {icon}{duration} / git {branch}{flags}
-#   loop {icon}loop {goal}（REQ-025 风格统一：任务原始参数文本；可自配
-#   {count}{cadence} 节拍形）/ goal {icon}{goal}（可选段：任务 prompt 单显）
+#   loop {icon} {every} / {goal}（图标后空格对齐；循环时间参数 / 原始参数文本；{every} 为
+#   自然节拍 30m 形，{cadence} ×30m 形与 {count} 可自配）/ goal {icon}{goal}（可选段：任务 prompt 单显）
 #   package 与七工具链段（含 ts）{icon}{version}
 #   clock {icon}{datetime}（D51：年月日加当前时间，分钟精度）
 # 例（hst 段去图标改方括号态）：
@@ -2819,7 +2829,7 @@ mod tests {
         );
         let out = run_statusline(&p, "claude", &home, &stdin);
         assert!(
-            out.contains("loop 新任务盯发布"),
+            out.contains("5m / 新任务盯发布"),
             "loop row shows prompt: {out}"
         );
         assert!(out.contains("新任务盯发布"), "newest goal text: {out}");
@@ -2851,7 +2861,7 @@ mod tests {
         let lines: Vec<&str> = out.lines().filter(|l| !l.trim().is_empty()).collect();
         assert_eq!(lines.len(), 3, "dedicated third row: {out}");
         assert!(
-            lines[2].contains("loop 盯发布窗口"),
+            lines[2].contains("5m / 盯发布窗口"),
             "loop row shows prompt on row 3: {out}"
         );
         assert!(
@@ -2916,7 +2926,7 @@ mod tests {
         )
         .unwrap();
         let out = run();
-        assert!(out.contains("goal 继续，直到所有vulhub漏洞回归"), "{out}");
+        assert!(out.contains("继续，直到所有vulhub漏洞回归"), "{out}");
         let lines: Vec<&str> = out.lines().filter(|l| !l.trim().is_empty()).collect();
         assert_eq!(lines.len(), 3, "row4 present, row3 hidden: {out}");
         // paused：文本回溯最近的 Goal 行。
@@ -2931,7 +2941,22 @@ mod tests {
         )
         .unwrap();
         let out = run();
-        assert!(out.contains("goal 继续，直到所有vulhub漏洞回归"), "{out}");
+        assert!(out.contains("继续，直到所有vulhub漏洞回归"), "{out}");
+        // 短形真交付（评审 F1）：content 直起、无外壳，亦触发。
+        std::fs::write(
+            &log,
+            format!(
+                "{}
+",
+                r#"{"type":"user","message":{"role":"user","content":"Goal check-in: «短形目标在役» is still active, and evaluation has been deferred for background work."}}"#
+            ),
+        )
+        .unwrap();
+        let out = run();
+        assert!(
+            out.contains("短形目标在役"),
+            "short-form delivery renders: {out}"
+        );
         // /goal clear：用户指令清态，第四行隐藏回两行。
         let clear_line = r#"{"type":"user","message":{"role":"user","content":"/goal clear"}}"#;
         std::fs::write(
@@ -3029,7 +3054,7 @@ mod tests {
         std::fs::write(&log, &body).unwrap();
         let out = run();
         assert!(
-            out.contains("goal 继续，直到所有vulhub漏洞回归"),
+            out.contains("继续，直到所有vulhub漏洞回归"),
             "cross-chunk backtrack: paused + text: {out}"
         );
         // F2 真劈形（评审三轮配方）：倒序分块的块界 = 文件尾减块长，尾
@@ -3058,7 +3083,7 @@ mod tests {
         std::fs::write(&log, &body).unwrap();
         let out = run();
         assert!(
-            out.contains("goal 继续，直到所有vulhub漏洞回归"),
+            out.contains("继续，直到所有vulhub漏洞回归"),
             "boundary marker reassembled via overlap: {out}"
         );
         let _ = std::fs::remove_dir_all(&home);
@@ -3175,7 +3200,7 @@ mod tests {
             r#"[{"id":"a2","cron":"*/5 * * * *","prompt":"盯发布","createdAt":200,"recurring":true,"createdBySessionId":"s1"}]"#,
         );
         let out = run_statusline(&p, "grok", &home, &stdin);
-        assert!(out.contains("loop 盯发布"), "ascii loop row renders: {out}");
+        assert!(out.contains("5m / 盯发布"), "ascii loop row renders: {out}");
         assert!(!out.contains('\u{f021}'), "no loop icon: {out}");
         assert!(!out.contains('\u{f140}'), "no goal icon: {out}");
         let _ = std::fs::remove_dir_all(&home);
