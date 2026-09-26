@@ -1613,8 +1613,10 @@ fn agent_report_row(r: &agents::Report) -> Value {
 fn herdr_arm(target: &str, text: &str) -> Result<String, String> {
     let resp = hst::herdrrpc::agent_prompt(target, text, 120_000)
         .map_err(|e| format!("herdr error={}: {e}", e.code()))?;
+    // 评审 F1 回填：agent_status 嵌在 result.agent 下（非顶层）。
     Ok(resp
-        .get("agent_status")
+        .get("agent")
+        .and_then(|a| a.get("agent_status"))
         .and_then(|v| v.as_str())
         .unwrap_or("unknown")
         .to_string())
@@ -1691,10 +1693,10 @@ fn cmd_loop_del(
     if let Some(dst) = via_herdr {
         let text = loopmgmt::arm_del_text(target);
         let status = herdr_arm(dst, &text)?;
-        println!("loop.arm-del target={dst}");
-        println!("loop.arm-del spec={}", target.trim());
-        println!("loop.arm-del agent_status={status}");
-        println!("loop.arm-del hint=CronDelete 指令已派发目标会话即时执行；回执见其窗格");
+        println!("loop.arm.del target={dst}");
+        println!("loop.arm.del spec={}", target.trim());
+        println!("loop.arm.del agent_status={status}");
+        println!("loop.arm.del hint=CronDelete 指令已派发目标会话即时执行；回执见其窗格");
         return Ok(());
     }
     let root = project_root(project)?;
@@ -1755,9 +1757,9 @@ fn cmd_goal_clear(
     if let Some(dst) = via_herdr {
         let text = loopmgmt::arm_goal_clear_text();
         let status = herdr_arm(dst, &text)?;
-        println!("goal.arm-clear target={dst}");
-        println!("goal.arm-clear agent_status={status}");
-        println!("goal.arm-clear hint=own-latest 整任务退役指令已派发（原生无空 prompt 形，节奏一并停）；回执见其窗格");
+        println!("goal.arm.clear target={dst}");
+        println!("goal.arm.clear agent_status={status}");
+        println!("goal.arm.clear hint=own-latest 整任务退役指令已派发（原生无空 prompt 形，节奏一并停）；回执见其窗格");
         return Ok(());
     }
     let root = project_root(project)?;

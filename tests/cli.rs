@@ -2290,13 +2290,17 @@ fn loop_via_herdr_speaks_agent_prompt_ndjson() {
                     "id": id,
                     "error": {"code": "agent_not_found", "message": "no such agent"}
                 }),
+                // 评审 F1 回填：真响应形 agent 嵌套（AgentInfo 含
+                // agent_status 与 pane_id），非顶层。
                 Some("blocked-target") => serde_json::json!({
                     "id": id,
-                    "result": {"type": "agent_prompted", "agent_status": "blocked"}
+                    "result": {"type": "agent_prompted",
+                               "agent": {"agent_status": "blocked", "pane_id": "w9:p9"}}
                 }),
                 _ => serde_json::json!({
                     "id": id,
-                    "result": {"type": "agent_prompted", "agent_status": "idle"}
+                    "result": {"type": "agent_prompted",
+                               "agent": {"agent_status": "idle", "pane_id": "w9:p1"}}
                 }),
             };
             s.write_all((resp.to_string() + "\n").as_bytes()).unwrap();
@@ -2363,8 +2367,8 @@ fn loop_via_herdr_speaks_agent_prompt_ndjson() {
         .env("HERDR_SOCKET_PATH", &sock)
         .assert()
         .success()
-        .stdout(contains("goal.arm-clear target=w9:p1"))
-        .stdout(contains("goal.arm-clear agent_status=idle"));
+        .stdout(contains("goal.arm.clear target=w9:p1"))
+        .stdout(contains("goal.arm.clear agent_status=idle"));
 
     // socket 缺席：报错退出，不静默回落写盘。
     hst()

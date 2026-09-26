@@ -5,8 +5,10 @@
 //! serde_json 组帧；sha256 请求 id（tokio/thiserror/uuid/dirs 不进
 //! Cargo.toml）。socket 路径解析序：`HERDR_SOCKET_PATH` 到
 //! `HERDR_SESSION`（`~/.config/herdr/sessions/<名>/herdr.sock`）到缺省
-//! `~/.config/herdr/herdr.sock`。`HERDR_SOCKET_PASSWORD` 是本机管道口
-//! 令非 LLM token（D20 禁令不动，ADR-0009），设了自动进 params.password。
+//! `~/.config/herdr/herdr.sock`。本通道不注入任何 token：本地 socket
+//! 权限（srw-------）即边界（评审 F2 回填；用户工件情报
+//! HERDR_SOCKET_PASSWORD 经 schema 加文档加二进制加全站检索四路核实
+//! 非 herdr 机制）。
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
@@ -107,6 +109,7 @@ pub fn socket_path() -> Result<PathBuf, HerdrError> {
 
 /// Windows 管道名：路径串前缀 `\\.\pipe\`（对齐 herdr 二进制
 /// `\\.\pipe\${socketPath}` 映射）；已带前缀的原样透传。
+#[cfg(windows)]
 fn windows_pipe(path: &Path) -> String {
     let s = path.to_string_lossy().to_string();
     if s.starts_with(r"\\.\pipe\") {
@@ -223,14 +226,9 @@ pub fn call(method: &str, params: Json) -> Result<Json, HerdrError> {
         )
     )[..16]
         .to_string();
-    let mut req = json!({ "id": id, "method": method, "params": params });
-    // 本机管道口令（非 LLM token）：设了自动进 params.password。
-    if let Some(pw) = std::env::var("HERDR_SOCKET_PASSWORD")
-        .ok()
-        .filter(|v| !v.trim().is_empty())
-    {
-        req["params"]["password"] = json!(pw.trim());
-    }
+    // 评审 F2 回填：herdr 本地 socket 无口令机制（权限即边界），不注入
+    // 任何 token；params 原样发。
+    let req = json!({ "id": id, "method": method, "params": params });
     let line = serde_json::to_string(&req).map_err(|e| HerdrError::Io(e.to_string()))?;
     conn.write_all((line + "\n").as_bytes())
         .and_then(|_| conn.flush())
@@ -292,9 +290,14 @@ pub fn agent_prompt(target: &str, text: &str, timeout_ms: u64) -> Result<Json, H
             "wait": { "until": ["idle", "done", "blocked"], "timeout_ms": timeout_ms }
         }),
     )?;
-    if resp.get("agent_status").and_then(|v| v.as_str()) == Some("blocked") {
+    // 评审 F1 回填：真响应形是 {type: agent_prompted, agent: AgentInfo}，
+    // agent_status 与 pane_id 嵌在 result.agent 下（schema 加真 socket
+    // agent.list 同约定），不在顶层。
+    let agent = resp.get("agent").cloned().unwrap_or(Json::Null);
+    if agent.get("agent_status").and_then(|v| v.as_str()) == Some("blocked") {
         return Err(HerdrError::AgentBlocked(
-            resp.get("pane_id")
+            agent
+                .get("pane_id")
                 .and_then(|v| v.as_str())
                 .unwrap_or(target)
                 .to_string(),

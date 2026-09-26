@@ -9,8 +9,10 @@ herdr 本地 NDJSON RPC 最小客户端（ADR-0009、REQ-023）：仅 `ping` 探
 serde_json 组帧；sha256 请求 id（tokio/thiserror/uuid/dirs 不进
 Cargo.toml）。socket 路径解析序：`HERDR_SOCKET_PATH` 到
 `HERDR_SESSION`（`~/.config/herdr/sessions/<名>/herdr.sock`）到缺省
-`~/.config/herdr/herdr.sock`。`HERDR_SOCKET_PASSWORD` 是本机管道口
-令非 LLM token（D20 禁令不动，ADR-0009），设了自动进 params.password。
+`~/.config/herdr/herdr.sock`。本通道不注入任何 token：本地 socket
+权限（srw-------）即边界（评审 F2 回填；用户工件情报
+HERDR_SOCKET_PASSWORD 经 schema 加文档加二进制加全站检索四路核实
+非 herdr 机制）。
 
 ## Functions
 

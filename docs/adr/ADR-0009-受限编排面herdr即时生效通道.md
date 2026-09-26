@@ -22,4 +22,4 @@ hst 内嵌 herdr NDJSON RPC 最小客户端，仅服务 loop/goal 即时生效�
 
 ## Consequences
 
-ADR-0001 的 D15 在本通道范围内局部解除（token 注入禁令 D20 不动：`HERDR_SOCKET_PASSWORD` 是本机管道口令非 LLM token）。herdr 缺席或目标不可达时 `--via-herdr` 报错退出，不静默回落写盘（即时通道与重启装载通道语义不混，hint 与文档双通道口径并存）。节奏契约单源仍在 hst（every_to_cron/at_to_cron 翻译后随指令派发），目标 agent 只执行不翻译。目标边界：时间面四入口仅 Claude Code 格（原生 Cron 家族）；codex 无对等 /loop（其 /goal 是 Goal Mode 条件驱动续跑，与本通道的 durable cron 语义不同物），错发由目标自报无工具。
+ADR-0001 的 D15 在本通道范围内局部解除（token 注入禁令 D20 不动：本通道不注入任何 token，本地 socket 权限即边界；工件口令情报 HERDR_SOCKET_PASSWORD 经评审四路核实非 herdr 机制，F2 回填）。herdr 缺席或目标不可达时 `--via-herdr` 报错退出，不静默回落写盘（即时通道与重启装载通道语义不混，hint 与文档双通道口径并存）。节奏契约单源仍在 hst（every_to_cron/at_to_cron 翻译后随指令派发），目标 agent 只执行不翻译。目标边界：时间面四入口仅 Claude Code 格（原生 Cron 家族）；codex 无对等 /loop（其 /goal 是 Goal Mode 条件驱动续跑，与本通道的 durable cron 语义不同物），错发由目标自报无工具。

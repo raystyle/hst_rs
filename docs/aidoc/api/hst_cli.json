@@ -350,7 +350,7 @@
     {
       "path": "hst_cli::herdrrpc",
       "kind": "module",
-      "docs": "herdr 本地 NDJSON RPC 最小客户端（ADR-0009、REQ-023）：ping 探活与\nagent.prompt 派发两方法，一连接一请求短连接，传输零新依赖。\nherdr 本地 NDJSON RPC 最小客户端（ADR-0009、REQ-023）：仅 `ping` 探\n活与 `agent.prompt`（带 wait）派发两方法，一连接一请求短连接，不做\n事件流长连接。传输零新依赖：Unix 走 std UnixStream，Windows 命名管\n道按文件开（`\\\\.\\pipe\\` 前缀映射，对齐 herdr 二进制 strings 实证）；\nserde_json 组帧；sha256 请求 id（tokio/thiserror/uuid/dirs 不进\nCargo.toml）。socket 路径解析序：`HERDR_SOCKET_PATH` 到\n`HERDR_SESSION`（`~/.config/herdr/sessions/<名>/herdr.sock`）到缺省\n`~/.config/herdr/herdr.sock`。`HERDR_SOCKET_PASSWORD` 是本机管道口\n令非 LLM token（D20 禁令不动，ADR-0009），设了自动进 params.password。"
+      "docs": "herdr 本地 NDJSON RPC 最小客户端（ADR-0009、REQ-023）：ping 探活与\nagent.prompt 派发两方法，一连接一请求短连接，传输零新依赖。\nherdr 本地 NDJSON RPC 最小客户端（ADR-0009、REQ-023）：仅 `ping` 探\n活与 `agent.prompt`（带 wait）派发两方法，一连接一请求短连接，不做\n事件流长连接。传输零新依赖：Unix 走 std UnixStream，Windows 命名管\n道按文件开（`\\\\.\\pipe\\` 前缀映射，对齐 herdr 二进制 strings 实证）；\nserde_json 组帧；sha256 请求 id（tokio/thiserror/uuid/dirs 不进\nCargo.toml）。socket 路径解析序：`HERDR_SOCKET_PATH` 到\n`HERDR_SESSION`（`~/.config/herdr/sessions/<名>/herdr.sock`）到缺省\n`~/.config/herdr/herdr.sock`。本通道不注入任何 token：本地 socket\n权限（srw-------）即边界（评审 F2 回填；用户工件情报\nHERDR_SOCKET_PASSWORD 经 schema 加文档加二进制加全站检索四路核实\n非 herdr 机制）。"
     },
     {
       "path": "hst_cli::herdrrpc::HerdrError",
