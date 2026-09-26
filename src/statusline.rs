@@ -627,32 +627,45 @@ if ($lpDir -and $loopSid2) {
             $gmr = [regex]'Goal[^"]{0,400}"?«([^»]+)»|Goal check-in:|Goal paused|content":"/goal (?:clear|off|stop)'
             $gmFs = [System.IO.File]::Open($gpFile, 'Open', 'Read', 'ReadWrite')
             try {
-                $gmBuf = New-Object byte[] (4210688)
+                # PowerShell 变量名大小写不敏感：尺寸常量与解码串必须
+                # 异名（$gmCHUNK 与 $gmChunk 同变量，首块解码覆写尺寸、
+                # 次块即炸被 catch 吞＝行隐；与状态覆盖、块界劈开是三个
+                # 独立缺陷，单块夹具对三者全部假阳，评审二轮矩阵在证）。
+                $gmChunkSz = 4194304
+                $gmOvl = 512
+                $gmBuf = New-Object byte[] ($gmChunkSz + $gmOvl)
                 $gmPos = $gmFs.Length
-                # 状态与文本分别回溯：最新态标记（check-in/paused/clear）
-                # 与最近 «» 捕获可隔块（pentest 实证 paused 块无 «»、文本
-                # 在更老块）；见标记即停会丢文本。
+                $gmPrevHead = New-Object byte[] 0
+                # 评审 F1/F2 修：块内匹配倒序（新者先中即锁，三处状态赋值
+                # 连 clear 统一带首中守卫，防更旧块覆盖新态）；跨块时把已扫
+                # 较新块的首 512B 作后缀拼接（跨界劈开的标记在旧块侧重新
+                # 接回，重复命中被首中即锁吃掉）。状态与文本分别回溯：
+                # 最新态标记与最近 «» 捕获可隔块（pentest 实证 paused 块
+                # 无 «»、文本在更老块）。
                 while ($gmPos -gt 0 -and -not ($gmHaveState -and $gmHaveTxt)) {
-                    $gmTake = [Math]::Min($gmBuf.Length, $gmPos)
+                    $gmTake = [Math]::Min($gmChunkSz, $gmPos)
                     $gmPos -= $gmTake
                     $gmFs.Position = $gmPos
                     $gmN = $gmFs.Read($gmBuf, 0, $gmTake)
                     if ($gmN -le 0) { break }
-                    $gmChunk = [System.Text.Encoding]::UTF8.GetString($gmBuf, 0, $gmN)
-                    foreach ($m in $gmr.Matches($gmChunk)) {
-                        if ($m.Value -like 'content*') {
-                            # clear 恒覆盖（时间序在后必清先设态）。
-                            $gmLast = ''
-                            $gmTxt = ''
-                            $gmHaveState = $true
-                            $gmHaveTxt = $true
-                        } else {
+                    $gmComb = New-Object byte[] ($gmN + $gmPrevHead.Length)
+                    [Array]::Copy($gmBuf, 0, $gmComb, 0, $gmN)
+                    [Array]::Copy($gmPrevHead, 0, $gmComb, $gmN, $gmPrevHead.Length)
+                    $gmHead = New-Object byte[] ([Math]::Min($gmOvl, $gmN))
+                    [Array]::Copy($gmBuf, 0, $gmHead, 0, $gmHead.Length)
+                    $gmPrevHead = $gmHead
+                    $gmDec = [System.Text.Encoding]::UTF8.GetString($gmComb)
+                    $gmMs = $gmr.Matches($gmDec)
+                    for ($gi = $gmMs.Count - 1; $gi -ge 0; $gi--) {
+                        $m = $gmMs[$gi]
+                        if (-not $gmHaveState) {
                             if ($m.Value -like 'Goal check-in:*') { $gmLast = 'active'; $gmHaveState = $true }
                             elseif ($m.Value -like 'Goal paused*') { $gmLast = 'paused'; $gmHaveState = $true }
-                            if (-not $gmHaveTxt -and $m.Groups[1].Success) {
-                                $gmTxt = $m.Groups[1].Value
-                                $gmHaveTxt = $true
-                            }
+                            elseif ($m.Value -like 'content*') { $gmLast = ''; $gmTxt = ''; $gmHaveState = $true; $gmHaveTxt = $true }
+                        }
+                        if (-not $gmHaveTxt -and $m.Groups[1].Success) {
+                            $gmTxt = $m.Groups[1].Value
+                            $gmHaveTxt = $true
                         }
                     }
                 }
@@ -1233,8 +1246,11 @@ pub(crate) fn assemble_statusline_ps1(
     }) {
         out.push_str(PS1_PROBE);
     }
-    // REQ-019 LOOPPROBE 门控：loop / goal 任一在场即注入（两段消费同一
-    // 探针产出的 $loopCount / $loopCadence / $loopGoalText）。
+    // REQ-019 LOOPPROBE 门控：loop / goal / goalmode 任一在场即注入
+    //（loop 与 goal 消费 $loopCount / $loopCadence / $loopGoalText；
+    // goalmode 消费其前置算出的 $lpDir 与 $loopSid2 定位会话
+    // transcript——隐式契约：收紧本门控须同步 GOALPROBE，评审 G2 在册）。
+    // REQ-025 GOALPROBE 门控：goalmode 在场即注入。
     if all
         .iter()
         .any(|id| matches!(*id, "loop" | "goal" | "goalmode"))
@@ -2604,6 +2620,15 @@ mod tests {
             ps1.contains("$slRow3"),
             "dedicated loop/goal row 3 exists since REQ-024"
         );
+        // REQ-025 门控：默认第四行 goalmode 在场 → 双探针注入。
+        assert!(
+            ps1.contains("goal mode 探针"),
+            "GOALPROBE injected with default goalmode segment"
+        );
+        assert!(
+            ps1.find("goal mode 探针").unwrap() > ps1.find("loop/goal 探针").unwrap(),
+            "GOALPROBE follows LOOPPROBE (consumes its vars)"
+        );
         // 段块按行序排布：loop 段块在二行尾段（duration/会话累计）之后。
         assert!(
             ps1.find("# ── loop 段").unwrap() > ps1.find("# ── 会话累计：").unwrap(),
@@ -2617,6 +2642,47 @@ mod tests {
             ps1.contains("$slRows | ForEach-Object { Write-Output $_ }"),
             "multi-row tail emits each non-empty row"
         );
+    }
+
+    #[test]
+    fn goalmode_probe_gating_and_segments4_semantics() {
+        // REQ-025 门控与 segments4 语义（评审 F3）：仅 loop/goal 在场不注
+        // GOALPROBE；segments4 = [] 抑制第四行；goalmode 显式写进
+        // segments3 时跨行去重不重复注入。
+        let ps1 = assemble_statusline_ps1(
+            &[DEFAULT_SEGMENTS, DEFAULT_SEGMENTS2],
+            &StatuslineConfig {
+                segments4: Some(vec![]),
+                ..StatuslineConfig::default()
+            },
+        )
+        .unwrap();
+        assert!(
+            !ps1.contains("goal mode 探针"),
+            "no goalmode segment = no GOALPROBE"
+        );
+        let ps1 = assemble_statusline_ps1(
+            &[&["loop", "goal", "goalmode"]],
+            &StatuslineConfig {
+                segments4: Some(vec![]),
+                ..StatuslineConfig::default()
+            },
+        )
+        .unwrap();
+        assert!(
+            ps1.contains("goal mode 探针"),
+            "explicit goalmode (any row) injects GOALPROBE"
+        );
+        // 跨行去重：goalmode 显式在 segments3，segments4 缺省不重复补。
+        let cfg = StatuslineConfig {
+            segments3: Some(vec!["goalmode".to_string()]),
+            segments4: None,
+            ..StatuslineConfig::default()
+        };
+        // effective_orders 补默认时剔除已显式写过的段 id，拼装不报重复。
+        let orders = effective_orders(&cfg).unwrap();
+        let flat: Vec<&str> = orders.iter().flat_map(|r| r.iter().copied()).collect();
+        assert_eq!(flat.iter().filter(|id| **id == "goalmode").count(), 1);
     }
 
     #[test]
@@ -2880,6 +2946,89 @@ mod tests {
         let out = run();
         let lines: Vec<&str> = out.lines().filter(|l| !l.trim().is_empty()).collect();
         assert_eq!(lines.len(), 2, "no goal no row4: {out}");
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn goalmode_multichunk_backtrack_and_boundary_overlap() {
+        // 评审 F1/F2 复现形：状态与文本隔块（>4MB 填充）必跨块回溯；
+        // 态标记贴块界必靠 512B 重叠接回。同步钉 PowerShell 大小写同变量
+        // 坑（尺寸常量与解码串异名，次块即炸的历史形态不回归）。
+        if !pwsh_on_path() {
+            eprintln!("skip: pwsh not on path (pwsh gate)");
+            return;
+        }
+        let home = scratch("gm-mc");
+        let p = deploy_script(&home).unwrap();
+        let slug: String = home
+            .to_string_lossy()
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+            .collect();
+        let sessdir = home.join(".claude").join("projects").join(&slug);
+        std::fs::create_dir_all(&sessdir).unwrap();
+        let log = sessdir.join("s1.jsonl");
+        let stdin = format!(
+            "{{\"session_id\":\"s1\",\"workspace\":{{\"project_dir\":\"{}\"}}}}",
+            home.display()
+        )
+        .into_bytes();
+        let run = || {
+            run_statusline_with(
+                &p,
+                "claude",
+                &home,
+                &stdin,
+                &[("HOME", home.as_os_str().to_os_string())],
+            )
+        };
+        let active = r#"{"type":"user","message":{"role":"user","content":"<task-notification>Goal check-in: «继续，直到所有vulhub漏洞回归» is still active."}}"#;
+        let paused = r#"{"type":"user","message":{"role":"user","content":"Goal paused · the goal check timed out · send a message to continue"}}"#;
+        let filler = format!(
+            r#"{{"type":"assistant","message":{{"role":"assistant","content":"{}"}}}}"#,
+            "f".repeat(400)
+        );
+        // F1 主形：active 在首、5.5MB 填充、paused 在尾（跨块回溯取
+        // paused 加文本）。
+        let mut body = String::new();
+        body.push_str(active);
+        body.push('\n');
+        for _ in 0..12_000 {
+            body.push_str(&filler);
+            body.push('\n');
+        }
+        body.push_str(paused);
+        body.push('\n');
+        std::fs::write(&log, &body).unwrap();
+        let out = run();
+        assert!(
+            out.contains("goal:paused 继续，直到所有vulhub漏洞回归"),
+            "cross-chunk backtrack: paused + text: {out}"
+        );
+        // F2 真劈形（评审三轮配方）：倒序分块的块界 = 文件尾减块长，尾
+        // 置标记数学上不可劈（界恒落末段填充）；劈点须落在标记 token
+        // 内——文件总长定 4194304 加 560（界 = 560），ACT 放 250、
+        // paused 放 500（跨 560），512B 重叠在旧块侧接回，态取 paused、
+        // 文本回溯 ACT。
+        let mut body = String::new();
+        body.push_str(&"f".repeat(250));
+        body.push_str(active);
+        body.push('\n');
+        body.push_str(&"g".repeat(500 - body.len()));
+        body.push_str(paused);
+        body.push('\n');
+        let total = 4_194_304 + 560;
+        while body.len() < total - filler.len() - 1 {
+            body.push_str(&filler);
+            body.push('\n');
+        }
+        body.push_str(&"h".repeat(total - body.len()));
+        std::fs::write(&log, &body).unwrap();
+        let out = run();
+        assert!(
+            out.contains("goal:paused 继续，直到所有vulhub漏洞回归"),
+            "boundary marker reassembled via overlap: {out}"
+        );
         let _ = std::fs::remove_dir_all(&home);
     }
 
