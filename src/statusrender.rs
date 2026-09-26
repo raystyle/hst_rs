@@ -891,23 +891,30 @@ fn state_color(state: &str) -> &'static str {
 /// 「比如herdr hook，组织一个hook别名清单」）：已知 hook 按命令干 stem
 /// 映射功能别名，未收录的回落 stem 本名；清单含外来 hook（herdr 等）。
 const HOOK_ALIASES: &[(&str, &str)] = &[
-    // hst 状态通道：四态写 ~/.hst/state（S025/D28，状态栏与 doctor 消费）。
-    ("hst-state", "状态通道"),
-    // herdr 会话状态上报：agent 态推 herdr server（舰队可观测面）。
-    ("herdr-agent-state", "舰队状态"),
+    // hst agent 状态 hook：事件映射四态写 ~/.hst/state（S025/D28，状态栏
+    // 与 doctor 消费）；用户令 2026-09-27 定名「agent状态」。
+    ("hst-state", "agent状态"),
+    // herdr 会话上报 hook：SessionStart 把会话登记推 herdr server（舰队
+    // pane 与会话绑定的可观测面）。
+    ("herdr-agent-state", "会话上报"),
 ];
 
-/// hookstate 段（第 5 行，用户令 2026-09-26 起，2026-09-27 三令迭代）：
-/// 注册面全部 hook 的功能别名清单加 hst 通道状态独占一行；出行门 =
-/// 状态文件在场或有挂载 hook 任一（评审快核 G1：刚装未触发的空窗期不
-/// 隐清单，状态缺报回落 unknown）；双缺整行隐藏（零噪声）；注册面读不
-/// 出 hook 时回落泛称 `hook` 保语义。
+/// 新增 hook 收录指引（评审 G3）：只改 HOOK_ALIASES 一处加 stem 判定回
+/// 落即可；并确认该 agent 是否多文件注册面（grok 已知 ohmyagents-
+/// state.json 与 herdr.json 双文件，注册面读全目录 *.json）。
+
+/// hookstate 段（第 5 行，用户令 2026-09-26 起，2026-09-27 四令迭代）：
+/// 注册面全部 hook 的功能别名清单独占一行（用户令「不需要working这些
+/// 状态 显示hook功能的别名」：态文本退出缺省显示，仅以行色暗示；{state}
+/// 占位符保留供自配）；出行门 = 状态文件在场或有挂载 hook 任一（评审
+/// 快核 G1：刚装未触发的空窗期不隐清单）；双缺整行隐藏（零噪声）；
+/// 注册面读不出 hook 时回落泛称 `hook` 保语义。
 fn seg_hookstate(ctx: &Ctx) -> Option<String> {
     let (state, present) = hook_state(ctx);
     let alias_raw = hooked_aliases(&ctx.agent);
     // 出行门（评审快核 G1 裁）：状态文件在场或有挂载 hook 任一即出行——
     // 刚装未触发的空窗期（hook 已注册、state 未写）不应整行隐掉清单；
-    // 状态缺报回落 unknown（hst 段同判）。
+    // 状态缺报按 unknown 取行色。
     if !present && alias_raw.is_empty() {
         return None;
     }
@@ -958,13 +965,26 @@ fn hooked_aliases_at(home: &Path, agent: &str) -> String {
         // claude/codex/grok 注册面同构（hooks.<Event>[].hooks[].command）。
         "claude" => collect_json_commands(&home.join(".claude").join("settings.json"), &mut cmds),
         "codex" => collect_json_commands(&home.join(".codex").join("hooks.json"), &mut cmds),
-        "grok" => collect_json_commands(
-            &home
-                .join(".grok")
-                .join("hooks")
-                .join("ohmyagents-state.json"),
-            &mut cmds,
-        ),
+        // grok 是多文件注册面（评审 F：本机 herdr 的 grok 挂载在
+        // ~/.grok/hooks/herdr.json 而非 hst 的 ohmyagents-state.json），
+        // 全目录 *.json 合并收集。
+        "grok" => {
+            let dir = home.join(".grok").join("hooks");
+            if let Ok(entries) = std::fs::read_dir(&dir) {
+                let mut files: Vec<PathBuf> = entries
+                    .filter_map(|e| e.ok())
+                    .map(|e| e.path())
+                    .filter(|p| {
+                        p.extension()
+                            .is_some_and(|x| x.eq_ignore_ascii_case("json"))
+                    })
+                    .collect();
+                files.sort();
+                for f in files {
+                    collect_json_commands(&f, &mut cmds);
+                }
+            }
+        }
         // kimi 是 [[hooks]] 表项（event 加 command 平铺）。
         "kimi" => collect_toml_commands(&home.join(".kimi-code").join("config.toml"), &mut cmds),
         _ => {}
@@ -987,24 +1007,54 @@ fn hooked_aliases_at(home: &Path, agent: &str) -> String {
 }
 
 /// 命令到 hook 干 stem：已知 stem 子串直配（解释器前缀与引号都拦不住）；
-/// 未收录的取末个脚本形 token 的 basename 去 .sh/.ps1/.cmd 扩展。
+/// 未收录的取脚本 token 的 basename 去末个扩展（评审 G1/G2：解释器后
+/// 首个含路径分隔符 token 优先——参数位脚本路径不再反客为主，无路径分隔
+/// 符时回落首个非解释器 token——裸名形与 .bat/.exe/.py/.js 载体不漏列）。
 fn hook_stem(cmd: &str) -> Option<String> {
     for (stem, _) in HOOK_ALIASES {
         if cmd.contains(stem) {
             return Some(stem.to_string());
         }
     }
-    let tok = cmd
+    const INTERPRETERS: &[&str] = &[
+        "bash",
+        "sh",
+        "zsh",
+        "dash",
+        "ksh",
+        "pwsh",
+        "powershell",
+        "powershell.exe",
+        "python",
+        "python3",
+        "node",
+        "cmd",
+        "cmd.exe",
+        "nu",
+        "fish",
+        "elvish",
+    ];
+    let toks: Vec<&str> = cmd
         .split_whitespace()
         .map(|t| t.trim_matches(['"', '\'']))
-        .filter(|t| t.ends_with(".sh") || t.ends_with(".ps1") || t.ends_with(".cmd"))
-        .last()?;
+        .collect();
+    let start = if !toks.is_empty() && INTERPRETERS.contains(&toks[0].to_lowercase().as_str()) {
+        1
+    } else {
+        0
+    };
+    let rest = &toks[start.min(toks.len())..];
+    // 分隔符须在首字符之后（`/c`、`-File` 旗标形首字符即分隔符，不是
+    // 路径）；或 token 含点（裸名加扩展形 privacy-guard.sh）。
+    let sep_after_first = |t: &str| t.chars().skip(1).any(|c| c == '/' || c == '\\');
+    let tok = rest
+        .iter()
+        .find(|t| sep_after_first(t) || t.contains('.'))?;
     let name = tok.rsplit(['/', '\\']).next().unwrap_or(tok);
-    let stem = name
-        .strip_suffix(".sh")
-        .or_else(|| name.strip_suffix(".ps1"))
-        .or_else(|| name.strip_suffix(".cmd"))
-        .unwrap_or(name);
+    let stem = match name.rsplit_once('.') {
+        Some((base, _)) => base,
+        None => name,
+    };
     (!stem.is_empty()).then(|| stem.to_string())
 }
 
@@ -1584,10 +1634,10 @@ mod tests {
             r#"{"hooks":{"Stop":[{"matcher":"*","hooks":[{"type":"command","command":"\"/x/.hst/hooks/hst-state.sh\" claude"}]}],"SessionStart":[{"matcher":"*","hooks":[{"type":"command","command":"bash '/other/herdr-agent-state.sh' session"},{"type":"command","command":"\"/x/.hst/hooks/hst-state.sh\" claude"}]}],"Notification":[{"matcher":"*","hooks":[{"type":"command","command":"bash /only/privacy-guard.sh"}]}]}}"#,
         )
         .unwrap();
-        // 别名表序（状态通道先于舰队状态），未收录 privacy-guard 回落本名殿后。
+        // 别名表序（agent状态先于会话上报），未收录 privacy-guard 回落本名殿后。
         assert_eq!(
             hooked_aliases_at(&tmp, "claude"),
-            "状态通道 舰队状态 privacy-guard"
+            "agent状态 会话上报 privacy-guard"
         );
         // kimi TOML 面：ours 加外来同列。
         let kimi_dir = tmp.join(".kimi-code");
@@ -1597,7 +1647,22 @@ mod tests {
             "[[hooks]]\nevent = \"PreToolUse\"\ncommand = \"/x/.hst/hooks/hst-state.sh kimi\"\n\n[[hooks]]\nevent = \"Stop\"\ncommand = \"/y/herdr-agent-state.sh\"\n",
         )
         .unwrap();
-        assert_eq!(hooked_aliases_at(&tmp, "kimi"), "状态通道 舰队状态");
+        assert_eq!(hooked_aliases_at(&tmp, "kimi"), "agent状态 会话上报");
+        // grok 多文件注册面（评审 F）：hst 的 ohmyagents-state.json 与
+        // herdr 的 herdr.json 双文件合并收集。
+        let grok_dir = tmp.join(".grok").join("hooks");
+        std::fs::create_dir_all(&grok_dir).unwrap();
+        std::fs::write(
+            grok_dir.join("ohmyagents-state.json"),
+            r#"{"hooks":{"Stop":[{"matcher":"*","hooks":[{"type":"command","command":"/x/hst-state.sh grok"}]}]}}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            grok_dir.join("herdr.json"),
+            r#"{"hooks":{"SessionStart":[{"matcher":"*","hooks":[{"type":"command","command":"/z/herdr-agent-state.sh session"}]}]}}"#,
+        )
+        .unwrap();
+        assert_eq!(hooked_aliases_at(&tmp, "grok"), "agent状态 会话上报");
         // 坏损 JSON 零命中不炸。
         std::fs::write(claude_dir.join("settings.json"), "{ not json").unwrap();
         assert_eq!(hooked_aliases_at(&tmp, "claude"), "");
@@ -1605,6 +1670,39 @@ mod tests {
         std::fs::remove_file(claude_dir.join("settings.json")).unwrap();
         assert_eq!(hooked_aliases_at(&tmp, "claude"), "");
         let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn hook_stem_interpreter_then_path_heuristic() {
+        // 评审 G1/G2：解释器后首个含路径分隔符 token 优先（参数位脚本
+        // 路径不反客为主）；无路径分隔符回落首个带点 token；扩展白名单
+        // 外载体（.bat/.exe/.py/.js）取 basename 去末扩展不漏列。
+        assert_eq!(
+            hook_stem("bash /x/foo.sh /y/bar.sh").as_deref(),
+            Some("foo")
+        );
+        assert_eq!(hook_stem("/x/foo.sh --flag").as_deref(), Some("foo"));
+        assert_eq!(
+            hook_stem("node /x/hook.js").as_deref(),
+            Some("hook"),
+            "js carrier"
+        );
+        assert_eq!(
+            hook_stem("cmd /c C:\\tools\\guard.bat").as_deref(),
+            Some("guard"),
+            "bat carrier with backslash path"
+        );
+        assert_eq!(
+            hook_stem("privacy-guard.sh --on").as_deref(),
+            Some("privacy-guard")
+        );
+        // 已知 stem 子串直配不受启发式影响（引号与解释器前缀都拦不住）。
+        assert_eq!(
+            hook_stem("bash '/opt/herdr/herdr-agent-state.sh' session").as_deref(),
+            Some("herdr-agent-state")
+        );
+        // 纯裸命令无可判 token：不出（清单不编造）。
+        assert!(hook_stem("echo hi").is_none());
     }
 
     #[test]

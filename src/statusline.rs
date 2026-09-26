@@ -1133,8 +1133,8 @@ const DEFAULT_TEMPLATES: &[(&str, &str)] = &[
     ("goal-ascii", "{goal}"),
     ("goalmode", "{icon}  {text}"),
     ("goalmode-ascii", "{text}"),
-    ("hookstate", "{icon}  {alias} {state}"),
-    ("hookstate-ascii", "{alias} {state}"),
+    ("hookstate", "{icon}  {alias}"),
+    ("hookstate-ascii", "{alias}"),
     ("git", "{branch}{flags}"),
     ("clock", "{icon}{datetime}"),
     ("package", "{icon}{version}"),
@@ -1827,9 +1827,9 @@ segments5 = ["hookstate"]
 #   duration {icon}{duration} / git {branch}{flags}
 #   loop {icon}  {every} / {goal}（图标后双空格对齐 hst 段形；循环时间参数；{every} 为
 #   自然节拍 30m 形，{cadence} ×30m 形与 {count} 可自配）/ goal {icon}{goal}（可选段：任务 prompt 单显）
-#   hookstate {icon}  {alias} {state}（第5行；注册面全部 hook 的功能别名
-#   清单加 hst 通道态：hst-state 状态通道、herdr-agent-state 舰队状态，
-#   未收录 hook 回落 stem 本名，清单空时回落泛称 hook）
+#   hookstate {icon}  {alias}（第5行；注册面全部 hook 的功能别名清单：
+#   hst-state 映射 agent状态、herdr-agent-state 映射会话上报，未收录
+#   hook 回落 stem 本名，清单空回落泛称 hook；{state} 占位符可自配带回态）
 #   package 与七工具链段（含 ts）{icon}{version}
 #   clock {icon}{datetime}（D51：年月日加当前时间，分钟精度）
 # 例（hst 段去图标改方括号态）：
