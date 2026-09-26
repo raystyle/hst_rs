@@ -598,6 +598,81 @@ if ($loopSid2) {
 }
 "#;
 
+/// goal mode 探针（REQ-025）：`/goal` Goal Mode 条件与在役态。由会话
+/// id 与项目根定位 transcript（`~/.claude/projects/<slug>/<会话id>.jsonl`，
+/// slug = 项目根非字母数字一律换 `-`），全文单遍正则取最后标记（挂起态
+/// 标记可距尾数万行，尾读窗口必漏，pentest 61192 行实证）：
+/// `Goal check-in:` 行取 active（同行的 `«文本»` 为条件原文）、`Goal
+/// paused` 取 paused（文本回溯最近 Goal 行的 «»）、`/goal clear|off|stop`
+/// 用户指令清态。文件缺失、无标记、JSON 坏损皆静默零命中（$gmText 空
+/// → 段隐藏）。文本截 60 同 goal 段口径（UTF-16 代理对防劈）。状态词
+/// 表实证自 pentest 工位在役 transcript（2026-09-26）。
+const PS1_GOALPROBE: &str = r#"
+# ── goal mode 探针（REQ-025）：/goal 条件与在役态 ──
+$gmText = ''
+$gmState = ''
+if ($lpDir -and $loopSid2) {
+    $gpSlug = ($lpDir -replace '[^A-Za-z0-9]', '-')
+    $gpFile = Join-Path (Join-Path (Join-Path $HOME '.claude') 'projects') (Join-Path $gpSlug ($loopSid2 + '.jsonl'))
+    # 倒序分块流读取最后标记（挂起态标记可距尾数万行，固定尾窗必漏，
+    # pentest 61192 行实证；倒序扫活跃 goal 首块即命中，无 goal 小文件
+    # 快扫全量收尾）。捕获分支前置：短枝 Goal check-in: 在同位先中则
+    # «» 永不入捕获。
+    if (Test-Path -LiteralPath $gpFile) {
+        try {
+            $gmLast = ''
+            $gmTxt = ''
+            $gmHaveState = $false
+            $gmHaveTxt = $false
+            $gmr = [regex]'Goal[^"]{0,400}"?«([^»]+)»|Goal check-in:|Goal paused|content":"/goal (?:clear|off|stop)'
+            $gmFs = [System.IO.File]::Open($gpFile, 'Open', 'Read', 'ReadWrite')
+            try {
+                $gmBuf = New-Object byte[] (4210688)
+                $gmPos = $gmFs.Length
+                # 状态与文本分别回溯：最新态标记（check-in/paused/clear）
+                # 与最近 «» 捕获可隔块（pentest 实证 paused 块无 «»、文本
+                # 在更老块）；见标记即停会丢文本。
+                while ($gmPos -gt 0 -and -not ($gmHaveState -and $gmHaveTxt)) {
+                    $gmTake = [Math]::Min($gmBuf.Length, $gmPos)
+                    $gmPos -= $gmTake
+                    $gmFs.Position = $gmPos
+                    $gmN = $gmFs.Read($gmBuf, 0, $gmTake)
+                    if ($gmN -le 0) { break }
+                    $gmChunk = [System.Text.Encoding]::UTF8.GetString($gmBuf, 0, $gmN)
+                    foreach ($m in $gmr.Matches($gmChunk)) {
+                        if ($m.Value -like 'content*') {
+                            # clear 恒覆盖（时间序在后必清先设态）。
+                            $gmLast = ''
+                            $gmTxt = ''
+                            $gmHaveState = $true
+                            $gmHaveTxt = $true
+                        } else {
+                            if ($m.Value -like 'Goal check-in:*') { $gmLast = 'active'; $gmHaveState = $true }
+                            elseif ($m.Value -like 'Goal paused*') { $gmLast = 'paused'; $gmHaveState = $true }
+                            if (-not $gmHaveTxt -and $m.Groups[1].Success) {
+                                $gmTxt = $m.Groups[1].Value
+                                $gmHaveTxt = $true
+                            }
+                        }
+                    }
+                }
+            } finally { $gmFs.Close() }
+            if ($gmLast -and $gmTxt) {
+                $gmState = $gmLast
+                $g2 = ($gmTxt -replace '\r?\n', ' ').Trim()
+                if ($g2.Length -gt 60) {
+                    # UTF-16 计数截断防劈代理对（同 goal 段口径）。
+                    $cut = 60
+                    if ([char]::IsHighSurrogate($g2[59])) { $cut = 59 }
+                    $g2 = $g2.Substring(0, $cut) + '…'
+                }
+                $gmText = $g2
+            }
+        } catch {}
+    }
+}
+"#;
+
 /// loop 段（REQ-019）：本会话 durable 定时任务计数加节拍；探针
 /// `$loopCount` 零时整段隐藏。
 const SEG_LOOP: &str = r#"
@@ -618,6 +693,17 @@ if ($loopGoalText) {
     $lgTxt = ApplyFmt (Tmpl 'goal') @{ icon = (Ico 'goal'); goal = $loopGoalText }
     $lg = Seg $lgTxt '38;5;179'
     if ($lg) { $parts.Add($lg) }
+}
+"#;
+
+/// goalmode 段（REQ-025 第四行专属）：`/goal` Goal Mode 条件与在役态
+///（active/paused）；探针 `$gmText` 空时整段隐藏（无 goal 会话零噪声）。
+const SEG_GOALMODE: &str = r#"
+# ── goalmode 段：/goal 条件与在役态（REQ-025）──
+if ($gmText) {
+    $gmodeTxt = ApplyFmt (Tmpl 'goalmode') @{ icon = (Ico 'goalmode'); state = $gmState; text = $gmText }
+    $gmode = Seg $gmodeTxt '38;5;140'
+    if ($gmode) { $parts.Add($gmode) }
 }
 "#;
 
@@ -934,6 +1020,7 @@ fn segment_block(id: &str) -> Result<&'static str, String> {
         "duration" => SEG_DURATION,
         "loop" => SEG_LOOP,
         "goal" => SEG_GOAL,
+        "goalmode" => SEG_GOALMODE,
         "git" => SEG_GIT,
         "clock" => SEG_CLOCK,
         "package" => SEG_PACKAGE,
@@ -966,6 +1053,11 @@ pub(crate) const DEFAULT_SEGMENTS2: &[&str] = &["hst", "model", "context", "dura
 /// `segments3` 与专属段同线换位或替换。`segments3` 键缺省回落此序。
 pub(crate) const DEFAULT_SEGMENTS3: &[&str] = &["loop", "goal"];
 
+/// 默认第四行 = goalmode 专属行（REQ-025）：`/goal` Goal Mode 条件文本
+/// 加在役态（active/paused，会话 transcript 尾探）；无 goal 会话整行
+/// 隐藏回三行（零噪声）。`segments4` 键缺省回落此序。
+pub(crate) const DEFAULT_SEGMENTS4: &[&str] = &["goalmode"];
+
 /// 内嵌默认模板（D18）。键 = 段 id；`context-ascii` 是 grok 的结构差异项
 /// （nerd 版带 used/window 括号对，ascii 版只有百分比加 ctx 后缀）。
 /// 各段可用占位符见 `hst statusline --example`；git 段默认前导空格在 branch / flags 变量里。
@@ -987,6 +1079,8 @@ const DEFAULT_TEMPLATES: &[(&str, &str)] = &[
     ("loop-ascii", "{count}{cadence}"),
     ("goal", "{icon}{goal}"),
     ("goal-ascii", "{goal}"),
+    ("goalmode", "{icon}goal:{state} {text}"),
+    ("goalmode-ascii", "goal:{state} {text}"),
     ("git", "{branch}{flags}"),
     ("clock", "{icon}{datetime}"),
     ("package", "{icon}{version}"),
@@ -1014,6 +1108,7 @@ const DEFAULT_ICONS: &[(&str, &str)] = &[
     ("duration", "\u{f0150} "),
     ("loop", "\u{f021} "),
     ("goal", "\u{f140} "),
+    ("goalmode", "\u{f02b} "),
     ("package", "\u{f03d7} "),
     ("python", "\u{f0320} "),
     ("rust", "\u{f1617} "),
@@ -1140,8 +1235,16 @@ pub(crate) fn assemble_statusline_ps1(
     }
     // REQ-019 LOOPPROBE 门控：loop / goal 任一在场即注入（两段消费同一
     // 探针产出的 $loopCount / $loopCadence / $loopGoalText）。
-    if all.iter().any(|id| matches!(*id, "loop" | "goal")) {
+    if all
+        .iter()
+        .any(|id| matches!(*id, "loop" | "goal" | "goalmode"))
+    {
         out.push_str(PS1_LOOPPROBE);
+    }
+    // REQ-025 GOALPROBE 门控：goalmode 在场即注入（复用 LOOPPROBE 的
+    // $lpDir 与 $loopSid2 定位会话 transcript）。
+    if all.iter().any(|id| matches!(*id, "goalmode")) {
+        out.push_str(PS1_GOALPROBE);
     }
     for (i, row) in rows.iter().enumerate() {
         for id in *row {
@@ -1166,7 +1269,12 @@ pub(crate) fn assemble_statusline_ps1(
 /// 状态栏的默认脚本面（细则见模块文档与集成测试）。
 pub(crate) fn default_statusline_ps1() -> String {
     assemble_statusline_ps1(
-        &[DEFAULT_SEGMENTS, DEFAULT_SEGMENTS2, DEFAULT_SEGMENTS3],
+        &[
+            DEFAULT_SEGMENTS,
+            DEFAULT_SEGMENTS2,
+            DEFAULT_SEGMENTS3,
+            DEFAULT_SEGMENTS4,
+        ],
         &StatuslineConfig::default(),
     )
     .expect("default segment order is valid")
@@ -1182,9 +1290,12 @@ pub struct StatuslineConfig {
     /// `segments2`（D40）：第二行（agent 状态）段 id 数组；键缺省回落
     /// `DEFAULT_SEGMENTS2`，空数组 = 不出第二行。
     pub segments2: Option<Vec<String>>,
-    /// `segments3`（D42）：第三行（运行时状态）段 id 数组；键缺省回落
-    /// `DEFAULT_SEGMENTS3`，空数组 = 不出第三行。
+    /// `segments3`（D42）：第三行（loop/goal 专属行，REQ-024）段 id 数组；
+    /// 键缺省回落 `DEFAULT_SEGMENTS3`，空数组 = 不出第三行。
     pub segments3: Option<Vec<String>>,
+    /// `segments4`（REQ-025）：第四行（goalmode 专属行）段 id 数组；键
+    /// 缺省回落 `DEFAULT_SEGMENTS4`，空数组 = 不出第四行。
+    pub segments4: Option<Vec<String>>,
     /// `single_line`（D40）：退单排开关（两排段并一行；默认 false 双排）。
     /// kimi / grok 的多行渲染未实证时的逃生门。
     pub single_line: bool,
@@ -1244,6 +1355,14 @@ fn parse_config(text: &str) -> Result<StatuslineConfig, String> {
         }
         cfg.segments3 = Some(out);
     }
+    if let Some(segs) = v.get("segments4") {
+        let arr = segs.as_array().ok_or("segments4 必须是段 id 字符串数组")?;
+        let mut out = Vec::with_capacity(arr.len());
+        for s in arr {
+            out.push(s.as_str().ok_or("segments4 元素必须是字符串")?.to_string());
+        }
+        cfg.segments4 = Some(out);
+    }
     if let Some(sl) = v.get("single_line") {
         cfg.single_line = sl.as_bool().ok_or("single_line 必须是布尔值")?;
     }
@@ -1287,8 +1406,10 @@ fn effective_orders(cfg: &StatuslineConfig) -> Result<Vec<Vec<&str>>, String> {
         (&cfg.segments, DEFAULT_SEGMENTS),
         (&cfg.segments2, DEFAULT_SEGMENTS2),
         (&cfg.segments3, DEFAULT_SEGMENTS3),
+        (&cfg.segments4, DEFAULT_SEGMENTS4),
     ];
-    let any_later_row_written = cfg.segments2.is_some() || cfg.segments3.is_some();
+    let any_later_row_written =
+        cfg.segments2.is_some() || cfg.segments3.is_some() || cfg.segments4.is_some();
     // 老配置形态 = 用户写过 segments 且没写任何后续行键 → 后续缺省行不补
     // （原样单行升级）。新装（segments 也缺省）与写过后续键的配置照常补
     // 默认（去重）。
@@ -1567,7 +1688,9 @@ pub const EXAMPLE_TOML: &str = r#"# ~/.hst/statusline.toml —— 状态栏用�
 # segments2 = 第二行 agent 状态（agent 态 / 模型 / context 百分比加 token
 # 绝对值 / 耗时）、
 # segments3 = 第三行 loop/goal 专属行（本会话 durable 定时任务计数加节拍
-# 与 goal 文本，无任务时整行隐藏回两行），
+# 与 goal 文本，无任务时整行隐藏回两行）、
+# segments4 = 第四行 goalmode 专属行（/goal Goal Mode 条件加在役态
+# active/paused，会话 transcript 尾探，无 goal 整行隐藏），
 # 段 id 数组即全量（显隐加顺序）；tools / mcp / tokens 三段仍可显式写入
 # segments3 与专属段同线换位，如：
 #   segments3 = ["loop", "goal", "tools", "mcp"]
@@ -1582,10 +1705,12 @@ pub const EXAMPLE_TOML: &str = r#"# ~/.hst/statusline.toml —— 状态栏用�
 segments = ["shell", "dir", "git", "package", "python", "rust", "node", "zig", "go", "cpp", "clock"]
 segments2 = ["hst", "model", "context", "duration"]
 segments3 = ["loop", "goal"]
+segments4 = ["goalmode"]
 
 # 段内模板（[template]）：每段一条格式串；`<段>-ascii` 是 grok 的 ASCII 形
 #（缺省同用 nerd 模板、图标恒空）。可用占位符：
 #   shell {icon}{name} / dir {path} / hst {icon}{agent}{state}
+#   goalmode {icon}goal:{state} {text}（/goal 条件与 active/paused 态）
 #   model {icon}{model} / context {icon}{pct}{used}{window}{mix}（mix = 构成
 #   占比 [sN tN mN]，transcript 可解析时才有）
 #   tools {icon}{count} / mcp {icon}{count} / tokens {icon}{used}{window}
@@ -1877,7 +2002,12 @@ mod tests {
             ..Default::default()
         };
         let err = assemble_statusline_ps1(
-            &[DEFAULT_SEGMENTS, DEFAULT_SEGMENTS2, DEFAULT_SEGMENTS3],
+            &[
+                DEFAULT_SEGMENTS,
+                DEFAULT_SEGMENTS2,
+                DEFAULT_SEGMENTS3,
+                DEFAULT_SEGMENTS4,
+            ],
             &cfg,
         )
         .unwrap_err();
@@ -1887,7 +2017,12 @@ mod tests {
             ..Default::default()
         };
         let err = assemble_statusline_ps1(
-            &[DEFAULT_SEGMENTS, DEFAULT_SEGMENTS2, DEFAULT_SEGMENTS3],
+            &[
+                DEFAULT_SEGMENTS,
+                DEFAULT_SEGMENTS2,
+                DEFAULT_SEGMENTS3,
+                DEFAULT_SEGMENTS4,
+            ],
             &cfg,
         )
         .unwrap_err();
@@ -2646,6 +2781,105 @@ mod tests {
             !lines[1].contains('×') && !lines[1].contains("盯发布窗口"),
             "row 2 clean: {out}"
         );
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn goalmode_fourth_row_states_from_transcript_tail() {
+        // REQ-025 四态：active、paused（文本回溯最近 Goal 行）、clear
+        //（用户指令清态）、无标记（整行隐藏回两行）。夹具 = scratch 家
+        // 目录下 .claude/projects/<slug>/s1.jsonl（slug = 项目根非字母
+        // 数字换 -），stdin 带 session_id 与 project_dir，HOME 钉 scratch。
+        if !pwsh_on_path() {
+            eprintln!("skip: pwsh not on path (pwsh gate)");
+            return;
+        }
+        let home = scratch("gm-st");
+        let p = deploy_script(&home).unwrap();
+        let slug: String = home
+            .to_string_lossy()
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+            .collect();
+        let sessdir = home.join(".claude").join("projects").join(&slug);
+        std::fs::create_dir_all(&sessdir).unwrap();
+        let log = sessdir.join("s1.jsonl");
+        let stdin = format!(
+            "{{\"session_id\":\"s1\",\"workspace\":{{\"project_dir\":\"{}\"}}}}",
+            home.display()
+        )
+        .into_bytes();
+        let run = || {
+            run_statusline_with(
+                &p,
+                "claude",
+                &home,
+                &stdin,
+                &[("HOME", home.as_os_str().to_os_string())],
+            )
+        };
+        let active_line = r#"{"type":"user","message":{"role":"user","content":"<task-notification>Goal check-in: «继续，直到所有vulhub漏洞回归» is still active."}}"#;
+        let paused_line = r#"{"type":"user","message":{"role":"user","content":"Goal paused · the goal check timed out · send a message to continue"}}"#;
+        // active：第四行 goal:active（无 loop 任务故第三行隐，共三行）。
+        std::fs::write(
+            &log,
+            format!(
+                "{}
+{}
+",
+                r#"{"x":1}"#, active_line
+            ),
+        )
+        .unwrap();
+        let out = run();
+        assert!(
+            out.contains("goal:active 继续，直到所有vulhub漏洞回归"),
+            "{out}"
+        );
+        let lines: Vec<&str> = out.lines().filter(|l| !l.trim().is_empty()).collect();
+        assert_eq!(lines.len(), 3, "row4 present, row3 hidden: {out}");
+        // paused：文本回溯最近的 Goal 行。
+        std::fs::write(
+            &log,
+            format!(
+                "{}
+{}
+",
+                active_line, paused_line
+            ),
+        )
+        .unwrap();
+        let out = run();
+        assert!(
+            out.contains("goal:paused 继续，直到所有vulhub漏洞回归"),
+            "{out}"
+        );
+        // /goal clear：用户指令清态，第四行隐藏回两行。
+        let clear_line = r#"{"type":"user","message":{"role":"user","content":"/goal clear"}}"#;
+        std::fs::write(
+            &log,
+            format!(
+                "{}
+{}
+",
+                active_line, clear_line
+            ),
+        )
+        .unwrap();
+        let out = run();
+        assert!(
+            !out.contains("goal:active") && !out.contains("goal:paused"),
+            "{out}"
+        );
+        // 无标记：两行。
+        std::fs::write(
+            &log,
+            r#"{"type":"user","message":{"role":"user","content":"普通轮次"}}"#,
+        )
+        .unwrap();
+        let out = run();
+        let lines: Vec<&str> = out.lines().filter(|l| !l.trim().is_empty()).collect();
+        assert_eq!(lines.len(), 2, "no goal no row4: {out}");
         let _ = std::fs::remove_dir_all(&home);
     }
 

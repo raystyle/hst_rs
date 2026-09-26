@@ -28,3 +28,4 @@
 | REQ-022 | implemented | should | 类型契约化推广裁定与compact收尾 | compact 单测三件加推广面实测盘点 |
 | REQ-023 | implemented | must | herdr通道loop即时生效面 | herdrrpc 加 arm 单测加假服务器集成加真 socket ping 实弹（ADR-0009） |
 | REQ-024 | implemented | must | 状态栏第三行loop与goal专属行 | statusline 单测四件改加加实弹三行渲染（goal 截断放宽 60） |
+| REQ-025 | implemented | must | 状态栏第四行goalmode专属行 | goalmode 四态单测加实弹（105MB 真机 transcript 倒序分块扫描） |
