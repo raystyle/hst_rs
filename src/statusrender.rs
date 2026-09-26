@@ -889,26 +889,33 @@ fn state_color(state: &str) -> &'static str {
 
 /// hookstate 段（第 5 行，用户令 2026-09-26，同日二令迭代）：hst 状态
 /// hook 实际挂载的事件清单加通道状态独占一行（用户令「hook了什么事件」）；
-/// 状态文件不在场整行隐藏（无 hook 会话零噪声）；注册面读不出事件时回
-/// 落泛称 `hook` 保语义。
+/// 出行门 = 状态文件在场或有挂载事件任一（评审快核 G1：刚装未触发的
+/// 空窗期不隐清单，状态缺报回落 unknown）；双缺整行隐藏（零噪声）；
+/// 注册面读不出事件时回落泛称 `hook` 保语义。
 fn seg_hookstate(ctx: &Ctx) -> Option<String> {
     let (state, present) = hook_state(ctx);
-    if !present {
+    let events_raw = hooked_events(&ctx.agent);
+    // 出行门（评审快核 G1 裁）：状态文件在场或有挂载事件任一即出行——
+    // 刚装未触发的空窗期（hook 已注册、state 未写）不应整行隐掉清单；
+    // 状态缺报回落 unknown（hst 段同判）。
+    if !present && events_raw.is_empty() {
         return None;
     }
+    let state = if present {
+        state
+    } else {
+        "unknown".to_string()
+    };
     let color = state_color(&state);
     let key = if ctx.nerd {
         "hookstate"
     } else {
         "hookstate-ascii"
     };
-    let events = {
-        let ev = hooked_events(&ctx.agent);
-        if ev.is_empty() {
-            "hook".to_string()
-        } else {
-            ev
-        }
+    let events = if events_raw.is_empty() {
+        "hook".to_string()
+    } else {
+        events_raw
     };
     Some(ansi(
         &apply_fmt(
@@ -1576,6 +1583,22 @@ mod tests {
         )
         .unwrap();
         assert_eq!(hooked_events_at(&tmp, "kimi"), "PreToolUse");
+        // grok 面（JSON 同构另一路径）加未知事件名字典序殿后。
+        let grok_dir = tmp.join(".grok").join("hooks");
+        std::fs::create_dir_all(&grok_dir).unwrap();
+        std::fs::write(
+            grok_dir.join("ohmyagents-state.json"),
+            r#"{"hooks":{"Stop":[{"matcher":"*","hooks":[{"type":"command","command":"/x/hst-state.sh grok"}]}],"CustomEvent":[{"matcher":"*","hooks":[{"type":"command","command":"/x/hst-state.sh grok"}]}],"AheadEvent":[{"matcher":"*","hooks":[{"type":"command","command":"/x/hst-state.sh grok"}]}]}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            hooked_events_at(&tmp, "grok"),
+            "Stop AheadEvent CustomEvent",
+            "unknown events lexicographic after canonical order"
+        );
+        // 坏损 JSON 零命中不炸。
+        std::fs::write(claude_dir.join("settings.json"), "{ not json").unwrap();
+        assert_eq!(hooked_events_at(&tmp, "claude"), "");
         // 缺文件零命中空串（段内回落泛称 hook）。
         std::fs::remove_file(claude_dir.join("settings.json")).unwrap();
         assert_eq!(hooked_events_at(&tmp, "claude"), "");
