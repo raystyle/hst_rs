@@ -1111,11 +1111,11 @@ const DEFAULT_TEMPLATES: &[(&str, &str)] = &[
     ("tokens", "{icon}{used}/{window}"),
     ("tokens-ascii", "{used}/{window}"),
     ("duration", "{icon}{duration}"),
-    ("loop", "{icon} {every} / {goal}"),
+    ("loop", "{icon}  {every} / {goal}"),
     ("loop-ascii", "{every} / {goal}"),
     ("goal", "{icon}{goal}"),
     ("goal-ascii", "{goal}"),
-    ("goalmode", "{icon} {text}"),
+    ("goalmode", "{icon}  {text}"),
     ("goalmode-ascii", "{text}"),
     ("git", "{branch}{flags}"),
     ("clock", "{icon}{datetime}"),
@@ -1749,12 +1749,12 @@ segments4 = ["goalmode"]
 # 段内模板（[template]）：每段一条格式串；`<段>-ascii` 是 grok 的 ASCII 形
 #（缺省同用 nerd 模板、图标恒空）。可用占位符：
 #   shell {icon}{name} / dir {path} / hst {icon}{agent}{state}
-#   goalmode {icon}{text}（/goal 原始参数文本；可自配 {state}）
+#   goalmode {icon}  {text}（/goal 原始参数文本；可自配 {state}）
 #   model {icon}{model} / context {icon}{pct}{used}{window}{mix}（mix = 构成
 #   占比 [sN tN mN]，transcript 可解析时才有）
 #   tools {icon}{count} / mcp {icon}{count} / tokens {icon}{used}{window}
 #   duration {icon}{duration} / git {branch}{flags}
-#   loop {icon} {every} / {goal}（图标后空格对齐；循环时间参数 / 原始参数文本；{every} 为
+#   loop {icon}  {every} / {goal}（图标后双空格对齐 hst 段形；循环时间参数；{every} 为
 #   自然节拍 30m 形，{cadence} ×30m 形与 {count} 可自配）/ goal {icon}{goal}（可选段：任务 prompt 单显）
 #   package 与七工具链段（含 ts）{icon}{version}
 #   clock {icon}{datetime}（D51：年月日加当前时间，分钟精度）
