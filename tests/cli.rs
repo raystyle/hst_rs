@@ -1114,11 +1114,11 @@ fn statusline_example_prints_customization_template() {
         .stdout(contains("clock {icon}{datetime}"))
         // REQ-024：loop / goal 两段移默认第三行专属行与模板文档。
         .stdout(contains("\"context\", \"duration\"]"))
-        .stdout(contains("segments3 = [\"loop\", \"goal\"]"))
-        .stdout(contains("loop {icon}{count}{cadence}"))
+        .stdout(contains("segments3 = [\"loop\"]"))
+        .stdout(contains("loop {icon}loop {goal}"))
         // REQ-025：goalmode 第四行专属段与模板文档（D51 锁，评审 F3）。
         .stdout(contains("segments4 = [\"goalmode\"]"))
-        .stdout(contains("goalmode {icon}goal:{state} {text}"));
+        .stdout(contains("goalmode {icon}goal {text}"));
 }
 
 #[test]

@@ -694,19 +694,21 @@ if ($lpDir -and $loopSid2) {
 }
 "#;
 
-/// loop 段（REQ-019）：本会话 durable 定时任务计数加节拍；探针
-/// `$loopCount` 零时整段隐藏。
+/// loop 段（REQ-019、REQ-025 风格统一）：本会话 durable 定时任务原始
+/// 参数文本（默认模板 `loop: {goal}`，count 与 cadence 占位符仍可自
+/// 配）；探针 `$loopCount` 零时整段隐藏。
 const SEG_LOOP: &str = r#"
-# ── loop 段：本会话定时任务计数与节拍（REQ-019）──
+# ── loop 段：本会话定时任务原始参数文本（REQ-019、REQ-025 风格统一）──
 if ($loopCount -gt 0) {
-    $lpTxt = ApplyFmt (Tmpl 'loop') @{ icon = (Ico 'loop'); count = [string]$loopCount; cadence = $loopCadence }
+    $lpTxt = ApplyFmt (Tmpl 'loop') @{ icon = (Ico 'loop'); count = [string]$loopCount; cadence = $loopCadence; goal = $loopGoalText }
     $lp = Seg $lpTxt '38;5;114'
     if ($lp) { $parts.Add($lp) }
 }
 "#;
 
-/// goal 段（REQ-019、REQ-024 第三行专属）：最新任务 goal 文本（探针已
-/// 折行归一截断 60 字符）；
+/// goal 段（REQ-019；REQ-024 曾入默认第三行，REQ-025 风格统一后文本
+/// 并入 loop 行、本段退显式可选）：最新任务 goal 文本（探针已折行归一
+/// 截断 60 字符）；
 /// 空文本时整段隐藏（loop 在而 goal 空是合法态，如 prompt 空串）。
 const SEG_GOAL: &str = r#"
 # ── goal 段：最新任务 goal 文本（REQ-019）──
@@ -717,10 +719,11 @@ if ($loopGoalText) {
 }
 "#;
 
-/// goalmode 段（REQ-025 第四行专属）：`/goal` Goal Mode 条件与在役态
-///（active/paused）；探针 `$gmText` 空时整段隐藏（无 goal 会话零噪声）。
+/// goalmode 段（REQ-025 第四行专属，风格统一）：`/goal` Goal Mode 原始
+/// 参数文本（`goal 文本` 形，态不入默认显示，$gmState 仍产出供自配）；探针
+/// `$gmText` 空时整段隐藏（无 goal 会话零噪声）。
 const SEG_GOALMODE: &str = r#"
-# ── goalmode 段：/goal 条件与在役态（REQ-025）──
+# ── goalmode 段：/goal 原始参数文本（REQ-025 风格统一，态不入显示）──
 if ($gmText) {
     $gmodeTxt = ApplyFmt (Tmpl 'goalmode') @{ icon = (Ico 'goalmode'); state = $gmState; text = $gmText }
     $gmode = Seg $gmodeTxt '38;5;140'
@@ -1068,11 +1071,13 @@ pub(crate) const DEFAULT_SEGMENTS: &[&str] = &[
 /// `segments2` 键缺省回落此序。
 pub(crate) const DEFAULT_SEGMENTS2: &[&str] = &["hst", "model", "context", "duration"];
 
-/// 默认第三行 = loop/goal 专属行（REQ-024 翻转 D44 默认空）：本会话
-/// durable 定时任务计数加节拍与 goal 文本；无任务时两段皆隐、整行剔除
-/// 回两行布局（零噪声不变）。tools / mcp / tokens 三段仍可显式写
-/// `segments3` 与专属段同线换位或替换。`segments3` 键缺省回落此序。
-pub(crate) const DEFAULT_SEGMENTS3: &[&str] = &["loop", "goal"];
+/// 默认第三行 = loop 专属行（REQ-024 翻转 D44 默认空；REQ-025 风格
+/// 统一后任务 prompt 文本并入 loop 行，goal 段退可选段）：本会话
+/// durable 定时任务原始参数文本（`loop 文本` 形，用户令 2026-09-26 去
+/// 冒号）；无任务时整行剔除回两行布局（零噪声不变）。tools / mcp /
+/// tokens 与 goal 段仍可显式写 `segments3` 换位。`segments3` 键缺省回
+/// 落此序。
+pub(crate) const DEFAULT_SEGMENTS3: &[&str] = &["loop"];
 
 /// 默认第四行 = goalmode 专属行（REQ-025）：`/goal` Goal Mode 条件文本
 /// 加在役态（active/paused，会话 transcript 尾探）；无 goal 会话整行
@@ -1096,12 +1101,12 @@ const DEFAULT_TEMPLATES: &[(&str, &str)] = &[
     ("tokens", "{icon}{used}/{window}"),
     ("tokens-ascii", "{used}/{window}"),
     ("duration", "{icon}{duration}"),
-    ("loop", "{icon}{count}{cadence}"),
-    ("loop-ascii", "{count}{cadence}"),
+    ("loop", "{icon}loop {goal}"),
+    ("loop-ascii", "loop {goal}"),
     ("goal", "{icon}{goal}"),
     ("goal-ascii", "{goal}"),
-    ("goalmode", "{icon}goal:{state} {text}"),
-    ("goalmode-ascii", "goal:{state} {text}"),
+    ("goalmode", "{icon}goal {text}"),
+    ("goalmode-ascii", "goal {text}"),
     ("git", "{branch}{flags}"),
     ("clock", "{icon}{datetime}"),
     ("package", "{icon}{version}"),
@@ -1717,7 +1722,7 @@ pub const EXAMPLE_TOML: &str = r#"# ~/.hst/statusline.toml —— 状态栏用�
 # active/paused，会话 transcript 尾探，无 goal 整行隐藏），
 # 段 id 数组即全量（显隐加顺序）；tools / mcp / tokens 三段仍可显式写入
 # segments3 与专属段同线换位，如：
-#   segments3 = ["loop", "goal", "tools", "mcp"]
+#   segments3 = ["loop", "tools", "mcp"]
 # loop / goal 段的任务经 `hst loop set "goal 文本" --every 5m` 设置、
 # `hst loop list` 列出、`hst loop del latest` 删除（REQ-019）。
 # 例（隐藏 shell 与时长段、git 提到目录前）：
@@ -1728,20 +1733,19 @@ pub const EXAMPLE_TOML: &str = r#"# ~/.hst/statusline.toml —— 状态栏用�
 #   single_line = true
 segments = ["shell", "dir", "git", "package", "python", "rust", "node", "zig", "go", "cpp", "clock"]
 segments2 = ["hst", "model", "context", "duration"]
-segments3 = ["loop", "goal"]
+segments3 = ["loop"]
 segments4 = ["goalmode"]
 
 # 段内模板（[template]）：每段一条格式串；`<段>-ascii` 是 grok 的 ASCII 形
 #（缺省同用 nerd 模板、图标恒空）。可用占位符：
 #   shell {icon}{name} / dir {path} / hst {icon}{agent}{state}
-#   goalmode {icon}goal:{state} {text}（/goal 条件与 active/paused 态）
+#   goalmode {icon}goal {text}（/goal 原始参数文本；可自配 {state}）
 #   model {icon}{model} / context {icon}{pct}{used}{window}{mix}（mix = 构成
 #   占比 [sN tN mN]，transcript 可解析时才有）
 #   tools {icon}{count} / mcp {icon}{count} / tokens {icon}{used}{window}
 #   duration {icon}{duration} / git {branch}{flags}
-#   loop {icon}{count}{cadence} / goal {icon}{goal}（REQ-019：本会话 durable
-#   定时任务计数加节拍（×Nm / ×Nh / ×1h / @HH:mm，解析不出留空）与最新任务
-#   goal 文本截断 16 字符）
+#   loop {icon}loop {goal}（REQ-025 风格统一：任务原始参数文本；可自配
+#   {count}{cadence} 节拍形）/ goal {icon}{goal}（可选段：任务 prompt 单显）
 #   package 与七工具链段（含 ts）{icon}{version}
 #   clock {icon}{datetime}（D51：年月日加当前时间，分钟精度）
 # 例（hst 段去图标改方括号态）：
@@ -2814,7 +2818,10 @@ mod tests {
             ]"#,
         );
         let out = run_statusline(&p, "claude", &home, &stdin);
-        assert!(out.contains("2×5m"), "own count with cadence: {out}");
+        assert!(
+            out.contains("loop 新任务盯发布"),
+            "loop row shows prompt: {out}"
+        );
         assert!(out.contains("新任务盯发布"), "newest goal text: {out}");
         assert!(!out.contains("外会话任务"), "foreign excluded: {out}");
         assert!(
@@ -2844,8 +2851,8 @@ mod tests {
         let lines: Vec<&str> = out.lines().filter(|l| !l.trim().is_empty()).collect();
         assert_eq!(lines.len(), 3, "dedicated third row: {out}");
         assert!(
-            lines[2].contains("×5m") && lines[2].contains("盯发布窗口"),
-            "cadence and goal live on row 3: {out}"
+            lines[2].contains("loop 盯发布窗口"),
+            "loop row shows prompt on row 3: {out}"
         );
         assert!(
             !lines[0].contains('×') && !lines[0].contains("盯发布窗口"),
@@ -2909,10 +2916,7 @@ mod tests {
         )
         .unwrap();
         let out = run();
-        assert!(
-            out.contains("goal:active 继续，直到所有vulhub漏洞回归"),
-            "{out}"
-        );
+        assert!(out.contains("goal 继续，直到所有vulhub漏洞回归"), "{out}");
         let lines: Vec<&str> = out.lines().filter(|l| !l.trim().is_empty()).collect();
         assert_eq!(lines.len(), 3, "row4 present, row3 hidden: {out}");
         // paused：文本回溯最近的 Goal 行。
@@ -2927,10 +2931,7 @@ mod tests {
         )
         .unwrap();
         let out = run();
-        assert!(
-            out.contains("goal:paused 继续，直到所有vulhub漏洞回归"),
-            "{out}"
-        );
+        assert!(out.contains("goal 继续，直到所有vulhub漏洞回归"), "{out}");
         // /goal clear：用户指令清态，第四行隐藏回两行。
         let clear_line = r#"{"type":"user","message":{"role":"user","content":"/goal clear"}}"#;
         std::fs::write(
@@ -3028,7 +3029,7 @@ mod tests {
         std::fs::write(&log, &body).unwrap();
         let out = run();
         assert!(
-            out.contains("goal:paused 继续，直到所有vulhub漏洞回归"),
+            out.contains("goal 继续，直到所有vulhub漏洞回归"),
             "cross-chunk backtrack: paused + text: {out}"
         );
         // F2 真劈形（评审三轮配方）：倒序分块的块界 = 文件尾减块长，尾
@@ -3057,7 +3058,7 @@ mod tests {
         std::fs::write(&log, &body).unwrap();
         let out = run();
         assert!(
-            out.contains("goal:paused 继续，直到所有vulhub漏洞回归"),
+            out.contains("goal 继续，直到所有vulhub漏洞回归"),
             "boundary marker reassembled via overlap: {out}"
         );
         let _ = std::fs::remove_dir_all(&home);
@@ -3097,6 +3098,13 @@ mod tests {
             return;
         }
         let home = scratch("lp-cad");
+        // 风格统一后默认 loop 模板只出原始参数文本；本件钉自定义模板验
+        // count/cadence 占位符与截断逻辑仍可用。
+        std::fs::write(
+            home.join("statusline.toml"),
+            "[template]\nloop = '{icon}loop {count}{cadence} {goal}'\n",
+        )
+        .unwrap();
         let p = deploy_script(&home).unwrap();
         let run = |tasks: &str| {
             let stdin = seed_sched(&home, "s1", tasks);
@@ -3167,8 +3175,7 @@ mod tests {
             r#"[{"id":"a2","cron":"*/5 * * * *","prompt":"盯发布","createdAt":200,"recurring":true,"createdBySessionId":"s1"}]"#,
         );
         let out = run_statusline(&p, "grok", &home, &stdin);
-        assert!(out.contains("1×5m"), "ascii loop renders: {out}");
-        assert!(out.contains("盯发布"), "ascii goal renders: {out}");
+        assert!(out.contains("loop 盯发布"), "ascii loop row renders: {out}");
         assert!(!out.contains('\u{f021}'), "no loop icon: {out}");
         assert!(!out.contains('\u{f140}'), "no goal icon: {out}");
         let _ = std::fs::remove_dir_all(&home);

@@ -17,7 +17,7 @@ trace: statusline 单测 goalmode 四态一件加多块跨块回溯与块界重�
 验收判据,可检验、可勾选:
 
 - [x] 行架构扩到四行：statusline.toml 新键 `segments4`、`DEFAULT_SEGMENTS4 = ["goalmode"]`、拼装与渲染四行泛化（空行剔除复用）
-- [x] 新段 `goalmode`：goal mode 条件文本加在役态（active/paused），模板 `{icon}goal:{state} {text}` 加 grok `-ascii` 变体加图标键
+- [x] 新段 `goalmode`：goal mode 原始参数文本（风格统一令 2026-09-26：态不入显示，{state} 占位符保留），模板 `{icon}goal {text}`（去冒号形，用户令 2026-09-26） 加 grok `-ascii` 变体加图标键
 - [x] 探针 PS1_GOALPROBE：由 stdin session_id 加项目根定位会话 transcript（`~/.claude/projects/<slug>/<会话id>.jsonl`，slug 非字母数字换 `-`），倒序分块流读独立回溯最后态标记与最近捕获（`Goal check-in: «文本» is still active` 取 active 与文本；`Goal paused` 取 paused，文本回溯最近 «»）；无标记或文件缺失整段隐藏；文本截 60 同 goal 段口径
 - [x] 无 goal mode 会话第四行整行隐藏回三行（零噪声不变）；老配置升级语义不破（未写 segments4 默认补 goalmode）
 - [x] 测试：transcript 夹具四态（active、paused 文本回溯、clear 覆盖、无标记）渲染断言、多块夹具跨块回溯与块界重叠两形（评审 F1/F2 复现形）、门控断言（仅 goalmode 注 GOALPROBE、无 goalmode 不注、跨行去重单次注入）、segments4 空数组抑制、example 锁同步（D51 含 segments4 与 goalmode 模板）
