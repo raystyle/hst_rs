@@ -191,7 +191,7 @@ fn connect(path: &Path) -> Result<Conn, HerdrError> {
                         cause: e.to_string(),
                     })
                 },
-                Ok(Conn::Pipe),
+                |f| Ok(Conn::Pipe(f)),
             )
     }
     #[cfg(not(any(unix, windows)))]
