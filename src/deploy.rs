@@ -666,6 +666,14 @@ fn claude_handler(oma: &Path, side: OsSide) -> Json {
 /// 目录三载体），Windows 用 powershell -File 前缀形（D39 同款）。
 fn token_handler(agent: &str, oma: &Path, side: OsSide) -> Json {
     let command = match side {
+        // M048（评审 F1）：Windows grok 只认可整串 spawn 的单路径，多
+        // token 形不可 spawn 且 fail-open 会吞成静默放行，经 hst-token-
+        // grok.cmd 包装转发。
+        OsSide::Windows if agent == "grok" => oma
+            .join("hooks")
+            .join("hst-token-grok.cmd")
+            .display()
+            .to_string(),
         OsSide::Windows => format!(
             "powershell.exe -NoProfile -ExecutionPolicy Bypass -File {} {}",
             crate::pathutil::forward_slash(&oma.join("hooks").join("hst-token.ps1")),

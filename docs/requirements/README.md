@@ -32,3 +32,4 @@
 | REQ-026 | implemented | must | 状态栏渲染原生化与hookstate专属行 | statusrender 单测三件加 statusline plumbing 加实弹（第5行渲染、0.217s 对 0.95s、BYTE-IDENTICAL diff 空；ADR-0010） |
 | REQ-027 | draft | should | 原生渲染哨兵面回填 | 待实施后回填（REQ-014 加 REQ-017 哨兵面，pwsh 弃用期收尾前必办） |
 | REQ-028 | implemented | must | hook命令解耦与穿透命令族 | hst hook state 与 hst hook token 双命令加双脚本（一命令一脚本）加四家双挂加别名三拆条；实弹三查加 e2e 三态 |
+| REQ-029 | implemented | should | token护栏提示智能化与豁免面锁定 | 位置词分类句式加 provider 前缀去重加 env 引用豁免语料锁定；单测三件加实弹单条中文句式 |

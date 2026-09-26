@@ -1083,23 +1083,24 @@ pub(crate) const DEFAULT_SEGMENTS: &[&str] = &[
 /// `segments2` 键缺省回落此序。
 pub(crate) const DEFAULT_SEGMENTS2: &[&str] = &["hst", "model", "context", "duration"];
 
-/// 默认第三行 = loop 专属行（REQ-024 翻转 D44 默认空；REQ-025 风格
-/// 统一后任务 prompt 文本并入 loop 行，goal 段退可选段）：本会话
-/// durable 定时任务循环时间参数加原始参数文本（`节拍 文本` 形，用户令
-/// 2026-09-26 第四轮收敛）；无任务时整行剔除回两行布局（零噪声不变）。tools / mcp /
-/// tokens 与 goal 段仍可显式写 `segments3` 换位。`segments3` 键缺省回
-/// 落此序。
-pub(crate) const DEFAULT_SEGMENTS3: &[&str] = &["loop"];
+/// 默认第三行 = hookstate 专属行（REQ-026 起，用户令 2026-09-27 行序
+/// 裁定「应该在排在第3行」，自第五行前移）：hook 通道别名清单独占一行
+///（原生渲染独占段，pwsh 弃用期不出）；双缺整行隐藏。`segments3` 键
+/// 缺省回落此序。
+pub(crate) const DEFAULT_SEGMENTS3: &[&str] = &["hookstate"];
 
-/// 默认第四行 = goalmode 专属行（REQ-025）：`/goal` Goal Mode 条件文本
-/// 加在役态（active/paused，会话 transcript 尾探）；无 goal 会话整行
-/// 隐藏回三行（零噪声）。`segments4` 键缺省回落此序。
-pub(crate) const DEFAULT_SEGMENTS4: &[&str] = &["goalmode"];
+/// 默认第四行 = loop 专属行（REQ-024 翻转 D44 默认空；REQ-025 风格
+/// 统一后任务 prompt 文本并入 loop 行，goal 段退可选段；2026-09-27 行
+/// 序调整自第三行顺移）：本会话 durable 定时任务循环时间参数加原始参
+/// 数文本；无任务时整行剔除（零噪声不变）。tools / mcp / tokens 与
+/// goal 段仍可显式写 `segments4` 换位。`segments4` 键缺省回落此序。
+pub(crate) const DEFAULT_SEGMENTS4: &[&str] = &["loop"];
 
-/// 默认第五行 = hookstate 专属行（REQ-026，用户令 2026-09-26）：hook
-/// 通道状态独占一行（原生渲染独占段，pwsh 弃用期不出）；状态文件不在
-/// 场整行隐藏。`segments5` 键缺省回落此序。
-pub(crate) const DEFAULT_SEGMENTS5: &[&str] = &["hookstate"];
+/// 默认第五行 = goalmode 专属行（REQ-025；2026-09-27 行序调整自第四行
+/// 顺移）：`/goal` Goal Mode 条件文本加在役态（active/paused，会话
+/// transcript 尾探）；无 goal 会话整行隐藏（零噪声）。`segments5` 键缺
+/// 省回落此序。
+pub(crate) const DEFAULT_SEGMENTS5: &[&str] = &["goalmode"];
 
 /// 内嵌默认模板（D18）。键 = 段 id；`context-ascii` 是 grok 的结构差异项
 /// （nerd 版带 used/window 括号对，ascii 版只有百分比加 ctx 后缀）。
@@ -1792,17 +1793,20 @@ pub const EXAMPLE_TOML: &str = r#"# ~/.hst/statusline.toml —— 状态栏用�
 # 改完本文件重跑一次 hst statusline 生效。
 # 键级缺省回落：没写的键用内嵌默认；坏文件硬错退出 1。
 
-# 段落清单（REQ-024 起默认三行，loop/goal 专属第三行）：
+# 段落清单（五段行，行序用户令 2026-09-27：hookstate 第三、loop 第四、
+# goalmode 第五）：
 # segments = 第一行项目状态（shell / cwd / git 分支 / 包版本与工具链尾巴）、
 # segments2 = 第二行 agent 状态（agent 态 / 模型 / context 百分比加 token
 # 绝对值 / 耗时）、
-# segments3 = 第三行 loop/goal 专属行（本会话 durable 定时任务计数加节拍
-# 与 goal 文本，无任务时整行隐藏回两行）、
-# segments4 = 第四行 goalmode 专属行（/goal Goal Mode 条件加在役态
+# segments3 = 第三行 hookstate 专属行（注册面 hook 功能别名清单，双缺
+# 整行隐藏）、
+# segments4 = 第四行 loop/goal 专属行（本会话 durable 定时任务计数加节拍
+# 与 goal 文本，无任务时整行隐藏）、
+# segments5 = 第五行 goalmode 专属行（/goal Goal Mode 条件加在役态
 # active/paused，会话 transcript 尾探，无 goal 整行隐藏），
 # 段 id 数组即全量（显隐加顺序）；tools / mcp / tokens 三段仍可显式写入
-# segments3 与专属段同线换位，如：
-#   segments3 = ["loop", "tools", "mcp"]
+# 后续行与专属段同线换位，如：
+#   segments4 = ["loop", "tools", "mcp"]
 # loop / goal 段的任务经 `hst loop set "goal 文本" --every 5m` 设置、
 # `hst loop list` 列出、`hst loop del latest` 删除（REQ-019）。
 # 例（隐藏 shell 与时长段、git 提到目录前）：
@@ -1813,9 +1817,9 @@ pub const EXAMPLE_TOML: &str = r#"# ~/.hst/statusline.toml —— 状态栏用�
 #   single_line = true
 segments = ["shell", "dir", "git", "package", "python", "rust", "node", "zig", "go", "cpp", "clock"]
 segments2 = ["hst", "model", "context", "duration"]
-segments3 = ["loop"]
-segments4 = ["goalmode"]
-segments5 = ["hookstate"]
+segments3 = ["hookstate"]
+segments4 = ["loop"]
+segments5 = ["goalmode"]
 
 # 段内模板（[template]）：每段一条格式串；`<段>-ascii` 是 grok 的 ASCII 形
 #（缺省同用 nerd 模板、图标恒空）。可用占位符：

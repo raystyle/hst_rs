@@ -730,7 +730,7 @@
     {
       "path": "hst_cli::secretguard::scan_text",
       "kind": "function",
-      "docs": "从 hook payload 抽待扫描文本（claude/codex/kimi/grok 信封，snake_case\n与 camelCase 都认）。返回 (上下文标签, 文本)。"
+      "docs": "从 hook payload 抽待扫描文本（claude/codex/kimi/grok 信封，snake_case\n与 camelCase 都认）。返回 (上下文位置词, 文本)。位置词按用户令\n2026-09-27「提示智能一些：命令参数中检测到token、文本读取中检测到\ntoken」分类：shell 类工具取 command 字段（命令参数）、read 类与\nPostToolUse 回读是文本读取、write/edit 类取内容字段（文件写入）、\n其余工具输入整体（工具输入）。"
     },
     {
       "path": "hst_cli::shim",
@@ -766,6 +766,11 @@
       "path": "hst_cli::shim::TOKEN_CMD",
       "kind": "constant",
       "docs": "REQ-028 token 腿 shim 的 cmd 载体（密钥拦截单职责；透传白名单同 sh 形）。"
+    },
+    {
+      "path": "hst_cli::shim::TOKEN_GROK_CMD",
+      "kind": "constant",
+      "docs": "REQ-028 token 腿的 grok 单路径包装（评审 F1，M048 同款：Windows grok\n只认可整串 spawn 的单路径，多 token 形不可 spawn；fail-open 会把\nspawn 失败吞成静默放行，必须经包装转发）。"
     },
     {
       "path": "hst_cli::shim::TOKEN_PS1",

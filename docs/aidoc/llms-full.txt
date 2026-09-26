@@ -502,6 +502,7 @@ session 标识三源：payload `session_id`（claude/codex）、`sessionId`
 - `STATE_PS1` — Windows PowerShell shim（D39，2026-09-13 宿主实弹）：claude 在 Windows
 - `STATE_SH` — POSIX sh shim（Linux = bash、mac = zsh 同一语义；shebang 由部署侧按宿主
 - `TOKEN_CMD` — REQ-028 token 腿 shim 的 cmd 载体（密钥拦截单职责；透传白名单同 sh 形）。
+- `TOKEN_GROK_CMD` — REQ-028 token 腿的 grok 单路径包装（评审 F1，M048 同款：Windows grok
 - `TOKEN_PS1` — REQ-028 token 腿 shim 的 ps1 载体（密钥拦截单职责；M060a 白名单透传
 - `TOKEN_SH` — REQ-028 token 腿 shim（密钥拦截单职责，与 hst-state 拆分）：读 payload
 

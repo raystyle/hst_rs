@@ -293,6 +293,16 @@ pub fn scan(text: &str) -> Vec<Finding> {
     for (re, spec) in COMPILED.iter() {
         for m in re.find_iter(text) {
             let whole = m.as_str();
+            // 通用 sk- 前缀去重（防线 1 收口）：provider 专属前缀
+            //（sk-ant- 等）已单独命中时，sk- 通用形是同一段密钥的重复
+            // 报，不再入列。
+            if spec.label == "OpenAI API Key"
+                && ["sk-ant-", "sk-proj-", "sk-svcacct-", "sk_live_", "sk_test_"]
+                    .iter()
+                    .any(|p| whole.starts_with(p))
+            {
+                continue;
+            }
             if spec.generic {
                 // 良性键名：无 lookbehind，回扫标识符前缀重建完整键名
                 //（`publicKeyToken=` 命中的是中间词 `Token=`）。
@@ -374,7 +384,11 @@ fn contains_complete_token(text: &str, value: &str) -> bool {
 }
 
 /// 从 hook payload 抽待扫描文本（claude/codex/kimi/grok 信封，snake_case
-/// 与 camelCase 都认）。返回 (上下文标签, 文本)。
+/// 与 camelCase 都认）。返回 (上下文位置词, 文本)。位置词按用户令
+/// 2026-09-27「提示智能一些：命令参数中检测到token、文本读取中检测到
+/// token」分类：shell 类工具取 command 字段（命令参数）、read 类与
+/// PostToolUse 回读是文本读取、write/edit 类取内容字段（文件写入）、
+/// 其余工具输入整体（工具输入）。
 pub fn scan_text(event: &str, payload: &Json) -> Option<(&'static str, String)> {
     let get_str = |keys: &[&str]| -> Option<String> {
         keys.iter()
@@ -387,22 +401,52 @@ pub fn scan_text(event: &str, payload: &Json) -> Option<(&'static str, String)> 
                 .unwrap_or_default()
                 .to_lowercase();
             let input = get_value(&["tool_input", "toolInput"])?;
-            if matches!(tool.as_str(), "bash" | "shell" | "powershell" | "pwsh") {
+            if tool.contains("bash")
+                || tool.contains("shell")
+                || tool.contains("terminal")
+                || tool.contains("exec")
+                || tool == "pwsh"
+            {
                 let cmd = input.get("command").and_then(|x| x.as_str())?;
-                Some(("Bash command", cmd.to_string()))
+                Some(("命令参数", cmd.to_string()))
+            } else if tool.contains("write") || tool.contains("edit") || tool.contains("notebook") {
+                // 写入面取内容字段（content 加 new_string 加 edits 数组
+                // 串），无内容字段回落整体序列化。
+                let mut parts: Vec<String> = Vec::new();
+                for key in ["content", "new_string", "newString"] {
+                    if let Some(s) = input.get(key).and_then(|x| x.as_str()) {
+                        parts.push(s.to_string());
+                    }
+                }
+                if let Some(edits) = input.get("edits").and_then(|x| x.as_array()) {
+                    for e in edits {
+                        if let Some(s) = e.get("new_string").and_then(|x| x.as_str()) {
+                            parts.push(s.to_string());
+                        }
+                    }
+                }
+                if parts.is_empty() {
+                    let body = serde_json::to_string(input).ok()?;
+                    Some(("文件写入", body))
+                } else {
+                    Some(("文件写入", parts.join("\n")))
+                }
+            } else if tool.contains("read") || tool.contains("view") || tool.contains("cat") {
+                let body = serde_json::to_string(input).ok()?;
+                Some(("文本读取", body))
             } else {
                 let body = serde_json::to_string(input).ok()?;
-                Some(("tool input", body))
+                Some(("工具输入", body))
             }
         }
         "userpromptsubmit" => {
             let p = get_str(&["prompt", "userPrompt"])?;
-            Some(("prompt", p))
+            Some(("提示词文本", p))
         }
         "posttooluse" => {
             let resp = get_value(&["tool_response", "toolResponse", "output"])?;
             let body = serde_json::to_string(resp).ok()?;
-            Some(("tool response", body))
+            Some(("文本读取", body))
         }
         _ => None,
     }
@@ -425,12 +469,14 @@ pub fn guard(event: &str, payload: Option<&Json>) -> GuardVerdict {
     }
     let blocking = matches!(event, "pretooluse" | "userpromptsubmit");
     for f in &findings {
+        // 位置词句式（用户令 2026-09-27「提示智能一些」）：在命令参数中
+        // 检测到 token、在文本读取中检测到 token。
         let reason = format!(
-            "{} in {context} ({}{})",
+            "在{context}中检测到{}（{}）{}",
             f.label,
             f.masked,
             if f.tier == Tier::Warn {
-                ", warn-only"
+                "，仅告警"
             } else {
                 ""
             }
@@ -682,5 +728,108 @@ mod tests {
         assert!(!guard("pretooluse", None).block);
         let clean = json!({ "hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": { "command": "git status" } });
         assert!(!guard("pretooluse", Some(&clean)).block);
+    }
+
+    #[test]
+    fn context_words_classify_by_tool_and_event() {
+        // 用户令「提示智能一些」：位置词按工具与事件分类。
+        let bash = json!({ "tool_name": "Bash", "tool_input": { "command": "x" } });
+        assert_eq!(
+            scan_text("pretooluse", &bash).map(|(c, _)| c),
+            Some("命令参数")
+        );
+        let write =
+            json!({ "tool_name": "Write", "tool_input": { "file_path": "/a", "content": "y" } });
+        let (c, t) = scan_text("pretooluse", &write).unwrap();
+        assert_eq!(c, "文件写入");
+        assert_eq!(t, "y", "content field extracted, not whole JSON");
+        let edit =
+            json!({ "tool_name": "Edit", "tool_input": { "old_string": "a", "new_string": "b" } });
+        assert_eq!(
+            scan_text("pretooluse", &edit).map(|(c, _)| c),
+            Some("文件写入")
+        );
+        let read = json!({ "tool_name": "Read", "tool_input": { "file_path": "/a" } });
+        assert_eq!(
+            scan_text("pretooluse", &read).map(|(c, _)| c),
+            Some("文本读取")
+        );
+        let prompt = json!({ "prompt": "hi" });
+        assert_eq!(
+            scan_text("userpromptsubmit", &prompt).map(|(c, _)| c),
+            Some("提示词文本")
+        );
+        let resp = json!({ "tool_response": { "text": "z" } });
+        assert_eq!(
+            scan_text("posttooluse", &resp).map(|(c, _)| c),
+            Some("文本读取")
+        );
+        let pre = json!({
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": { "command": format!("deploy {}", sk_ant()) },
+        });
+        let v = guard("pretooluse", Some(&pre));
+        assert_eq!(v.reasons.len(), 1, "single reason: {:#?}", v.reasons);
+        assert!(
+            v.reasons[0].contains("在命令参数中检测到"),
+            "location word: {}",
+            v.reasons[0]
+        );
+    }
+
+    #[test]
+    fn provider_prefix_dedupes_generic_sk_report() {
+        // sk-ant-XXX 同时匹配 Anthropic 专属形与 sk- 通用形：只报专属一条。
+        let text = format!("key={} usage", sk_ant());
+        let labels: Vec<&str> = scan(&text).iter().map(|f| f.label).collect();
+        assert!(labels.contains(&"Anthropic API Key"), "{labels:?}");
+        assert!(
+            !labels.contains(&"OpenAI API Key"),
+            "generic sk- suppressed: {labels:?}"
+        );
+        // 纯 sk- 形仍报通用条目。
+        let text = format!("key={}", sk_generic());
+        let labels: Vec<&str> = scan(&text).iter().map(|f| f.label).collect();
+        assert!(labels.contains(&"OpenAI API Key"), "{labels:?}");
+    }
+
+    #[test]
+    fn env_reference_and_passthrough_are_exempt() {
+        // 用户令（2026-09-27）：不接触 token 明文的形态（环境变量引用、
+        // 命令功能代码读取后透传）不拦截；只有明文进工具输入才拦。
+        for cmd in [
+            "curl -H \"Authorization: Bearer $ANTHROPIC_AUTH_TOKEN\" https://api.example/v1",
+            "export API_KEY=$OPENAI_API_KEY",
+            "printenv ANTHROPIC_API_KEY > /tmp/k",
+            "echo \"$GITHUB_TOKEN\" | base64 > /tmp/f",
+            "aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID",
+            "python -c \"import os; print(os.environ['DEEPSEEK_API_KEY'][:4])\"",
+            "AUTH_HEADER=\"Bearer ${KIMI_API_KEY}\" curl https://x",
+        ] {
+            let pre = json!({
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Bash",
+                "tool_input": { "command": cmd },
+            });
+            let v = guard("pretooluse", Some(&pre));
+            assert!(
+                !v.block,
+                "env reference must pass: {cmd} -> {:#?}",
+                v.reasons
+            );
+            assert!(
+                v.findings.is_empty(),
+                "no findings either: {cmd} -> {:#?}",
+                v.findings
+            );
+        }
+        // 明文仍拦（对照组）。
+        let pre = json!({
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": { "command": format!("curl -H \"Authorization: Bearer {}\" x", ghp()) },
+        });
+        assert!(guard("pretooluse", Some(&pre)).block);
     }
 }
