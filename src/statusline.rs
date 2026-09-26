@@ -602,11 +602,14 @@ if ($loopSid2) {
 /// id 与项目根定位 transcript（`~/.claude/projects/<slug>/<会话id>.jsonl`，
 /// slug = 项目根非字母数字一律换 `-`），全文单遍正则取最后标记（挂起态
 /// 标记可距尾数万行，尾读窗口必漏，pentest 61192 行实证）：
-/// `Goal check-in:` 行取 active（同行的 `«文本»` 为条件原文）、`Goal
-/// paused` 取 paused（文本回溯最近 Goal 行的 «»）、`/goal clear|off|stop`
-/// 用户指令清态。文件缺失、无标记、JSON 坏损皆静默零命中（$gmText 空
-/// → 段隐藏）。文本截 60 同 goal 段口径（UTF-16 代理对防劈）。状态词
-/// 表实证自 pentest 工位在役 transcript（2026-09-26）。
+/// 真 active 取顶层 user content 全链形（task-notification 加 summary
+/// 加 system-reminder 加 «文本»，未转义引号与单层转义换行）、真 paused
+/// 取顶层 type:system 的 informational 事件形、`/goal clear|off|stop`
+/// 取顶层用户指令形；会话内任何引文在 transcript 里被再编码一层
+/// （`\"` 与 `\\n`），全链锚不命中（假阳二轮回填，本仓自身引文与
+/// 文件提醒回显实证）。文件
+/// 缺失、无标记、JSON 坏损皆静默零命中（$gmText 空 → 段隐藏）。
+/// 文本截 60 同 goal 段口径（UTF-16 代理对防劈）。
 const PS1_GOALPROBE: &str = r#"
 # ── goal mode 探针（REQ-025）：/goal 条件与在役态 ──
 $gmText = ''
@@ -624,7 +627,12 @@ if ($lpDir -and $loopSid2) {
             $gmTxt = ''
             $gmHaveState = $false
             $gmHaveTxt = $false
-            $gmr = [regex]'Goal[^"]{0,400}"?«([^»]+)»|Goal check-in:|Goal paused|content":"/goal (?:clear|off|stop)'
+            # 顶层结构锚（假阳二轮回填）：真通知是顶层 user content 字符串
+            # （未转义引号与单层转义换行）；会话内任何引文（思考、工具
+            # 输入、读屏、文件变更提醒）在 transcript 里都被再编码一层
+            # （\" 与 \\n），全链锚永不命中——本仓自身 49 处引文与
+            # 文件提醒回显实证。
+            $gmr = [regex]'"role":"user","content":"<task-notification>\\n<summary>Goal check-in:[^"]*</summary>\\n</task-notification>\\n<system-reminder>\\nGoal check-in: «([^»]+)» is still active|"type":"system","subtype":"informational","content":"Goal paused|"role":"user","content":"/goal (?:clear|off|stop)'
             $gmFs = [System.IO.File]::Open($gpFile, 'Open', 'Read', 'ReadWrite')
             try {
                 # PowerShell 变量名大小写不敏感：尺寸常量与解码串必须
@@ -659,9 +667,9 @@ if ($lpDir -and $loopSid2) {
                     for ($gi = $gmMs.Count - 1; $gi -ge 0; $gi--) {
                         $m = $gmMs[$gi]
                         if (-not $gmHaveState) {
-                            if ($m.Value -like 'Goal check-in:*') { $gmLast = 'active'; $gmHaveState = $true }
-                            elseif ($m.Value -like 'Goal paused*') { $gmLast = 'paused'; $gmHaveState = $true }
-                            elseif ($m.Value -like 'content*') { $gmLast = ''; $gmTxt = ''; $gmHaveState = $true; $gmHaveTxt = $true }
+                            if ($m.Value -like '"role":"user","content":"<task-notification>*') { $gmLast = 'active'; $gmHaveState = $true }
+                            elseif ($m.Value -like '"type":"system","subtype*') { $gmLast = 'paused'; $gmHaveState = $true }
+                            elseif ($m.Value -like '"role":"user","content":"/goal*') { $gmLast = ''; $gmTxt = ''; $gmHaveState = $true; $gmHaveTxt = $true }
                         }
                         if (-not $gmHaveTxt -and $m.Groups[1].Success) {
                             $gmTxt = $m.Groups[1].Value
@@ -2884,8 +2892,11 @@ mod tests {
                 &[("HOME", home.as_os_str().to_os_string())],
             )
         };
-        let active_line = r#"{"type":"user","message":{"role":"user","content":"<task-notification>Goal check-in: «继续，直到所有vulhub漏洞回归» is still active."}}"#;
-        let paused_line = r#"{"type":"user","message":{"role":"user","content":"Goal paused · the goal check timed out · send a message to continue"}}"#;
+        // 结构形夹具（假阳回填后探针只认此形）：真 active 恒带
+        // <system-reminder> 加转义换行前缀；真 paused 恒为 type:system
+        // 的 informational 事件。
+        let active_line = r#"{"type":"user","message":{"role":"user","content":"<task-notification>\n<summary>Goal check-in: continuing after the last turn ended early</summary>\n</task-notification>\n<system-reminder>\nGoal check-in: «继续，直到所有vulhub漏洞回归» is still active. The last turn ended early."}}"#;
+        let paused_line = r#"{"type":"system","subtype":"informational","content":"Goal paused · the goal check timed out · send a message to continue","uuid":"x"}"#;
         // active：第四行 goal:active（无 loop 任务故第三行隐，共三行）。
         std::fs::write(
             &log,
@@ -2943,6 +2954,21 @@ mod tests {
             r#"{"type":"user","message":{"role":"user","content":"普通轮次"}}"#,
         )
         .unwrap();
+        // 假阳回归（结构锚判据）：裸引文（读屏输出形与无前缀夹具形）
+        // 不得触发第四行——本仓自身开发会话 49 处引文实证的缺陷形。
+        std::fs::write(
+            &log,
+            format!(
+                "{}\n{}\n{}\n{}\n",
+                r#"{"type":"user","message":{"role":"user","content":"<task-notification>Goal check-in: «引文目标» is still active."}}"#,
+                r#"{"type":"user","message":{"role":"user","content":"Goal paused · the goal check timed out · send a message to continue"}}"#,
+                r#"{"type":"assistant","message":{"role":"assistant","content":"代码里写着 Goal check-in: «夹具文本» is still active 字样"}}"#,
+                // 深层再编码形（假阳二轮）：文件提醒回显夹具原文时引号与
+                // 换行被再转义（反斜杠引号与双反斜杠 n），顶层全链锚必不命中。
+                r#"{"type":"user","message":{"role":"user","content":"[系统提醒] 文件已变更，内容片段：{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"<task-notification>\\n<summary>Goal check-in: continuing</summary>\\n</task-notification>\\n<system-reminder>\\nGoal check-in: «回显目标» is still active.\"}}"}}"#
+            ),
+        )
+        .unwrap();
         let out = run();
         let lines: Vec<&str> = out.lines().filter(|l| !l.trim().is_empty()).collect();
         assert_eq!(lines.len(), 2, "no goal no row4: {out}");
@@ -2982,8 +3008,8 @@ mod tests {
                 &[("HOME", home.as_os_str().to_os_string())],
             )
         };
-        let active = r#"{"type":"user","message":{"role":"user","content":"<task-notification>Goal check-in: «继续，直到所有vulhub漏洞回归» is still active."}}"#;
-        let paused = r#"{"type":"user","message":{"role":"user","content":"Goal paused · the goal check timed out · send a message to continue"}}"#;
+        let active = r#"{"type":"user","message":{"role":"user","content":"<task-notification>\n<summary>Goal check-in: continuing</summary>\n</task-notification>\n<system-reminder>\nGoal check-in: «继续，直到所有vulhub漏洞回归» is still active. The last turn ended early."}}"#;
+        let paused = r#"{"type":"system","subtype":"informational","content":"Goal paused · the goal check timed out · send a message to continue","uuid":"x"}"#;
         let filler = format!(
             r#"{{"type":"assistant","message":{{"role":"assistant","content":"{}"}}}}"#,
             "f".repeat(400)
@@ -3007,17 +3033,22 @@ mod tests {
         );
         // F2 真劈形（评审三轮配方）：倒序分块的块界 = 文件尾减块长，尾
         // 置标记数学上不可劈（界恒落末段填充）；劈点须落在标记 token
-        // 内——文件总长定 4194304 加 560（界 = 560），ACT 放 250、
-        // paused 放 500（跨 560），512B 重叠在旧块侧接回，态取 paused、
-        // 文本回溯 ACT。
+        // 内——文件总长定 4194304 加 660（界 = 660），ACT 放 250（结构
+        // 形约 340B）、paused 放 600（跨 660），512B 重叠在旧块侧接回，
+        // 态取 paused、文本回溯 ACT。
         let mut body = String::new();
         body.push_str(&"f".repeat(250));
         body.push_str(active);
         body.push('\n');
-        body.push_str(&"g".repeat(500 - body.len()));
+        assert!(
+            body.len() < 600,
+            "pad math: structural ACT longer than expected ({})",
+            body.len()
+        );
+        body.push_str(&"g".repeat(600 - body.len()));
         body.push_str(paused);
         body.push('\n');
-        let total = 4_194_304 + 560;
+        let total = 4_194_304 + 660;
         while body.len() < total - filler.len() - 1 {
             body.push_str(&filler);
             body.push('\n');
