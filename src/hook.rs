@@ -162,6 +162,39 @@ pub fn run(event_arg: Option<&str>, agent_arg: Option<&str>) -> Result<HookOutco
     run_with_payload(event_arg, agent_arg, payload)
 }
 
+/// REQ-028 state 腿（payload 穿透命令族）：只做四态写盘（D28 读序含会话
+/// 键与 SessionEnd GC），不扫密钥。
+///
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
+pub fn run_state(event_arg: Option<&str>, agent_arg: Option<&str>) -> Result<HookOutcome, String> {
+    let payload = if event_arg.is_some() {
+        None
+    } else {
+        read_stdin_json()
+    };
+    run_state_with_payload(event_arg, agent_arg, payload)
+}
+
+/// REQ-028 token 腿（payload 穿透命令族）：只做 secretguard 密钥扫描
+///（block 级由调用方 exit 2），不写盘。
+///
+/// # Errors
+///
+/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
+pub fn run_token(event_arg: Option<&str>, agent_arg: Option<&str>) -> Result<HookOutcome, String> {
+    let payload = if event_arg.is_some() {
+        None
+    } else {
+        read_stdin_json()
+    };
+    Ok(HookOutcome {
+        state_file: None,
+        guard: run_token_with_payload(event_arg, agent_arg, payload),
+    })
+}
+
 /// 陈旧 session 键文件判定阈值（写入侧顺带清扫崩溃残留；SessionEnd 正常
 /// 路径自删）。
 const STALE_SESSION_SECS: u64 = 7 * 24 * 3600;
@@ -200,6 +233,23 @@ pub(crate) fn run_with_payload(
     agent_arg: Option<&str>,
     payload: Option<Json>,
 ) -> Result<HookOutcome, String> {
+    // 双职责兼容形（弃用期）：state 腿加 guard 腿组合（REQ-028 后注册面
+    // 拆双脚本，本入口仅供 `hst hook status` 老注册与过渡期直调）。
+    let mut out = run_state_with_payload(event_arg, agent_arg, payload.clone())?;
+    if let Some(g) = run_token_with_payload(event_arg, agent_arg, payload) {
+        out.guard = Some(g);
+    } else {
+        out.guard = None;
+    }
+    Ok(out)
+}
+
+/// Test seam: state 腿（REQ-028）。
+pub(crate) fn run_state_with_payload(
+    event_arg: Option<&str>,
+    agent_arg: Option<&str>,
+    payload: Option<Json>,
+) -> Result<HookOutcome, String> {
     if !project_allows(payload.as_ref()) {
         return Ok(HookOutcome::default());
     }
@@ -216,25 +266,7 @@ pub(crate) fn run_with_payload(
     if event.is_empty() {
         return Ok(HookOutcome::default());
     }
-    // 密钥 guard（fail-open；与状态通道互相独立——state 文件推不出来也照拦）。
-    let guard = if matches!(
-        event.as_str(),
-        "pretooluse" | "userpromptsubmit" | "posttooluse"
-    ) {
-        Some(crate::secretguard::guard(&event, payload.as_ref()))
-    } else {
-        None
-    };
-    let session = payload
-        .as_ref()
-        .and_then(|v| {
-            v.get("session_id")
-                .or_else(|| v.get("sessionId"))
-                .and_then(|x| x.as_str())
-                .map(str::to_string)
-        })
-        .or_else(|| env_nonempty("GROK_SESSION_ID"))
-        .unwrap_or_default();
+    let session = session_of(payload.as_ref());
     let state = state_for_payload(&event, payload.as_ref());
     let record = json!({
         "state": state,
@@ -269,8 +301,52 @@ pub(crate) fn run_with_payload(
     };
     Ok(HookOutcome {
         state_file: wrote,
-        guard,
+        guard: None,
     })
+}
+
+/// Test seam: token 腿（REQ-028）。None = 该事件不属 guard 扫描面；Some
+/// 内 block=true 时调用方 exit 2。
+pub(crate) fn run_token_with_payload(
+    event_arg: Option<&str>,
+    _agent_arg: Option<&str>,
+    payload: Option<Json>,
+) -> Option<crate::secretguard::GuardVerdict> {
+    if !project_allows(payload.as_ref()) {
+        return None;
+    }
+    let event = if let Some(arg) = event_arg {
+        normalize(arg)
+    } else if let Some(ref v) = payload {
+        event_from_payload(v)
+    } else {
+        String::new()
+    };
+    if event.is_empty() {
+        return None;
+    }
+    // 密钥 guard（fail-open；与状态通道互相独立，state 文件推不出来也照拦）。
+    if matches!(
+        event.as_str(),
+        "pretooluse" | "userpromptsubmit" | "posttooluse"
+    ) {
+        Some(crate::secretguard::guard(&event, payload.as_ref()))
+    } else {
+        None
+    }
+}
+
+/// session 键取值（payload session_id / sessionId，grok 回退 env）。
+fn session_of(payload: Option<&Json>) -> String {
+    payload
+        .and_then(|v| {
+            v.get("session_id")
+                .or_else(|| v.get("sessionId"))
+                .and_then(|x| x.as_str())
+                .map(str::to_string)
+        })
+        .or_else(|| env_nonempty("GROK_SESSION_ID"))
+        .unwrap_or_default()
 }
 
 #[cfg(test)]

@@ -558,7 +558,7 @@ fn init_full_deploys_hooks_yolo_and_sweeps_skills() {
         &std::fs::read_to_string(user.join(".claude").join("settings.json")).unwrap(),
     )
     .unwrap();
-    for (_event, groups) in settings["hooks"].as_object().unwrap() {
+    for (event, groups) in settings["hooks"].as_object().unwrap() {
         let ours: Vec<&serde_json::Value> = groups
             .as_array()
             .unwrap()
@@ -566,12 +566,21 @@ fn init_full_deploys_hooks_yolo_and_sweeps_skills() {
             .flat_map(|g| g["hooks"].as_array().unwrap().iter())
             .filter(|h| h["command"].as_str().is_some_and(|c| c.contains("hst")))
             .collect();
-        assert_eq!(ours.len(), 1, "one hst handler per event");
-        assert!(
-            ours[0].get("args").is_none(),
-            "Grok PowerShell ParserError if command is the exe and args follow"
-        );
-        assert_eq!(ours[0]["timeout"], 10);
+        // REQ-028：PreToolUse 与 UserPromptSubmit 双挂（state 加 token 腿），
+        // 其余事件单挂。
+        let want = if matches!(event.as_str(), "PreToolUse" | "UserPromptSubmit") {
+            2
+        } else {
+            1
+        };
+        assert_eq!(ours.len(), want, "hst handlers per event {event}");
+        for h in &ours {
+            assert!(
+                h.get("args").is_none(),
+                "Grok PowerShell ParserError if command is the exe and args follow"
+            );
+            assert_eq!(h["timeout"], 10);
+        }
         let cmd = ours[0]["command"].as_str().unwrap();
         assert!(
             cmd.contains("hst-state"),

@@ -516,9 +516,31 @@ enum HookCmd {
         #[arg(long)]
         project: Option<PathBuf>,
     },
-    /// 状态写入入口（事件参数或 stdin JSON，落 ~/.hst/state/）
+    /// 状态写入入口（事件参数或 stdin JSON，落 ~/.hst/state/）；REQ-028
+    /// 起双职责拆分，本入口弃用期一代（新注册走 state 与 token）
     Status {
         /// 事件名或四态（idle/working/blocked/unknown）；省略则读 stdin JSON
+        #[arg(value_name = "事件")]
+        event: Option<String>,
+        /// agent 名（注册参数注入）
+        #[arg(long)]
+        agent: Option<String>,
+    },
+    /// payload 穿透命令族（REQ-028）：四态写盘腿，单对 hst-state 脚本，
+    /// 不扫密钥
+    State {
+        /// 事件名或四态（idle/working/blocked/unknown）；省略则读 stdin JSON
+        #[arg(value_name = "事件")]
+        event: Option<String>,
+        /// agent 名（注册参数注入）
+        #[arg(long)]
+        agent: Option<String>,
+    },
+    /// payload 穿透命令族（REQ-028）：密钥拦截腿（secretguard），单对
+    /// hst-token 脚本，不写盘；block 级 exit 2
+    Token {
+        /// 事件名（pretooluse/userpromptsubmit/posttooluse 扫描面）；省略
+        /// 则读 stdin JSON
         #[arg(value_name = "事件")]
         event: Option<String>,
         /// agent 名（注册参数注入）
@@ -637,6 +659,8 @@ fn run() -> Result<(), String> {
         Commands::Hook { cmd } => match cmd {
             HookCmd::Init { project } => cmd_hook_init(project),
             HookCmd::Status { event, agent } => cmd_hook(event, agent),
+            HookCmd::State { event, agent } => cmd_hook_state(event, agent),
+            HookCmd::Token { event, agent } => cmd_hook_token(event, agent),
             HookCmd::Verify { names, timeout } => cmd_agents_verify(names, timeout, true),
         },
         Commands::Statusline {
@@ -1381,6 +1405,54 @@ fn cmd_hook(event: Option<String>, agent: Option<String>) -> Result<(), String> 
             // Never fail the agent session over a state-file write.
             if std::env::var_os("HST_HOOK_VERBOSE").is_some() {
                 eprintln!("hst hook: {e}");
+            }
+        }
+    }
+    Ok(())
+}
+
+/// REQ-028 state 腿分派：四态写盘，错误面与 hook status 同判（不因写盘
+/// 失败 fail agent 会话）。
+fn cmd_hook_state(event: Option<String>, agent: Option<String>) -> Result<(), String> {
+    match hook::run_state(event.as_deref(), agent.as_deref()) {
+        Ok(outcome) => {
+            if let Some(path) = outcome.state_file {
+                if std::env::var_os("HST_HOOK_VERBOSE").is_some() {
+                    eprintln!("hst.hook.wrote={}", path.display());
+                }
+            }
+        }
+        Err(e) => {
+            // Never fail the agent session over a state-file write.
+            if std::env::var_os("HST_HOOK_VERBOSE").is_some() {
+                eprintln!("hst hook state: {e}");
+            }
+        }
+    }
+    Ok(())
+}
+
+/// REQ-028 token 腿分派：密钥拦截，exit 硬约束 {0, 2}（M060a 语义内化：
+/// 仅自判 block 出 2，内部故障一律 0 fail-open，注册面裸形直挂时护
+/// 无痛轮换）。
+fn cmd_hook_token(event: Option<String>, agent: Option<String>) -> Result<(), String> {
+    match hook::run_token(event.as_deref(), agent.as_deref()) {
+        Ok(outcome) => {
+            if let Some(g) = outcome.guard {
+                if g.block {
+                    // exit 2 = agent 侧拒工具调用，stderr 原因回给模型（S030）。
+                    eprintln!("hst secretguard: {}", g.reasons.join("; "));
+                    std::process::exit(2);
+                }
+                if std::env::var_os("HST_HOOK_VERBOSE").is_some() && !g.findings.is_empty() {
+                    eprintln!("hst.secretguard.findings={}", g.findings.len());
+                }
+            }
+        }
+        Err(e) => {
+            // fail-open：拦截面自身故障不挡活（M060a）。
+            if std::env::var_os("HST_HOOK_VERBOSE").is_some() {
+                eprintln!("hst hook token: {e}");
             }
         }
     }

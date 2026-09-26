@@ -12,6 +12,8 @@
 
 4. **别名终形：属主前缀加管道分隔（用户四令收敛）**：别名带属主进程前缀（「别名 加上什么进程」，例序 herdr 在先）加分隔符 ` | `（与他行段分隔同形，先令裸 `|` 后令带空格对齐）；定名 herdr-agent-state 映射「herdr agent状态监控」（kimi 面每事件推态、claude/grok 面会话登记，舰队侧 agent 监控本体）、hst-state 双职责映射「hst token护栏 | hst 会话状态同步」（用户定名，预对齐 REQ-028 候裁的 hst token 与 hst state 解耦命令名）。夹具纠偏一笔：未收录回落例原名 privacy-guard 被用户点破「privacy-guard 就是 hst token护栏」（隐私保护例的本体即密钥拦截，非独立 hook），改中性名 metric-bridge 走回落分支。实弹：第5行 `herdr agent状态监控 | hst token护栏 | hst 会话状态同步` `[实证: 本会话 id 直跑 release]`。全测 253 加 49 绿 `[实证: 本机全测输出]`。
 
+5. **REQ-028 hook 命令解耦与穿透命令族落地**（用户令「hst-state 不应该双职责 拆分成2个脚本和hst hook payload穿透命令 以后还要扩展很多hook命令」续裁「每个hst hook payload穿透命令 单对一个自己的hook脚本」）：一命令一脚本架构（`hst hook state` 单对 hst-state 三载体、`hst hook token` 单对 hst-token 三载体，未来 `hst hook <x>` 循此式扩展）。命令面：hook.rs 拆 run_state（四态写盘腿）与 run_token（密钥拦截腿，exit 硬约束 0 加 2、M060a fail-open 内化），`hst hook status` 双职责保弃用期一代；shim 面：STATE 三载体剥 guard 透传腿纯写盘、TOKEN 新三载体（读 payload 透传 `hst hook token`，白名单透传形）；部署面：merge_hook_event 改多 handler 形（同事件双挂不互删、旧形态按 hst-token stem 就近替换、缺失补独立新组防外来 matcher 错挂作用域（自查修一处））、codex merge 腿分流（state 腿遇 token 条目不动反之亦然）、kimi 加 token 条目、is_ours 包裹分支认 hst-token。别名表拆三 stem 三别名（REQ-026 值内嵌分隔拆除）。实弹三查：注册面 PreToolUse 与 UserPromptSubmit 双挂（state 加 token 命令并列）、shim 七件齐、状态栏第5行 `herdr agent状态监控 | hst token护栏 | hst 会话状态同步`（三别名对三 hook）；e2e 三态：假 key 文件喂 hst-token.sh 阻断 exit 2 加原因回放、干净 payload 放行、PATH 旧版 hst（stable v2.9.0 无 token 面）fail-open exit 0（M060a 白名单正确拒透传 clap 用法错的 exit 2）`[实证: 本机重部署 hst hook init 加注册面对读加 shim 直跑三态]`。全测 253 加 49 绿 `[实证: 本机全测输出]`。
+
 ## 自省
 
 - python heredoc 转义塌陷同型二犯（09-26 流水 18 的 \n 塌真换行、本次 \" 塌裸引号）：夹具类改码一律 Edit 工具实落或 python raw 字符串，不再走普通字符串 heredoc。按「同型二犯升格」惯例此条记档待升 guides 工作流条目。

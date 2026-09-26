@@ -892,14 +892,19 @@ fn state_color(state: &str) -> &'static str {
 /// 同形；预对齐解耦后命令名 `hst token` 与 `hst state`（REQ-028 候裁）。
 /// 未收录的回落 stem 本名；清单含外来 hook（herdr 等）。
 const HOOK_ALIASES: &[(&str, &str)] = &[
+    // 别名带属主前缀（用户令 2026-09-27「别名 加上什么进程」，例序 herdr
+    // 在先）；分隔符 ` | ` 与他行段分隔同形。REQ-028 拆条后一命令一脚本
+    // 一别名：`hst hook token` 单对 hst-token.sh、`hst hook state` 单对
+    // hst-state.sh；未来 `hst hook <x>` 循此式加条即入列。
     // herdr agent 状态监控 hook：claude/grok 面 SessionStart 会话登记推
     // herdr server（pane 与会话绑定），kimi 面每事件推 working/idle 态。
     ("herdr-agent-state", "herdr agent状态监控"),
-    // hst-state 双职责 hook（REQ-028 解耦后即 hst token 加 hst state 两
-    // 命令）：①PreToolUse/UserPromptSubmit 跑 secretguard 密钥拦截（S030：
-    // API key 命中 exit 2 阻断）；②事件映射四态写 ~/.hst/state 会话键
-    //（S025/D28）。
-    ("hst-state", "hst token护栏 | hst 会话状态同步"),
+    // hst token 护栏 hook（REQ-028）：PreToolUse/UserPromptSubmit 跑
+    // secretguard 密钥拦截（S030：API key 命中 exit 2 阻断）。
+    ("hst-token", "hst token护栏"),
+    // hst 会话状态同步 hook（S025/D28）：事件映射四态写 ~/.hst/state
+    // 会话键。
+    ("hst-state", "hst 会话状态同步"),
 ];
 
 /// 新增 hook 收录指引（评审 G3）：只改 HOOK_ALIASES 一处加 stem 判定回
@@ -1636,13 +1641,13 @@ mod tests {
         std::fs::create_dir_all(&claude_dir).unwrap();
         std::fs::write(
             claude_dir.join("settings.json"),
-            r#"{"hooks":{"Stop":[{"matcher":"*","hooks":[{"type":"command","command":"\"/x/.hst/hooks/hst-state.sh\" claude"}]}],"SessionStart":[{"matcher":"*","hooks":[{"type":"command","command":"bash '/other/herdr-agent-state.sh' session"},{"type":"command","command":"\"/x/.hst/hooks/hst-state.sh\" claude"}]}],"Notification":[{"matcher":"*","hooks":[{"type":"command","command":"bash /only/metric-bridge.sh"}]}]}}"#,
+            r#"{"hooks":{"Stop":[{"matcher":"*","hooks":[{"type":"command","command":"\"/x/.hst/hooks/hst-state.sh\" claude"}]}],"SessionStart":[{"matcher":"*","hooks":[{"type":"command","command":"bash '/other/herdr-agent-state.sh' session"},{"type":"command","command":"\"/x/.hst/hooks/hst-state.sh\" claude"}]}],"Notification":[{"matcher":"*","hooks":[{"type":"command","command":"bash /x/.hst/hooks/hst-token.sh claude"}]}]}}"#,
         )
         .unwrap();
         // 别名表序（herdr 在先，用户例序），未收录 metric-bridge 回落本名殿后。
         assert_eq!(
             hooked_aliases_at(&tmp, "claude"),
-            "herdr agent状态监控 | hst token护栏 | hst 会话状态同步 | metric-bridge"
+            "herdr agent状态监控 | hst token护栏 | hst 会话状态同步"
         );
         // kimi TOML 面：ours 加外来同列。
         let kimi_dir = tmp.join(".kimi-code");
@@ -1654,7 +1659,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             hooked_aliases_at(&tmp, "kimi"),
-            "herdr agent状态监控 | hst token护栏 | hst 会话状态同步"
+            "herdr agent状态监控 | hst 会话状态同步"
         );
         // grok 多文件注册面（评审 F）：hst 的 ohmyagents-state.json 与
         // herdr 的 herdr.json 双文件合并收集。
@@ -1672,7 +1677,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             hooked_aliases_at(&tmp, "grok"),
-            "herdr agent状态监控 | hst token护栏 | hst 会话状态同步"
+            "herdr agent状态监控 | hst 会话状态同步"
         );
         // 坏损 JSON 零命中不炸。
         std::fs::write(claude_dir.join("settings.json"), "{ not json").unwrap();

@@ -398,6 +398,16 @@
       "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\nHook entry: always exit-path friendly. `HST_STATE_FILE` 覆盖互斥\n单写（verify 与测试）；缺省走用户级 session 分键通道（D28）：写\n`~/.hst/state/<agent>.json`（agent 最新）加 `<agent>-<session>.json`\n（session 键，状态栏按当前会话直读；session 取 payload session_id /\nsessionId，grok 回退 GROK_SESSION_ID env）。SessionEnd 删本 session 键\n文件（GC），顺带清扫同 agent 超 7 天的陈旧键文件（崩溃残留）。"
     },
     {
+      "path": "hst_cli::hook::run_state",
+      "kind": "function",
+      "docs": "REQ-028 state 腿（payload 穿透命令族）：只做四态写盘（D28 读序含会话\n键与 SessionEnd GC），不扫密钥。\n\n# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。"
+    },
+    {
+      "path": "hst_cli::hook::run_token",
+      "kind": "function",
+      "docs": " REQ-028 token 腿（payload 穿透命令族）：只做 secretguard 密钥扫描\n（block 级由调用方 exit 2），不写盘。\n\n # Errors\n\n 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。"
+    },
+    {
       "path": "hst_cli::hook::state_for_payload",
       "kind": "function",
       "docs": "Claude Notification is mixed (tips vs permission). Only permission-shaped\nkinds count as blocked; the rest stay unknown so we do not spur idle."
@@ -725,7 +735,7 @@
     {
       "path": "hst_cli::shim",
       "kind": "module",
-      "docs": "shim 三形态自包含状态写入器：cmd/ps1/sh 加 grok 包装（D27/D28/D39）。\n用户级状态写入 shim（D27 自包含 + D28 用户级常驻）：hook 与 hst 二进制\n解耦，注册与 shim 常驻 `~/.hst/hooks/`（用户裁 2026-09-11「hook 应用户\n全局」，对齐 codex 用户层形态），各家 hook 注册指向 shim——state 通道\n零 hst 依赖，hst 可任意时刻无痛升级轮换，未 init 的项目也有状态数据。\n状态落 `~/.hst/state/` 按 session 分键（D28，防 herdr 多会话互踩）：\n默认双写 `<agent>.json`（agent 最新，供无 session 标识的消费面）加\n`<agent>-<session>.json`（session 键，状态栏按当前会话直读）；\nSessionEnd 删本 session 键文件（GC，崩溃残留由 hst hook 侧陈旧清扫）。\n`HST_STATE_FILE` 覆盖优先且互斥（单文件语义，verify 与测试用）。\nsecretguard 由 shim fail-open 委托加 M060a 白名单：PreToolUse /\nUserPromptSubmit 时 hst 在位则转发 payload，仅「exit 2 且 stderr 带\n`hst secretguard:` 前缀」判定为自判 block 透传 2 并回放原因；hst 故障的其余非零（升级期坏二进制、CLI 契约漂移含 clap 用法错的 exit 2）一律\nfail-open 放行，不在位同放行（state 已写）——护无痛轮换。\n`hst hook` 保留为手动入口与委托目标（含完整 notification 形状解析）。\ncmd 形态两级（用户裁 2026-09-10：jq 归 ome 部署，shim 部署前探 PATH）：\njq 在位用 jq 解析（转义免疫、ts 取 jq now），缺位回落 findstr 硬解析并\nwarn 指向 `ark install jq`（ome 更名 Ark 随批）。sh 侧 sed 是 POSIX 基线不引依赖。\nsession 标识三源：payload `session_id`（claude/codex）、`sessionId`\n（kimi）、grok runner 注入的 `GROK_SESSION_ID` env（payload 无该字段）。"
+      "docs": "shim 三形态自包含状态写入器：cmd/ps1/sh 加 grok 包装（D27/D28/D39）。\n用户级 hook shim（D27 自包含 + D28 用户级常驻 + REQ-028 双脚本拆分）：\nhook 与 hst 二进制解耦，注册与 shim 常驻 `~/.hst/hooks/`（用户裁\n2026-09-11「hook 应用户全局」，对齐 codex 用户层形态），各家 hook 注册\n指向 shim——state 通道零 hst 依赖，hst 可任意时刻无痛升级轮换，未\ninit 的项目也有状态数据。\nREQ-028（用户令 2026-09-27「hst-state 不应该双职责 拆分成2个脚本和\nhst hook payload穿透命令 以后还要扩展很多hook命令」）：一命令一脚本\n（`hst hook state` 单对 hst-state、`hst hook token` 单对 hst-token，\n未来 `hst hook <x>` 循此式）。state 载体纯四态写盘；token 载体纯密钥\n拦截（fail-open 委托加 M060a 白名单：PreToolUse / UserPromptSubmit 时\nhst 在位则转发 payload，仅「exit 2 且 stderr 带 `hst secretguard:` 前\n缀」判定为自判 block 透传 2 并回放原因；hst 故障的其余非零（升级期\n坏二进制、CLI 契约漂移含 clap 用法错的 exit 2）一律 fail-open 放行，\n不在位同放行——护无痛轮换）。`hst hook status` 双职责入口弃用期一代\n（老注册兼容），`hst hook` 族保留为手动入口与委托目标。\n状态落 `~/.hst/state/` 按 session 分键（D28，防 herdr 多会话互踩）：\n默认双写 `<agent>.json`（agent 最新，供无 session 标识的消费面）加\n`<agent>-<session>.json`（session 键，状态栏按当前会话直读）；\nSessionEnd 删本 session 键文件（GC，崩溃残留由 hst hook 侧陈旧清扫）。\n`HST_STATE_FILE` 覆盖优先且互斥（单文件语义，verify 与测试用）。\ncmd 形态两级（用户裁 2026-09-10：jq 归 ome 部署，shim 部署前探 PATH）：\njq 在位用 jq 解析（转义免疫、ts 取 jq now），缺位回落 findstr 硬解析并\nwarn 指向 `ark install jq`（ome 更名 Ark 随批）。sh 侧 sed 是 POSIX 基线不引依赖。\nsession 标识三源：payload `session_id`（claude/codex）、`sessionId`\n（kimi）、grok runner 注入的 `GROK_SESSION_ID` env（payload 无该字段）。"
     },
     {
       "path": "hst_cli::shim::STATE_CMD",
@@ -753,6 +763,21 @@
       "docs": "POSIX sh shim（Linux = bash、mac = zsh 同一语义；shebang 由部署侧按宿主\n写 bash 或 zsh）。`$1` = agent；stdin = payload；状态根 =\n`$HOME/.hst/state`（用户级常驻，D28；HOME 缺位的退化环境直接退出，\nfail-open）；ts 取纪元秒。sed 是 POSIX 基线（jq 不作 Unix 前置依赖）。"
     },
     {
+      "path": "hst_cli::shim::TOKEN_CMD",
+      "kind": "constant",
+      "docs": "REQ-028 token 腿 shim 的 cmd 载体（密钥拦截单职责；透传白名单同 sh 形）。"
+    },
+    {
+      "path": "hst_cli::shim::TOKEN_PS1",
+      "kind": "constant",
+      "docs": "REQ-028 token 腿 shim 的 ps1 载体（密钥拦截单职责；M060a 白名单透传\n形，与 cmd/sh 同语义）。带 BOM 落盘（D39：PS 5.1 无 BOM 按 ANSI 解析）。"
+    },
+    {
+      "path": "hst_cli::shim::TOKEN_SH",
+      "kind": "constant",
+      "docs": "REQ-028 token 腿 shim（密钥拦截单职责，与 hst-state 拆分）：读 payload\n透传 `hst hook token --agent`，M060a 白名单透传形（仅 hst 自判 block\n透传 2 并回放原因；hst 缺席或故障的非零一律 fail-open 放行）。"
+    },
+    {
       "path": "hst_cli::shim::deploy_shims",
       "kind": "function",
       "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n部署 shim 文件集到 hst 自管根的 `hooks/`（D28 用户级常驻：\n`<hst_home>/hooks/`，调用方传 `install::hst_home()`；测试传临时根）。\n三份脚本全侧落齐（跨 OS 共享并存：Windows init 也备好 .sh、Unix init\n也备好 .cmd；+x 只在 Unix 生效）。cmd 主 shim按 jq 探测选形态（D27\n的用户裁定面（细则见模块文档与集成测试）。\n返回 (实写路径, 警告)。"
@@ -771,6 +796,11 @@
       "path": "hst_cli::shim::state_sh_for",
       "kind": "function",
       "docs": "部署时替换 shebang 行得到 zsh 变体（语义同 bash 形；zsh 无 bashisms 可用\n之处已避开，dirname/date/sed/case 全兼容）。"
+    },
+    {
+      "path": "hst_cli::shim::token_sh_for",
+      "kind": "function",
+      "docs": "TOKEN_SH 的 shebang 互换（同 state_sh_for）。"
     },
     {
       "path": "hst_cli::statusline",
