@@ -157,3 +157,12 @@
 ### 里程碑 2026-09-25
 
 - **release 矩阵补 x86_64-apple-darwin 档 v2.8.1（纯发布面扩展，零功能变化）**：舰队新收编 Intel MacBook（omc 第六端 agent 机，macOS 12.7.6）无件可装（2.8.0 资产只有 aarch64 档）；ADR-0007 后记翻转 2026-09-17「mac 只要 arm64」用户裁决。release.ps1 lan-mac 同机双档（arm64 本职加 x86_64 交叉，rustup target 链内自装）加 intel 实机运行时冒烟（宿主 intelMBP，不可达时 -SkipIntelMacSmoke 显式弃保，同 win 腿形）；dev-release.yml 构建矩阵四档（arm64 runner 交叉编，Test 对交叉岗跳过同 win-gnu 先例）；publish 计数断言六件升八件。既有三平台产物名与压缩形不动（omc catalog pin 对账面）；selfupdate 资产名按 arch 动态推导零代码改动（x86_64 mac 用例测试在册）；交叉档实弹前置验证在案（lan-mac 交叉编加 intelMBP 实跑 hst 2.8.0）。
+
+### 里程碑 2026-09-26：v2.9.0（loop/goal 治理面全链）
+
+- **生效模型实证定档**：hst 写盘对在跑会话不接管（inotify 盯而不认，调度器真相在内存）；重启装载补触发与 recurring 装载触发双阳性实证；原生工具双清写穿。三面机制图入档模块文档与 diary。
+- **doctor 增 loop/goal 健康检查（REQ-020）**：check=loop 行（零任务 ok、坏损 warn 含顶层非数组与行错型、Linux 死属主 warn、非 Linux 无判据注记、tasks/ours/foreign/dead_owner 对账面）。
+- **类型契约化（REQ-021/022）**：loopmgmt 试点（Cadence 枚举、Task typed 承载五可缺三必需、LoopError 短码 `error=<code>`）加 compact 收尾（Threshold 枚举）加推广裁定（外部属主面保持 raw Json、存量模块不整批 enum 化）。
+- **herdr 即时生效通道（REQ-023、ADR-0009 受限编排回归）**：loop/goal 四入口 --via-herdr（派原生 Cron 指令到在跑会话即时生效），零依赖 NDJSON 客户端，blocked 分流不落 Enter，失败不回落写盘；真机实弹闭环。
+- **状态栏第三行 loop/goal 专属行（REQ-024）**：D44 默认空翻转，goal 截断 16 放宽 60，无任务整行隐回两行，tools/mcp/tokens 显式同线语义不破。
+- **五端实弹**：wsl 加 lan-linux 加 lan-mac 加 lan-win 四端新面三查绿（lan-ubuntu 离线留待）；CI 交叉岗抓 windows 分支型错即修（cfg 平台分支推送前必跑交叉构建入教训）。
