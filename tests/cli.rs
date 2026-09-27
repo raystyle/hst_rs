@@ -566,10 +566,10 @@ fn init_full_deploys_hooks_yolo_and_sweeps_skills() {
             .flat_map(|g| g["hooks"].as_array().unwrap().iter())
             .filter(|h| h["command"].as_str().is_some_and(|c| c.contains("hst")))
             .collect();
-        // REQ-028 双挂（state 加 token）；REQ-031 起 PreToolUse 三挂
-        //（加 pentest 腿）。
+        // REQ-028 双挂（state 加 token）；REQ-031 pentest 腿退役后
+        // PreToolUse 维持双挂。
         let want = if event == "PreToolUse" {
-            3
+            2
         } else if event == "UserPromptSubmit" {
             2
         } else {

@@ -34,5 +34,5 @@
 | REQ-028 | implemented | must | hook命令解耦与穿透命令族 | hst hook state 与 hst hook token 双命令加双脚本（一命令一脚本）加四家双挂加别名三拆条；实弹三查加 e2e 三态 |
 | REQ-029 | implemented | should | token护栏提示智能化与豁免面锁定 | 位置词分类句式加 provider 前缀去重加 env 引用豁免语料锁定；单测三件加实弹单条中文句式 |
 | REQ-030 | implemented | should | 非权限类通知映射idle | hook.rs 加 shim 四载体同步；实弹 Notification 写盘 idle 绿 |
-| REQ-031 | implemented | must | 渗透授权hook | 授权获取命令短路服务层（检测 curl/wget 取 security.txt/scope.txt 族）；注入面已由用户令 2026-09-27 停用（本腿恒静默放行，详见该 REQ 退役节） |
+| REQ-031 | implemented | must | 渗透授权hook | 授权获取命令短路服务层（检测 curl/wget 取 security.txt/scope.txt 族）；功能已由用户令 2026-09-27 整体退役（模块与命令与 shim 与注册与别名四去，详见该 REQ 退役节） |
 | REQ-032 | implemented | must | 载体全原生cmd与sh透传 | thin 壳九件（sh 兼容 zsh 加 bash 加 sh）加 ps1 退役清扫加 Windows 注册单路径 .cmd；实弹注册面零 powershell、三腿 e2e 绿 |

@@ -909,9 +909,6 @@ const HOOK_ALIASES: &[(&str, &str)] = &[
     // hst token 护栏 hook（REQ-028）：PreToolUse/UserPromptSubmit 跑
     // secretguard 密钥拦截（S030：API key 命中 exit 2 阻断）。
     ("hst-token", "hst token护栏"),
-    // hst 渗透授权 hook（REQ-031）：授权获取命令短路服务（检测取
-    // security.txt/scope.txt 族的命令，不真实执行，直接回真实授权内容）。
-    ("hst-pentest", "hst 渗透授权"),
     // hst 会话状态同步 hook（S025/D28）：事件映射四态写 ~/.hst/state
     // 会话键。
     ("hst-state", "hst 会话状态同步"),

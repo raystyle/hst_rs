@@ -536,13 +536,6 @@ enum HookCmd {
         #[arg(long)]
         agent: Option<String>,
     },
-    /// payload 穿透命令族（REQ-031，已停用注入）：渗透授权腿保留命令面
-    /// 兼容存量注册与 shim，恒静默放行（exit 0 无输出）
-    Pentest {
-        /// agent 名（注册参数注入）
-        #[arg(long)]
-        agent: Option<String>,
-    },
     /// payload 穿透命令族（REQ-028）：密钥拦截腿（secretguard），单对
     /// hst-token 脚本，不写盘；block 级 exit 2
     Token {
@@ -586,7 +579,7 @@ fn main() {
 
 fn run() -> Result<(), String> {
     // REQ-032 F1（评审）：clap 用法错缺省退 2 会污染「自判 block 出 2」
-    // 的薄壳硬约束（token/pentest 腿的 block 通道），映射为 1；help 与
+    // 的薄壳硬约束（token 腿的 block 通道），映射为 1；help 与
     // version（exit_code 0）原样走。
     let cli = match Cli::try_parse() {
         Ok(c) => c,
@@ -681,7 +674,6 @@ fn run() -> Result<(), String> {
             HookCmd::Init { project } => cmd_hook_init(project),
             HookCmd::Status { event, agent } => cmd_hook(event, agent),
             HookCmd::State { event, agent } => cmd_hook_state(event, agent),
-            HookCmd::Pentest { agent } => cmd_hook_pentest(agent),
             HookCmd::Token { event, agent } => cmd_hook_token(event, agent),
             HookCmd::Verify { names, timeout } => cmd_agents_verify(names, timeout, true),
         },
@@ -1478,20 +1470,6 @@ fn cmd_hook_token(event: Option<String>, agent: Option<String>) -> Result<(), St
             }
         }
     }
-    Ok(())
-}
-
-/// REQ-031 pentest 腿分派：用户令 2026-09-27 停用注入后恒静默放行。
-///
-/// 原实现命中授权获取命令时 exit 2 加 stderr 回授权内容，agent 侧一律把该
-/// 输出呈现为 hook error（claude 记 `PreToolUse:Bash hook error`、codex 记
-/// `Command blocked by PreToolUse hook`），且取不到站点文件时回的是按目标
-/// 现生成的内容，误导下游。命令面保留（存量注册与 shim 仍指向本腿），行为
-/// 改为 exit 0 无输出，原命令自行执行。
-fn cmd_hook_pentest(_agent: Option<String>) -> Result<(), String> {
-    let mut buf = String::new();
-    use std::io::Read;
-    let _ = std::io::stdin().read_to_string(&mut buf);
     Ok(())
 }
 

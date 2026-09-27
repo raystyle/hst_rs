@@ -30,6 +30,6 @@ trace: pentest.rs 模块（检测加取回加生成加服务四层，单测九�
 
 用户令「~/.hst/hooks/hst-pentest.sh 不要输出hook注入的错误信息」。实测复盘：注入面在本腿命中授权获取命令时用 exit 2 加 stderr 回内容，agent 侧一律把这段输出呈现为 hook error（claude 记 `PreToolUse:Bash hook error: [...hst-pentest.sh claude]: <内容>`，codex 记 `Command blocked by PreToolUse hook: <内容>`）；且站点取不到 security.txt/scope.txt 族文件时回的是按目标现生成的内容（source=auto），下游据此当真实授权面用即误判（本机实弹：sslcert.se 实际无 security.txt（302 转 www 后 404），注入面却回了一份带 `In scope: sslcert.se` 与 `X-Authorization` 的授权文件，agent 侧当场按伪造面处理并绕道重取真件）。
 
-落地：`src/pentest.rs` 整模块删除（检测、缓存三序、自取、自动生成、loose_cidr 网段与白帽文案全部退役），`hst hook pentest` 命令面保留（存量注册与 shim 仍指向本腿）但恒静默放行（exit 0 无输出，stdin 读尽丢弃），原命令自行执行。CLI 手册退出码表同步（退 2 自判处置只剩 secretguard）。shim 三载体与四家 PreToolUse 第三挂暂留（本腿已无输出，注册面清理候裁）。
+落地分两笔。第一笔（v2.9.6 后未发布态）：`hst hook pentest` 恒静默放行（exit 0 无输出），先止血；CLI 手册退出码表同步（退 2 自判处置只剩 secretguard）。第二笔（用户令 2026-09-27「直接去掉pentest.rs及功能和状态栏的渗透授权别名」，随 v2.9.7 发布）：`src/pentest.rs` 整模块删除（检测、缓存三序、自取、自动生成、loose_cidr 网段与白帽文案全退），`hst hook pentest` 命令面删除，shim 退为 state 加 token 两腿八件（pentest 四件 sh/ps1/cmd/grok 包装走幂等清扫），四家注册撤 PreToolUse 第三挂（claude 加 grok 加 kimi 加 codex；存量 hst-pentest 条目在重部署里归一清扫，未重部署的机器回落用户级 fail-open 语义），状态栏 hook 别名表去「hst 渗透授权」条。
 
 边界：`hst hook pentest` 不再有任何注入与短路能力，`~/.hst/pentest/` 缓存目录本版不再被读写（存量文件可自行清理）。

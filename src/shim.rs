@@ -1,10 +1,9 @@
 //! 用户级 hook 壳（REQ-032 载体全原生）：thin 透传，cmd 与 sh 两载体，
-//! 全部逻辑收进 hst 二进制本体（`hst hook state/token/pentest`）。部署时
+//! 全部逻辑收进 hst 二进制本体（`hst hook state/token`）。部署时
 //! 烘焙部署方二进制绝对路径（self update 原位替换，路径不漂）。D28 自包
 //! 含设计退役记档：hst 缺位或故障时 shell 退出码非 2，agent 侧按非阻塞
 //! 错误处理 = fail-open（状态通道回落 unknown）；M060a 白名单语义由 hst
-//! 本体内化（token 腿 exit 硬约束 0 与 2，仅自判 block 出 2；pentest 腿
-//! 停用注入后恒退 0 无输出，见 REQ-031 退役节）。
+//! 本体内化（token 腿 exit 硬约束 0 与 2，仅自判 block 出 2）。
 //! grok 的 Windows 单路径包装（M048）保留：包装烘焙 agent 参转调 thin
 //! cmd。Windows 注册走 thin ps1 一行壳（REQ-032 评审 F2 方案③，D39 三壳
 //! 通吃形 powershell.exe -File <正斜杠>）；.cmd 只留 grok 包装与手工面。
@@ -89,9 +88,9 @@ pub fn deploy_shims(root: &std::path::Path) -> Result<(Vec<PathBuf>, Vec<String>
 /// # Errors
 ///
 /// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
-/// 壳部署（REQ-032 thin 透传面）：state/token/pentest 三腿 sh 加 ps1 加
-/// cmd 三载体加 grok 三包装，exe 烘焙部署方 current_exe 绝对路径；幂等
-/// 内容判等；oma 旧名件清扫。
+/// 壳部署（REQ-032 thin 透传面）：state/token 两腿 sh 加 ps1 加 cmd 三
+/// 载体加 grok 两包装，exe 烘焙部署方 current_exe 绝对路径；幂等内容判
+/// 等；oma 旧名件与 pentest 退役件清扫。
 pub fn deploy_shims_with(
     root_param: &std::path::Path,
     shell: &str,
@@ -103,11 +102,7 @@ pub fn deploy_shims_with(
         .unwrap_or_else(|_| "hst".to_string());
     let mut wrote: Vec<PathBuf> = Vec::new();
     let mut warns = Vec::new();
-    for (leg, stem) in [
-        ("state", "hst-state"),
-        ("token", "hst-token"),
-        ("pentest", "hst-pentest"),
-    ] {
+    for (leg, stem) in [("state", "hst-state"), ("token", "hst-token")] {
         let sh = dir.join(format!("{stem}.sh"));
         if write_if_changed(&sh, &thin_sh(&exe, leg, shell))? {
             wrote.push(sh.clone());
@@ -130,13 +125,18 @@ pub fn deploy_shims_with(
             wrote.push(grok);
         }
     }
-    // REQ-032 退役清扫：旧 ps1 载体与 oma 旧名件（带生成标记才删，防误删
-    // 用户自置同名文件）。
+    // REQ-032 退役清扫：旧 ps1 载体与 oma 旧名件；REQ-031 退役清扫：
+    // pentest 腿四件（2026-09-27 用户令去渗透授权功能）。带生成标记才删，
+    // 防误删用户自置同名文件。
     for legacy in [
         "oma-state.cmd",
         "oma-state-grok.cmd",
         "oma-state.sh",
         "oma-state.ps1",
+        "hst-pentest.sh",
+        "hst-pentest.ps1",
+        "hst-pentest.cmd",
+        "hst-pentest-grok.cmd",
     ] {
         let p = dir.join(legacy);
         if p.exists() {
@@ -196,25 +196,25 @@ mod tests {
             cmd.contains("\"C:\\tools\\hst.exe\" hook token --agent %1"),
             "{cmd}"
         );
-        let w = grok_wrapper("hst-pentest");
-        assert!(w.contains("\"%~dp0hst-pentest.cmd\" grok"), "{w}");
-        let ps1 = thin_ps1("C:\\tools\\hst.exe", "pentest");
+        let w = grok_wrapper("hst-state");
+        assert!(w.contains("\"%~dp0hst-state.cmd\" grok"), "{w}");
+        let ps1 = thin_ps1("C:\\tools\\hst.exe", "state");
         assert!(
-            ps1.contains("& \"C:/tools/hst.exe\" hook pentest --agent $args[0]"),
+            ps1.contains("& \"C:/tools/hst.exe\" hook state --agent $args[0]"),
             "{ps1}"
         );
         assert!(ps1.contains("exit $LASTEXITCODE"), "{ps1}");
     }
 
     #[test]
-    fn deploy_shims_writes_twelve_and_is_idempotent() {
-        // 三腿（sh 加 ps1 加 cmd 加 grok 包装）= 十二件；幂等。
-        let dir = scratch("twelve");
+    fn deploy_shims_writes_eight_and_is_idempotent() {
+        // 两腿（sh 加 ps1 加 cmd 加 grok 包装）= 八件；幂等。
+        let dir = scratch("eight");
         let (wrote, warns) = deploy_shims_with(&dir, "bash").unwrap();
         assert_eq!(
             wrote.len(),
-            12,
-            "twelve thin shells (sh/ps1/cmd x3 + grok x3): {wrote:?}"
+            8,
+            "eight thin shells (sh/ps1/cmd x2 + grok x2): {wrote:?}"
         );
         assert!(warns.is_empty(), "{warns:?}");
         for name in [
@@ -226,13 +226,12 @@ mod tests {
             "hst-token.ps1",
             "hst-token.cmd",
             "hst-token-grok.cmd",
-            "hst-pentest.sh",
-            "hst-pentest.ps1",
-            "hst-pentest.cmd",
-            "hst-pentest-grok.cmd",
         ] {
             assert!(dir.join("hooks").join(name).exists(), "missing {name}");
         }
+        // 第二趟幂等：零写。
+        let (wrote2, _) = deploy_shims_with(&dir, "bash").unwrap();
+        assert!(wrote2.is_empty(), "{wrote2:?}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

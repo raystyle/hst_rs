@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### 里程碑 2026-09-27：v2.9.7 渗透授权面退役
+
+- **渗透授权面整体退役（REQ-031，用户令「直接去掉 pentest.rs 及功能和状态栏的渗透授权别名」）**：`src/pentest.rs` 整模块与 `hst hook pentest` 命令删除；shim 退为 state 加 token 两腿八件（pentest 四件走幂等清扫）；四家 hook 注册撤 PreToolUse 第三挂（claude 加 grok 加 kimi 加 codex），存量 hst-pentest 注册条目在重部署里归一清扫；状态栏 hook 别名表去「hst 渗透授权」条。
+- **退役缘由记档（用户令 2026-09-27）**：注入面命中授权获取命令时 exit 2 加 stderr 回内容，agent 侧一律呈现为 hook error（claude 记 PreToolUse hook error、codex 记 Command blocked by PreToolUse hook）；且站点取不到该文件时回的是按目标现生成的内容，下游当真实授权面用即误判。
+
 ### 里程碑 2026-09-27：v2.9.6 渗透授权白帽自动化授权面
 
 - **白帽自动化授权面（REQ-031 续，翻转 G2 中性化）**：自动生成的 security.txt 改 RFC 9116 形（必填 Contact 加 Expires（RFC 3339 UTC 形、90 天窗）、可选 Canonical 加 Preferred-Languages 取 https 形、白帽自动化授权经 X-Authorization 扩展字段承载），Contact 自适应取命令内 host（去 localhost 占位）。

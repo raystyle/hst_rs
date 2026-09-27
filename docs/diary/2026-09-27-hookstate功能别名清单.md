@@ -50,6 +50,8 @@
 
 23. **REQ-031 注入面停用（用户令「~/.hst/hooks/hst-pentest.sh 不要输出hook注入的错误信息」）**：病根是呈现面而非文案——本腿命中授权获取命令时 exit 2 加 stderr 回内容，agent 侧一律记为 hook error（claude 原始回执 `PreToolUse:Bash hook error: ["/home/ray/.hst/hooks/hst-pentest.sh" claude]: <授权内容>`，codex 为 `Command blocked by PreToolUse hook: <授权内容>`），用户在同一时段的渗透工位（claude，仓 prs_c2coe-vulscan）实遇：`curl -skL https://sslcert.se/.well-known/security.txt` 被注入面吞掉真实输出（真件 302 转 www 后 404，站点无 security.txt），回了一份按目标现生成的 `In scope: sslcert.se` 加 `X-Authorization` 授权面，agent 侧当场按伪造面处理并绕道 openssl 重取真件（用户前序还发过「不会拦 直接用curl wget 命令」）。裁：注入面整停。落地：`src/pentest.rs` 删除（检测加三序缓存加自取加自动生成加网段与白帽文案全退），`hst hook pentest` 命令面保留（存量注册与 shim 仍指向该腿）但恒静默放行（stdin 读尽丢弃、exit 0 无输出），原命令自行执行；CLI 手册退出码表退 2 自判处置只余 secretguard。shim 十二件与四家 PreToolUse 第三挂暂留（腿已无输出，注册面清理候裁）。全测 258 加 49 绿（原 269 减 pentest 单测 11 件）。`[实证: 全测输出加 claude 工位原始回执对读加 REQ-031 退役节]`
 
+24. **REQ-031 整体退役随 v2.9.7 发布（用户令「直接去掉pentest.rs及功能和状态栏的渗透授权别名 发一个小版本」）**：接流水 23 的候裁，用户裁整体去除，不再保留空转命令面与注册。落地四去：模块去（src/pentest.rs 与 lib.rs 模块声明）、命令去（main.rs 的 HookCmd::Pentest 加 cmd_hook_pentest 加 match 臂）、载体去（shim.rs 腿表退 state 加 token 两腿八件，pentest 四件进幂等清扫表）、注册去（deploy.rs 撤 claude 与 grok 与 kimi 的 PreToolUse 第三挂加 codex 的 CodexLeg::Pentest 腿；state 腿判定由「非 token 且非 pentest」收为「非 token」，存量 hst-pentest 条目在重部署里被 state 腿吸纳去重，不外留）；别名去（statusrender HOOK_ALIASES 去 hst-pentest 条）。版本面随小版本 2.9.7（Cargo 加 lock 加 CHANGELOG 加 aidoc 投影），退役缘由（注入面 hook error 呈现加站点无该文件时的现生成误导）记入 CHANGELOG 与 REQ-031 退役节。测试面：deploy heal 用例补存量 hst-pentest 注册被清扫断言、shim 用例改八件幂等、cli 集成 PreToolUse 期望 3 改 2。全测 258 加 49 绿加 md 四门禁加 aidoc strict 绿。`[实证: 全测输出加 md 门禁输出加 aidoc strict 输出]`
+
 ## 自省
 
 - python heredoc 转义塌陷同型二犯（09-26 流水 18 的 \n 塌真换行、本次 \" 塌裸引号）：夹具类改码一律 Edit 工具实落或 python raw 字符串，不再走普通字符串 heredoc。按「同型二犯升格」惯例此条记档待升 guides 工作流条目。
