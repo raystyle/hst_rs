@@ -1120,10 +1120,173 @@ fn collect_toml_commands(path: &Path, cmds: &mut Vec<String>) {
     }
 }
 
+/// REQ-014 哨兵（原生侧，REQ-027）：unknown 时探注册面（按 agent 定位
+/// 配置文件，标记串 hst-state 干 stem），缺位升格 `no-hook!`；节流窗
+///（每 agent 1 小时）到期 best-effort 自愈 `hst hook init`（幂等重注
+/// 册，仅 hook 面；不在 PATH 或失败静默，不阻塞渲染）。stamp 记 ts 内容
+///（pwsh 形记 mtime；内容形可测）。
+fn sentinel_no_hook(ctx: &Ctx, state: &str) -> Option<String> {
+    if state != "unknown" {
+        return None;
+    }
+    let home = match user_home() {
+        Ok(h) => h,
+        Err(_) => return None,
+    };
+    let reg = match ctx.agent.as_str() {
+        "claude" => home.join(".claude").join("settings.json"),
+        "codex" => home.join(".codex").join("hooks.json"),
+        "grok" => home
+            .join(".grok")
+            .join("hooks")
+            .join("ohmyagents-state.json"),
+        "kimi" => home.join(".kimi-code").join("config.toml"),
+        _ => return None,
+    };
+    let reg_ok = std::fs::read_to_string(&reg)
+        .map(|t| t.contains("hst-state"))
+        .unwrap_or(false);
+    if reg_ok {
+        return None;
+    }
+    // 节流自愈：stamp（~/.hst/state/.hookcheck-<agent>）记录上次尝试 ts，
+    ///窗内不重试。
+    if throttle_due(&ctx.home.join("state"), ".hookcheck-", &ctx.agent, 3600).is_some() {
+        heal_spawn(&["hook", "init"]);
+    }
+    Some("no-hook!".to_string())
+}
+
+/// REQ-017 哨兵（原生侧，REQ-027）：projyolo marker（hit 且同项目且新
+/// 鲜 2 倍窗内）升格 `proj-yolo!`（实时态有价值时并显 `working/…` 形）；
+/// 节流 10 分钟到期 best-effort 跑 `hst yolo check --project <dir>`（同
+/// pwsh 自愈先例）。
+fn sentinel_proj_yolo(ctx: &Ctx, state: &str) -> Option<String> {
+    if state == "no-hook!" || ctx.dir.is_empty() {
+        return None;
+    }
+    let slug: String = ctx
+        .dir
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect();
+    let dir = ctx.home.join("state").join("projyolo");
+    let marker = dir.join(format!("{slug}.json"));
+    let Ok(text) = std::fs::read_to_string(&marker) else {
+        // 无 marker：仍走节流探针（10 分钟窗）。
+        let _ = throttle_due(&dir, ".check-", &slug, 600);
+        return None;
+    };
+    let v: Json = serde_json::from_str(&text).ok()?;
+    let hit = v.get("hit").and_then(|x| x.as_bool()).unwrap_or(false);
+    let ts = v.get("ts").and_then(|x| x.as_f64()).unwrap_or(0.0);
+    let fresh = now_epoch() - ts <= 1200.0;
+    let matches = v.get("project").and_then(|x| x.as_str()) == Some(ctx.dir.as_str())
+        || v.get("real").and_then(|x| x.as_str()) == Some(ctx.dir.as_str());
+    if throttle_due(&dir, ".check-", &slug, 600).is_some() {
+        let mut args: Vec<&str> = vec!["yolo", "check", "--project"];
+        let dir = ctx.dir.clone();
+        let _ = &mut args;
+        heal_spawn_args(&["yolo", "check", "--project"], &dir);
+    }
+    if !(hit && matches && fresh) {
+        return None;
+    }
+    Some(match state {
+        "working" | "blocked" | "idle" => format!("{state}/proj-yolo!"),
+        _ => "proj-yolo!".to_string(),
+    })
+}
+
+/// 两哨兵组合（seg_hst 消费口）。
+fn sentinel_escalate(ctx: &Ctx, state: String) -> String {
+    if let Some(s) = sentinel_no_hook(ctx, &state) {
+        return s;
+    }
+    if let Some(s) = sentinel_proj_yolo(ctx, &state) {
+        return s;
+    }
+    state
+}
+
+/// 节流 stamp：`<dir>/<prefix><name>` 记 ts 内容；窗内返回 None，到期记
+/// 新 ts 返回 Some（并发双写有界，幂等自愈可接受，同 pwsh 评审 G2）。
+fn throttle_due(dir: &Path, prefix: &str, name: &str, window_secs: u64) -> Option<PathBuf> {
+    let stamp = dir.join(format!("{prefix}{name}"));
+    let now = now_epoch() as u64;
+    if let Ok(text) = std::fs::read_to_string(&stamp) {
+        if let Ok(last) = text.trim().parse::<u64>() {
+            if now.saturating_sub(last) < window_secs {
+                return None;
+            }
+            let _ = std::fs::write(&stamp, now.to_string());
+            return Some(stamp);
+        }
+    }
+    if std::fs::create_dir_all(dir).is_ok() {
+        if std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&stamp)
+            .and_then(|mut f| {
+                use std::io::Write;
+                f.write_all(now.to_string().as_bytes())
+            })
+            .is_ok()
+        {
+            return Some(stamp);
+        }
+        // 首创建竞争败者：视作他人刚触发。
+        let _ = std::fs::write(&stamp, now.to_string());
+    }
+    None
+}
+
+fn now_epoch() -> f64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs_f64())
+        .unwrap_or(0.0)
+}
+
+/// 自愈探针 spawn（防测试递归闸）：单测载荷（cfg!(test)）与
+/// HST_SENTINEL_HEAL=off（集成测试与手动排障）不 spawn——单测里
+/// current_exe 是测试二进制，重入即无限递归（实弹挂起抓获）。
+fn heal_spawn(args: &[&str]) {
+    if cfg!(test) || std::env::var_os("HST_SENTINEL_HEAL").is_some_and(|v| v == "off") {
+        return;
+    }
+    let _ = std::process::Command::new(
+        std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("hst")),
+    )
+    .args(args)
+    .stdout(std::process::Stdio::null())
+    .stderr(std::process::Stdio::null())
+    .status();
+}
+
+/// heal_spawn 的带尾参形（--project <dir>）。
+fn heal_spawn_args(prefix: &[&str], tail: &str) {
+    if cfg!(test) || std::env::var_os("HST_SENTINEL_HEAL").is_some_and(|v| v == "off") {
+        return;
+    }
+    let _ = std::process::Command::new(
+        std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("hst")),
+    )
+    .args(prefix)
+    .arg(tail)
+    .stdout(std::process::Stdio::null())
+    .stderr(std::process::Stdio::null())
+    .status();
+}
+
 fn seg_hst(ctx: &Ctx) -> Option<String> {
     // 状态读序（D28）：与 hookstate 段共享 hook_state（会话键加闸全序）；
     // 版本取 payload version 字段归一（D46）。
     let (state, _present) = hook_state(ctx);
+    // REQ-027（原生侧哨兵回填）：REQ-014 no-hook! 加 REQ-017 proj-yolo!，
+    // 与 pwsh 载体同判（issue #31 候裁件收口）。
+    let state = sentinel_escalate(ctx, state);
     let mut ver = String::new();
     let pv = s(ctx.d, &["version"]);
     if !pv.is_empty() {
@@ -1729,6 +1892,125 @@ mod tests {
         );
         // 纯裸命令无可判 token：不出（清单不编造）。
         assert!(hook_stem("echo hi").is_none());
+    }
+
+    #[test]
+    fn sentinel_no_hook_faces() {
+        // REQ-027 原生侧：unknown 且注册面缺 hst-state 标记 → no-hook!；
+        ///注册在场不升格；非 unknown 不升格；stamp 节流窗内不重触发。
+        let tmp = std::env::temp_dir().join(format!("hst-sent-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let hst_home = tmp.join("hst");
+        let user = tmp.join("user");
+        std::fs::create_dir_all(hst_home.join("state")).unwrap();
+        std::fs::create_dir_all(user.join(".claude")).unwrap();
+        let cfg = StatuslineConfig::default();
+        let d: Json = serde_json::from_str("{}").unwrap();
+        let ctx = Ctx {
+            d: &d,
+            agent: "claude".to_string(),
+            nerd: true,
+            cfg: &cfg,
+            home: &hst_home,
+            dir: String::new(),
+            root: String::new(),
+            proj_kind: String::new(),
+            pkg_ver: String::new(),
+        };
+        // 注册面缺位：unknown 升格（user_home 经 HOME 钉 user——本测改用
+        // 直读路径面：sentinel_no_hook 经 user_home()；钉 HOME 走 ENV 锁）。
+        let _env = crate::pathutil::ENV_LOCK.lock().unwrap();
+        std::env::set_var("HOME", &user);
+        assert_eq!(
+            sentinel_no_hook(&ctx, "unknown").as_deref(),
+            Some("no-hook!")
+        );
+        // stamp 已写：窗内二次调用不升格路径重复自愈（升格仍出，探针节流
+        // 由 stamp 内容窗保证，这里只锁 stamp 在场与内容形）。
+        let stamp = hst_home.join("state").join(".hookcheck-claude");
+        assert!(stamp.exists(), "throttle stamp written");
+        // 注册面在场：不升格。
+        std::fs::write(
+            user.join(".claude").join("settings.json"),
+            "\"command\": \"/x/.hst/hooks/hst-state.sh\"",
+        )
+        .unwrap();
+        assert_eq!(sentinel_no_hook(&ctx, "unknown"), None);
+        // 非 unknown：不升格。
+        assert_eq!(sentinel_no_hook(&ctx, "working"), None);
+        std::env::remove_var("HOME");
+        drop(_env);
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn sentinel_proj_yolo_faces() {
+        // REQ-027 原生侧：marker 命中同项目且新鲜升格（复合态并显）、项目
+        ///不符与过期不升格、no-hook! 优先不叠加。
+        let tmp = std::env::temp_dir().join(format!("hst-py-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let hst_home = tmp.join("hst");
+        let cfg = StatuslineConfig::default();
+        let d: Json = serde_json::from_str("{}").unwrap();
+        let dir = "/proj/x";
+        let ctx = Ctx {
+            d: &d,
+            agent: "claude".to_string(),
+            nerd: true,
+            cfg: &cfg,
+            home: &hst_home,
+            dir: dir.to_string(),
+            root: String::new(),
+            proj_kind: String::new(),
+            pkg_ver: String::new(),
+        };
+        let mdir = hst_home.join("state").join("projyolo");
+        std::fs::create_dir_all(&mdir).unwrap();
+        let ts = now_epoch();
+        // 命中：复合态并显。
+        std::fs::write(
+            mdir.join("-proj-x.json"),
+            format!("{{\"hit\":true,\"project\":\"{dir}\",\"ts\":{ts}}}"),
+        )
+        .unwrap();
+        assert_eq!(
+            sentinel_proj_yolo(&ctx, "working").as_deref(),
+            Some("working/proj-yolo!")
+        );
+        assert_eq!(
+            sentinel_proj_yolo(&ctx, "unknown").as_deref(),
+            Some("proj-yolo!")
+        );
+        // 项目不符：不升格。
+        std::fs::write(
+            mdir.join("-proj-x.json"),
+            format!("{{\"hit\":true,\"project\":\"/elsewhere\",\"ts\":{ts}}}"),
+        )
+        .unwrap();
+        assert_eq!(sentinel_proj_yolo(&ctx, "working"), None);
+        // real 字段命中（评审 G1 双等值）。
+        std::fs::write(
+            mdir.join("-proj-x.json"),
+            format!("{{\"hit\":true,\"project\":\"/elsewhere\",\"real\":\"{dir}\",\"ts\":{ts}}}"),
+        )
+        .unwrap();
+        assert_eq!(
+            sentinel_proj_yolo(&ctx, "idle").as_deref(),
+            Some("idle/proj-yolo!")
+        );
+        // 过期（2 倍窗外）：不升格。
+        std::fs::write(
+            mdir.join("-proj-x.json"),
+            format!(
+                "{{\"hit\":true,\"project\":\"{dir}\",\"ts\":{}}}",
+                ts - 1300.0
+            ),
+        )
+        .unwrap();
+        assert_eq!(sentinel_proj_yolo(&ctx, "working"), None);
+        // no-hook! 优先：不叠加。
+        assert_eq!(sentinel_proj_yolo(&ctx, "no-hook!"), None);
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 
     #[test]

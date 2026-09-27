@@ -30,6 +30,8 @@
 
 13. **doctor statusline 检查项认原生渲染形（在册候裁件收口）**：has_statusline_marker 加 `statusline --render` 标记（claude 加 kimi 自动生效）加 grok_state 初筛换 marker 函数加 Native 变体（ok，不依赖 ps1 在场）；单测 native_render_form_is_recognized 三家。实弹：本机 doctor 四家 statusline 全 ok（grok 出 native render bar configured），假 warn 三条清零，blocked 仅剩 kimi 加 grok 目录信任对话框两项（环境态）`[实证: doctor 直跑对读加全测 265 绿]`。
 
+14. **REQ-032 载体全原生 cmd 与 sh 透传（用户令「脱离pwsh 全部原生hst通过cmd sh 透传hst状态栏和hook」续令「sh要兼容zsh和bash」加总台改址知会「omc 没有了 现在总台是ai_ccoe」）**：shim.rs 整体重写为 thin 生成函数族（thin_sh：shebang 按宿主 host_shell（mac zsh、其余 bash，`#!/usr/bin/env` 形），body POSIX 基线 sh 加 zsh 加 bash 三壳一致，`exec "<烘焙 exe>" hook <腿> --agent "$1"` stdin 经 exec 透传；thin_cmd：`"<exe>" hook <腿> --agent %1`；grok_wrapper 三件 M048 包装）；ps1 三件（state/token/pentest）退役清扫（带生成标记才删）；deploy 四家 Windows 注册全改单路径 .cmd 形（弃 powershell.exe -File）；grok 状态栏壳（STATUSLINE_GROK_CMD）改函数生成 thin cmd 透传 statusline --render grok。D28 语义翻转记档（hst 缺位全链 fail-open，退出非 2 即放行）。实弹：重部署九件落（wrote 四件新加五件 grok 包装复用）、注册面零 powershell、三腿 e2e（state 写盘 working 加 token 假 key 阻断 exit 2 加 pentest 短路回授权内容）、状态栏四别名不变 `[实证: hook init 回执加注册面对读加三腿直跑]`。过程坑：sentinel 自愈 spawn 在单测里重入测试二进制无限递归（全测挂起实弹抓获，cfg!(test) 加 HST_SENTINEL_HEAL=off 双闸修）；throttle stamp 前缀少连字符（.hookcheckclaude）单测抓获。全测 266 加 49 绿 `[实证: 本机全测输出]`。
+
 ## 自省
 
 - python heredoc 转义塌陷同型二犯（09-26 流水 18 的 \n 塌真换行、本次 \" 塌裸引号）：夹具类改码一律 Edit 工具实落或 python raw 字符串，不再走普通字符串 heredoc。按「同型二犯升格」惯例此条记档待升 guides 工作流条目。

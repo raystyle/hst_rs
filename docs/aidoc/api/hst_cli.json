@@ -750,72 +750,7 @@
     {
       "path": "hst_cli::shim",
       "kind": "module",
-      "docs": "shim 三形态自包含状态写入器：cmd/ps1/sh 加 grok 包装（D27/D28/D39）。\n用户级 hook shim（D27 自包含 + D28 用户级常驻 + REQ-028 双脚本拆分）：\nhook 与 hst 二进制解耦，注册与 shim 常驻 `~/.hst/hooks/`（用户裁\n2026-09-11「hook 应用户全局」，对齐 codex 用户层形态），各家 hook 注册\n指向 shim——state 通道零 hst 依赖，hst 可任意时刻无痛升级轮换，未\ninit 的项目也有状态数据。\nREQ-028（用户令 2026-09-27「hst-state 不应该双职责 拆分成2个脚本和\nhst hook payload穿透命令 以后还要扩展很多hook命令」）：一命令一脚本\n（`hst hook state` 单对 hst-state、`hst hook token` 单对 hst-token，\n未来 `hst hook <x>` 循此式）。state 载体纯四态写盘；token 载体纯密钥\n拦截（fail-open 委托加 M060a 白名单：PreToolUse / UserPromptSubmit 时\nhst 在位则转发 payload，仅「exit 2 且 stderr 带 `hst secretguard:` 前\n缀」判定为自判 block 透传 2 并回放原因；hst 故障的其余非零（升级期\n坏二进制、CLI 契约漂移含 clap 用法错的 exit 2）一律 fail-open 放行，\n不在位同放行——护无痛轮换）。`hst hook status` 双职责入口弃用期一代\n（老注册兼容），`hst hook` 族保留为手动入口与委托目标。\n状态落 `~/.hst/state/` 按 session 分键（D28，防 herdr 多会话互踩）：\n默认双写 `<agent>.json`（agent 最新，供无 session 标识的消费面）加\n`<agent>-<session>.json`（session 键，状态栏按当前会话直读）；\nSessionEnd 删本 session 键文件（GC，崩溃残留由 hst hook 侧陈旧清扫）。\n`HST_STATE_FILE` 覆盖优先且互斥（单文件语义，verify 与测试用）。\ncmd 形态两级（用户裁 2026-09-10：jq 归 ome 部署，shim 部署前探 PATH）：\njq 在位用 jq 解析（转义免疫、ts 取 jq now），缺位回落 findstr 硬解析并\nwarn 指向 `ark install jq`（ome 更名 Ark 随批）。sh 侧 sed 是 POSIX 基线不引依赖。\nsession 标识三源：payload `session_id`（claude/codex）、`sessionId`\n（kimi）、grok runner 注入的 `GROK_SESSION_ID` env（payload 无该字段）。"
-    },
-    {
-      "path": "hst_cli::shim::PENTEST_CMD",
-      "kind": "constant",
-      "docs": "REQ-031 pentest 腿 shim 的 cmd 载体（授权获取命令短路；白名单前缀\n`hst pentest:`，同 token 形）。"
-    },
-    {
-      "path": "hst_cli::shim::PENTEST_GROK_CMD",
-      "kind": "constant",
-      "docs": "REQ-031 pentest 腿的 grok 单路径包装（M048 同款，与 state/token 包装\n成对：grok 侧约束一变三处同改）。"
-    },
-    {
-      "path": "hst_cli::shim::PENTEST_PS1",
-      "kind": "constant",
-      "docs": "REQ-031 pentest 腿 shim 的 ps1 载体（同 token 形；BOM 落盘语义同 D39）。"
-    },
-    {
-      "path": "hst_cli::shim::PENTEST_SH",
-      "kind": "constant",
-      "docs": "REQ-031 pentest 腿 shim（授权获取命令短路服务，白名单透传形同 token\n载体；前缀 `hst pentest:`）。"
-    },
-    {
-      "path": "hst_cli::shim::STATE_CMD",
-      "kind": "constant",
-      "docs": "Windows cmd shim，findstr 回落形态（jq 缺位时部署，warn 指向 ark install\njq）。同约定；解析是锚定子串替换（`*hook_event_name\":=` 剥前缀再取首\n引号段），比 token 位次硬切抗字段序变化、不造伪值；grok 的 camelCase\n事件名在此形态降级 unknown（jq 形态才解析）；`sessionId` 键先归一成\n`session_id` 再剥。ts 记 0（状态栏不消费 ts）。"
-    },
-    {
-      "path": "hst_cli::shim::STATE_CMD_JQ",
-      "kind": "constant",
-      "docs": "Windows cmd shim，jq 形态（首选）。约定：`%1` = agent 名；stdin = hook\npayload JSON；状态根 = `%USERPROFILE%\\.hst\\state`（用户级常驻，D28）；\n`HST_STATE_FILE` 覆盖优先（互斥单写）。字段提取与 state JSON\n生成都走 jq：`--arg` 传值让 jq 程序体内零双引号，绕开 cmd 引号地狱；\nts 用 `now|floor` 取纪元秒（locale 无关）。guard 委托前 payload 留在\n临时文件。"
-    },
-    {
-      "path": "hst_cli::shim::STATE_GROK_CMD",
-      "kind": "constant",
-      "docs": "Windows grok 包装（M048 形态：grok 的 command 必须是可整串 spawn 的单\n路径，参数不传；把 grok 烧进包装再转主 shim）。"
-    },
-    {
-      "path": "hst_cli::shim::STATE_PS1",
-      "kind": "constant",
-      "docs": "Windows PowerShell shim（D39，2026-09-13 宿主实弹）：claude 在 Windows\n的 hook 执行 shell 是 POSIX sh 系（Git Bash 或 WSL 互操作形），直路径\n`.cmd` 在 WSL 形不认盘符、`cmd.exe /c` 在 Git Bash 被 MSYS 参数转换吃\n掉 `/c`——注册串改 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File\n<本文件> <agent>`（按名解析 powershell.exe 恒在、无前导斜杠参数不触发\nMSYS 转换、Windows 路径只在参数位，sh 系与 PS 与 cmd 三态成立，与\n状态栏的 pwsh -File 同构）。`$args[0]` = agent；stdin = payload；事件\n映射与 STATE_SH 同集（大小写不敏感）；state 落盘**无 BOM**（verify 侧\nserde_json 直接解析，PS5.1 的 utf8 编码带 BOM 会炸）；guard 委托与\nM060a 白名单同款（payload 字节保真走临时文件，不走 PS 管道编码）。"
-    },
-    {
-      "path": "hst_cli::shim::STATE_SH",
-      "kind": "constant",
-      "docs": "POSIX sh shim（Linux = bash、mac = zsh 同一语义；shebang 由部署侧按宿主\n写 bash 或 zsh）。`$1` = agent；stdin = payload；状态根 =\n`$HOME/.hst/state`（用户级常驻，D28；HOME 缺位的退化环境直接退出，\nfail-open）；ts 取纪元秒。sed 是 POSIX 基线（jq 不作 Unix 前置依赖）。"
-    },
-    {
-      "path": "hst_cli::shim::TOKEN_CMD",
-      "kind": "constant",
-      "docs": "REQ-028 token 腿 shim 的 cmd 载体（密钥拦截单职责；透传白名单同 sh 形）。"
-    },
-    {
-      "path": "hst_cli::shim::TOKEN_GROK_CMD",
-      "kind": "constant",
-      "docs": " REQ-028 token 腿的 grok 单路径包装（评审 F1，M048 同款：Windows grok\n（与 STATE_GROK_CMD 成对：grok 侧 spawn 约束或包装形态一变两处同改，评审 G4）\n 只认可整串 spawn 的单路径，多 token 形不可 spawn；fail-open 会把\n spawn 失败吞成静默放行，必须经包装转发）。"
-    },
-    {
-      "path": "hst_cli::shim::TOKEN_PS1",
-      "kind": "constant",
-      "docs": "REQ-028 token 腿 shim 的 ps1 载体（密钥拦截单职责；M060a 白名单透传\n形，与 cmd/sh 同语义）。带 BOM 落盘（D39：PS 5.1 无 BOM 按 ANSI 解析）。"
-    },
-    {
-      "path": "hst_cli::shim::TOKEN_SH",
-      "kind": "constant",
-      "docs": "REQ-028 token 腿 shim（密钥拦截单职责，与 hst-state 拆分）：读 payload\n透传 `hst hook token --agent`，M060a 白名单透传形（仅 hst 自判 block\n透传 2 并回放原因；hst 缺席或故障的非零一律 fail-open 放行）。"
+      "docs": "shim 三形态自包含状态写入器：cmd/ps1/sh 加 grok 包装（D27/D28/D39）。\n用户级 hook 壳（REQ-032 载体全原生）：thin 透传，cmd 与 sh 两载体，\n全部逻辑收进 hst 二进制本体（`hst hook state/token/pentest`）。部署时\n烘焙部署方二进制绝对路径（self update 原位替换，路径不漂）。D28 自包\n含设计退役记档：hst 缺位或故障时 shell 退出码非 2，agent 侧按非阻塞\n错误处理 = fail-open（状态通道回落 unknown）；M060a 白名单语义由 hst\n本体内化（token/pentest 腿 exit 硬约束 0 与 2，仅自判 block 出 2）。\ngrok 的 Windows 单路径包装（M048）保留：包装烘焙 agent 参转调 thin\ncmd。pwsh（.ps1）载体已退役（REQ-032），重部署时清扫旧件。"
     },
     {
       "path": "hst_cli::shim::deploy_shims",
@@ -825,7 +760,12 @@
     {
       "path": "hst_cli::shim::deploy_shims_with",
       "kind": "function",
-      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\nTest seam（M060b）：shell 选择注入（zsh 变体在 Windows/WSL 编译期\ncfg! 分支测不到的根因消除；prod 经 deploy_shims 走 host_shell）。"
+      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n壳部署（REQ-032 thin 透传面）：state/token/pentest 三腿 sh 加 cmd 双\n载体加 grok 三包装，exe 烘焙部署方 current_exe 绝对路径；幂等内容判\n等；旧 ps1 三件与 oma 旧名件清扫。"
+    },
+    {
+      "path": "hst_cli::shim::grok_wrapper",
+      "kind": "function",
+      "docs": "grok 单路径包装生成（M048：Windows grok 只认可整串 spawn 的单路径；\n包装烘焙 agent 参转调 thin cmd）。"
     },
     {
       "path": "hst_cli::shim::host_shell",
@@ -833,19 +773,14 @@
       "docs": "宿主 shell 选择（M060b 抽出成映射）：macOS 落 zsh shebang（缺\n/usr/bin/bash 的兜底；两 shebang 皆兼容），其余 bash。"
     },
     {
-      "path": "hst_cli::shim::pentest_sh_for",
+      "path": "hst_cli::shim::thin_cmd",
       "kind": "function",
-      "docs": "PENTEST_SH 的 shebang 互换（同 state_sh_for）。"
+      "docs": "thin cmd 壳生成（REQ-032）：`\"<exe>\" hook <腿> --agent %1`，stdin 由\ncmd 子进程继承。"
     },
     {
-      "path": "hst_cli::shim::state_sh_for",
+      "path": "hst_cli::shim::thin_sh",
       "kind": "function",
-      "docs": "部署时替换 shebang 行得到 zsh 变体（语义同 bash 形；zsh 无 bashisms 可用\n之处已避开，dirname/date/sed/case 全兼容）。"
-    },
-    {
-      "path": "hst_cli::shim::token_sh_for",
-      "kind": "function",
-      "docs": "TOKEN_SH 的 shebang 互换（同 state_sh_for）。"
+      "docs": "thin sh 壳生成（REQ-032，用户令「sh要兼容zsh和bash」）：shebang 按宿主\nshell（mac zsh、其余 bash；`#!/usr/bin/env` 形两解释器都成立），body\n是 POSIX 基线（exec 加位置参），sh 加 zsh 加 bash 三壳语义一致；\nstdin 经 exec 透传。"
     },
     {
       "path": "hst_cli::statusline",
