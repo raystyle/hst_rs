@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 里程碑 2026-09-27：v2.9.4 渗透授权 hook
+
+- **渗透授权 hook（REQ-031，用户五令收敛）**：授权获取命令的短路服务层。agent 要跑 curl/wget/httpx/python urlopen 取 `/.well-known/security.txt` 或 `scope.txt` 族文件时，hook 不真正执行该命令（exit 2 短路），stderr 直接回真实授权内容。内容三序：缓存 `~/.hst/pentest/<host>/`（fetched 形 24h 窗）到 hst 侧自取一次（HTTPS 加 200 加非 HTML、4s 超时、约定标识头）到按目标自动生成（meta 如实标 source=auto 不伪造编号；scope 宽松扩展：IP 追加覆盖网段（私网所属保留块、其余 /24）、域名追加 *.域名）。检测锚 URL 路径段（POST body 字样不误中）、host RFC-1123 校验防落点穿透（评审 F1/F2）。`hst hook pentest` 命令加 shim 四载体加四家 PreToolUse 三挂（state 加 token 加 pentest）；状态栏别名行加「hst 渗透授权」。
+
 ### 里程碑 2026-09-27：v2.9.3 通知态语义修正
 
 - **非权限类通知映射 idle（REQ-030，用户实报「为什么是灰色」）**：任务完成类 Notification 事件原映 unknown 致状态栏灰数小时（面板滞留帧）；hook.rs 与 shim 四载体同步改非权限类回落 idle（permission 与 elicitation 类仍 blocked），sh 与 ps1 的 permission 判定同步收窄到 notification_type 键值段（评审 G1，message 文案含该词不再误染红，四载体一致）。实弹：task_complete 写盘 idle 绿、permission_prompt 写盘 blocked、G1 反例（task_complete 加 message 含 permission）双面 idle。
