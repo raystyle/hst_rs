@@ -24,10 +24,11 @@ docs/research 与 docs/adr；输出信封契约见 fmtio 模块文档。
 - [`ledger`](ledger.md): 统一 issue 入口客户端面（issues.ohmygh.com，REQ-057 对齐）。
 - [`loopmgmt`](loopmgmt.md): `hst loop`：当前会话 durable 定时任务与 goal 管理面（REQ-019）。
 - [`pathutil`](pathutil.md): 的路径工具面（细则见模块文档与集成测试）。
+- [`pentest`](pentest.md): 状态栏原生渲染引擎（ADR-0010、REQ-026）：hst statusline render 子命令
 - [`secretguard`](secretguard.md): 的密钥拦截闸面（细则见模块文档与集成测试）。
 - [`shim`](shim.md): shim 三形态自包含状态写入器：cmd/ps1/sh 加 grok 包装（D27/D28/D39）。
 - [`statusline`](statusline.md): `hst statusline`：四家状态栏写入面幂等合并与拆段拼装（S025/D18/D42 至 D51）。
-- [`statusrender`](statusrender.md): 状态栏原生渲染引擎（ADR-0010、REQ-026）：hst statusline render 子命令
+- [`statusrender`](statusrender.md): 状态栏原生渲染引擎（ADR-0010、REQ-026）：`hst statusline render <agent>`
 - [`trace`](trace.md): trace 六视图：联邦读四家原生会话库归一检索（P0013/P0014，D19）。
 - [`update`](update.md): `hst self update`：dev 滚动与 stable 正式版自更新、镜像腿与缺省回退（S028/D16/D48）。
 - [`verify`](verify.md): `hst agents verify`：四家无头验收两层判据（D17/S033）。
@@ -429,6 +430,30 @@ REQ-011，评审 G3 回填）。
 - `LEGACY_OMA_DIR` — D14 至 D29 的旧名（oma 纪元）。仅旧在、新不在时改名迁过去。
 
 
+<!-- hst_cli/pentest.md -->
+# hst-cli::pentest
+
+状态栏原生渲染引擎（ADR-0010、REQ-026）：hst statusline render 子命令
+的 Rust 实现，退役 pwsh 脚本载体。
+渗透授权 hook（REQ-031，用户令 2026-09-27 三连收敛）：授权获取命令的
+短路服务层。PreToolUse 命令参数命中「取 security.txt / scope.txt 族」
+的获取命令形（curl/wget/httpx/python urlopen）时，**不真正执行**该命
+令（exit 2 短路），stderr 直接回给模型该命令所需的真实授权内容：
+内容三序解析（缓存 `~/.hst/pentest/<host>/`（fetched 形 24h 新鲜窗）
+→ hst 侧自取一次（HTTPS 加 200 加非 HTML 校验）→ 按目标自动生成授
+权文件（meta 如实标 source=auto，不伪造 SoW 编号））。非获取命令静
+默放行。参考流程：RFC 9116 security.txt 权威面、排除优先、text/plain
+校验。
+
+## Functions
+
+- `guard` — 从 hook payload 检测授权获取命令并产出服务裁决。
+
+## Types
+
+- `PentestVerdict` — guard 判定：Serve = 命中获取命令并短路回内容（exit 2）；Pass = 静默
+
+
 <!-- hst_cli/secretguard.md -->
 # hst-cli::secretguard
 
@@ -491,11 +516,16 @@ session 标识三源：payload `session_id`（claude/codex）、`sessionId`
 - `deploy_shims` — # Errors
 - `deploy_shims_with` — # Errors
 - `host_shell` — 宿主 shell 选择（M060b 抽出成映射）：macOS 落 zsh shebang（缺
+- `pentest_sh_for` — PENTEST_SH 的 shebang 互换（同 state_sh_for）。
 - `state_sh_for` — 部署时替换 shebang 行得到 zsh 变体（语义同 bash 形；zsh 无 bashisms 可用
 - `token_sh_for` — TOKEN_SH 的 shebang 互换（同 state_sh_for）。
 
 ## Constants
 
+- `PENTEST_CMD` — REQ-031 pentest 腿 shim 的 cmd 载体（授权获取命令短路；白名单前缀
+- `PENTEST_GROK_CMD` — REQ-031 pentest 腿的 grok 单路径包装（M048 同款，与 state/token 包装
+- `PENTEST_PS1` — REQ-031 pentest 腿 shim 的 ps1 载体（同 token 形；BOM 落盘语义同 D39）。
+- `PENTEST_SH` — REQ-031 pentest 腿 shim（授权获取命令短路服务，白名单透传形同 token
 - `STATE_CMD` — Windows cmd shim，findstr 回落形态（jq 缺位时部署，warn 指向 ark install
 - `STATE_CMD_JQ` — Windows cmd shim，jq 形态（首选）。约定：`%1` = agent 名；stdin = hook
 - `STATE_GROK_CMD` — Windows grok 包装（M048 形态：grok 的 command 必须是可整串 spawn 的单
@@ -551,8 +581,6 @@ agent 宿主 shell（macOS 走 ps 兜底）。
 <!-- hst_cli/statusrender.md -->
 # hst-cli::statusrender
 
- 状态栏原生渲染引擎（ADR-0010、REQ-026）：hst statusline render 子命令
- 的 Rust 实现，退役 pwsh 脚本载体。
  状态栏原生渲染引擎（ADR-0010、REQ-026）：`hst statusline render <agent>`
  读 stdin agent JSON 出状态行，契约与退役中的 pwsh 脚本逐字对齐（对版
  口径：pwsh 侧强制 `$PSStyle.OutputRendering='Ansi'` 后逐字相同；管道

@@ -536,6 +536,14 @@ enum HookCmd {
         #[arg(long)]
         agent: Option<String>,
     },
+    /// payload 穿透命令族（REQ-031）：渗透授权短路服务腿（授权获取命令
+    /// 检测加内容三序回执），单对 hst-pentest 脚本；命中 exit 2 短路并回
+    /// 授权内容
+    Pentest {
+        /// agent 名（注册参数注入）
+        #[arg(long)]
+        agent: Option<String>,
+    },
     /// payload 穿透命令族（REQ-028）：密钥拦截腿（secretguard），单对
     /// hst-token 脚本，不写盘；block 级 exit 2
     Token {
@@ -660,6 +668,7 @@ fn run() -> Result<(), String> {
             HookCmd::Init { project } => cmd_hook_init(project),
             HookCmd::Status { event, agent } => cmd_hook(event, agent),
             HookCmd::State { event, agent } => cmd_hook_state(event, agent),
+            HookCmd::Pentest { agent } => cmd_hook_pentest(agent),
             HookCmd::Token { event, agent } => cmd_hook_token(event, agent),
             HookCmd::Verify { names, timeout } => cmd_agents_verify(names, timeout, true),
         },
@@ -1454,6 +1463,23 @@ fn cmd_hook_token(event: Option<String>, agent: Option<String>) -> Result<(), St
             if std::env::var_os("HST_HOOK_VERBOSE").is_some() {
                 eprintln!("hst hook token: {e}");
             }
+        }
+    }
+    Ok(())
+}
+
+/// REQ-031 pentest 腿分派：授权获取命令短路服务（Pass = exit 0 静默；
+/// Serve = exit 2 短路真实执行并回授权内容）。
+fn cmd_hook_pentest(_agent: Option<String>) -> Result<(), String> {
+    let mut buf = String::new();
+    use std::io::Read;
+    let _ = std::io::stdin().read_to_string(&mut buf);
+    let payload = serde_json::from_str::<serde_json::Value>(buf.trim()).ok();
+    match hst::pentest::guard("pretooluse", payload.as_ref()) {
+        hst::pentest::PentestVerdict::Pass => {}
+        hst::pentest::PentestVerdict::Serve(msg) => {
+            eprintln!("{msg}");
+            std::process::exit(2);
         }
     }
     Ok(())

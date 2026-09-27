@@ -566,9 +566,11 @@ fn init_full_deploys_hooks_yolo_and_sweeps_skills() {
             .flat_map(|g| g["hooks"].as_array().unwrap().iter())
             .filter(|h| h["command"].as_str().is_some_and(|c| c.contains("hst")))
             .collect();
-        // REQ-028：PreToolUse 与 UserPromptSubmit 双挂（state 加 token 腿），
-        // 其余事件单挂。
-        let want = if matches!(event.as_str(), "PreToolUse" | "UserPromptSubmit") {
+        // REQ-028 双挂（state 加 token）；REQ-031 起 PreToolUse 三挂
+        //（加 pentest 腿）。
+        let want = if event == "PreToolUse" {
+            3
+        } else if event == "UserPromptSubmit" {
             2
         } else {
             1

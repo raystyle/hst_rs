@@ -1,7 +1,5 @@
 # hst-cli::statusrender
 
- 状态栏原生渲染引擎（ADR-0010、REQ-026）：hst statusline render 子命令
- 的 Rust 实现，退役 pwsh 脚本载体。
  状态栏原生渲染引擎（ADR-0010、REQ-026）：`hst statusline render <agent>`
  读 stdin agent JSON 出状态行，契约与退役中的 pwsh 脚本逐字对齐（对版
  口径：pwsh 侧强制 `$PSStyle.OutputRendering='Ansi'` 后逐字相同；管道

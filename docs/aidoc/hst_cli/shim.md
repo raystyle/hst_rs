@@ -32,11 +32,16 @@ session 标识三源：payload `session_id`（claude/codex）、`sessionId`
 - `deploy_shims` — # Errors
 - `deploy_shims_with` — # Errors
 - `host_shell` — 宿主 shell 选择（M060b 抽出成映射）：macOS 落 zsh shebang（缺
+- `pentest_sh_for` — PENTEST_SH 的 shebang 互换（同 state_sh_for）。
 - `state_sh_for` — 部署时替换 shebang 行得到 zsh 变体（语义同 bash 形；zsh 无 bashisms 可用
 - `token_sh_for` — TOKEN_SH 的 shebang 互换（同 state_sh_for）。
 
 ## Constants
 
+- `PENTEST_CMD` — REQ-031 pentest 腿 shim 的 cmd 载体（授权获取命令短路；白名单前缀
+- `PENTEST_GROK_CMD` — REQ-031 pentest 腿的 grok 单路径包装（M048 同款，与 state/token 包装
+- `PENTEST_PS1` — REQ-031 pentest 腿 shim 的 ps1 载体（同 token 形；BOM 落盘语义同 D39）。
+- `PENTEST_SH` — REQ-031 pentest 腿 shim（授权获取命令短路服务，白名单透传形同 token
 - `STATE_CMD` — Windows cmd shim，findstr 回落形态（jq 缺位时部署，warn 指向 ark install
 - `STATE_CMD_JQ` — Windows cmd shim，jq 形态（首选）。约定：`%1` = agent 名；stdin = hook
 - `STATE_GROK_CMD` — Windows grok 包装（M048 形态：grok 的 command 必须是可整串 spawn 的单

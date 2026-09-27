@@ -138,6 +138,7 @@ pub(crate) fn is_ours(command: &str) -> bool {
         let stem = token_stem(prog);
         return stem.starts_with("hst-state")
             || stem.starts_with("hst-token")
+            || stem.starts_with("hst-pentest")
             || stem.starts_with("oma-state")
             || stem == "hst"
             || stem == "oma";
@@ -661,6 +662,34 @@ fn claude_handler(oma: &Path, side: OsSide) -> Json {
     })
 }
 
+/// REQ-031 pentest 腿 handler（授权获取命令短路服务，PreToolUse 挂载）：
+/// 注册指向 hst-pentest shim。
+fn pentest_handler(agent: &str, oma: &Path, side: OsSide) -> Json {
+    let command = match side {
+        // M048（同 token 腿 F1）：Windows grok 只认单路径可整串 spawn。
+        OsSide::Windows if agent == "grok" => oma
+            .join("hooks")
+            .join("hst-pentest-grok.cmd")
+            .display()
+            .to_string(),
+        OsSide::Unix => format!(
+            "\"{}\" {}",
+            oma.join("hooks").join("hst-pentest.sh").display(),
+            agent
+        ),
+        OsSide::Windows => format!(
+            "powershell.exe -NoProfile -ExecutionPolicy Bypass -File {} {}",
+            crate::pathutil::forward_slash(&oma.join("hooks").join("hst-pentest.ps1")),
+            agent
+        ),
+    };
+    json!({
+        "type": "command",
+        "command": command,
+        "timeout": 10,
+    })
+}
+
 /// REQ-028 token 腿 handler（密钥拦截单职责，PreToolUse 与
 /// UserPromptSubmit 两事件挂载）：注册指向 hst-token shim（与 state 同
 /// 目录三载体），Windows 用 powershell -File 前缀形（D39 同款）。
@@ -718,6 +747,20 @@ fn shim_command_ps_or_sh(agent: &str, oma: &Path, side: OsSide) -> String {
     }
 }
 
+/// REQ-031 codex pentest 腿命令（单对 hst-pentest shim）。
+fn codex_pentest_side_command(oma: &Path, side: OsSide) -> String {
+    match side {
+        OsSide::Unix => format!(
+            "\"{}\" codex",
+            oma.join("hooks").join("hst-pentest.sh").display()
+        ),
+        OsSide::Windows => format!(
+            "powershell.exe -NoProfile -ExecutionPolicy Bypass -File {} codex",
+            crate::pathutil::forward_slash(&oma.join("hooks").join("hst-pentest.ps1"))
+        ),
+    }
+}
+
 /// Which OS consumes a codex registration field: `command` on Unix,
 /// `commandWindows` on Windows (S015). Injected so tests exercise both
 /// sides from one host.
@@ -744,7 +787,7 @@ pub fn host_side() -> OsSide {
 /// so reruns converge byte-identically on both sides. D28：shim 在 hst 自管
 /// 根（用户级注册只写本侧家目录文件，异侧字段保留语义沿用不动）。
 fn codex_handler_value(base: &Json, oma: &Path, session_end: bool, side: OsSide) -> Json {
-    codex_handler_value_for(base, oma, session_end, side, false)
+    codex_handler_value_for(base, oma, session_end, side, CodexLeg::State)
 }
 
 /// codex_handler_value 的腿参形（REQ-028：token 腿用 hst-token shim 命令；
@@ -754,22 +797,22 @@ fn codex_handler_value_for(
     oma: &Path,
     session_end: bool,
     side: OsSide,
-    token: bool,
+    leg: CodexLeg,
 ) -> Json {
     // 注册指向自包含 shim（零 oma 依赖）。Windows 侧用 powershell -File 前
     // 缀加无引号正斜杠 ps1 路径（D39 sh 兼容形态，与 claude/kimi 面同款；
     // M059 直路径形态在 PS/cmd 成立但 sh 系不认盘符路径）。Unix 用 sh 路径
     // 直引。`command` 为 schema 必填（M055）：无异侧保留值时落 bare 兜底。
     // 本侧命令串单一来源 codex_side_command（sweep 共用）。
-    let side_command = if token {
-        codex_token_side_command(oma, side)
-    } else {
-        codex_side_command(oma, side)
+    let side_command = match leg {
+        CodexLeg::Token => codex_token_side_command(oma, side),
+        CodexLeg::Pentest => codex_pentest_side_command(oma, side),
+        CodexLeg::State => codex_side_command(oma, side),
     };
-    let bare_fallback = if token {
-        "hst hook token --agent codex"
-    } else {
-        "hst hook state --agent codex"
+    let bare_fallback = match leg {
+        CodexLeg::Token => "hst hook token --agent codex",
+        CodexLeg::Pentest => "hst hook pentest --agent codex",
+        CodexLeg::State => "hst hook state --agent codex",
     };
     let foreign = |key: &str| base.get(key).filter(|v| v.is_string()).cloned();
     let mut obj = serde_json::Map::new();
@@ -795,13 +838,24 @@ fn codex_handler_value_for(
 /// codex merge with per-OS field ownership. Never stale-drops oma entries:
 /// the foreign OS's absolute path inside the foreign field is live on that
 /// OS（D28 用户级注册后此语义主要保护既有异侧残留与人为混写）。
+/// codex 腿枚举（REQ-031 起三腿：state 加 token 加 pentest）。
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CodexLeg {
+    /// 该字段承载codex 腿的State数据。
+    State,
+    /// 该字段承载codex 腿的Token数据。
+    Token,
+    /// 该字段承载codex 腿的Pentest数据。
+    Pentest,
+}
+
 fn merge_codex_hook_event(
     settings: &mut Json,
     event: &str,
     session_end: bool,
     side: OsSide,
     oma: &Path,
-    token: bool,
+    leg: CodexLeg,
 ) -> Result<bool, String> {
     let Some(obj) = settings.as_object_mut() else {
         return Err("settings root is not an object".into());
@@ -831,7 +885,11 @@ fn merge_codex_hook_event(
                 handler
                     .get(*k)
                     .and_then(|c| c.as_str())
-                    .is_some_and(|c| c.contains("hst-token") == token)
+                    .is_some_and(|c| match leg {
+                        CodexLeg::Token => c.contains("hst-token"),
+                        CodexLeg::Pentest => c.contains("hst-pentest"),
+                        CodexLeg::State => !c.contains("hst-token") && !c.contains("hst-pentest"),
+                    })
             })
     };
     let mut seen: HashSet<Json> = HashSet::new();
@@ -848,7 +906,7 @@ fn merge_codex_hook_event(
             if !ours_this_leg(handler) {
                 return true;
             }
-            let next = codex_handler_value_for(handler, oma, session_end, side, token);
+            let next = codex_handler_value_for(handler, oma, session_end, side, leg);
             seen.insert(next) // 同形重复：保首条弃余
         });
         if hooks.len() != before {
@@ -858,7 +916,7 @@ fn merge_codex_hook_event(
             if !ours_this_leg(handler) {
                 continue;
             }
-            let next = codex_handler_value_for(handler, oma, session_end, side, token);
+            let next = codex_handler_value_for(handler, oma, session_end, side, leg);
             if handler != &next {
                 *handler = next;
                 changed = true;
@@ -869,7 +927,7 @@ fn merge_codex_hook_event(
     if seen.is_empty() {
         arr.push(json!({
             "matcher": "*",
-            "hooks": [codex_handler_value_for(&Json::Null, oma, session_end, side, token)]
+            "hooks": [codex_handler_value_for(&Json::Null, oma, session_end, side, leg)]
         }));
         changed = true;
     }
@@ -925,7 +983,14 @@ fn deploy_claude_user(
     for event in events {
         // REQ-028：PreToolUse 与 UserPromptSubmit 双挂（state 加 token 腿，
         // 单对各自 shim；state shim 已剥 guard 透传腿），其余单挂 state。
-        let handlers: Vec<Json> = if matches!(event, "PreToolUse" | "UserPromptSubmit") {
+        let handlers: Vec<Json> = if event == "PreToolUse" {
+            // REQ-031：PreToolUse 三挂（state 加 token 加 pentest）。
+            vec![
+                claude_handler(oma, side),
+                token_handler("claude", oma, side),
+                pentest_handler("claude", oma, side),
+            ]
+        } else if event == "UserPromptSubmit" {
             vec![
                 claude_handler(oma, side),
                 token_handler("claude", oma, side),
@@ -979,11 +1044,36 @@ fn deploy_codex_user(
     let managed: Vec<&str> = events.iter().map(|(e, _)| *e).collect();
     changed |= sweep_unmanaged_ours_codex(&mut settings, &managed, side);
     for (event, session_end) in events {
-        changed |= merge_codex_hook_event(&mut settings, event, session_end, side, oma, false)?;
+        changed |= merge_codex_hook_event(
+            &mut settings,
+            event,
+            session_end,
+            side,
+            oma,
+            CodexLeg::State,
+        )?;
         // REQ-028：双事件双挂（token 腿单对 hst-token shim；state 腿条目由
-        // 上一趟 merge 保持，两趟按腿分流互不侵蚀）。
+        // 上一趟 merge 保持，多趟按腿分流互不侵蚀）；REQ-031：PreToolUse
+        // 三挂（pentest 腿）。
         if matches!(event, "PreToolUse" | "UserPromptSubmit") {
-            changed |= merge_codex_hook_event(&mut settings, event, session_end, side, oma, true)?;
+            changed |= merge_codex_hook_event(
+                &mut settings,
+                event,
+                session_end,
+                side,
+                oma,
+                CodexLeg::Token,
+            )?;
+        }
+        if event == "PreToolUse" {
+            changed |= merge_codex_hook_event(
+                &mut settings,
+                event,
+                session_end,
+                side,
+                oma,
+                CodexLeg::Pentest,
+            )?;
         }
     }
     if changed {
@@ -1108,7 +1198,13 @@ fn deploy_grok_user(
     changed |= sweep_unmanaged_ours(&mut settings, &events);
     for event in events {
         // REQ-028：双事件双挂（同 claude 面式）。
-        let handlers: Vec<Json> = if matches!(event, "PreToolUse" | "UserPromptSubmit") {
+        let handlers: Vec<Json> = if event == "PreToolUse" {
+            vec![
+                grok_handler(oma, side),
+                token_handler("grok", oma, side),
+                pentest_handler("grok", oma, side),
+            ]
+        } else if event == "UserPromptSubmit" {
             vec![grok_handler(oma, side), token_handler("grok", oma, side)]
         } else {
             vec![grok_handler(oma, side)]
@@ -1155,8 +1251,9 @@ fn apply_kimi_hooks(
     toml: &mut toml::Value,
     command: &str,
     events: &[&str],
-    token_command: &str,
-    token_events: &[&str],
+    // 辅助腿段（REQ-028 token、REQ-031 pentest）：(命令, 事件集) 对；
+    // retain 与补齐认全量段（防分段调用互删破坏幂等）。
+    aux: &[(&str, &[&str])],
 ) -> Result<bool, String> {
     let table = match toml {
         toml::Value::Table(t) => t,
@@ -1181,7 +1278,9 @@ fn apply_kimi_hooks(
         }
         let ev = h.get("event").and_then(|e| e.as_str()).unwrap_or("");
         *h == kimi_hook_entry(ev, command)
-            || (token_events.contains(&ev) && *h == kimi_hook_entry(ev, token_command))
+            || aux
+                .iter()
+                .any(|(c, evs)| evs.contains(&ev) && *h == kimi_hook_entry(ev, c))
     });
     if items.len() != before {
         changed = true;
@@ -1213,12 +1312,14 @@ fn apply_kimi_hooks(
             changed = true;
         }
     }
-    // REQ-028：token 腿条目（受管 token 事件单对 hst-token shim）。
-    for event in token_events {
-        let want = kimi_hook_entry(event, token_command);
-        if !items.contains(&want) {
-            items.push(want);
-            changed = true;
+    // 辅助腿条目（REQ-028 token 两事件、REQ-031 pentest 单事件）。
+    for (c, evs) in aux {
+        for event in *evs {
+            let want = kimi_hook_entry(event, c);
+            if !items.contains(&want) {
+                items.push(want);
+                changed = true;
+            }
         }
     }
     Ok(changed)
@@ -1226,6 +1327,20 @@ fn apply_kimi_hooks(
 
 /// Kimi 用户级部署（hook 注册；kimi 项目侧本就无注册面，说明层与技能
 /// 目录清扫归 init 全套面）。
+/// kimi pentest 腿命令（REQ-031）：同平台形，指向 hst-pentest shim。
+fn kimi_pentest_command(oma: &Path, side: OsSide) -> String {
+    match side {
+        OsSide::Windows => format!(
+            "powershell.exe -NoProfile -ExecutionPolicy Bypass -File {} kimi",
+            crate::pathutil::forward_slash(&oma.join("hooks").join("hst-pentest.ps1"))
+        ),
+        OsSide::Unix => format!(
+            "{} kimi",
+            oma.join("hooks").join("hst-pentest.sh").display()
+        ),
+    }
+}
+
 /// kimi token 腿命令（REQ-028）：同 kimi_hook_command 的平台形，指向
 /// hst-token shim。
 fn kimi_token_command(oma: &Path, side: OsSide) -> String {
@@ -1257,13 +1372,19 @@ fn deploy_kimi_user(
     let config = user_home.join(".kimi-code").join("config.toml");
     let mut toml = read_toml(&config)?;
     let token_events = ["UserPromptSubmit", "PreToolUse"];
-    if apply_kimi_hooks(
+    let pentest_events = ["PreToolUse"];
+    // REQ-031：kimi 多段合并（state 全事件加 token 两事件加 pentest 单事
+    // 件），retain 与补齐认全量段，单次调用保幂等。
+    let changed = apply_kimi_hooks(
         &mut toml,
         &kimi_hook_command(oma, side),
         &events,
-        &kimi_token_command(oma, side),
-        &token_events,
-    )? {
+        &[
+            (&kimi_token_command(oma, side), &token_events),
+            (&kimi_pentest_command(oma, side), &pentest_events),
+        ],
+    )?;
+    if changed {
         toml_write(&config, &toml)?;
         report.wrote.push(config.display().to_string());
     } else {
@@ -2302,9 +2423,10 @@ mod tests {
         // 其余事件各一条现行注册（REQ-028：PreToolUse 双挂 state 加 token）。
         assert_eq!(ours_in_event(&claude, "SessionStart").len(), 1);
         let ptu = ours_in_event(&claude, "PreToolUse");
-        assert_eq!(ptu.len(), 2, "dual-mounted: {ptu:?}");
+        assert_eq!(ptu.len(), 3, "triple-mounted: {ptu:?}");
         assert!(ptu.iter().any(|c| c.contains("hst-state")));
         assert!(ptu.iter().any(|c| c.contains("hst-token")));
+        assert!(ptu.iter().any(|c| c.contains("hst-pentest")));
         // 幂等。
         let mut second = DeployReport::default();
         deploy_user_hooks_with(&user, &oma, host_side(), &mut second).unwrap();
@@ -2756,8 +2878,7 @@ hooks = [
             &mut toml,
             &cmd,
             &["SessionStart", "Stop"],
-            &tcmd,
-            &["PreToolUse"]
+            &[(tcmd.as_str(), &["PreToolUse"])]
         )
         .unwrap());
         // 再跑不变（幂等判据）。
@@ -2765,8 +2886,7 @@ hooks = [
             &mut toml,
             &cmd,
             &["SessionStart", "Stop"],
-            &tcmd,
-            &["PreToolUse"]
+            &[(tcmd.as_str(), &["PreToolUse"])]
         )
         .unwrap());
         let arr = toml.get("hooks").and_then(|h| h.as_array()).unwrap();
