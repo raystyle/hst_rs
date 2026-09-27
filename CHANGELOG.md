@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 里程碑 2026-09-27：v2.9.2 图标补全
+
+- **dir 与 git 段图标**（用户令「main 和 路径也都加一个icon」）：模板 `{icon}{path}` 加 `{icon}{branch}{flags}`，图标表加 dir 键（文件夹 U+F07B）加 git 键（分支 U+E0A0），pwsh 段块与原生渲染同步补 icon 变量，grok ASCII 面恒空不变；EXAMPLE 占位符文档同步。随批全链验收：全测 256 加 49 绿、四门禁加 PEVO 绿、windows-gnu 交叉岗绿、四面原生渲染实弹（claude 三行加 kimi 并行加 grok 纯 ASCII）、hook e2e 三态（明文阻断 exit 2 加中文位置词句式、env 引用放行、state 写盘）、部署幂等零写。
+
 ### 里程碑 2026-09-27：v2.9.1 状态栏原生化与 hook 命令解耦
 
 - **状态栏渲染原生化（ADR-0010、REQ-026）**：新子命令 `hst statusline --render <agent>`（stdin/stdout 契约与 pwsh 逐字对齐，对版口径 = pwsh 强制 Ansi 形；管道缺省形态旧载体本就无色，原生缺省带色，`NO_COLOR` 与 `HST_STATUSLINE_NO_ANSI` 退裸文本开关）；渲染引擎 src/statusrender 全段 Rust 实现（release 0.19 至 0.22s 对 pwsh 约 1s）；claude 加 kimi 加 grok statusLine 指向部署方 hst、codex 维持内置、pwsh 弃用期保留一代。评审四轮十五件 F 全闭（跨会话态泄漏、goalmode 松锚假阳、git ahead/behind 丢失、工具链三型恒不出等）。
