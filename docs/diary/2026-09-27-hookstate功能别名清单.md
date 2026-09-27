@@ -28,6 +28,8 @@
 
 12. **aws-sg 实报闭环加反馈件四落法（用户令「help 不带 ADR」同批）**：aws-sg 工位全量补装毕（病根两层：token/pentest shim 从未部署（机上只有 2.8 时代 state 四件）；根因 = init 语义坑：hooks 部署只在裸 init 的 full 范围跑，--compact-pct 与 --yolo 设计性跳过，而此前所有升级都带 compact 旗标）；修后 12 shim 落地、claude 三腿注册、四家 17 件、doctor 29 ok。反馈件四落地：五处 `init.hooks=skipped` 行全部带补救道「hooks 部署用裸 hst init」加 Init 子命令 help 注明带旗标范围设计性跳过；同批落用户令「一些命令参数和help内容不要带 ADR」：clap 面（子命令与参数 doc comments）七个 ADR-xxxx 引用全清（代码 // 注释保留），反馈件三仍挂。`[实证: aws-sg 工位回执加全测 264 加 49 绿]`
 
+13. **doctor statusline 检查项认原生渲染形（在册候裁件收口）**：has_statusline_marker 加 `statusline --render` 标记（claude 加 kimi 自动生效）加 grok_state 初筛换 marker 函数加 Native 变体（ok，不依赖 ps1 在场）；单测 native_render_form_is_recognized 三家。实弹：本机 doctor 四家 statusline 全 ok（grok 出 native render bar configured），假 warn 三条清零，blocked 仅剩 kimi 加 grok 目录信任对话框两项（环境态）`[实证: doctor 直跑对读加全测 265 绿]`。
+
 ## 自省
 
 - python heredoc 转义塌陷同型二犯（09-26 流水 18 的 \n 塌真换行、本次 \" 塌裸引号）：夹具类改码一律 Edit 工具实落或 python raw 字符串，不再走普通字符串 heredoc。按「同型二犯升格」惯例此条记档待升 guides 工作流条目。

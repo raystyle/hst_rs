@@ -399,9 +399,14 @@ pub(crate) fn login_state(agent: &str) -> Option<(Status, String)> {
 /// 体检的状态栏脚本标记面（细则见模块文档与集成测试）。
 const STATUSLINE_MARKER: &str = "hst-statusline";
 const STATUSLINE_MARKER_LEGACY: &str = "oma-statusline";
+/// ADR-0010 原生渲染形：`"<hst>" statusline --render <agent>`（statusLine
+/// 命令不再含脚本名标记）。
+const STATUSLINE_RENDER_MARKER: &str = "statusline --render";
 
 fn has_statusline_marker(c: &str) -> bool {
-    c.contains(STATUSLINE_MARKER) || c.contains(STATUSLINE_MARKER_LEGACY)
+    c.contains(STATUSLINE_MARKER)
+        || c.contains(STATUSLINE_MARKER_LEGACY)
+        || c.contains(STATUSLINE_RENDER_MARKER)
 }
 
 fn claude_statusline_on(home: &Path) -> bool {
@@ -510,6 +515,8 @@ fn kimi_statusline_on(home: &Path) -> bool {
 enum GrokStatusline {
     CmdPath,
     PwshFile,
+    /// ADR-0010 原生渲染形（statusline --render）。
+    Native,
     Missing,
 }
 
@@ -522,7 +529,7 @@ fn grok_statusline_state(home: &Path) -> GrokStatusline {
         .and_then(|sl| sl.get("command"))
         .and_then(|c| c.as_str())
         .map(str::trim)
-        .filter(|c| c.contains(STATUSLINE_MARKER))
+        .filter(|c| has_statusline_marker(c))
     else {
         return GrokStatusline::Missing;
     };
@@ -531,6 +538,9 @@ fn grok_statusline_state(home: &Path) -> GrokStatusline {
     }
     if cmd.contains("pwsh") && cmd.contains("-File") {
         return GrokStatusline::PwshFile;
+    }
+    if cmd.contains(STATUSLINE_RENDER_MARKER) {
+        return GrokStatusline::Native;
     }
     GrokStatusline::Missing
 }
@@ -1937,6 +1947,14 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
                 sl_pwsh_missing,
             );
         }
+        GrokStatusline::Native => push_status(
+            &mut findings,
+            "grok",
+            "statusline",
+            Status::Ok,
+            &grok_cfg,
+            "native render bar configured",
+        ),
         GrokStatusline::Missing => push_statusline(
             &mut findings,
             "grok",
@@ -2574,6 +2592,35 @@ mod tests {
         )
         .unwrap();
         assert_eq!(codex_statusline_state(&root), CodexStatusline::Builtin);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn native_render_form_is_recognized() {
+        // ADR-0010 原生渲染形（statusline --render）：statusLine 命令不含
+        // 脚本名标记，doctor 不得误报 not configured（aws-sg 实报候裁件）。
+        let root = temp_root("native-sl");
+        fs::create_dir_all(root.join(".claude")).unwrap();
+        fs::write(
+            root.join(".claude").join("settings.json"),
+            r#"{"statusLine": {"type": "command", "command": "\"/x/hst\" statusline --render claude"}}"#,
+        )
+        .unwrap();
+        assert!(claude_statusline_on(&root), "claude native form on");
+        fs::create_dir_all(root.join(".kimi-code")).unwrap();
+        fs::write(
+            root.join(".kimi-code").join("tui.toml"),
+            "[status_line]\ncommand = \"/x/hst statusline --render kimi\"\n",
+        )
+        .unwrap();
+        assert!(kimi_statusline_on(&root), "kimi native form on");
+        fs::create_dir_all(root.join(".grok")).unwrap();
+        fs::write(
+            root.join(".grok").join("config.toml"),
+            "[ui.status_line]\ncommand = \"/x/hst statusline --render grok\"\ntype = \"command\"\n",
+        )
+        .unwrap();
+        assert_eq!(grok_statusline_state(&root), GrokStatusline::Native);
         let _ = fs::remove_dir_all(&root);
     }
 
