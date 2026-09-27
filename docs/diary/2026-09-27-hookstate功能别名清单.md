@@ -26,6 +26,8 @@
 
 11. **REQ-031 渗透授权 hook（用户三令收敛终形）**：「别名 hst 渗透授权 通过hook检测命令获取授权文件自动返回授权内容」加「根据请求命令中的ip或域名 自动生产授权文件」加终裁「hook不真正执行检测到的授权获取命令，hook效果是返回模拟的授权获取命令需要的授权真实内容」。定位 = 授权获取命令的短路服务层：PreToolUse 命令参数命中 curl/wget/httpx/python urlopen 取 security.txt/scope.txt/inscope.txt/outofscope.txt 的命令形时 exit 2 短路真实执行，stderr 回该命令所需的真实授权内容。内容三序：缓存 `~/.hst/pentest/<host>/`（fetched 形 24h 窗）到 hst 侧自取一次（HTTPS 加 200 加非 HTML、4s 超时、HST_PENTEST_ID_HEADER 约定标识头、HST_PENTEST_ALLOW_HTTP 测试通道）到按目标自动生成（meta 如实标 source=auto 不伪造 SoW 编号、HST_PENTEST_REF 可注引用）。实现：pentest.rs 模块（检测提取 URL 内嵌形与 AUTH_FILES 长名优先序防 outofscope 子串错配两坑自修）加 hst hook pentest 命令加 shim 四载体（sh/cmd/ps1/grok 包装，M048 同款）加部署四家 PreToolUse 三挂（state 加 token 加 pentest；kimi 多段 retain 重构保幂等、codex 腿枚举三态）加别名表 hst 渗透授权。单测六件（检测形、缓存与生成、生成文件诚实性、TTL 过期、guard 双态、http 伪服务器取回双态）`[实证: cargo test 262 加 49 绿]`。续令两笔并入：「ip的话最好带一个宽松的网段范围授权」（loose_cidr：私网 IP 映射所属保留块（10/8、172.16/12、192.168/16、127/8、169.254/16）、其余 IPv4 取 a.b.c.0/24，自查修一处首版 a.b.0.0/24 只盖 a.b.0.x 的错）与「域名带 *.xx.com」（域名追加左标签通配行），单测 scope_generation_carries_loose_range 三形锁 `[实证: cargo test 264 加 49 绿]`。
 
+12. **aws-sg 实报闭环加反馈件四落法（用户令「help 不带 ADR」同批）**：aws-sg 工位全量补装毕（病根两层：token/pentest shim 从未部署（机上只有 2.8 时代 state 四件）；根因 = init 语义坑：hooks 部署只在裸 init 的 full 范围跑，--compact-pct 与 --yolo 设计性跳过，而此前所有升级都带 compact 旗标）；修后 12 shim 落地、claude 三腿注册、四家 17 件、doctor 29 ok。反馈件四落地：五处 `init.hooks=skipped` 行全部带补救道「hooks 部署用裸 hst init」加 Init 子命令 help 注明带旗标范围设计性跳过；同批落用户令「一些命令参数和help内容不要带 ADR」：clap 面（子命令与参数 doc comments）七个 ADR-xxxx 引用全清（代码 // 注释保留），反馈件三仍挂。`[实证: aws-sg 工位回执加全测 264 加 49 绿]`
+
 ## 自省
 
 - python heredoc 转义塌陷同型二犯（09-26 流水 18 的 \n 塌真换行、本次 \" 塌裸引号）：夹具类改码一律 Edit 工具实落或 python raw 字符串，不再走普通字符串 heredoc。按「同型二犯升格」惯例此条记档待升 guides 工作流条目。

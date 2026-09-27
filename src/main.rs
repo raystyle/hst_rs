@@ -58,7 +58,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// 用户级 yolo 与非阻塞键落盘（默认全套：yolo 键加 hook 注册加状态栏面；skill 面已退役，ours 技能目录幂等清扫，ADR-0005）
+    /// 用户级 yolo 与非阻塞键落盘（默认全套：yolo 键加 hook 注册加状态栏面；skill 面已退役，ours 技能目录幂等清扫）。注意：hooks 与状态栏部署只在裸 init（无任何旗标）的 full 范围跑，任何带旗标范围（仅键面、仅压缩面等）设计性跳过
     Init {
         /// 写用户级无阻塞键（仅 yolo，不落 hook；D28 第 3 轮起两级显式；
         /// D33 起取值式分级 full|partial|off，缺省 full，裸旗标兼容）
@@ -115,12 +115,12 @@ enum Commands {
         #[command(subcommand)]
         cmd: HookCmd,
     },
-    /// 配置四家状态栏（幂等：claude/codex/kimi/grok 各自配置面）；ADR-0010 起渲染走 hst 二进制原生子命令
+    /// 配置四家状态栏（幂等：claude/codex/kimi/grok 各自配置面）；渲染走 hst 二进制原生子命令
     Statusline {
         /// 指定 agent（claude/codex/kimi/grok）；缺省四家都配
         #[arg(value_name = "名")]
         names: Vec<String>,
-        /// 原生渲染一次（ADR-0010/REQ-026）：stdin 喂 agent JSON，stdout 出状态行；供 statusLine 配置指向
+        /// 原生渲染一次：stdin 喂 agent JSON，stdout 出状态行；供 statusLine 配置指向
         #[arg(long, conflicts_with_all = ["example", "script", "builtin"])]
         render: bool,
         /// 打印 ~/.hst/statusline.toml 定制示例模板后退出（D18）
@@ -204,7 +204,7 @@ enum LoopCmd {
         /// 项目根；默认当前目录
         #[arg(long)]
         project: Option<PathBuf>,
-        /// herdr 即时通道目标（agent 名或 pane id；ADR-0009/REQ-023）：经 agent.prompt 派原生 CronCreate 指令到在跑会话即时生效；session 与 project 在此路径忽略；缺省走盘面（重启装载生效）
+        /// herdr 即时通道目标（agent 名或 pane id）：经 agent.prompt 派原生 CronCreate 指令到在跑会话即时生效；session 与 project 在此路径忽略；缺省走盘面（重启装载生效）
         #[arg(long = "via-herdr", value_name = "target")]
         via_herdr: Option<String>,
     },
@@ -227,7 +227,7 @@ enum LoopCmd {
         /// 项目根；默认当前目录
         #[arg(long)]
         project: Option<PathBuf>,
-        /// herdr 即时通道目标（ADR-0009/REQ-023）：派 CronDelete 指令到在跑会话即时删（own 判据同本地面）
+        /// herdr 即时通道目标：派 CronDelete 指令到在跑会话即时删（own 判据同本地面）
         #[arg(long = "via-herdr", value_name = "target")]
         via_herdr: Option<String>,
     },
@@ -245,7 +245,7 @@ enum GoalCmd {
         /// 项目根；默认当前目录
         #[arg(long)]
         project: Option<PathBuf>,
-        /// herdr 即时通道目标（ADR-0009/REQ-023）：派 own-latest 删旧建新保节奏指令到在跑会话（任务 id 换新，与本地保 id 形语义差异在册）
+        /// herdr 即时通道目标：派 own-latest 删旧建新保节奏指令到在跑会话（任务 id 换新，与本地保 id 形语义差异在册）
         #[arg(long = "via-herdr", value_name = "target")]
         via_herdr: Option<String>,
     },
@@ -266,7 +266,7 @@ enum GoalCmd {
         /// 项目根；默认当前目录
         #[arg(long)]
         project: Option<PathBuf>,
-        /// herdr 即时通道目标（ADR-0009/REQ-023）：派 own-latest 整任务退役指令到在跑会话（原生无空 prompt 形，节奏一并停，语义差异在册）
+        /// herdr 即时通道目标：派 own-latest 整任务退役指令到在跑会话（原生无空 prompt 形，节奏一并停，语义差异在册）
         #[arg(long = "via-herdr", value_name = "target")]
         via_herdr: Option<String>,
     },
@@ -763,7 +763,7 @@ fn run() -> Result<(), String> {
 /// `hst --llms`：紧凑版 agent 说明书（REQ-060 族标准面，总长至多 120 行）。
 /// 名加版本加一句定位、读序、子命令表（组递归到叶）、通用旗标、退出码、
 /// 输出契约、常用例；命令表从 clap 活命令树自适应渲染（新命令自动出现，
-/// 禁手维护双份）；不落盘、不装技能（ADR-0005 后唯一机读手册面）。本面
+/// 禁手维护双份）；不落盘、不装技能（后唯一机读手册面）。本面
 /// 是速查投影，契约在 clap 帮助与集成测试。
 fn render_llms(root: &clap::Command) -> String {
     let mut rows: Vec<(String, String)> = Vec::new();
@@ -1579,7 +1579,7 @@ fn cmd_init(
             }
             println!("compact.preview=true (zero-write; add --yes to apply)");
         }
-        println!("init.hooks=skipped");
+        println!("init.hooks=skipped (hint: hooks 部署用裸 hst init，带旗标范围设计性跳过)");
         println!("init.scope=compact");
         return Ok(());
     }
@@ -1608,7 +1608,7 @@ fn cmd_init(
                 println!("init.retired={p}");
             }
         }
-        println!("init.hooks=skipped");
+        println!("init.hooks=skipped (hint: hooks 部署用裸 hst init，带旗标范围设计性跳过)");
     } else if let Some(level) = project_yolo {
         println!("init.flag.project_yolo=true");
         println!("init.yolo.level={}", level.as_str());
@@ -1621,7 +1621,7 @@ fn cmd_init(
                 "init.warn=project-yolo skipped: root is the user home \
                  (home is not a project; user-level keys stay)"
             );
-            println!("init.hooks=skipped");
+            println!("init.hooks=skipped (hint: hooks 部署用裸 hst init，带旗标范围设计性跳过)");
         } else {
             match level {
                 yolo::YoloLevel::Off => {
@@ -1636,7 +1636,7 @@ fn cmd_init(
                     }
                 }
             }
-            println!("init.hooks=skipped");
+            println!("init.hooks=skipped (hint: hooks 部署用裸 hst init，带旗标范围设计性跳过)");
         }
     } else {
         // 裸 init（无旗标）= 全套部署，用户级 yolo 固定 full 级；
@@ -1674,7 +1674,7 @@ fn cmd_init(
                 println!("init.hooks.warn={w}");
             }
         } else {
-            println!("init.hooks=skipped");
+            println!("init.hooks=skipped (hint: hooks 部署用裸 hst init，带旗标范围设计性跳过)");
         }
     }
     if pretrust {
@@ -1721,7 +1721,7 @@ fn agent_report_row(r: &agents::Report) -> Value {
     }
 }
 
-/// herdr 即时通道派发共用腿（ADR-0009/REQ-023）：发 agent.prompt（wait
+/// herdr 即时通道派发共用腿：发 agent.prompt（wait
 /// 含 blocked，timeout 120s），返回目标 agent 回执态。
 fn herdr_arm(target: &str, text: &str) -> Result<String, String> {
     let resp = hst::herdrrpc::agent_prompt(target, text, 120_000)
@@ -1775,7 +1775,7 @@ fn cmd_loop_set(
     println!("loop.set session={}", r.session);
     println!("loop.set file={}", r.file.display());
     println!(
-        "loop.hint=durable 任务由 Claude Code 会话载入执行（会话启动时载入；已在跑会话不接管盘上外部写入，2026-09-26 实证阴性，写入后重开会话生效；在跑会话即时生效走 --via-herdr 派原生 CronCreate 指令，ADR-0009）"
+        "loop.hint=durable 任务由 Claude Code 会话载入执行（会话启动时载入；已在跑会话不接管盘上外部写入，2026-09-26 实证阴性，写入后重开会话生效；在跑会话即时生效走 --via-herdr 派原生 CronCreate 指令）"
     );
     Ok(())
 }
