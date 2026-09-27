@@ -22,6 +22,8 @@
 
 9. **REQ-030 非权限类通知映射 idle（用户问「为什么是灰色」续令「改」）**：取证链 = 灰色是 unknown 设计色加 ai_ccoe 工位 Notification 事件（任务完成类）被 S025 语义映 unknown 加面板闲置四小时停帧（截图中时钟 08:47 对实刻约 12:47 即滞留证据）；同会话同 payload 复渲染 working 黄排除读序缺陷。改面：hook.rs state_for_payload 与 map_event 的非权限类 notification 回落 idle（permission 与 elicitation 仍 blocked）、shim 四载体（sh 加 cmd 两形加 ps1）同步基态 idle；单测两件期望改。实弹：Notification payload 经 hst hook state 写盘 idle、状态栏渲绿色 `[实证: e2e 直跑加全测 256 绿]`。评审快核 CONFIRM 附 G1 加 G2：G1 同批修（sh 与 ps1 的 permission 判定从整包子串收窄到 notification_type 键值段，反例 task_complete 加 message 含 permission 一词原误染红，四载体一致；实弹 sh 加 rust 双面 idle、权限类仍 blocked）；G2 备录入 REQ（无 type 通知一律 idle，上游新增阻塞语义类通知须扩 blocked 词表）。过程疑点一笔待查：hook init 报 wrote=0 但部署件已更新（内容与源逐字对上、幂等复跑零写，正确性不受影响，报告口径候查）`[实证: 反例双面直跑加部署件对读]`。
 
+10. **v2.9.3 封版部署（用户令「review 测试 验收 封版 部署」）**：REQ-030 批（3f089d7 加 G1 修 5a87d88）经快核 CONFIRM 推 main；版本面四件齐后 tag v2.9.3 走 release.ps1 三段式。部署面：本机 hook init 刷新（通知态新语义入四载体）加周知补发（pin 目标随版改指 2.9.3）。
+
 ## 自省
 
 - python heredoc 转义塌陷同型二犯（09-26 流水 18 的 \n 塌真换行、本次 \" 塌裸引号）：夹具类改码一律 Edit 工具实落或 python raw 字符串，不再走普通字符串 heredoc。按「同型二犯升格」惯例此条记档待升 guides 工作流条目。

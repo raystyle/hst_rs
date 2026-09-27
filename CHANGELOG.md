@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 里程碑 2026-09-27：v2.9.3 通知态语义修正
+
+- **非权限类通知映射 idle（REQ-030，用户实报「为什么是灰色」）**：任务完成类 Notification 事件原映 unknown 致状态栏灰数小时（面板滞留帧）；hook.rs 与 shim 四载体同步改非权限类回落 idle（permission 与 elicitation 类仍 blocked），sh 与 ps1 的 permission 判定同步收窄到 notification_type 键值段（评审 G1，message 文案含该词不再误染红，四载体一致）。实弹：task_complete 写盘 idle 绿、permission_prompt 写盘 blocked、G1 反例（task_complete 加 message 含 permission）双面 idle。
+
 ### 里程碑 2026-09-27：v2.9.2 图标补全
 
 - **dir 与 git 段图标**（用户令「main 和 路径也都加一个icon」）：模板 `{icon}{path}` 加 `{icon}{branch}{flags}`，图标表加 dir 键（文件夹 U+F07B）加 git 键（分支 U+E0A0），pwsh 段块与原生渲染同步补 icon 变量，grok ASCII 面恒空不变；EXAMPLE 占位符文档同步。随批全链验收：全测 256 加 49 绿、四门禁加 PEVO 绿、windows-gnu 交叉岗绿、四面原生渲染实弹（claude 三行加 kimi 并行加 grok 纯 ASCII）、hook e2e 三态（明文阻断 exit 2 加中文位置词句式、env 引用放行、state 写盘）、部署幂等零写。
