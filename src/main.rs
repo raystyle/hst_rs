@@ -586,7 +586,21 @@ fn main() {
 }
 
 fn run() -> Result<(), String> {
-    let cli = Cli::parse();
+    // REQ-032 F1（评审）：clap 用法错缺省退 2 会污染「自判 block 出 2」
+    // 的薄壳硬约束（token/pentest 腿的 block 通道），映射为 1；help 与
+    // version（exit_code 0）原样走。
+    let cli = match Cli::try_parse() {
+        Ok(c) => c,
+        Err(e) => {
+            use clap::error::ErrorKind;
+            if matches!(e.kind(), ErrorKind::DisplayHelp | ErrorKind::DisplayVersion) {
+                e.exit()
+            }
+            e.exit_code();
+            let _ = e.print();
+            std::process::exit(1);
+        }
+    };
     // `hst --llms`（REQ-060 更正后族标准名）：裸出 markdown 手册（帮助面
     // 同款直打 stdout）；配 --json 出机器形态 {name,version,description,
     // commands[]}。活命令树渲染，禁手维护双份（ADR-0005/D54）。filter 与

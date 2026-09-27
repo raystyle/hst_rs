@@ -478,11 +478,11 @@ fn codex_side_command(oma: &Path, side: OsSide) -> String {
             "\"{}\" codex",
             oma.join("hooks").join("hst-state.sh").display()
         ),
-        OsSide::Windows => oma
-            .join("hooks")
-            .join("hst-state.cmd")
-            .display()
-            .to_string(),
+        // REQ-032 评审 F2：cmd.exe /c 形（D39 救济形）。
+        OsSide::Windows => format!(
+            "cmd.exe /c \"{}\" codex",
+            oma.join("hooks").join("hst-state.cmd").display()
+        ),
     }
 }
 
@@ -494,11 +494,11 @@ fn codex_token_side_command(oma: &Path, side: OsSide) -> String {
             "\"{}\" codex",
             oma.join("hooks").join("hst-token.sh").display()
         ),
-        OsSide::Windows => oma
-            .join("hooks")
-            .join("hst-token.cmd")
-            .display()
-            .to_string(),
+        // REQ-032 评审 F2：cmd.exe /c 形（D39 救济形）。
+        OsSide::Windows => format!(
+            "cmd.exe /c \"{}\" codex",
+            oma.join("hooks").join("hst-token.cmd").display()
+        ),
     }
 }
 
@@ -674,11 +674,11 @@ fn pentest_handler(agent: &str, oma: &Path, side: OsSide) -> Json {
             .join("hst-pentest-grok.cmd")
             .display()
             .to_string(),
-        OsSide::Windows => oma
-            .join("hooks")
-            .join("hst-pentest.cmd")
-            .display()
-            .to_string(),
+        OsSide::Windows => format!(
+            "cmd.exe /c \"{}\" {}",
+            oma.join("hooks").join("hst-pentest.cmd").display(),
+            agent
+        ),
         OsSide::Unix => format!(
             "\"{}\" {}",
             oma.join("hooks").join("hst-pentest.sh").display(),
@@ -703,11 +703,11 @@ fn token_handler(agent: &str, oma: &Path, side: OsSide) -> Json {
             .join("hst-token-grok.cmd")
             .display()
             .to_string(),
-        OsSide::Windows => oma
-            .join("hooks")
-            .join("hst-token.cmd")
-            .display()
-            .to_string(),
+        OsSide::Windows => format!(
+            "cmd.exe /c \"{}\" {}",
+            oma.join("hooks").join("hst-token.cmd").display(),
+            agent
+        ),
         OsSide::Unix => format!(
             "\"{}\" {}",
             oma.join("hooks").join("hst-token.sh").display(),
@@ -734,13 +734,15 @@ fn token_handler(agent: &str, oma: &Path, side: OsSide) -> Json {
 /// 示）。POSIX 一律 sh 路径直引（引号在 sh 合法且必要）。
 fn shim_command_ps_or_sh(agent: &str, oma: &Path, side: OsSide) -> String {
     match side {
-        // REQ-032：Windows 改单路径 .cmd 形（M048 已证 claude 系可整串
-        // spawn；pwsh 载体退役）。
-        OsSide::Windows => oma
-            .join("hooks")
-            .join("hst-state.cmd")
-            .display()
-            .to_string(),
+        // REQ-032 评审 F2：claude 系 Windows hook 执行 shell 是 POSIX sh
+        //（D39 宿主实弹），直路径 .cmd 不认盘符；弃 pwsh 后的承载形 =
+        // D39 自己的救济形 `cmd.exe /c`（宿主实弹 rc=0），非 claude 面
+        // 同形（grok 状态栏另有 M048 包装）。
+        OsSide::Windows => format!(
+            "cmd.exe /c \"{}\" {}",
+            oma.join("hooks").join("hst-state.cmd").display(),
+            agent
+        ),
         OsSide::Unix => format!(
             "\"{}\" {}",
             oma.join("hooks").join("hst-state.sh").display(),
@@ -756,11 +758,11 @@ fn codex_pentest_side_command(oma: &Path, side: OsSide) -> String {
             "\"{}\" codex",
             oma.join("hooks").join("hst-pentest.sh").display()
         ),
-        OsSide::Windows => oma
-            .join("hooks")
-            .join("hst-pentest.cmd")
-            .display()
-            .to_string(),
+        // REQ-032 评审 F2：cmd.exe /c 形（D39 救济形）。
+        OsSide::Windows => format!(
+            "cmd.exe /c \"{}\" codex",
+            oma.join("hooks").join("hst-pentest.cmd").display()
+        ),
     }
 }
 
@@ -1239,12 +1241,11 @@ fn kimi_hook_entry(event: &str, command: &str) -> toml::Value {
 /// basic string 反斜杠是转义符，一律正斜杠）。
 fn kimi_hook_command(oma: &Path, side: OsSide) -> String {
     match side {
-        // REQ-032：Windows 单路径 .cmd（M048 形）。
-        OsSide::Windows => oma
-            .join("hooks")
-            .join("hst-state.cmd")
-            .display()
-            .to_string(),
+        // REQ-032 评审 F2：cmd.exe /c 形（D39 救济形）。
+        OsSide::Windows => format!(
+            "cmd.exe /c \"{}\" kimi",
+            oma.join("hooks").join("hst-state.cmd").display()
+        ),
         OsSide::Unix => format!("{} kimi", oma.join("hooks").join("hst-state.sh").display()),
     }
 }
@@ -1335,11 +1336,11 @@ fn apply_kimi_hooks(
 /// kimi pentest 腿命令（REQ-031）：同平台形，指向 hst-pentest shim。
 fn kimi_pentest_command(oma: &Path, side: OsSide) -> String {
     match side {
-        OsSide::Windows => oma
-            .join("hooks")
-            .join("hst-pentest.cmd")
-            .display()
-            .to_string(),
+        // REQ-032 评审 F2：cmd.exe /c 形（D39 救济形）。
+        OsSide::Windows => format!(
+            "cmd.exe /c \"{}\" codex",
+            oma.join("hooks").join("hst-pentest.cmd").display()
+        ),
         OsSide::Unix => format!(
             "{} kimi",
             oma.join("hooks").join("hst-pentest.sh").display()
@@ -1351,11 +1352,11 @@ fn kimi_pentest_command(oma: &Path, side: OsSide) -> String {
 /// hst-token shim。
 fn kimi_token_command(oma: &Path, side: OsSide) -> String {
     match side {
-        OsSide::Windows => oma
-            .join("hooks")
-            .join("hst-token.cmd")
-            .display()
-            .to_string(),
+        // REQ-032 评审 F2：cmd.exe /c 形（D39 救济形）。
+        OsSide::Windows => format!(
+            "cmd.exe /c \"{}\" codex",
+            oma.join("hooks").join("hst-token.cmd").display()
+        ),
         OsSide::Unix => format!("{} kimi", oma.join("hooks").join("hst-token.sh").display()),
     }
 }
@@ -2029,7 +2030,11 @@ mod tests {
             1,
             "managed event collapses to one current: {ss:?}"
         );
-        assert!(ss[0].ends_with("/hooks/hst-state.cmd"), "{}", ss[0]);
+        assert!(
+            ss[0].contains("cmd.exe /c") && ss[0].ends_with("hst-state.cmd\" claude"),
+            "{}",
+            ss[0]
+        );
         assert!(v["hooks"]["SessionStart"]
             .as_array()
             .unwrap()
@@ -2153,8 +2158,8 @@ mod tests {
             "legacy direct form collapses to one current entry: {ours:?}"
         );
         assert!(
-            ours[0].ends_with("/hooks/hst-state.cmd"),
-            "REQ-032 single-path cmd form: {}",
+            ours[0].starts_with("cmd.exe /c \"") && ours[0].ends_with("hst-state.cmd\" claude"),
+            "REQ-032 cmd.exe /c form: {}",
             ours[0]
         );
         // 再跑一次幂等：包裹形态被 is_ours 认领且不陈旧，不追加重复。
@@ -2307,7 +2312,10 @@ mod tests {
         if cfg!(windows) {
             let cw = handler["commandWindows"].as_str().unwrap();
             assert!(!cw.contains('"') && !cw.starts_with('&'), "{cw}");
-            assert!(cw.ends_with("/hooks/hst-state.cmd"), "{cw}");
+            assert!(
+                cw.starts_with("cmd.exe /c") && cw.ends_with("hst-state.cmd\" codex"),
+                "{cw}"
+            );
             assert_eq!(
                 handler["command"].as_str(),
                 Some("hst hook status --agent codex"),
@@ -2462,8 +2470,11 @@ mod tests {
             "foreign-OS field preserved verbatim"
         );
         let cw = h["commandWindows"].as_str().unwrap();
-        assert!(!cw.contains('"') && !cw.contains('&'), "{cw}");
-        assert!(cw.ends_with("/hooks/hst-state.cmd"), "{cw}");
+        assert!(!cw.contains('&'), "{cw}");
+        assert!(
+            cw.starts_with("cmd.exe /c") && cw.ends_with("hst-state.cmd\" codex"),
+            "{cw}"
+        );
         assert!(!cw.contains("old2"), "owned field rewritten: {cw}");
 
         // 同形重复植入后收敛。

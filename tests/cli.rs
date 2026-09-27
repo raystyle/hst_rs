@@ -807,7 +807,7 @@ fn init_project_yolo_writes_project_scope_only() {
         .env("HST_USER_HOME", &user)
         .assert()
         .failure()
-        .code(2);
+        .code(1); // REQ-032 F1：clap 用法错映射 1
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -852,8 +852,8 @@ fn init_pretrust_canonical_parses_and_legacy_alias_is_removed() {
         .env("HST_ROOT", &tmp.join("fake-hst-home"))
         .assert()
         .failure()
-        .code(2);
-    // help 面只露 canonical 拼写。
+        .code(1); // REQ-032 F1：clap 用法错映射 1
+                  // help 面只露 canonical 拼写。
     hst()
         .args(["init", "--help"])
         .assert()
@@ -898,7 +898,7 @@ fn init_clear_project_yolo_strips_interference() {
         .env("HST_ROOT", &hst_root)
         .assert()
         .failure()
-        .code(2);
+        .code(1); // REQ-032 F1：clap 用法错映射 1
     hst()
         .args(["init", "--clear-project-yolo", "--project"])
         .arg(&proj)
@@ -958,8 +958,8 @@ fn init_yolo_partial_and_off_level_markers() {
         .env("HST_ROOT", &hst_root)
         .assert()
         .failure()
-        .code(2);
-    // partial：标记与四家分级落键。
+        .code(1); // REQ-032 F1：clap 用法错映射 1
+                  // partial：标记与四家分级落键。
     hst()
         .args(["init", "--yolo=partial", "--project"])
         .arg(&proj)
@@ -1841,7 +1841,7 @@ fn json_and_format_are_mutually_exclusive() {
         .args(["--json", "--format", "json", "agents"])
         .assert()
         .failure()
-        .code(2);
+        .code(1); // REQ-032 F1：clap 用法错映射 1
 }
 
 #[test]
