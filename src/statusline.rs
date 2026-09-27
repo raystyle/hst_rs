@@ -1887,15 +1887,19 @@ segments5 = ["goalmode"]
 /// 显示走内置项，与 pwsh 面版本并入 agent 名同要素；同轮用户裁去
 /// `context-remaining`（渲染成 left 百分比，与 `context-used` 的
 /// `Context N% used` 重复占宽，只留 used 形，缺省集回十二项）。
+/// 2026-09-28 用户令（目标形 `Context 35% · 996K window · used 373K`）：
+/// 去 `total-input-tokens` 与 `total-output-tokens`（in 与 out 两项占宽），
+/// 并把 `context-window-size` 提到 `used-tokens` 前，读序固定为百分比到
+/// 窗口到用量（缺省集十项）。注：codex 内置项文案是固定形（`Context N%
+/// used` 与 `N used`），故实际渲染比用户给的字面多一处 used 词，项选择面
+/// 不可再收（hst 只能选 id，不能改 codex 的渲染）。
 const CODEX_STATUS_LINE_ITEMS: &[&str] = &[
     "run-state",
     "codex-version",
     "model-with-reasoning",
     "context-used",
-    "used-tokens",
-    "total-input-tokens",
-    "total-output-tokens",
     "context-window-size",
+    "used-tokens",
     "permissions",
     "current-dir",
     "git-branch",
@@ -3666,6 +3670,19 @@ mod tests {
         assert!(tui.contains("codex-version"));
         assert!(tui.contains("git-branch"));
         assert!(tui.contains("status_line_use_colors = true"));
+        // 2026-09-28 用户令：读序 = 百分比到窗口到用量；in 与 out 两项已去。
+        let order: Vec<usize> = ["context-used", "context-window-size", "used-tokens"]
+            .iter()
+            .map(|id| tui.find(&format!("\"{id}\"")).expect("item present"))
+            .collect();
+        assert!(
+            order[0] < order[1] && order[1] < order[2],
+            "order: {order:?}"
+        );
+        assert!(
+            !tui.contains("total-input-tokens") && !tui.contains("total-output-tokens"),
+            "in/out items retired: {tui}"
+        );
         assert!(
             !tui.contains("pwsh") && !tui.contains("oma-statusline"),
             "Codex silently skips unknown IDs; command argv empties the bar: {tui}"
