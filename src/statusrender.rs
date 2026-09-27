@@ -221,7 +221,10 @@ fn segment_opt(ctx: &Ctx, id: &str) -> Option<String> {
     match id {
         "shell" => seg_shell(ctx),
         "dir" => Some(ansi(
-            &apply_fmt(&tmpl_of(ctx, "dir"), &[("path", ctx.dir.clone())]),
+            &apply_fmt(
+                &tmpl_of(ctx, "dir"),
+                &[("icon", icon_of(ctx, "dir")), ("path", ctx.dir.clone())],
+            ),
             "38;5;39",
         ))
         .filter(|x| !x.is_empty()),
@@ -573,7 +576,11 @@ fn seg_git(ctx: &Ctx) -> Option<String> {
     Some(ansi(
         &apply_fmt(
             &tmpl_of(ctx, "git"),
-            &[("branch", branch_txt), ("flags", flag_txt)],
+            &[
+                ("icon", icon_of(ctx, "git")),
+                ("branch", branch_txt),
+                ("flags", flag_txt),
+            ],
         ),
         "38;5;176",
     ))

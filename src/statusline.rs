@@ -128,7 +128,7 @@ if ($shellName) {
 const SEG_DIR: &str = r#"
 # ── 目录：完整路径（用户定调 2026-09-02）──
 if ($dir) {
-    $p = Seg (ApplyFmt (Tmpl 'dir') @{ path = $dir }) '38;5;39'
+    $p = Seg (ApplyFmt (Tmpl 'dir') @{ icon = (Ico 'dir'); path = $dir }) '38;5;39'
     if ($p) { $parts.Add($p) }
 }
 "#;
@@ -826,7 +826,7 @@ if ($gs) {
 if ($branch -or $flags) {
     $branchTxt = if ($branch) { " $branch" } else { '' }
     $flagTxt = if ($flags) { " [$flags]" } else { '' }
-    $g = Seg (ApplyFmt (Tmpl 'git') @{ branch = $branchTxt; flags = $flagTxt }) '38;5;176'
+    $g = Seg (ApplyFmt (Tmpl 'git') @{ icon = (Ico 'git'); branch = $branchTxt; flags = $flagTxt }) '38;5;176'
     if ($g) { $parts.Add($g) }
 }
 "#;
@@ -1116,7 +1116,7 @@ pub fn default_template(key: &str) -> String {
 
 const DEFAULT_TEMPLATES: &[(&str, &str)] = &[
     ("shell", "{icon}{name}"),
-    ("dir", "{path}"),
+    ("dir", "{icon}{path}"),
     ("hst", "{icon}{agent}:{state}"),
     ("model", "{icon}{model}"),
     ("context", "{icon}{pct}% [{used}/{window}]"),
@@ -1136,7 +1136,7 @@ const DEFAULT_TEMPLATES: &[(&str, &str)] = &[
     ("goalmode-ascii", "{text}"),
     ("hookstate", "{icon}  {alias}"),
     ("hookstate-ascii", "{alias}"),
-    ("git", "{branch}{flags}"),
+    ("git", "{icon}{branch}{flags}"),
     ("clock", "{icon}{datetime}"),
     ("package", "{icon}{version}"),
     ("python", "{icon}{version}"),
@@ -1162,6 +1162,8 @@ pub fn default_icon(key: &str) -> String {
 
 const DEFAULT_ICONS: &[(&str, &str)] = &[
     ("shell-pwsh", "\u{ebc7} "),
+    ("dir", "\u{f07b} "),
+    ("git", "\u{e0a0} "),
     ("shell", "\u{ea85} "),
     ("hst", "\u{f06a9}  "),
     ("model", "\u{2726} "),
@@ -1824,12 +1826,12 @@ segments5 = ["goalmode"]
 
 # 段内模板（[template]）：每段一条格式串；`<段>-ascii` 是 grok 的 ASCII 形
 #（缺省同用 nerd 模板、图标恒空）。可用占位符：
-#   shell {icon}{name} / dir {path} / hst {icon}{agent}{state}
+#   shell {icon}{name} / dir {icon}{path} / hst {icon}{agent}{state}
 #   goalmode {icon}  {text}（/goal 原始参数文本；可自配 {state}）
 #   model {icon}{model} / context {icon}{pct}{used}{window}{mix}（mix = 构成
 #   占比 [sN tN mN]，transcript 可解析时才有）
 #   tools {icon}{count} / mcp {icon}{count} / tokens {icon}{used}{window}
-#   duration {icon}{duration} / git {branch}{flags}
+#   duration {icon}{duration} / git {icon}{branch}{flags}
 #   loop {icon}  {every} / {goal}（图标后双空格对齐 hst 段形；循环时间参数；{every} 为
 #   自然节拍 30m 形，{cadence} ×30m 形与 {count} 可自配）/ goal {icon}{goal}（可选段：任务 prompt 单显）
 #   hookstate {icon}  {alias}（第三行；注册面全部 hook 的功能别名清单，
@@ -1845,7 +1847,7 @@ segments5 = ["goalmode"]
 # hst = "{agent}[{state}]"
 
 # 图标映射（[icons]）：键级回落；hst 机器人宽字形默认跟两空格。
-# 可用键：shell / shell-pwsh / hst / model / context / tools / mcp / tokens
+# 可用键：shell / shell-pwsh / dir / git / hst / model / context / tools / mcp / tokens
 #         / duration / loop / goal（REQ-019 加）
 #         / package / python / rust / node / ts / zig / go / cpp
 #         / clock（D51 加）
