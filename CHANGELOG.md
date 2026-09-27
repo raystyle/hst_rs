@@ -11,7 +11,6 @@
 - **init 旗标跳 hooks 补救道（反馈件四，aws-sg 实报）**：带任何旗标（--compact-pct、--yolo 等）即设计性跳 hooks 部署，五处 skip 行与 Init 子命令 help 补「hooks 部署用裸 hst init」提示；同批清 clap 面 ADR 引用（用户令「命令参数和help内容不要带 ADR」）。
 - **doctor statusline 检查项认原生渲染形（在册候裁件收口）**：claude 与 kimi 加 `statusline --render` 标记、grok 面换 Native 变体，假 warn 清零。
 
-
 ### 里程碑 2026-09-27：v2.9.4 渗透授权 hook
 
 - **渗透授权 hook（REQ-031，用户五令收敛）**：授权获取命令的短路服务层。agent 要跑 curl/wget/httpx/python urlopen 取 `/.well-known/security.txt` 或 `scope.txt` 族文件时，hook 不真正执行该命令（exit 2 短路），stderr 直接回真实授权内容。内容三序：缓存 `~/.hst/pentest/<host>/`（fetched 形 24h 窗）到 hst 侧自取一次（HTTPS 加 200 加非 HTML、4s 超时、约定标识头）到按目标自动生成（meta 如实标 source=auto 不伪造编号；scope 宽松扩展：IP 追加覆盖网段（私网所属保留块、其余 /24）、域名追加 *.域名）。检测锚 URL 路径段（POST body 字样不误中）、host RFC-1123 校验防落点穿透（评审 F1/F2）。`hst hook pentest` 命令加 shim 四载体加四家 PreToolUse 三挂（state 加 token 加 pentest）；状态栏别名行加「hst 渗透授权」。
