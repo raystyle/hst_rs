@@ -21,5 +21,5 @@ trace: pentest.rs 模块（检测加取回加生成加服务四层，单测八�
 - [x] 出口：命中获取命令 exit 2 短路真实执行，stderr 回 `hst pentest:` 前缀加目标加文件名加来源（fetched/auto/manual）加完整文件内容加缓存位与重取指引；非获取命令静默 exit 0
 - [x] shim 三载体（sh/cmd/ps1，M060a 式白名单透传，前缀 `hst pentest:`）；部署 PreToolUse 第三挂（state 加 token 加 pentest）；HOOK_ALIASES 加条 hst-pentest 映射「hst 渗透授权」
 - [x] 测试：检测形七件（curl 加 wget 加 python 加非获取命令 pass 加 host 剥离）、缓存服务、自动生成三文件形、http 伪服务器取回（text/plain 通过加 HTML 拒后落自动生成）、过期 meta
-- [x] 评审吸收（F1 加 F2 必修、G1 至 G4）：F1 检测面收口（文件判定锚进 URL 路径段——POST body 字样、上传管道、裸文件名参数不中，撤裸 token 回落）；F2 host 合法性校验（RFC-1123 形或 IPv4 点分十进制，`..` 穿透形拒绝不落盘）加 userinfo 剥离；G1 通配口径在册（*.目标 = 目标左标签通配非注册域通配，注册域级需 PSL 判断候裁）；G2 生成文案中性化（auto-generated placeholder 非 operator standing 措辞）加 Serve 注「自动生成占位非站点授权证据」；G3 IPv6 边界记档（[::1] 形 URL 走不到 host 分支静默 Pass，无 /64 扩展，候裁）；G4 边界记档（陈旧 fetched 被 auto 覆盖丢真实内容、端口与 IPv6 剥离、wget2 与 aria2c 不在工具词表）
+- [x] 评审吸收（F1 加 F2 必修、G1 至 G4）：F1 检测面收口（文件判定锚进 URL 路径段：POST body 字样、上传管道、裸文件名参数不中，撤裸 token 回落）；F2 host 合法性校验（RFC-1123 形或 IPv4 点分十进制，`..` 穿透形拒绝不落盘）加 userinfo 剥离；G1 通配口径在册（*.目标 = 目标左标签通配非注册域通配，注册域级需 PSL 判断候裁）；G2 生成文案中性化（auto-generated placeholder 非 operator standing 措辞）加 Serve 注「自动生成占位非站点授权证据」；G3 IPv6 边界记档（[::1] 形 URL 走不到 host 分支静默 Pass，无 /64 扩展，候裁）；G4 边界记档（陈旧 fetched 被 auto 覆盖丢真实内容、端口与 IPv6 剥离、wget2 与 aria2c 不在工具词表）
 - [x] 实施后回填 frontmatter 的 trace，状态改 implemented
