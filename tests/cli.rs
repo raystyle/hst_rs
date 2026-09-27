@@ -261,7 +261,7 @@ fn doctor_blocks_on_a_fresh_project_and_says_so() {
 #[test]
 fn issue_new_invalid_title_fails_locally() {
     // 本地拒绝不触网（秒红）：空标题走 ledger 客户端校验（title 必填且
-    // 至多 200）；缺 --acceptance 走 clap 用法错（退出 2）。
+    // 至多 200）；缺 --acceptance 走 clap 用法错（退出 1，REQ-032 F1）。
     hst()
         .args(["issue", "new", "   ", "--acceptance", "x"])
         .assert()
