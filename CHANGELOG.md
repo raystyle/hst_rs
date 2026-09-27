@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### 里程碑 2026-09-27：v2.9.5 载体全原生 cmd 与 sh 透传
+
+- **载体全原生 thin 透传（REQ-032，用户令「脱离pwsh 全部原生hst通过cmd sh 透传hst状态栏和hook」）**：自包含 pwsh shim 全退役，hook 与状态栏载体退化为 thin 透传壳（逻辑全收进 hst 二进制本体，部署烘焙部署方 exe 绝对路径）。sh 壳 shebang 按宿主（mac zsh、其余 bash）body POSIX 基线三壳一致（用户令「sh要兼容zsh和bash」）；Windows 注册走一行 thin ps1 经 D39 三壳通吃形（powershell.exe -NoProfile -ExecutionPolicy Bypass -File 正斜杠路径，评审二轮 F2 终裁方案③），.cmd 只留 grok M048 包装与手工面；grok 状态栏壳同步 thin cmd 化。D28 语义翻转记档：hst 缺位或故障时退出非 2 即 fail-open（状态栏回落 unknown）。
+- **退出码通道分立（REQ-032 评审 F1）**：clap 用法错从缺省退 2 改映射 1（main 走 Cli::try_parse，help 与 version 的 0 原样），exit 2 专属 hook 面自判处置（secretguard 拦截、pentest 授权获取短路），旧二进制契约漂移不再被薄壳误当自判 block。
+- **init 旗标跳 hooks 补救道（反馈件四，aws-sg 实报）**：带任何旗标（--compact-pct、--yolo 等）即设计性跳 hooks 部署，五处 skip 行与 Init 子命令 help 补「hooks 部署用裸 hst init」提示；同批清 clap 面 ADR 引用（用户令「命令参数和help内容不要带 ADR」）。
+- **doctor statusline 检查项认原生渲染形（在册候裁件收口）**：claude 与 kimi 加 `statusline --render` 标记、grok 面换 Native 变体，假 warn 清零。
+
+
 ### 里程碑 2026-09-27：v2.9.4 渗透授权 hook
 
 - **渗透授权 hook（REQ-031，用户五令收敛）**：授权获取命令的短路服务层。agent 要跑 curl/wget/httpx/python urlopen 取 `/.well-known/security.txt` 或 `scope.txt` 族文件时，hook 不真正执行该命令（exit 2 短路），stderr 直接回真实授权内容。内容三序：缓存 `~/.hst/pentest/<host>/`（fetched 形 24h 窗）到 hst 侧自取一次（HTTPS 加 200 加非 HTML、4s 超时、约定标识头）到按目标自动生成（meta 如实标 source=auto 不伪造编号；scope 宽松扩展：IP 追加覆盖网段（私网所属保留块、其余 /24）、域名追加 *.域名）。检测锚 URL 路径段（POST body 字样不误中）、host RFC-1123 校验防落点穿透（评审 F1/F2）。`hst hook pentest` 命令加 shim 四载体加四家 PreToolUse 三挂（state 加 token 加 pentest）；状态栏别名行加「hst 渗透授权」。
