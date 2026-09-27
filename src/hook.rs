@@ -16,7 +16,9 @@ pub fn map_event(event: &str) -> &'static str {
         | "posttoolusefailure" | "subagentstart" | "subagentstop" | "precompact"
         | "permissionresult" | "working" => "working",
         "permissionrequest" | "blocked" => "blocked",
-        "notification" | "unknown" => "unknown",
+        // REQ-030：非权限类通知映射 idle（payload 细分见 state_for_payload）。
+        "notification" => "idle",
+        "unknown" => "unknown",
         _ => "unknown",
     }
 }
@@ -65,7 +67,7 @@ fn notification_kind(v: &Json) -> String {
 }
 
 /// Claude Notification is mixed (tips vs permission). Only permission-shaped
-/// kinds count as blocked; the rest stay unknown so we do not spur idle.
+/// kinds count as blocked; the rest map idle（REQ-030：干完活等人看）.
 pub fn state_for_payload(event: &str, payload: Option<&Json>) -> &'static str {
     if event == "notification" {
         if let Some(v) = payload {
@@ -74,7 +76,9 @@ pub fn state_for_payload(event: &str, payload: Option<&Json>) -> &'static str {
                 return "blocked";
             }
         }
-        return "unknown";
+        // REQ-030：非权限类通知（任务完成等）映射 idle（用户令 2026-09-27
+        //「为什么是灰色」——unknown 灰数小时误导，干完活等人看是 idle）。
+        return "idle";
     }
     if event == "elicitation" || event == "elicitationresult" {
         return "blocked";
@@ -360,7 +364,7 @@ mod tests {
         assert_eq!(map_event("userpromptsubmit"), "working");
         assert_eq!(map_event("stop"), "idle");
         assert_eq!(map_event("permissionrequest"), "blocked");
-        assert_eq!(map_event("notification"), "unknown");
+        assert_eq!(map_event("notification"), "idle");
         assert_eq!(map_event("sessionstart"), "idle");
     }
 
@@ -375,7 +379,8 @@ mod tests {
             "hookEventName": "notification",
             "notificationType": "idle_prompt"
         });
-        assert_eq!(state_for_payload("notification", Some(&tips)), "unknown");
+        // REQ-030：非权限类通知映射 idle（原 unknown，用户实报灰数小时）。
+        assert_eq!(state_for_payload("notification", Some(&tips)), "idle");
     }
 
     #[test]

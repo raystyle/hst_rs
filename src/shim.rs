@@ -61,7 +61,8 @@ if /i "!ERAW!"=="PreCompact" set "STATE=working"
 if /i "!ERAW!"=="PermissionResult" set "STATE=working"
 if /i "!ERAW!"=="PermissionRequest" set "STATE=blocked"
 if /i "!ERAW!"=="Notification" (
-  set "STATE=unknown"
+  rem REQ-030：非权限类通知映射 idle。
+  set "STATE=idle"
   jq -e --arg k permission "(.notification_type // .notificationType // .matcher // .message // empty) | tostring | contains($k)" "%TMPF%" >nul 2>nul && set "STATE=blocked"
 )
 set "STATE_DIR=%USERPROFILE%\.hst\state"
@@ -133,7 +134,8 @@ if /i "!ERAW!"=="PreCompact" set "STATE=working"
 if /i "!ERAW!"=="PermissionResult" set "STATE=working"
 if /i "!ERAW!"=="PermissionRequest" set "STATE=blocked"
 if /i "!ERAW!"=="Notification" (
-  set "STATE=unknown"
+  rem REQ-030：非权限类通知映射 idle。
+  set "STATE=idle"
   rem F9 加 R2-2：permission 只在 notification_type 键值内判（与 SID 同法的
   rem 首引号段提取；整行或整包匹配会把文案里出现该词误判 blocked）。
   if defined NLINE (
@@ -213,7 +215,8 @@ case "$event" in
   userpromptsubmit|userpromptuse|pretooluse|posttooluse|posttoolusefailure|subagentstart|subagentstop|precompact|permissionresult|working) state=working ;;
   permissionrequest|blocked|elicitation|elicitationresult) state=blocked ;;
   notification)
-    state=unknown
+    # REQ-030：非权限类通知映射 idle。
+    state=idle
     case "$payload" in *permission*) state=blocked ;; esac
     ;;
   *) state=unknown ;;
@@ -332,7 +335,7 @@ switch ($event) {
   'Elicitation' { $state = 'blocked' }
   'ElicitationResult' { $state = 'blocked' }
   'blocked' { $state = 'blocked' }
-  'Notification' { $state = 'unknown' }
+  'Notification' { $state = 'idle' } # REQ-030
   default { $state = 'unknown' }
 }
 if ($event -eq 'Notification' -and $raw -match 'permission') { $state = 'blocked' }

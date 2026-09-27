@@ -410,7 +410,7 @@
     {
       "path": "hst_cli::hook::state_for_payload",
       "kind": "function",
-      "docs": "Claude Notification is mixed (tips vs permission). Only permission-shaped\nkinds count as blocked; the rest stay unknown so we do not spur idle."
+      "docs": "Claude Notification is mixed (tips vs permission). Only permission-shaped\nkinds count as blocked; the rest map idle（REQ-030：干完活等人看）."
     },
     {
       "path": "hst_cli::install",

@@ -18,7 +18,9 @@
 
 7. **v2.9.1 封版部署**：版本面 Cargo.toml 加 lock 加 CHANGELOG 里程碑（标题禁括）加 aidoc 版本投影四件一次齐（v2.9.0 三漏教训清单化跑）；内容面五条（原生渲染、hookstate 别名行、解耦穿透族、智能提示、行序终裁）；tag v2.9.1 钉 HEAD 后走 release.ps1 三段式（版本闸加测试闸加本地与 mac 双档交叉构建加打包 sha256 加四端冒烟加 gh 直发 --latest）。部署面回执：发布链一次全绿（版本闸加测试闸加四平台构建加打包 sha256 加四端冒烟加 gh --latest，release 页 v2.9.1）；tag 后追加两笔（dir 与 git 段图标，用户令「main 和 路径也都加一个icon」，随下版）；本机 hst init 全套幂等绿（shim 八件、四家双挂、状态栏指原生渲染二进制）；stable 位是 ark 管理布局，self update 按管理方让位语义拒直更，catalog pin 滚版请求已周知 ai_ccoe 工位（pin 前 PATH hst 2.9.0 无 token 面，本机 token 护栏 fail-open 放行中，滚 pin 即全效）；doctor 的 statusline 检查项还认旧 pwsh 命令形（原生渲染形报 warn not configured），候裁补认 `[实证: release 输出加 init 回执加 self update 拒更原文加 gh run 绿]`。
 
-8. **v2.9.2 封版部署（用户令「测试 回归 验收 封版部署」全链）**：验收电池先跑后封——A 全测 256 加 49 绿；B 门禁全绿（fmt 加 clippy 加 aidoc strict 加 md 四门禁加 PEVO）；C windows-gnu 交叉岗绿（cfg 平台分支教训项）；D 回归实弹四面（claude 三行含新图标、kimi 并行、grok 纯 ASCII 零 Nerd 字形）加 hook e2e 三态（假 key 阻断 exit 2 出中文位置词句式单条、env 引用与透传放行、state 写盘 working）加部署幂等零写。doctor blocked 两项为 kimi 加 grok 目录信任对话框未答（环境态非本批缺陷），statusline warn 为检查项旧口径已候裁。版本面四件齐后 tag v2.9.2 走 release.ps1；stable 位仍待 ark catalog pin 滚版（v2.9.1 周知已发，pin 目标随版改指 2.9.2）`[实证: 验收电池输出留痕]`。
+8. **v2.9.2 封版部署（用户令「测试 回归 验收 封版部署」全链）**：验收电池先跑后封（续）A 全测 256 加 49 绿；B 门禁全绿（fmt 加 clippy 加 aidoc strict 加 md 四门禁加 PEVO）；C windows-gnu 交叉岗绿（cfg 平台分支教训项）；D 回归实弹四面（claude 三行含新图标、kimi 并行、grok 纯 ASCII 零 Nerd 字形）加 hook e2e 三态（假 key 阻断 exit 2 出中文位置词句式单条、env 引用与透传放行、state 写盘 working）加部署幂等零写。doctor blocked 两项为 kimi 加 grok 目录信任对话框未答（环境态非本批缺陷），statusline warn 为检查项旧口径已候裁。版本面四件齐后 tag v2.9.2 走 release.ps1；stable 位仍待 ark catalog pin 滚版（v2.9.1 周知已发，pin 目标随版改指 2.9.2）`[实证: 验收电池输出留痕]`。
+
+9. **REQ-030 非权限类通知映射 idle（用户问「为什么是灰色」续令「改」）**：取证链 = 灰色是 unknown 设计色加 ai_ccoe 工位 Notification 事件（任务完成类）被 S025 语义映 unknown 加面板闲置四小时停帧（截图中时钟 08:47 对实刻约 12:47 即滞留证据）；同会话同 payload 复渲染 working 黄排除读序缺陷。改面：hook.rs state_for_payload 与 map_event 的非权限类 notification 回落 idle（permission 与 elicitation 仍 blocked）、shim 四载体（sh 加 cmd 两形加 ps1）同步基态 idle；单测两件期望改。实弹：Notification payload 经 hst hook state 写盘 idle、状态栏渲绿色 `[实证: e2e 直跑加全测 256 绿]`。
 
 ## 自省
 
