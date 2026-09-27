@@ -307,7 +307,7 @@ fn ledger_artifact_publish_validates_locally() {
 
 #[test]
 fn ledger_close_face_removed_and_attest_narrowed() {
-    // 总台修正令收口：close 面移除（usage 错退出 2）；attest 只增三验
+    // 总台修正令收口：close 面移除（usage 错退出 1（REQ-032 F1））；attest 只增三验
     // 证型（promote 型本地拒并指 omc）。
     hst()
         .args([

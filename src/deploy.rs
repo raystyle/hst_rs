@@ -478,10 +478,10 @@ fn codex_side_command(oma: &Path, side: OsSide) -> String {
             "\"{}\" codex",
             oma.join("hooks").join("hst-state.sh").display()
         ),
-        // REQ-032 评审 F2：cmd.exe /c 形（D39 救济形）。
+        // REQ-032 评审 F2 方案③：thin ps1 走 D39 三壳通吃形。
         OsSide::Windows => format!(
-            "cmd.exe /c \"{}\" codex",
-            oma.join("hooks").join("hst-state.cmd").display()
+            "powershell.exe -NoProfile -ExecutionPolicy Bypass -File {} codex",
+            crate::pathutil::forward_slash(&oma.join("hooks").join("hst-state.ps1"))
         ),
     }
 }
@@ -494,10 +494,10 @@ fn codex_token_side_command(oma: &Path, side: OsSide) -> String {
             "\"{}\" codex",
             oma.join("hooks").join("hst-token.sh").display()
         ),
-        // REQ-032 评审 F2：cmd.exe /c 形（D39 救济形）。
+        // REQ-032 评审 F2 方案③：thin ps1 走 D39 三壳通吃形。
         OsSide::Windows => format!(
-            "cmd.exe /c \"{}\" codex",
-            oma.join("hooks").join("hst-token.cmd").display()
+            "powershell.exe -NoProfile -ExecutionPolicy Bypass -File {} codex",
+            crate::pathutil::forward_slash(&oma.join("hooks").join("hst-token.ps1"))
         ),
     }
 }
@@ -667,7 +667,8 @@ fn claude_handler(oma: &Path, side: OsSide) -> Json {
 /// REQ-031 pentest 腿 handler（授权获取命令短路服务，PreToolUse 挂载）：
 /// 注册指向 hst-pentest shim。
 fn pentest_handler(agent: &str, oma: &Path, side: OsSide) -> Json {
-    // REQ-032：Windows 单路径 .cmd 形（grok 走 M048 包装）。
+    // REQ-032 评审 F2 方案③：Windows 非 grok 走 thin ps1（D39 三壳通吃
+    // 形），grok 走 M048 单路径包装。
     let command = match side {
         OsSide::Windows if agent == "grok" => oma
             .join("hooks")
@@ -675,8 +676,8 @@ fn pentest_handler(agent: &str, oma: &Path, side: OsSide) -> Json {
             .display()
             .to_string(),
         OsSide::Windows => format!(
-            "cmd.exe /c \"{}\" {}",
-            oma.join("hooks").join("hst-pentest.cmd").display(),
+            "powershell.exe -NoProfile -ExecutionPolicy Bypass -File {} {}",
+            crate::pathutil::forward_slash(&oma.join("hooks").join("hst-pentest.ps1")),
             agent
         ),
         OsSide::Unix => format!(
@@ -696,7 +697,8 @@ fn pentest_handler(agent: &str, oma: &Path, side: OsSide) -> Json {
 /// UserPromptSubmit 两事件挂载）：注册指向 hst-token shim（与 state 同
 /// 目录三载体），Windows 用 powershell -File 前缀形（D39 同款）。
 fn token_handler(agent: &str, oma: &Path, side: OsSide) -> Json {
-    // REQ-032：Windows 单路径 .cmd 形（grok 走 M048 包装烘焙 agent 参）。
+    // REQ-032 评审 F2 方案③：Windows 非 grok 走 thin ps1（D39 三壳通吃
+    // 形），grok 走 M048 单路径包装烘焙 agent 参。
     let command = match side {
         OsSide::Windows if agent == "grok" => oma
             .join("hooks")
@@ -704,8 +706,8 @@ fn token_handler(agent: &str, oma: &Path, side: OsSide) -> Json {
             .display()
             .to_string(),
         OsSide::Windows => format!(
-            "cmd.exe /c \"{}\" {}",
-            oma.join("hooks").join("hst-token.cmd").display(),
+            "powershell.exe -NoProfile -ExecutionPolicy Bypass -File {} {}",
+            crate::pathutil::forward_slash(&oma.join("hooks").join("hst-token.ps1")),
             agent
         ),
         OsSide::Unix => format!(
@@ -734,13 +736,12 @@ fn token_handler(agent: &str, oma: &Path, side: OsSide) -> Json {
 /// 示）。POSIX 一律 sh 路径直引（引号在 sh 合法且必要）。
 fn shim_command_ps_or_sh(agent: &str, oma: &Path, side: OsSide) -> String {
     match side {
-        // REQ-032 评审 F2：claude 系 Windows hook 执行 shell 是 POSIX sh
-        //（D39 宿主实弹），直路径 .cmd 不认盘符；弃 pwsh 后的承载形 =
-        // D39 自己的救济形 `cmd.exe /c`（宿主实弹 rc=0），非 claude 面
-        // 同形（grok 状态栏另有 M048 包装）。
+        // REQ-032 评审 F2 方案③：thin ps1 一行壳（逻辑全在 hst 本体）
+        // 走 D39 三壳通吃形 powershell.exe -File <正斜杠>；.cmd 只留
+        // grok M048 包装与手工面。
         OsSide::Windows => format!(
-            "cmd.exe /c \"{}\" {}",
-            oma.join("hooks").join("hst-state.cmd").display(),
+            "powershell.exe -NoProfile -ExecutionPolicy Bypass -File {} {}",
+            crate::pathutil::forward_slash(&oma.join("hooks").join("hst-state.ps1")),
             agent
         ),
         OsSide::Unix => format!(
@@ -758,10 +759,10 @@ fn codex_pentest_side_command(oma: &Path, side: OsSide) -> String {
             "\"{}\" codex",
             oma.join("hooks").join("hst-pentest.sh").display()
         ),
-        // REQ-032 评审 F2：cmd.exe /c 形（D39 救济形）。
+        // REQ-032 评审 F2 方案③：thin ps1 走 D39 三壳通吃形。
         OsSide::Windows => format!(
-            "cmd.exe /c \"{}\" codex",
-            oma.join("hooks").join("hst-pentest.cmd").display()
+            "powershell.exe -NoProfile -ExecutionPolicy Bypass -File {} codex",
+            crate::pathutil::forward_slash(&oma.join("hooks").join("hst-pentest.ps1"))
         ),
     }
 }
@@ -1241,10 +1242,10 @@ fn kimi_hook_entry(event: &str, command: &str) -> toml::Value {
 /// basic string 反斜杠是转义符，一律正斜杠）。
 fn kimi_hook_command(oma: &Path, side: OsSide) -> String {
     match side {
-        // REQ-032 评审 F2：cmd.exe /c 形（D39 救济形）。
+        // REQ-032 评审 F2 方案③：thin ps1 走 D39 三壳通吃形。
         OsSide::Windows => format!(
-            "cmd.exe /c \"{}\" kimi",
-            oma.join("hooks").join("hst-state.cmd").display()
+            "powershell.exe -NoProfile -ExecutionPolicy Bypass -File {} kimi",
+            crate::pathutil::forward_slash(&oma.join("hooks").join("hst-state.ps1"))
         ),
         OsSide::Unix => format!("{} kimi", oma.join("hooks").join("hst-state.sh").display()),
     }
@@ -1336,10 +1337,11 @@ fn apply_kimi_hooks(
 /// kimi pentest 腿命令（REQ-031）：同平台形，指向 hst-pentest shim。
 fn kimi_pentest_command(oma: &Path, side: OsSide) -> String {
     match side {
-        // REQ-032 评审 F2：cmd.exe /c 形（D39 救济形）。
+        // REQ-032 评审 F2 方案③：thin ps1 走 D39 三壳通吃形（kimi 参，
+        // 一轮 cmd.exe /c 迁移时误植 codex 已修）。
         OsSide::Windows => format!(
-            "cmd.exe /c \"{}\" codex",
-            oma.join("hooks").join("hst-pentest.cmd").display()
+            "powershell.exe -NoProfile -ExecutionPolicy Bypass -File {} kimi",
+            crate::pathutil::forward_slash(&oma.join("hooks").join("hst-pentest.ps1"))
         ),
         OsSide::Unix => format!(
             "{} kimi",
@@ -1352,10 +1354,11 @@ fn kimi_pentest_command(oma: &Path, side: OsSide) -> String {
 /// hst-token shim。
 fn kimi_token_command(oma: &Path, side: OsSide) -> String {
     match side {
-        // REQ-032 评审 F2：cmd.exe /c 形（D39 救济形）。
+        // REQ-032 评审 F2 方案③：thin ps1 走 D39 三壳通吃形（kimi 参，
+        // 一轮 cmd.exe /c 迁移时误植 codex 已修）。
         OsSide::Windows => format!(
-            "cmd.exe /c \"{}\" codex",
-            oma.join("hooks").join("hst-token.cmd").display()
+            "powershell.exe -NoProfile -ExecutionPolicy Bypass -File {} kimi",
+            crate::pathutil::forward_slash(&oma.join("hooks").join("hst-token.ps1"))
         ),
         OsSide::Unix => format!("{} kimi", oma.join("hooks").join("hst-token.sh").display()),
     }
@@ -2031,7 +2034,8 @@ mod tests {
             "managed event collapses to one current: {ss:?}"
         );
         assert!(
-            ss[0].contains("cmd.exe /c") && ss[0].ends_with("hst-state.cmd\" claude"),
+            ss[0].contains("powershell.exe -NoProfile -ExecutionPolicy Bypass -File")
+                && ss[0].ends_with("/hooks/hst-state.ps1 claude"),
             "{}",
             ss[0]
         );
@@ -2158,8 +2162,9 @@ mod tests {
             "legacy direct form collapses to one current entry: {ours:?}"
         );
         assert!(
-            ours[0].starts_with("cmd.exe /c \"") && ours[0].ends_with("hst-state.cmd\" claude"),
-            "REQ-032 cmd.exe /c form: {}",
+            ours[0].starts_with("powershell.exe -NoProfile -ExecutionPolicy Bypass -File ")
+                && ours[0].ends_with("/hooks/hst-state.ps1 claude"),
+            "REQ-032 F2 方案③ thin ps1 form: {}",
             ours[0]
         );
         // 再跑一次幂等：包裹形态被 is_ours 认领且不陈旧，不追加重复。
@@ -2313,7 +2318,8 @@ mod tests {
             let cw = handler["commandWindows"].as_str().unwrap();
             assert!(!cw.contains('"') && !cw.starts_with('&'), "{cw}");
             assert!(
-                cw.starts_with("cmd.exe /c") && cw.ends_with("hst-state.cmd\" codex"),
+                cw.starts_with("powershell.exe -NoProfile -ExecutionPolicy Bypass -File ")
+                    && cw.ends_with("/hooks/hst-state.ps1 codex"),
                 "{cw}"
             );
             assert_eq!(
@@ -2472,7 +2478,8 @@ mod tests {
         let cw = h["commandWindows"].as_str().unwrap();
         assert!(!cw.contains('&'), "{cw}");
         assert!(
-            cw.starts_with("cmd.exe /c") && cw.ends_with("hst-state.cmd\" codex"),
+            cw.starts_with("powershell.exe -NoProfile -ExecutionPolicy Bypass -File ")
+                && cw.ends_with("/hooks/hst-state.ps1 codex"),
             "{cw}"
         );
         assert!(!cw.contains("old2"), "owned field rewritten: {cw}");
