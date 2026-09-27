@@ -20,7 +20,7 @@
 
 8. **v2.9.2 封版部署（用户令「测试 回归 验收 封版部署」全链）**：验收电池先跑后封（续）A 全测 256 加 49 绿；B 门禁全绿（fmt 加 clippy 加 aidoc strict 加 md 四门禁加 PEVO）；C windows-gnu 交叉岗绿（cfg 平台分支教训项）；D 回归实弹四面（claude 三行含新图标、kimi 并行、grok 纯 ASCII 零 Nerd 字形）加 hook e2e 三态（假 key 阻断 exit 2 出中文位置词句式单条、env 引用与透传放行、state 写盘 working）加部署幂等零写。doctor blocked 两项为 kimi 加 grok 目录信任对话框未答（环境态非本批缺陷），statusline warn 为检查项旧口径已候裁。版本面四件齐后 tag v2.9.2 走 release.ps1；stable 位仍待 ark catalog pin 滚版（v2.9.1 周知已发，pin 目标随版改指 2.9.2）`[实证: 验收电池输出留痕]`。
 
-9. **REQ-030 非权限类通知映射 idle（用户问「为什么是灰色」续令「改」）**：取证链 = 灰色是 unknown 设计色加 ai_ccoe 工位 Notification 事件（任务完成类）被 S025 语义映 unknown 加面板闲置四小时停帧（截图中时钟 08:47 对实刻约 12:47 即滞留证据）；同会话同 payload 复渲染 working 黄排除读序缺陷。改面：hook.rs state_for_payload 与 map_event 的非权限类 notification 回落 idle（permission 与 elicitation 仍 blocked）、shim 四载体（sh 加 cmd 两形加 ps1）同步基态 idle；单测两件期望改。实弹：Notification payload 经 hst hook state 写盘 idle、状态栏渲绿色 `[实证: e2e 直跑加全测 256 绿]`。
+9. **REQ-030 非权限类通知映射 idle（用户问「为什么是灰色」续令「改」）**：取证链 = 灰色是 unknown 设计色加 ai_ccoe 工位 Notification 事件（任务完成类）被 S025 语义映 unknown 加面板闲置四小时停帧（截图中时钟 08:47 对实刻约 12:47 即滞留证据）；同会话同 payload 复渲染 working 黄排除读序缺陷。改面：hook.rs state_for_payload 与 map_event 的非权限类 notification 回落 idle（permission 与 elicitation 仍 blocked）、shim 四载体（sh 加 cmd 两形加 ps1）同步基态 idle；单测两件期望改。实弹：Notification payload 经 hst hook state 写盘 idle、状态栏渲绿色 `[实证: e2e 直跑加全测 256 绿]`。评审快核 CONFIRM 附 G1 加 G2：G1 同批修（sh 与 ps1 的 permission 判定从整包子串收窄到 notification_type 键值段，反例 task_complete 加 message 含 permission 一词原误染红，四载体一致；实弹 sh 加 rust 双面 idle、权限类仍 blocked）；G2 备录入 REQ（无 type 通知一律 idle，上游新增阻塞语义类通知须扩 blocked 词表）。过程疑点一笔待查：hook init 报 wrote=0 但部署件已更新（内容与源逐字对上、幂等复跑零写，正确性不受影响，报告口径候查）`[实证: 反例双面直跑加部署件对读]`。
 
 ## 自省
 

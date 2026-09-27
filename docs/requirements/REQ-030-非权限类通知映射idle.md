@@ -19,4 +19,5 @@ trace: hook.rs map_event 加 state_for_payload 加 shim 四载体（sh 加 cmd �
 - [x] hook.rs：state_for_payload 的 notification 分支非权限类回落 idle（permission 与 elicitation 类仍 blocked）；map_event 的 notification 同判 idle（无 payload 细分形）
 - [x] shim 四载体同步：STATE_SH（notification case 基态 idle）、STATE_CMD 与 STATE_CMD_JQ（Notification 基态 idle，permission 键值判仍 blocked）、STATE_PS1（Notification 分支 idle）
 - [x] 测试：permission_prompt 仍 blocked、idle_prompt 改 idle、map_event 期望更新
+- [x] 评审吸收（G1 加 G2）：G1 sh 与 ps1 载体的 permission 判定从整包子串收窄到 notification_type 键值段（对齐 cmd/Rust；反例 task_complete 加 message 含 permission 一词原误染红）；G2 备录无 type 的 Notification 一律 idle，上游新增「需人工介入」类通知须同步扩 blocked 词表
 - [x] 实施后回填 frontmatter 的 trace，状态改 implemented

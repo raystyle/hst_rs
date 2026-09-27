@@ -215,9 +215,12 @@ case "$event" in
   userpromptsubmit|userpromptuse|pretooluse|posttooluse|posttoolusefailure|subagentstart|subagentstop|precompact|permissionresult|working) state=working ;;
   permissionrequest|blocked|elicitation|elicitationresult) state=blocked ;;
   notification)
-    # REQ-030：非权限类通知映射 idle。
+    # REQ-030：非权限类通知映射 idle；permission 只在 notification_type
+    # 键值内判（评审 G1 收窄，对齐 cmd/Rust——整包匹配会把 message 文案
+    # 里出现该词误判 blocked）。
     state=idle
-    case "$payload" in *permission*) state=blocked ;; esac
+    nkind="$(printf '%s' "$payload" | sed -n 's/.*"notification[_][Tt]ype"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p;t')"
+    case "$nkind" in *permission*) state=blocked ;; esac
     ;;
   *) state=unknown ;;
 esac
@@ -338,7 +341,11 @@ switch ($event) {
   'Notification' { $state = 'idle' } # REQ-030
   default { $state = 'unknown' }
 }
-if ($event -eq 'Notification' -and $raw -match 'permission') { $state = 'blocked' }
+# REQ-030 评审 G1：permission 只在 notification_type 键值内判（整包匹配
+# 会把 message 文案误染红，对齐 cmd/Rust）。
+if ($event -eq 'Notification' -and $raw -match '"notification[_]?[Tt]ype"\s*:\s*"([^"]*)"') {
+  if ($Matches[1] -match 'permission') { $state = 'blocked' }
+}
 $override = "$env:HST_STATE_FILE"
 $stateDir = Join-Path $env:USERPROFILE '.hst\state'
 if ($override) {
