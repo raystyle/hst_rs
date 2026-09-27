@@ -585,6 +585,18 @@ fn command_target(c: &str) -> std::path::PathBuf {
 
 /// JSON 形 hook 注册（claude settings、grok ohmyagents-state.json）的 oma
 /// 体检的形态面（细则见模块文档与集成测试）。
+/// ours shim 载体名族（state 与 token 两腿，加退役遗留 pentest 与 oma 纪元
+/// 名）：命中即该注册指向我们部署的绝对路径壳，按脚本在位否判 shim 与
+/// shim-dead。REQ-028 加 token 腿后此判据未同步，token 壳按「带路径分隔符
+/// 的 ours 绝对路径」落 absolute，codex 侧「取最差形态」遂常驻 hooks.form
+/// warn（反馈件二，2026-09-28 修）。
+const OURS_SHIM_STEMS: &[&str] = &["hst-state", "hst-token", "hst-pentest", "oma-state"];
+
+/// 该 ours 注册命令是否指向 ours shim 载体（名族判定，不解析路径）。
+fn is_ours_shim_command(c: &str) -> bool {
+    OURS_SHIM_STEMS.iter().any(|s| c.contains(s))
+}
+
 /// 体检的缺失面（细则见模块文档与集成测试）。
 /// absolute（单环境）/ args（M047 病理）/ none。
 fn json_hooks_form(v: Option<&Json>) -> &'static str {
@@ -612,7 +624,7 @@ fn json_hooks_form(v: Option<&Json>) -> &'static str {
                 {
                     has_args = true;
                 }
-                if c.contains("hst-state") || c.contains("oma-state") {
+                if is_ours_shim_command(c) {
                     if command_target(c).is_file() {
                         shim = true;
                     } else {
@@ -699,7 +711,7 @@ fn codex_side_form(v: Option<&Json>, windows_side: bool) -> Option<&'static str>
             if !crate::deploy::is_ours(c) {
                 continue;
             }
-            let f = if c.contains("hst-state") || c.contains("oma-state") {
+            let f = if is_ours_shim_command(c) {
                 if command_target(c).is_file() {
                     "shim"
                 } else {
@@ -2547,6 +2559,32 @@ mod tests {
             {"hooks": [{"commandWindows": "D:/moved/.oma/hooks/hst-state.cmd codex"}]}
         ]}});
         assert_eq!(codex_side_form(Some(&mixed), true), Some("shim-dead"));
+        // 反馈件二（2026-09-28）：token 腿壳同判 shim（REQ-028 加 token 腿后
+        // 判据未同步，token 壳落 absolute，codex 侧「取最差」遂在双腿正常的
+        // 机器上常驻 hooks.form warn）。
+        let tok_alive = dir.join(".oma").join("hooks").join("hst-token.cmd");
+        std::fs::write(&tok_alive, "@echo off\r\n").unwrap();
+        let tok_fwd = tok_alive.to_string_lossy().replace('\\', "/");
+        let tok_dead_path = format!(
+            "\"{}\" codex",
+            dir.join(".oma")
+                .join("hooks")
+                .join("hst-token.sh")
+                .to_string_lossy()
+        );
+        let both_legs_alive = json!({"hooks": {"PreToolUse": [
+            {"hooks": [{"command": format!("{fwd} codex")}]},
+            {"hooks": [{"command": format!("{tok_fwd} codex")}]}
+        ]}});
+        assert_eq!(codex_side_form(Some(&both_legs_alive), false), Some("shim"));
+        let both_legs_dead = json!({"hooks": {"PreToolUse": [
+            {"hooks": [{"command": "\"/p/x/.oma/hooks/hst-state.sh\" codex"}]},
+            {"hooks": [{"command": tok_dead_path}]}
+        ]}});
+        assert_eq!(
+            codex_side_form(Some(&both_legs_dead), false),
+            Some("shim-dead")
+        );
         assert_eq!(codex_side_form(None, true), None);
         let _ = std::fs::remove_dir_all(&dir);
     }

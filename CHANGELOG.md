@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### 里程碑 2026-09-28：v2.9.8 actl 适配反馈件三件
+
+- **init --yes 全局面接受（REQ-034 件一，反馈件三）**：去 clap 的 `requires = compact_pct`，非 compact 范围把 `--yes` 当确认收下（打点 `init.confirm=yes`，全量部署语义与外层幂等不变），compact 面预览与落盘行为不变；actl 侧 `toolOwnsYesIf` 特判可撤。
+- **doctor hooks.form 误报收编（REQ-034 件二，反馈件二）**：REQ-028 加 token 腿后判据漏同步，`hst-token` 壳被归 absolute，codex 侧取最差形态遂常驻 warn；改按 ours 壳名族（hst-state 加 hst-token 加退役 hst-pentest 加 oma-state）判 shim 与 shim-dead，json 与 codex 两侧共用判据。
+- **--llms 补 actl 适配面一行（REQ-034 件三）**：独立直用完全不变；经 actl 调用时写级动词过其写闸（预览缺省、加 `--yes` 执行）、`--json` 出 TOON 信封、非 compact 面 `--yes` 由 actl 消费剥离。
+
 ### 里程碑 2026-09-27：v2.9.7 渗透授权面退役
 
 - **渗透授权面整体退役（REQ-031，用户令「直接去掉 pentest.rs 及功能和状态栏的渗透授权别名」）**：`src/pentest.rs` 整模块与 `hst hook pentest` 命令删除；shim 退为 state 加 token 两腿八件（pentest 四件走幂等清扫）；四家 hook 注册撤 PreToolUse 第三挂（claude 加 grok 加 kimi 加 codex），存量 hst-pentest 注册条目在重部署里归一清扫；状态栏 hook 别名表去「hst 渗透授权」条。

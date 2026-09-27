@@ -1453,7 +1453,7 @@ fn init_compact_pct_preview_apply_off_and_doctor_check() {
         .assert()
         .success()
         .stdout(contains("compact.readback pct=unset"));
-    // 坏值与裸 --yes 拒收。
+    // 坏值拒收。
     hst()
         .args(["init", "--compact-pct", "101"])
         .arg("--project")
@@ -1462,14 +1462,18 @@ fn init_compact_pct_preview_apply_off_and_doctor_check() {
         .assert()
         .failure()
         .stderr(contains("invalid --compact-pct"));
+    // 反馈件三（2026-09-28）：非 compact 范围 --yes 收下当确认（此前 clap
+    // requires compact_pct 判用法错，actl 写闸无法全量透传）；全量部署语义
+    // 不变，仍是 idempotent full。
     hst()
         .args(["init", "--yes"])
         .arg("--project")
         .arg(&proj)
         .env("HST_USER_HOME", &home)
         .assert()
-        .failure()
-        .stderr(contains("--yes"));
+        .success()
+        .stdout(contains("init.confirm=yes"))
+        .stdout(contains("init.scope=full"));
     // 评审 G2：compact 面与 --pre-trust 互斥（不静默吞旗标）。
     hst()
         .args(["init", "--compact-pct", "70", "--pre-trust"])
@@ -2088,6 +2092,18 @@ fn llms_manual_covers_command_tree_and_flags() {
     ] {
         let _ = section(title);
     }
+    // 集成面一行（2026-09-28 总台派单件三）：actl 子项目集成的三句口径在册
+    // （写级动词过写闸、--json 出 TOON 信封、非 compact 面 --yes 由 actl 消费）。
+    assert!(manual.contains("actl 适配面"), "手册缺 actl 适配说明行");
+    assert!(
+        manual.contains("独立直用完全不变"),
+        "适配说明缺独立直用不变口径"
+    );
+    assert!(manual.contains("TOON 信封"), "集成说明缺 TOON 信封口径");
+    assert!(
+        manual.contains("非 compact 面 `--yes` 由 actl 消费"),
+        "集成说明缺 --yes 归属口径"
+    );
     let cmd_table = section("子命令表");
     let common_flags = section("通用旗标");
 

@@ -89,8 +89,8 @@ enum Commands {
             conflicts_with_all = ["yolo", "project_yolo", "clear_project_yolo", "pretrust"]
         )]
         compact_pct: Option<String>,
-        /// 确认落盘（配 --compact-pct；不带则预览）
-        #[arg(long, requires = "compact_pct")]
+        /// 确认（compact 面配 --compact-pct 落盘、不带则预览；其余范围收下当确认，语义不变）
+        #[arg(long)]
         yes: bool,
         /// 预写用户家目录信任库（claude/codex/kimi/grok）
         #[arg(long = "pre-trust")]
@@ -783,7 +783,7 @@ fn render_llms(root: &clap::Command) -> String {
         table.push_str(&format!("| `{usage}` | {about} |\n"));
     }
     format!(
-        "# hst {ver}\n\n> HST（Hooks, Statusline, Trace）：agent 全平台部署配置与诊断 CLI（四家 hook 落盘、状态栏、只读对话 trace、可用性诊断、yolo 分级）。手册由活命令树渲染；契约以 clap 帮助与集成测试为准。\n\n## 读序\n\n常见任务直达：部署 `hst init`、体检 `hst doctor`、查文件谁改的 `hst trace file <文件>`。本手册机器形：`hst --llms --json`。契约权威：`hst --help` 与集成测试。\n\n## 子命令表\n\n| 命令 | 说明 |\n| --- | --- |\n{table}\n## 通用旗标\n\n| 旗标 | 说明 |\n| --- | --- |\n| `--format kv\\|json\\|jsonl` | 输出三态（kv 是缺省 marker 行，json 出信封，jsonl 逐行对象） |\n| `--json` | `--format json` 简写（信封形） |\n| `--filter-output <keys>` | json 信封 data 键路径过滤（仅出信封命令生效；点号嵌套、数组下标如 items[0,2]，响错不静默截断） |\n| `--llms` | 本手册；配 `--json` 出机器形态（REQ-060 族标准） |\n| `--help` / `--version` | 帮助与版本 |\n\n## 退出码\n\n| 码 | 义 |\n| --- | --- |\n| 0 | 成功（裸 hst 打印帮助亦退 0） |\n| 1 | 业务失败与启动期旗标校验错（doctor blocked、verify 失败、运行错误、--filter-output 配对与响错）加 clap 解析级用法错（REQ-032 F1：不占 2 通道） |\n| 2 | hook 面自判处置（secretguard 拦截） |\n\n## 输出契约\n\n结构化错误 stderr 单行 JSON；json 信封 meta 带 duration_ms。\n\n## 常用例\n\n```bash\nhst init                     # 全套部署（幂等）：yolo 键加 hook 加状态栏\nhst doctor                   # 零网络只读体检（block 才退 1）\nhst trace file src/main.rs   # 单文件谁改的、为什么\nhst --json --filter-output blocked doctor   # 信封只留 blocked 键\nhst --llms --json            # 机器形手册（agent 面）\nhst issue new \"发现缺陷\" --body \"复现步骤\"   # 一键反馈（issues.ohmygh.com）\n```\n",
+        "# hst {ver}\n\n> HST（Hooks, Statusline, Trace）：agent 全平台部署配置与诊断 CLI（四家 hook 落盘、状态栏、只读对话 trace、可用性诊断、yolo 分级）。手册由活命令树渲染；契约以 clap 帮助与集成测试为准。\n\n> actl 适配面：独立直用完全不变；经 actl（ai-cloud 框架）调用时写级动词过其写闸（预览缺省，加 `--yes` 执行），`--json` 出 TOON 信封，非 compact 面 `--yes` 由 actl 消费剥离。\n\n## 读序\n\n常见任务直达：部署 `hst init`、体检 `hst doctor`、查文件谁改的 `hst trace file <文件>`。本手册机器形：`hst --llms --json`。契约权威：`hst --help` 与集成测试。\n\n## 子命令表\n\n| 命令 | 说明 |\n| --- | --- |\n{table}\n## 通用旗标\n\n| 旗标 | 说明 |\n| --- | --- |\n| `--format kv\\|json\\|jsonl` | 输出三态（kv 是缺省 marker 行，json 出信封，jsonl 逐行对象） |\n| `--json` | `--format json` 简写（信封形） |\n| `--filter-output <keys>` | json 信封 data 键路径过滤（仅出信封命令生效；点号嵌套、数组下标如 items[0,2]，响错不静默截断） |\n| `--llms` | 本手册；配 `--json` 出机器形态（REQ-060 族标准） |\n| `--help` / `--version` | 帮助与版本 |\n\n## 退出码\n\n| 码 | 义 |\n| --- | --- |\n| 0 | 成功（裸 hst 打印帮助亦退 0） |\n| 1 | 业务失败与启动期旗标校验错（doctor blocked、verify 失败、运行错误、--filter-output 配对与响错）加 clap 解析级用法错（REQ-032 F1：不占 2 通道） |\n| 2 | hook 面自判处置（secretguard 拦截） |\n\n## 输出契约\n\n结构化错误 stderr 单行 JSON；json 信封 meta 带 duration_ms。\n\n## 常用例\n\n```bash\nhst init                     # 全套部署（幂等）：yolo 键加 hook 加状态栏\nhst doctor                   # 零网络只读体检（block 才退 1）\nhst trace file src/main.rs   # 单文件谁改的、为什么\nhst --json --filter-output blocked doctor   # 信封只留 blocked 键\nhst --llms --json            # 机器形手册（agent 面）\nhst issue new \"发现缺陷\" --body \"复现步骤\"   # 一键反馈（issues.ohmygh.com）\n```\n",
         ver = env!("CARGO_PKG_VERSION"),
         table = table,
     )
@@ -1629,6 +1629,11 @@ fn cmd_init(
     } else {
         // 裸 init（无旗标）= 全套部署，用户级 yolo 固定 full 级；
         // --yolo[=<级>] = 仅键模式，级别缺省 full（clap default_missing_value）。
+        // --yes 在非 compact 范围作确认收下（反馈件三：供 actl 写闸全量透传，
+        // 此前 requires compact_pct 会把 `hst init --yes` 判成用法错）。
+        if yes {
+            println!("init.confirm=yes (non-compact scope; deploy semantics unchanged)");
+        }
         let level = yolo.unwrap_or(yolo::YoloLevel::Full);
         println!("init.flag.yolo={keys_only}");
         println!("init.yolo.level={}", level.as_str());
