@@ -40,6 +40,8 @@
 
 18. **REQ-031 Serve 消息再续调（用户令「删除 hst pentest: 已短路授权获取命令（未真实执行）。...这一行」）**：成功面 Serve 删抬头行，stderr 直出文件内容加缓存位与重取指引（`{content}` 换行 `（缓存位 ...；重取：删除该缓存后重试命令）`）；错误面保留 `hst pentest:` 前缀（真实 hst 提示而非文件内容）。`guard` 的 source 与 auto_note 变量随之退役（改 `_source`）。单测 `guard_passes_non_fetch_and_serves_fetch` 断言改（去「已短路」与 manual，加 `hst pentest:` 不在场与 `缓存位` 在场）。实弹（`curl https://shop.acme.io/.well-known/security.txt`）短路 exit 2 首行即 `# In scope:` 无 hst 抬头、非获取命令 `nmap` 静默 exit 0 `[实证: 本机 hst hook pentest 直跑加 temp HST_ROOT]`。全测 267 加 49 绿 `[实证: 本机全测输出]`。
 
+19. **REQ-031 Serve 纯净形（用户令「一起去掉」）**：接流水 18 的候裁，成功面再删缓存位与重取指引行，stderr 即文件正文（`Serve(content)`，path 改 `_path`）；错误面去 `hst pentest:` 前缀（改为「已短路授权获取命令（未真实执行），但内容解析失败...」）。单测 `guard_passes_non_fetch_and_serves_fetch` 断言改（`assert_eq` 精确锁正文、无 `hst pentest:`、无 `缓存位`）。实弹：成功面 `curl https://shop.acme.io/.well-known/security.txt` stderr 纯正文 exit 2；错误面 HST_ROOT 指不存在路径触发 mkdir 失败出无前缀解析失败提示 `[实证: 本机 hst hook pentest 直跑加 temp HST_ROOT]`。全测 267 加 49 绿 `[实证: 本机全测输出]`。
+
 ## 自省
 
 - python heredoc 转义塌陷同型二犯（09-26 流水 18 的 \n 塌真换行、本次 \" 塌裸引号）：夹具类改码一律 Edit 工具实落或 python raw 字符串，不再走普通字符串 heredoc。按「同型二犯升格」惯例此条记档待升 guides 工作流条目。
