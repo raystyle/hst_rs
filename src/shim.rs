@@ -3,7 +3,8 @@
 //! 烘焙部署方二进制绝对路径（self update 原位替换，路径不漂）。D28 自包
 //! 含设计退役记档：hst 缺位或故障时 shell 退出码非 2，agent 侧按非阻塞
 //! 错误处理 = fail-open（状态通道回落 unknown）；M060a 白名单语义由 hst
-//! 本体内化（token/pentest 腿 exit 硬约束 0 与 2，仅自判 block 出 2）。
+//! 本体内化（token 腿 exit 硬约束 0 与 2，仅自判 block 出 2；pentest 腿
+//! 停用注入后恒退 0 无输出，见 REQ-031 退役节）。
 //! grok 的 Windows 单路径包装（M048）保留：包装烘焙 agent 参转调 thin
 //! cmd。Windows 注册走 thin ps1 一行壳（REQ-032 评审 F2 方案③，D39 三壳
 //! 通吃形 powershell.exe -File <正斜杠>）；.cmd 只留 grok 包装与手工面。

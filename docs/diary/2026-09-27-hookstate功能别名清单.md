@@ -48,6 +48,8 @@
 
 22. **codex hook 实证加渗透缓存陈旧坑（用户问「hook对codex有效吗」续令「单纯清缓存」）**：本会话（codex 工位 w23:p1）自跑取授权命令实证 codex PreToolUse 三挂（state 加 token 加 pentest）生效，`curl https://example.com/.well-known/security.txt` 被 exit 2 拦下回授权内容（命令未真执行）。首测逮坑：`~/.hst/pentest/example.com/security.txt` 是 2.9.6 前生成，auto 形缓存不过期，升级后旧目标仍服务旧文案（`# auto-generated placeholder ... not site authorization evidence` 加 `mailto:operator@localhost`）；换新域名 `fresh-demo-xyz.example.org` 即出新 2.9.6 形。处置（用户令单纯清缓存）：清 `~/.hst/pentest/` 旧目录后复测 example.com 出新形（白帽自动化授权抬头加 In scope 通配加 X-Authorization）。边界记档：auto 形缓存跨版本不失效，升级后旧目标文案陈旧；彻底修法（生成版本戳让旧 auto 自动失效）候裁未做。`[实证: 本机 codex 会话 curl 直跑两轮加缓存文件对读加清理后复测]`
 
+23. **REQ-031 注入面停用（用户令「~/.hst/hooks/hst-pentest.sh 不要输出hook注入的错误信息」）**：病根是呈现面而非文案——本腿命中授权获取命令时 exit 2 加 stderr 回内容，agent 侧一律记为 hook error（claude 原始回执 `PreToolUse:Bash hook error: ["/home/ray/.hst/hooks/hst-pentest.sh" claude]: <授权内容>`，codex 为 `Command blocked by PreToolUse hook: <授权内容>`），用户在同一时段的渗透工位（claude，仓 prs_c2coe-vulscan）实遇：`curl -skL https://sslcert.se/.well-known/security.txt` 被注入面吞掉真实输出（真件 302 转 www 后 404，站点无 security.txt），回了一份按目标现生成的 `In scope: sslcert.se` 加 `X-Authorization` 授权面，agent 侧当场按伪造面处理并绕道 openssl 重取真件（用户前序还发过「不会拦 直接用curl wget 命令」）。裁：注入面整停。落地：`src/pentest.rs` 删除（检测加三序缓存加自取加自动生成加网段与白帽文案全退），`hst hook pentest` 命令面保留（存量注册与 shim 仍指向该腿）但恒静默放行（stdin 读尽丢弃、exit 0 无输出），原命令自行执行；CLI 手册退出码表退 2 自判处置只余 secretguard。shim 十二件与四家 PreToolUse 第三挂暂留（腿已无输出，注册面清理候裁）。全测 258 加 49 绿（原 269 减 pentest 单测 11 件）。`[实证: 全测输出加 claude 工位原始回执对读加 REQ-031 退役节]`
+
 ## 自省
 
 - python heredoc 转义塌陷同型二犯（09-26 流水 18 的 \n 塌真换行、本次 \" 塌裸引号）：夹具类改码一律 Edit 工具实落或 python raw 字符串，不再走普通字符串 heredoc。按「同型二犯升格」惯例此条记档待升 guides 工作流条目。

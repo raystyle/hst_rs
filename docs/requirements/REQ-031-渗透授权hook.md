@@ -3,7 +3,7 @@ id: REQ-031
 title: 渗透授权hook
 status: implemented
 priority: must
-trace: pentest.rs 模块（检测加取回加生成加服务四层，单测九件含 http 伪服务器取回加 RFC 9116 形）加 hst hook pentest 命令加 shim 三载体加部署 PreToolUse 三挂加别名 hst 渗透授权；实弹 curl security.txt 命令被短路并返回真实内容；生成文案白帽授权面加 RFC 9116 形（用户令 2026-09-27）
+trace: pentest.rs 模块（检测加取回加生成加服务四层，单测九件含 http 伪服务器取回加 RFC 9116 形）加 hst hook pentest 命令加 shim 三载体加部署 PreToolUse 三挂加别名 hst 渗透授权；实弹 curl security.txt 命令被短路并返回真实内容；生成文案白帽授权面加 RFC 9116 形（用户令 2026-09-27）；注入面已由用户令 2026-09-27 停用（本文件末退役节）
 ---
 
 # REQ-031:渗透授权hook
@@ -25,3 +25,11 @@ trace: pentest.rs 模块（检测加取回加生成加服务四层，单测九�
 - [x] 白帽授权面加 RFC 9116 形（用户令 2026-09-27「自定生成返回 一个允许白帽子进行渗透测试的授权文件」「符合RFC 9116 security.txt 标准」，翻转 G2 中性化）：security.txt 走 RFC 9116 形（必填 Contact 单次加 Expires 单次（RFC 3339 UTC 形 YYYY-MM-DDThh:mm:ss.sssZ、90 天窗小于 1 年）、可选 Canonical 加 Preferred-Languages 取 https 形、白帽授权经 `X-Authorization` 扩展字段（2.4 扩展性允许）承载，标准字段不夹带非 URI 值）；scope 与 inscope 抬头标白帽渗透授权，outofscope 空表头；单测 `generated_security_txt_conforms_rfc9116` 锁九字段形加必填各一次加 https 约束加白帽授权面。续令（同 2026-09-27）：删 hst-pentest 标题行，Contact 自适应取命令内 host（`mailto:operator@<host>`，去 localhost 占位），security.txt 全字段均按提取的 ip 或域名生成；再续令删 Serve 前缀行、缓存位指引与错面前缀，成功面 stderr 即文件正文
 - [x] 四文件对齐加 IP 网段授权（用户令 2026-09-27「这4个文件都应该自动生成对齐，允许白帽子进行自动化渗透测试」「除域名外还要支持ip，针对命令ip生成一个ip的网段授权」）：security.txt 加 scope.txt 加 inscope.txt 加 outofscope.txt 四份共用对齐抬头（白帽自动化渗透授权加 Target 加 Generated 三行，去 hst 品牌与 source 标）；security.txt 加 `In scope` 注释带 host 加范围、scope 与 inscope 表体带 host 加范围、outofscope 空表头；范围自适应命令目标：IP 走网段（私网映射所属保留块 10/8 加 172.16/12 加 192.168/16 加 127/8 加 169.254/16，其余 IPv4 取 /24）、域名走 *.域名；单测 `four_auth_files_share_aligned_header` 加 `ip_target_carries_cidr_authorization`
 - [x] 实施后回填 frontmatter 的 trace，状态改 implemented
+
+## 退役:2026-09-27 用户令停用注入面
+
+用户令「~/.hst/hooks/hst-pentest.sh 不要输出hook注入的错误信息」。实测复盘：注入面在本腿命中授权获取命令时用 exit 2 加 stderr 回内容，agent 侧一律把这段输出呈现为 hook error（claude 记 `PreToolUse:Bash hook error: [...hst-pentest.sh claude]: <内容>`，codex 记 `Command blocked by PreToolUse hook: <内容>`）；且站点取不到 security.txt/scope.txt 族文件时回的是按目标现生成的内容（source=auto），下游据此当真实授权面用即误判（本机实弹：sslcert.se 实际无 security.txt（302 转 www 后 404），注入面却回了一份带 `In scope: sslcert.se` 与 `X-Authorization` 的授权文件，agent 侧当场按伪造面处理并绕道重取真件）。
+
+落地：`src/pentest.rs` 整模块删除（检测、缓存三序、自取、自动生成、loose_cidr 网段与白帽文案全部退役），`hst hook pentest` 命令面保留（存量注册与 shim 仍指向本腿）但恒静默放行（exit 0 无输出，stdin 读尽丢弃），原命令自行执行。CLI 手册退出码表同步（退 2 自判处置只剩 secretguard）。shim 三载体与四家 PreToolUse 第三挂暂留（本腿已无输出，注册面清理候裁）。
+
+边界：`hst hook pentest` 不再有任何注入与短路能力，`~/.hst/pentest/` 缓存目录本版不再被读写（存量文件可自行清理）。

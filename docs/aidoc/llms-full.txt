@@ -24,11 +24,10 @@ docs/research 与 docs/adr；输出信封契约见 fmtio 模块文档。
 - [`ledger`](ledger.md): 统一 issue 入口客户端面（issues.ohmygh.com，REQ-057 对齐）。
 - [`loopmgmt`](loopmgmt.md): `hst loop`：当前会话 durable 定时任务与 goal 管理面（REQ-019）。
 - [`pathutil`](pathutil.md): 的路径工具面（细则见模块文档与集成测试）。
-- [`pentest`](pentest.md): 状态栏原生渲染引擎（ADR-0010、REQ-026）：hst statusline render 子命令
 - [`secretguard`](secretguard.md): 的密钥拦截闸面（细则见模块文档与集成测试）。
 - [`shim`](shim.md): shim 三形态自包含状态写入器：cmd/ps1/sh 加 grok 包装（D27/D28/D39）。
 - [`statusline`](statusline.md): `hst statusline`：四家状态栏写入面幂等合并与拆段拼装（S025/D18/D42 至 D51）。
-- [`statusrender`](statusrender.md): 状态栏原生渲染引擎（ADR-0010、REQ-026）：`hst statusline render <agent>`
+- [`statusrender`](statusrender.md): 状态栏原生渲染引擎（ADR-0010、REQ-026）：hst statusline render 子命令
 - [`trace`](trace.md): trace 六视图：联邦读四家原生会话库归一检索（P0013/P0014，D19）。
 - [`update`](update.md): `hst self update`：dev 滚动与 stable 正式版自更新、镜像腿与缺省回退（S028/D16/D48）。
 - [`verify`](verify.md): `hst agents verify`：四家无头验收两层判据（D17/S033）。
@@ -430,32 +429,6 @@ REQ-011，评审 G3 回填）。
 - `LEGACY_OMA_DIR` — D14 至 D29 的旧名（oma 纪元）。仅旧在、新不在时改名迁过去。
 
 
-<!-- hst_cli/pentest.md -->
-# hst-cli::pentest
-
-状态栏原生渲染引擎（ADR-0010、REQ-026）：hst statusline render 子命令
-的 Rust 实现，退役 pwsh 脚本载体。
-渗透授权 hook（REQ-031，用户令 2026-09-27 三连收敛）：授权获取命令的
-短路服务层。PreToolUse 命令参数命中「取 security.txt / scope.txt 族」
-的获取命令形（curl/wget/httpx/python urlopen）时，**不真正执行**该命
-令（exit 2 短路），stderr 直接回给模型该命令所需的真实授权内容：
-内容三序解析（缓存 `~/.hst/pentest/<host>/`（fetched 形 24h 新鲜窗）
-→ hst 侧自取一次（HTTPS 加 200 加非 HTML 校验）→ 按目标自动生成授
-权文件（meta 如实标 source=auto，不伪造 SoW 编号））。非获取命令静
-默放行。自动形即一份允许白帽渗透测试的授权文件：security.txt 按
-RFC 9116 形（必填 Contact 加 Expires，白帽授权经注释加扩展字段承载），
-scope 清单族带宽松扩展。参考流程：RFC 9116 security.txt 权威面、排除
-优先、text/plain 校验。
-
-## Functions
-
-- `guard` — 从 hook payload 检测授权获取命令并产出服务裁决。
-
-## Types
-
-- `PentestVerdict` — guard 判定：Serve = 命中获取命令并短路回内容（exit 2）；Pass = 静默
-
-
 <!-- hst_cli/secretguard.md -->
 # hst-cli::secretguard
 
@@ -492,7 +465,8 @@ shim 三形态自包含状态写入器：cmd/ps1/sh 加 grok 包装（D27/D28/D3
 烘焙部署方二进制绝对路径（self update 原位替换，路径不漂）。D28 自包
 含设计退役记档：hst 缺位或故障时 shell 退出码非 2，agent 侧按非阻塞
 错误处理 = fail-open（状态通道回落 unknown）；M060a 白名单语义由 hst
-本体内化（token/pentest 腿 exit 硬约束 0 与 2，仅自判 block 出 2）。
+本体内化（token 腿 exit 硬约束 0 与 2，仅自判 block 出 2；pentest 腿
+停用注入后恒退 0 无输出，见 REQ-031 退役节）。
 grok 的 Windows 单路径包装（M048）保留：包装烘焙 agent 参转调 thin
 cmd。Windows 注册走 thin ps1 一行壳（REQ-032 评审 F2 方案③，D39 三壳
 通吃形 powershell.exe -File <正斜杠>）；.cmd 只留 grok 包装与手工面。
@@ -552,6 +526,8 @@ agent 宿主 shell（macOS 走 ps 兜底）。
 <!-- hst_cli/statusrender.md -->
 # hst-cli::statusrender
 
+ 状态栏原生渲染引擎（ADR-0010、REQ-026）：hst statusline render 子命令
+ 的 Rust 实现，退役 pwsh 脚本载体。
  状态栏原生渲染引擎（ADR-0010、REQ-026）：`hst statusline render <agent>`
  读 stdin agent JSON 出状态行，契约与退役中的 pwsh 脚本逐字对齐（对版
  口径：pwsh 侧强制 `$PSStyle.OutputRendering='Ansi'` 后逐字相同；管道
