@@ -1365,8 +1365,9 @@ pub struct StatuslineConfig {
     /// `segments4`（REQ-025）：第四行（goalmode 专属行）段 id 数组；键
     /// 缺省回落 `DEFAULT_SEGMENTS4`，空数组 = 不出第四行。
     pub segments4: Option<Vec<String>>,
-    /// `segments5`（REQ-026）：第五行（hookstate 专属行）段 id 数组；键
-    /// 缺省回落 `DEFAULT_SEGMENTS5`，空数组 = 不出第五行。
+    /// `segments5`（REQ-026 起，2026-09-27 行序调整后为 goalmode 专属
+    /// 行）段 id 数组；键缺省回落 `DEFAULT_SEGMENTS5`，空数组 = 不出第
+    /// 五行。
     pub segments5: Option<Vec<String>>,
     /// `single_line`（D40）：退单排开关（两排段并一行；默认 false 双排）。
     /// kimi / grok 的多行渲染未实证时的逃生门。
@@ -1831,7 +1832,7 @@ segments5 = ["goalmode"]
 #   duration {icon}{duration} / git {branch}{flags}
 #   loop {icon}  {every} / {goal}（图标后双空格对齐 hst 段形；循环时间参数；{every} 为
 #   自然节拍 30m 形，{cadence} ×30m 形与 {count} 可自配）/ goal {icon}{goal}（可选段：任务 prompt 单显）
-#   hookstate {icon}  {alias}（第5行；注册面全部 hook 的功能别名清单，
+#   hookstate {icon}  {alias}（第三行；注册面全部 hook 的功能别名清单，
 #   带属主进程前缀加 ` | ` 分隔（REQ-028 一命令一脚本一别名）：herdr-
 #   agent-state 映射 herdr agent状态监控、hst-token（hst hook token 单
 #   对）映射 hst token护栏、hst-state（hst hook state 单对）映射 hst

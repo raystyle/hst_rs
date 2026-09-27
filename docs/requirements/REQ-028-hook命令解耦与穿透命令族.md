@@ -23,6 +23,6 @@ trace: hook.rs 拆腿（run_state 加 run_token，run 保双职责弃用期）�
 - [x] 扩展面预留：新 hook 命令循 `hst hook <name>` 穿透契约（stdin payload 进、exit 码语义出）加别名表加条即入列；HOOK_ALIASES 收录指引注释同步
 - [x] doctor 兼容：hook 注册形态检测认新命令形（hst-token shim 与裸形）；REQ-014 哨兵标记面不破（state shim 名不变）
 - [x] 测试：state 与 token 命令行为件（写盘、block exit 2、fail-open）、部署注册形断言（四家双挂）、shim 内容形（state 无 guard 腿、token 白名单腿）、别名三拆条、ours 判定新形
-- [x] 实弹：本工位重部署后注册面三 hook 并存、状态栏第5行三别名对三 hook、密钥拦截 e2e 仍阻断
+- [x] 实弹：本工位重部署后注册面三 hook 并存、状态栏第3行三别名（2026-09-27 行序裁定后）对三 hook、密钥拦截 e2e 仍阻断
 - [x] 评审吸收（F1 加 G1 至 G4）：F1 Windows grok token 腿补 hst-token-grok.cmd 单路径包装（多 token 形 grok 不可 spawn 且 fail-open 会吞成静默放行）；G1 组形口径在册（claude 系同组双挂、codex 两组，语义等价全量 matcher，trust 键带组下标重种无害）；G2 迁移把 ours 组重建到组序末尾（外来 matcher 不受影响）；G3 shim 件数口径七改八同步；G4 本行与 diary 回填
 - [x] 实施后回填 frontmatter 的 trace，状态改 implemented

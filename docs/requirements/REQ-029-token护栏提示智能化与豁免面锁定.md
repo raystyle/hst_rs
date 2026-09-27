@@ -20,4 +20,5 @@ trace: secretguard 单测三件新增（位置词分类、provider 前缀去重�
 - [x] 双报去重：provider 专属前缀（sk-ant- 加 sk-proj- 加 sk-svcacct- 加 sk_live_ 加 sk_test_）命中时通用 sk- 形不再重复报（防线 1 收口）
 - [x] 豁免面锁定：env 引用与透传七形语料（Bearer $VAR、export API_KEY=$VAR、printenv、echo "$VAR"、aws configure set、python os.environ、Bearer ${VAR}）零 findings 零 block；明文对照组仍拦
 - [x] M060a 白名单兼容：stderr 前缀 `hst secretguard:` 不变（shim 透传判据不受影响）
+- [x] 已知边界（评审 G2 加 G3）：write/edit 扫描面有意收窄（只扫 content 加 new_string 加 edits，old_string 与其余字段不扫；notebook 无内容字段回落整体序列化）；工具名子串匹配可能给第三方工具贴错位置词（只影响提示文案不影响扫描面）
 - [x] 实施后回填 frontmatter 的 trace，状态改 implemented

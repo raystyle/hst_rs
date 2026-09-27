@@ -770,7 +770,7 @@
     {
       "path": "hst_cli::shim::TOKEN_GROK_CMD",
       "kind": "constant",
-      "docs": "REQ-028 token 腿的 grok 单路径包装（评审 F1，M048 同款：Windows grok\n只认可整串 spawn 的单路径，多 token 形不可 spawn；fail-open 会把\nspawn 失败吞成静默放行，必须经包装转发）。"
+      "docs": " REQ-028 token 腿的 grok 单路径包装（评审 F1，M048 同款：Windows grok\n（与 STATE_GROK_CMD 成对：grok 侧 spawn 约束或包装形态一变两处同改，评审 G4）\n 只认可整串 spawn 的单路径，多 token 形不可 spawn；fail-open 会把\n spawn 失败吞成静默放行，必须经包装转发）。"
     },
     {
       "path": "hst_cli::shim::TOKEN_PS1",
