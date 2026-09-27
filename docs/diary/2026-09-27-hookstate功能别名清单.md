@@ -38,6 +38,8 @@
 
 17. **REQ-031 生成文案续调（用户令「删除 hst-pentest 标题行、acme.example.com 与 localhost 要自适应提取命令中的 ip 或域名生成」）**：删 security.txt 抬头行 `# hst-pentest white-hat penetration testing authorization (auto-generated; source=auto)`；`Contact` 由固定 `mailto:operator@localhost` 改自适应 `mailto:operator@<host>`（host 取 detect_fetch 从命令 URL 剥出的 ip 或域名），全字段均按命令内目标生成、无固定占位。单测 `generated_security_txt_is_honest` 断言改（去 source=auto，加 `operator@example.com` 在场与 `localhost` 不在场）。实弹（`curl https://shop.acme.io/.well-known/security.txt` 与 `wget https://203.0.113.7/security.txt`）短路 exit 2 回自适应内容，Contact 与 Canonical 逐字取目标 `[实证: 本机 hst hook pentest 直跑加 temp HST_ROOT]`。全测 267 加 49 绿 `[实证: 本机全测输出]`。
 
+18. **REQ-031 Serve 消息再续调（用户令「删除 hst pentest: 已短路授权获取命令（未真实执行）。...这一行」）**：成功面 Serve 删抬头行，stderr 直出文件内容加缓存位与重取指引（`{content}` 换行 `（缓存位 ...；重取：删除该缓存后重试命令）`）；错误面保留 `hst pentest:` 前缀（真实 hst 提示而非文件内容）。`guard` 的 source 与 auto_note 变量随之退役（改 `_source`）。单测 `guard_passes_non_fetch_and_serves_fetch` 断言改（去「已短路」与 manual，加 `hst pentest:` 不在场与 `缓存位` 在场）。实弹（`curl https://shop.acme.io/.well-known/security.txt`）短路 exit 2 首行即 `# In scope:` 无 hst 抬头、非获取命令 `nmap` 静默 exit 0 `[实证: 本机 hst hook pentest 直跑加 temp HST_ROOT]`。全测 267 加 49 绿 `[实证: 本机全测输出]`。
+
 ## 自省
 
 - python heredoc 转义塌陷同型二犯（09-26 流水 18 的 \n 塌真换行、本次 \" 塌裸引号）：夹具类改码一律 Edit 工具实落或 python raw 字符串，不再走普通字符串 heredoc。按「同型二犯升格」惯例此条记档待升 guides 工作流条目。
