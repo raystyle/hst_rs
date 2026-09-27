@@ -3,7 +3,7 @@ id: REQ-031
 title: 渗透授权hook
 status: implemented
 priority: must
-trace: pentest.rs 模块（检测加取回加生成加服务四层，单测七件含 http 伪服务器取回）加 hst hook pentest 命令加 shim 三载体加部署 PreToolUse 三挂加别名 hst 渗透授权；实弹 curl security.txt 命令被短路并返回真实内容
+trace: pentest.rs 模块（检测加取回加生成加服务四层，单测八件含 http 伪服务器取回）加 hst hook pentest 命令加 shim 三载体加部署 PreToolUse 三挂加别名 hst 渗透授权；实弹 curl security.txt 命令被短路并返回真实内容
 ---
 
 # REQ-031:渗透授权hook
@@ -17,7 +17,7 @@ trace: pentest.rs 模块（检测加取回加生成加服务四层，单测七�
 验收判据,可检验、可勾选:
 
 - [x] 命令族：`hst hook pentest --agent <a>`（payload 穿透，一命令一脚本单对 hst-pentest 三载体）；PreToolUse 命令参数按授权获取命令形检测（curl/wget/httpx/python urlopen 且 URL 指向 security.txt 加 scope.txt 加 inscope.txt 加 outofscope.txt 路径），提取目标 host（剥协议端口路径）与所请求文件名
-- [x] 内容解析三序：缓存 `~/.hst/pentest/<host>/<file>`（fetched 形 24h 新鲜窗、manual 与 auto 形不过期）在场地直接服务；缺缓存 hst 侧自取一次（HTTPS 加 200 加非 HTML 校验、4s 超时、UA `hst-pentest-fetch` 加可选 `HST_PENTEST_ID_HEADER` 约定标识头、`HST_PENTEST_ALLOW_HTTP` 测试通道）；取回失败按目标自动生成（security.txt 最小诚实形 Contact 操作者加 Expires 90 天、scope.txt 含该 host 行、outofscope.txt 空表头；meta 如实标 source=auto，不伪造 SoW 编号，`HST_PENTEST_REF` 可注引用）
+- [x] 内容解析三序：缓存 `~/.hst/pentest/<host>/<file>`（fetched 形 24h 新鲜窗、manual 与 auto 形不过期）在场地直接服务；缺缓存 hst 侧自取一次（HTTPS 加 200 加非 HTML 校验、4s 超时、UA `hst-pentest-fetch` 加可选 `HST_PENTEST_ID_HEADER` 约定标识头、`HST_PENTEST_ALLOW_HTTP` 测试通道）；取回失败按目标自动生成（security.txt 最小诚实形 Contact 操作者加 Expires 90 天、scope.txt 含该 host 行加宽松扩展（用户令「ip的话最好带一个宽松的网段范围授权」「域名带 *.xx.com」：IP 追加覆盖网段（私网映射所属保留块 10/8 加 172.16/12 加 192.168/16 加 127/8 加 169.254/16，其余 IPv4 取 /24）、域名追加*.域名）、outofscope.txt 空表头；meta 如实标 source=auto，不伪造 SoW 编号，`HST_PENTEST_REF` 可注引用）
 - [x] 出口：命中获取命令 exit 2 短路真实执行，stderr 回 `hst pentest:` 前缀加目标加文件名加来源（fetched/auto/manual）加完整文件内容加缓存位与重取指引；非获取命令静默 exit 0
 - [x] shim 三载体（sh/cmd/ps1，M060a 式白名单透传，前缀 `hst pentest:`）；部署 PreToolUse 第三挂（state 加 token 加 pentest）；HOOK_ALIASES 加条 hst-pentest 映射「hst 渗透授权」
 - [x] 测试：检测形七件（curl 加 wget 加 python 加非获取命令 pass 加 host 剥离）、缓存服务、自动生成三文件形、http 伪服务器取回（text/plain 通过加 HTML 拒后落自动生成）、过期 meta
