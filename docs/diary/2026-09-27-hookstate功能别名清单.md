@@ -16,6 +16,8 @@
 
 6. **REQ-028 评审 F1 吸收加 REQ-029 智能提示加行序终裁（用户三令）**：F1（Windows grok token 腿无单路径包装，多 token 形 grok 不可 spawn 且 fail-open 吞成静默放行）即修：TOKEN_GROK_CMD 包装件加 token_handler Windows 加 grok 分支指包装，shim 件数七改八，G1 组形口径与 G2 迁移组序面在册 REQ-028。REQ-029（用户令「提示智能一些 比如拦截提示命令参数中检测到token，文本读取中检测到token」加「不接触token明文是环境变量或命令功能代码读取token后透传...不应该拦截」）：scan_text 位置词按工具分类（命令参数加文本读取加文件写入加工具输入加提示词文本，write/edit 取内容字段），原因句式改「在{位置}中检测到{标签}（掩码）」；provider 专属前缀命中时通用 sk- 形去重（此前 sk-ant 双报 Anthropic 加 OpenAI）；env 引用豁免七形语料锁零命中（正则字符类天然不中 `$` 与 `{` 起，本就放行，本轮以测试锁定防回归）加明文对照组仍拦。行序终裁（用户令「应该在排在第3行」）：DEFAULT_SEGMENTS 三四五换位为 hookstate 加 loop 加 goalmode，example 锁与常量注释同步。实弹：第5行前移第3行渲染 `herdr agent状态监控 | hst token护栏 | hst 会话状态同步`；假 key 经 hst-token.sh 阻断出单条中文句式 `在命令参数中检测到Anthropic API Key（sk-a***CCCC）` exit 2 `[实证: 双面直跑 release 加全测 256 绿]`。
 
+7. **v2.9.1 封版部署**：版本面 Cargo.toml 加 lock 加 CHANGELOG 里程碑（标题禁括）加 aidoc 版本投影四件一次齐（v2.9.0 三漏教训清单化跑）；内容面五条（原生渲染、hookstate 别名行、解耦穿透族、智能提示、行序终裁）；tag v2.9.1 钉 HEAD 后走 release.ps1 三段式（版本闸加测试闸加本地与 mac 双档交叉构建加打包 sha256 加四端冒烟加 gh 直发 --latest）。部署面：stable 位 ~/.local/bin/hst 自 v2.9.0 升 v2.9.1 后重跑 hst init（注册面与 shim 八件与状态栏全量刷新）；ADR-0010 的「stable 全体带面后可回裸 PATH 形」候裁不在本批。
+
 ## 自省
 
 - python heredoc 转义塌陷同型二犯（09-26 流水 18 的 \n 塌真换行、本次 \" 塌裸引号）：夹具类改码一律 Edit 工具实落或 python raw 字符串，不再走普通字符串 heredoc。按「同型二犯升格」惯例此条记档待升 guides 工作流条目。

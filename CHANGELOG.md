@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### 里程碑 2026-09-27：v2.9.1 状态栏原生化与 hook 命令解耦
+
+- **状态栏渲染原生化（ADR-0010、REQ-026）**：新子命令 `hst statusline --render <agent>`（stdin/stdout 契约与 pwsh 逐字对齐，对版口径 = pwsh 强制 Ansi 形；管道缺省形态旧载体本就无色，原生缺省带色，`NO_COLOR` 与 `HST_STATUSLINE_NO_ANSI` 退裸文本开关）；渲染引擎 src/statusrender 全段 Rust 实现（release 0.19 至 0.22s 对 pwsh 约 1s）；claude 加 kimi 加 grok statusLine 指向部署方 hst、codex 维持内置、pwsh 弃用期保留一代。评审四轮十五件 F 全闭（跨会话态泄漏、goalmode 松锚假阳、git ahead/behind 丢失、工具链三型恒不出等）。
+- **hookstate 专属行（REQ-026 迭代至行序终裁）**：注册面全部 hook 的功能别名清单独占行（带属主进程前缀加 ` | ` 分隔：herdr agent状态监控 | hst token护栏 | hst 会话状态同步），注册面按 agent 定位四文件实读（grok 多文件全目录合并），出行门 = 状态在场或有挂载 hook 任一；行序裁定居第三行（loop 与 goalmode 顺移四五行）。
+- **hook 命令解耦与穿透命令族（REQ-028）**：一命令一脚本（`hst hook state` 单对 hst-state 三载体纯四态写盘、`hst hook token` 单对 hst-token 三载体纯密钥拦截白名单透传形，未来 `hst hook <x>` 循此式扩展）；四家部署双挂（PreToolUse 与 UserPromptSubmit 上 state 加 token 并列），Windows grok 经 hst-token-grok.cmd 单路径包装（M048）；`hst hook status` 弃用期一代。
+- **token 护栏智能提示（REQ-029）**：拦截原因位置词智能化（在命令参数中检测到token、文本读取、文件写入按工具分类，write/edit 只扫内容字段）；provider 专属前缀命中时通用 sk- 形去重；env 引用与透传七形豁免语料锁定（`$ANTHROPIC_API_KEY`、`Bearer ${KIMI_API_KEY}`、`os.environ` 等零拦截，明文对照仍拦）。
+
 ### 里程碑
 
 > 2026-08-29 至 2026-08-31：从空仓库到 Windows 全量可用。方案 P0001 至 P0019，过程与经验在各 `docs\proven\` 文档。
