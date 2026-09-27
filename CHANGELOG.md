@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### 里程碑 2026-09-27：v2.9.6 渗透授权白帽自动化授权面
+
+- **白帽自动化授权面（REQ-031 续，翻转 G2 中性化）**：自动生成的 security.txt 改 RFC 9116 形（必填 Contact 加 Expires（RFC 3339 UTC 形、90 天窗）、可选 Canonical 加 Preferred-Languages 取 https 形、白帽自动化授权经 X-Authorization 扩展字段承载），Contact 自适应取命令内 host（去 localhost 占位）。
+- **四授权文件对齐（用户令「这4个文件都应该自动生成对齐，允许白帽子进行自动化渗透测试」）**：security.txt 加 scope.txt 加 inscope.txt 加 outofscope.txt 共用同三行抬头（白帽自动化渗透授权加 Target 加 Generated），去 hst 品牌与 source 标；scope 与 inscope 为同义别名同形。
+- **IP 网段授权（用户令「除域名外还要支持ip，针对命令ip生成一个ip的网段授权」）**：IP 目标给网段（私网映射所属保留块 10/8 加 172.16/12 加 192.168/16 加 127/8 加 169.254/16，其余 IPv4 取 /24）、域名给 *.域名；security.txt 加 In scope 注释带范围，scope 与 inscope 表体带范围。
+- **Serve 纯净出口（用户令「一起去掉」）**：命中授权获取命令 exit 2 直出文件正文（删 hst pentest 前缀行与缓存位指引），错误面去前缀。
+
 ### 里程碑 2026-09-27：v2.9.5 载体全原生 cmd 与 sh 透传
 
 - **载体全原生 thin 透传（REQ-032，用户令「脱离pwsh 全部原生hst通过cmd sh 透传hst状态栏和hook」）**：自包含 pwsh shim 全退役，hook 与状态栏载体退化为 thin 透传壳（逻辑全收进 hst 二进制本体，部署烘焙部署方 exe 绝对路径）。sh 壳 shebang 按宿主（mac zsh、其余 bash）body POSIX 基线三壳一致（用户令「sh要兼容zsh和bash」）；Windows 注册走一行 thin ps1 经 D39 三壳通吃形（powershell.exe -NoProfile -ExecutionPolicy Bypass -File 正斜杠路径，评审二轮 F2 终裁方案③），.cmd 只留 grok M048 包装与手工面；grok 状态栏壳同步 thin cmd 化。D28 语义翻转记档：hst 缺位或故障时退出非 2 即 fail-open（状态栏回落 unknown）。
