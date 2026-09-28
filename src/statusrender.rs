@@ -1436,7 +1436,13 @@ fn seg_goal(ctx: &Ctx) -> Option<String> {
 }
 
 /// loop 探针：本会话 durable 任务（count、最新任务节拍人性化、prompt 截
-/// 60）。项目根解析序与 PS1 同（workspace.project_dir 回落链）。
+/// 60）。项目根解析序与 PS1 同（workspace.project_dir 回落链）。归属判据
+/// 双层（REQ-035 收养回落）：`createdBySessionId` 等值优先；本会话零自有
+/// 任务时回落取项目文件全量。durable 任务项目作用域存活，创建会话终结后
+/// 触发仍落本项目活会话而 `createdBySessionId` 不被改写（2026-09-28
+/// prs_c2coe 工位重启实证：任务 15:37 仍发、创建会话 14:29 已终），
+/// 单看等值会话栏误报无 loop。代价：同项目并行双会话各自都显示项目
+/// loop（接受，见 REQ-035 边界节）。
 fn loop_probe(ctx: &Ctx) -> Option<(usize, String, String)> {
     let sid = {
         let mut sid = s(ctx.d, &["session_id"]);
@@ -1468,7 +1474,7 @@ fn loop_probe(ctx: &Ctx) -> Option<(usize, String, String)> {
     let Some(tasks) = v.get("tasks").and_then(|t| t.as_array()) else {
         return Some((0, String::new(), String::new()));
     };
-    let mine: Vec<&Json> = tasks
+    let mut mine: Vec<&Json> = tasks
         .iter()
         .filter(|t| {
             t.get("createdBySessionId")
@@ -1477,6 +1483,11 @@ fn loop_probe(ctx: &Ctx) -> Option<(usize, String, String)> {
                 .unwrap_or(false)
         })
         .collect();
+    if mine.is_empty() {
+        // REQ-035 收养回落：本会话零自有任务时取项目全量（判据见函数
+        // 注）；全量也空才真零命中。
+        mine = tasks.iter().collect();
+    }
     if mine.is_empty() {
         return Some((0, String::new(), String::new()));
     }
@@ -2161,6 +2172,68 @@ mod tests {
             hook_state(&ctx),
             ("blocked".to_string(), true),
             "record without session field is ungated"
+        );
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn loop_probe_adoption_fallback_prefers_own() {
+        // REQ-035 收养回落：工位重启后创建会话已终而任务仍项目级发着
+        //（2026-09-28 prs_c2coe 实证），零自有任务时显示面回落全量；
+        // 自有任务在场时优先且不混入他话任务。
+        let tmp = std::env::temp_dir().join(format!("hst-loop-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(tmp.join(".claude")).unwrap();
+        // 收养面可见性：他话任务 createdAt 更新，回落时 newest 取它。
+        std::fs::write(
+            tmp.join(".claude").join("scheduled_tasks.json"),
+            r#"{"tasks":[
+                {"id":"own","cron":"*/15 * * * *","prompt":"本话盯发布","createdAt":200,"createdBySessionId":"s2"},
+                {"id":"orphan","cron":"*/30 * * * *","prompt":"他话巡检","createdAt":300,"createdBySessionId":"dead"}
+            ]}"#,
+        )
+        .unwrap();
+        let cfg = StatuslineConfig::default();
+        let cwd = tmp.display().to_string().replace('\\', "/");
+        fn ctx_of<'a>(d: &'a Json, cfg: &'a StatuslineConfig, home: &'a Path) -> Ctx<'a> {
+            Ctx {
+                d,
+                agent: "claude".to_string(),
+                nerd: true,
+                cfg,
+                home,
+                dir: String::new(),
+                root: String::new(),
+                proj_kind: String::new(),
+                pkg_ver: String::new(),
+            }
+        }
+        let d_of = |sid: &str| {
+            serde_json::from_str::<Json>(&format!(r#"{{"session_id":"{sid}","cwd":"{cwd}"}}"#))
+                .unwrap()
+        };
+        // 自有优先：只算本话任务，不混入 createdAt 更新的他话任务。
+        let d2 = d_of("s2");
+        assert_eq!(
+            loop_probe(&ctx_of(&d2, &cfg, &tmp)).unwrap(),
+            (1, "×15m".to_string(), "本话盯发布".to_string())
+        );
+        // 零自有回落：收养项目全量，newest 按 createdAt 取他话任务。
+        let d3 = d_of("s3");
+        assert_eq!(
+            loop_probe(&ctx_of(&d3, &cfg, &tmp)).unwrap(),
+            (2, "×30m".to_string(), "他话巡检".to_string())
+        );
+        // 全量也空才真零命中（行隐藏判据不变）。
+        std::fs::write(
+            tmp.join(".claude").join("scheduled_tasks.json"),
+            r#"{"tasks":[]}"#,
+        )
+        .unwrap();
+        let d4 = d_of("s3");
+        assert_eq!(
+            loop_probe(&ctx_of(&d4, &cfg, &tmp)).unwrap(),
+            (0, String::new(), String::new())
         );
         let _ = std::fs::remove_dir_all(&tmp);
     }

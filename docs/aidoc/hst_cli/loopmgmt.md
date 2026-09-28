@@ -7,7 +7,11 @@ CronCreate 的同源落盘形，实证 2026-09-23 探针：tasks[] 含 id / cron
 prompt / recurring / createdAt / createdBySessionId / createdByPid /
 createdByProcStart）；hst 是该文件的读写管理面（set / list / del），
 状态栏 loop 与 goal 段同源只读消费，不自建第二状态文件。会话归属
-判据 = `createdBySessionId` 与当前会话 id 等值。goal 语义 = 任务
+判据分面：CLI 管理面（ours 标记与 goal 改写前置）= `createdBySessionId`
+与当前会话 id 等值；状态栏显示面在等值零命中时收养回落项目全量
+（REQ-035：durable 任务项目作用域存活，创建会话终结后触发仍落活会话
+而 createdBySessionId 不改写，2026-09-28 prs_c2coe 工位重启实证）。
+goal 语义 = 任务
 `prompt` 文本。并发面与 Claude Code 同款读改写（无锁，后写覆盖先写）；
 同一会话内混用 hst 与 agent 原生 cron 工具会互相覆盖盘上变更，管理
 纪律是单向（要么全经 hst，要么全经会话内工具）。已在跑会话不接管

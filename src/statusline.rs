@@ -541,7 +541,11 @@ if ($mcpCount) {
 /// scheduled_tasks.json` 过滤 `createdBySessionId` 等值，产出
 /// `$loopCount`（int）、`$loopCadence`（最新任务 cron 简单形人性化，
 /// 间隔形 ×Nm/×Nh/×1h、一次性形 @HH:mm，解析不出空串）、`$loopGoalText`
-/// （最新任务 prompt，折行归一截断 60 字符，REQ-024 专属行放宽）。文件缺失、会话 id 缺失、
+/// （最新任务 prompt，折行归一截断 60 字符，REQ-024 专属行放宽）。归属
+/// 判据双层（REQ-035 收养回落，与原生渲染器同判）：等值优先，本会话零
+/// 自有任务时回落取项目文件全量（durable 任务项目作用域存活，创建会话
+/// 终结后触发仍落活会话而 createdBySessionId 不改写，2026-09-28
+/// prs_c2coe 工位重启实证）。文件缺失、会话 id 缺失、
 /// JSON 坏损皆静默零命中（数据驱动退化，codex/kimi/grok 无此文件自然
 /// 无段）。
 const PS1_LOOPPROBE: &str = r#"
@@ -567,6 +571,9 @@ if ($loopSid2) {
             try {
                 $lt = Get-Content -Raw $lpFile | ConvertFrom-Json
                 $mine = @($lt.tasks | Where-Object { "$($_.createdBySessionId)" -eq $loopSid2 })
+                # REQ-035 收养回落：本会话零自有任务时取项目全量（tasks
+                # 键缺位时 $null 守卫防 @($null) 计一假阳）。
+                if ($mine.Count -eq 0 -and $lt.tasks) { $mine = @($lt.tasks) }
                 $loopCount = $mine.Count
                 if ($loopCount -gt 0) {
                     $newest = $mine | Sort-Object -Property createdAt -Descending | Select-Object -First 1
@@ -3187,9 +3194,10 @@ mod tests {
     }
 
     #[test]
-    fn loop_goal_hidden_without_file_foreign_or_sid() {
-        // REQ-019 退化面：无文件、仅外会话任务、session_id 缺失，三态均
-        // 不渲染两段（零噪声）。
+    fn loop_goal_hidden_without_file_or_sid_foreign_adopted() {
+        // REQ-019 退化面：无文件、session_id 缺失两态不渲染两段（零噪
+        // 声）；REQ-035 收养回落翻转第三态：仅外会话任务（工位重启后
+        // 创建会话已终的活任务）改为显示项目全量。
         if !pwsh_on_path() {
             return;
         }
@@ -3197,15 +3205,15 @@ mod tests {
         let p = deploy_script(&home).unwrap();
         let out = run_statusline(&p, "claude", &home, br#"{"session_id":"s1"}"#);
         assert!(!out.contains('×'), "no file no cadence: {out}");
-        // 仅外会话任务。
+        // 仅外会话任务：收养回落显示（旧等值判据隐藏）。
         let stdin = seed_sched(
             &home,
             "s1",
             r#"[{"id":"f1","cron":"*/9 * * * *","prompt":"外会话任务","createdAt":300,"recurring":true,"createdBySessionId":"s2"}]"#,
         );
         let out = run_statusline(&p, "claude", &home, &stdin);
-        assert!(!out.contains('×'), "foreign only hidden: {out}");
-        assert!(!out.contains("外会话任务"), "foreign goal hidden: {out}");
+        assert!(out.contains("9m"), "foreign adopted cadence: {out}");
+        assert!(out.contains("外会话任务"), "foreign adopted goal: {out}");
         // session_id 缺失（codex/kimi/grok 同型）。
         let out = run_statusline(&p, "claude", &home, br#"{"version":"9.9.9"}"#);
         assert!(!out.contains('×'), "no sid hidden: {out}");

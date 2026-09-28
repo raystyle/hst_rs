@@ -37,3 +37,4 @@
 | REQ-031 | implemented | must | 渗透授权hook | 授权获取命令短路服务层（检测 curl/wget 取 security.txt/scope.txt 族）；功能已由用户令 2026-09-27 整体退役（模块与命令与 shim 与注册与别名四去，详见该 REQ 退役节） |
 | REQ-032 | implemented | must | 载体全原生cmd与sh透传 | thin 壳九件（sh 兼容 zsh 加 bash 加 sh）加 ps1 退役清扫加 Windows 注册单路径 .cmd；实弹注册面零 powershell、三腿 e2e 绿 |
 | REQ-034 | implemented | must | actl适配反馈件三件 | init --yes 全局面接受加 doctor hooks.form 壳名族判据收编加 llms 适配面一行；实弹四判据全过加全测 258 加 49 绿 |
+| REQ-035 | implemented | must | 状态栏loop段收养回落 | statusrender 单测一件加 statusline 改件（外会话任务翻转为显示）；实弹 prs_c2coe 真 payload 双判据对照 |
