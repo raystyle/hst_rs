@@ -112,7 +112,10 @@ if ($chain.Count -gt 0) {
     }
     $search = if ($agentIdx -ge 0 -and $agentIdx + 1 -lt $chain.Count) { $chain[($agentIdx + 1)..($chain.Count - 1)] } else { $chain }
     foreach ($n in $search) {
-        if ($n -match $shells) { $shellName = $n -replace '\.exe$', ''; break }
+        # macOS ps comm 取 argv[0]，登录 shell 按惯例带 `-` 前缀（-zsh），
+        # 匹配与显示前剥登录杠（与原生 normalize_shell_name 同判）。
+        $m = "$n".TrimStart('-')
+        if ($m -match $shells) { $shellName = $m -replace '\.exe$', ''; break }
     }
 }
 if (-not $shellName -and $env:SHELL) { $shellName = (Split-Path -Leaf $env:SHELL) }

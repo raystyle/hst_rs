@@ -362,6 +362,15 @@ fn fmt_dur(ms: f64) -> String {
     format!("{s:.0}s")
 }
 
+/// shell 名归一：剥 `.exe` 尾（Windows 形）与首部登录杠（macOS `ps -o
+/// comm=` 取 argv[0]，登录 shell 按惯例带 `-` 前缀，如 `-zsh`；Linux
+/// /proc/comm 取可执行名恒无杠）。匹配仍是包含语义（PS1 同判）。
+fn normalize_shell_name(comm: &str) -> String {
+    comm.trim_start_matches('-')
+        .trim_end_matches(".exe")
+        .to_string()
+}
+
 fn seg_shell(ctx: &Ctx) -> Option<String> {
     // Unix 祖先链（与 PS1 同判）：跳过 agent 本体，向上找最近 shell；
     // 匹配是包含语义（PS1 -match 无锚，路径形 comm 同样命中）。
@@ -444,7 +453,7 @@ fn seg_shell(ctx: &Ctx) -> Option<String> {
         .iter()
         .find(|c| shells.iter().any(|sh| c.contains(sh)))
         .cloned()
-        .map(|c| c.trim_end_matches(".exe").to_string());
+        .map(|c| normalize_shell_name(&c));
     if name.is_none() {
         if let Ok(sh) = std::env::var("SHELL") {
             name = Some(Path::new(&sh).file_name()?.to_string_lossy().to_string());
@@ -2236,6 +2245,17 @@ mod tests {
             (0, String::new(), String::new())
         );
         let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn normalize_shell_name_strips_login_dash_and_exe() {
+        // macOS `ps -o comm=` 取 argv[0]，登录 shell 带登录杠前缀（-zsh
+        // 原样上屏是 2026-09-28 mac 工位实弹缺陷）；.exe 剥除是既有行为。
+        assert_eq!(normalize_shell_name("-zsh"), "zsh");
+        assert_eq!(normalize_shell_name("zsh"), "zsh");
+        assert_eq!(normalize_shell_name("-bash"), "bash");
+        assert_eq!(normalize_shell_name("pwsh.exe"), "pwsh");
+        assert_eq!(normalize_shell_name("-pwsh.exe"), "pwsh");
     }
 
     #[test]
