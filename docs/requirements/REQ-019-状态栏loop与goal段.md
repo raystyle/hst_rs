@@ -18,7 +18,7 @@ trace: loopmgmt 单测五件加 statusline 单测四件加门控扩加 cli 集�
 
 - [x] 新增 `loop` 与 `goal` 两个独立段 id,可在 `segments2` 配置里分别增删换位(用户裁定 2026-09-23:两段分立)
 - [x] 两段进默认第二行(DEFAULT_SEGMENTS2 尾部追加;无任务时整段隐藏零噪声;REQ-024 起移默认第三行专属行,本条为 REQ-019 时点口径)
-- [x] 只统计 `createdBySessionId` 等于当前会话的任务(用户裁定:仅本会话口径,不看项目全部)
+- [x] 只统计 `createdBySessionId` 等于当前会话的任务(用户裁定:仅本会话口径,不看项目全部;REQ-035 起显示面改双层:等值优先,零自有任务时收养回落项目全量,本条为 REQ-019 时点口径)
 - [x] 数据源为项目根 `.claude/scheduled_tasks.json`;项目根解析序:`workspace.project_dir` 回落 `current_dir` 回落 `cwd` 回落 `Get-Location`
 - [x] loop 段占位符 `{icon}{count}{cadence}`,cadence 为最新任务 cron 的简单形人性化(`*/N` 分 `×Nm`、小时步进 `×Nh`、每小时 `×1h`、一次性 `@HH:mm`),解析不出留空不留残迹
 - [x] goal 段占位符 `{icon}{goal}`,goal 取最新任务(createdAt 最大)的 prompt,截断 16 字符加省略号

@@ -571,9 +571,11 @@ if ($loopSid2) {
             try {
                 $lt = Get-Content -Raw $lpFile | ConvertFrom-Json
                 $mine = @($lt.tasks | Where-Object { "$($_.createdBySessionId)" -eq $loopSid2 })
-                # REQ-035 收养回落：本会话零自有任务时取项目全量（tasks
-                # 键缺位时 $null 守卫防 @($null) 计一假阳）。
-                if ($mine.Count -eq 0 -and $lt.tasks) { $mine = @($lt.tasks) }
+                # REQ-035 收养回落：本会话零自有任务时取项目全量。守卫
+                # 取数组型且非空（评审 G1：真值守卫放过字符串与单对象形
+                # 出空行假阳，回落面与原生 as_array 同判；等值路径不包
+                # 数组型检查，PS 5.1 ConvertFrom-Json 单元素数组解包兼容）。
+                if ($mine.Count -eq 0 -and $lt.tasks -is [array] -and $lt.tasks.Count -gt 0) { $mine = @($lt.tasks) }
                 $loopCount = $mine.Count
                 if ($loopCount -gt 0) {
                     $newest = $mine | Sort-Object -Property createdAt -Descending | Select-Object -First 1
@@ -2914,9 +2916,10 @@ mod tests {
     }
 
     #[test]
-    fn loop_goal_segments_render_own_session_only() {
-        // REQ-019 行为面：计数取本会话、cadence 取最新任务简单形、goal 取
-        // 最新任务 prompt、外会话与旧任务不入场。
+    fn loop_goal_segments_render_own_priority() {
+        // REQ-019 行为面（REQ-035 起自有优先语义）：计数取本会话、cadence
+        // 取最新任务简单形、goal 取最新任务 prompt、外会话与旧任务不入场
+        //（零自有收养回落另件在证）。
         if !pwsh_on_path() {
             return;
         }
@@ -3214,6 +3217,30 @@ mod tests {
         let out = run_statusline(&p, "claude", &home, &stdin);
         assert!(out.contains("9m"), "foreign adopted cadence: {out}");
         assert!(out.contains("外会话任务"), "foreign adopted goal: {out}");
+        // 评审 G1/G3：tasks 键缺位与非数组形不入场（真值守卫会放字符串
+        // 与单对象形出空行假阳，回落守卫按数组型与原生 as_array 同判）。
+        let sid_stdin = |root: &std::path::Path| {
+            serde_json::json!({
+                "session_id": "s1",
+                "workspace": { "current_dir": root.to_string_lossy() },
+            })
+            .to_string()
+            .into_bytes()
+        };
+        let sched = home.join(".claude").join("scheduled_tasks.json");
+        for bad in [
+            r#"{"version":7}"#,
+            r#"{"tasks":"abc"}"#,
+            r#"{"tasks":{"id":"o1","cron":"*/9 * * * *","prompt":"单对象孤儿","createdAt":9,"recurring":true,"createdBySessionId":"s2"}}"#,
+        ] {
+            std::fs::write(&sched, bad).unwrap();
+            let out = run_statusline(&p, "claude", &home, &sid_stdin(&home));
+            assert!(!out.contains('×'), "malformed tasks hidden: {bad} => {out}");
+            assert!(
+                !out.contains("单对象孤儿"),
+                "object form not adopted: {out}"
+            );
+        }
         // session_id 缺失（codex/kimi/grok 同型）。
         let out = run_statusline(&p, "claude", &home, br#"{"version":"9.9.9"}"#);
         assert!(!out.contains('×'), "no sid hidden: {out}");

@@ -26,4 +26,7 @@ trace: statusrender 单测收养回落一件（自有优先加零自有回落加
 ## 边界
 
 - 同项目并行双会话、其中一方零自有任务时，该方也显示项目 loop（收养回落代价，接受：durable 任务本就项目作用域发进活会话，显示项目级任务不算误报）。
+- 自有任务一回场，收养孤儿再隐（复发路径在册：收养态工位自建一条 loop 后他话孤儿行消失；更精确判据（等值优先，创建者已死孤儿补入）留设计面，loopmgmt 的属主 pid 加 procStart 活性面可复用）。
+- 收养期 count 为项目全量计数（默认模板无 count 占位符，默认面不受影响）；行在位而 `hst loop list` 报 ours=false 加 `hst goal set` 报 no_own_task 属判据分面口径差（管理面不动），文案与 hint 缓解候裁。
+- 会话键缺失早退不收养（Claude 恒有 session_id，codex 加 kimi 加 grok 无此文件，与旧行为同形）。
 - goalmode 行（REQ-025）不在本 REQ 范围：goal 由会话内 /goal 设定，老会话终结后新会话未重设则如实无行（本次工位 goal 行消失即此形，重设即回）。
