@@ -364,7 +364,8 @@ fn fmt_dur(ms: f64) -> String {
 
 /// shell 名归一：剥 `.exe` 尾（Windows 形）与首部登录杠（macOS `ps -o
 /// comm=` 取 argv[0]，登录 shell 按惯例带 `-` 前缀，如 `-zsh`；Linux
-/// /proc/comm 取可执行名恒无杠）。匹配仍是包含语义（PS1 同判）。
+/// /proc/comm 取可执行名恒无杠）。登录杠剥离后裸名形两渲染器同判；PS1
+/// 匹配为锚定形，路径形 comm 属存量分歧。
 fn normalize_shell_name(comm: &str) -> String {
     comm.trim_start_matches('-')
         .trim_end_matches(".exe")
@@ -372,8 +373,10 @@ fn normalize_shell_name(comm: &str) -> String {
 }
 
 fn seg_shell(ctx: &Ctx) -> Option<String> {
-    // Unix 祖先链（与 PS1 同判）：跳过 agent 本体，向上找最近 shell；
-    // 匹配是包含语义（PS1 -match 无锚，路径形 comm 同样命中）。
+    // Unix 祖先链：跳过 agent 本体，向上找最近 shell。匹配是包含语义
+    // （路径形 comm 同样命中）；PS1 侧为 ^ 起始锚定，登录杠剥离后裸名
+    // 形同判，路径形 comm 本侧出行而 PS1 回落 $SHELL，属存量分歧未随
+    // 各批对齐。
     let shells = [
         "pwsh",
         "powershell",
@@ -2256,6 +2259,10 @@ mod tests {
         assert_eq!(normalize_shell_name("-bash"), "bash");
         assert_eq!(normalize_shell_name("pwsh.exe"), "pwsh");
         assert_eq!(normalize_shell_name("-pwsh.exe"), "pwsh");
+        // 全剥前导杠语义（评审 G1）：复数杠直通剥净；全杠归一为空但
+        // 选入前须 contains 命中 shell token，空名不可达不上屏。
+        assert_eq!(normalize_shell_name("--zsh"), "zsh");
+        assert_eq!(normalize_shell_name("-"), "");
     }
 
     #[test]
