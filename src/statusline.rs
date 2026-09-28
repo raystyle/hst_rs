@@ -573,8 +573,12 @@ if ($loopSid2) {
                 $mine = @($lt.tasks | Where-Object { "$($_.createdBySessionId)" -eq $loopSid2 })
                 # REQ-035 收养回落：本会话零自有任务时取项目全量。守卫
                 # 取数组型且非空（评审 G1：真值守卫放过字符串与单对象形
-                # 出空行假阳，回落面与原生 as_array 同判；等值路径不包
-                # 数组型检查，PS 5.1 ConvertFrom-Json 单元素数组解包兼容）。
+                # 出空行假阳，回落面与原生 as_array 同判，单元素数组恒
+                # Object[] 不被误杀；等值路径不包数组型检查：上方管道
+                # @($lt.tasks | Where-Object) 本就对形不敏感，包了只会
+                # 把存量宽容的单对象 sid 命中形从出行翻成隐藏——该残余
+                # 分歧（单对象 sid 命中 PS1 出行而原生无行）属存量非本
+                # 批增量，评审二轮 F1 订正）。
                 if ($mine.Count -eq 0 -and $lt.tasks -is [array] -and $lt.tasks.Count -gt 0) { $mine = @($lt.tasks) }
                 $loopCount = $mine.Count
                 if ($loopCount -gt 0) {
