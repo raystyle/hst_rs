@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 里程碑 2026-09-28：v2.9.9 codex 状态栏项读序
+
+- **codex 状态栏项读序改（用户令「Context 35% used · 373K used · 65.4M in · 160K out · 996K window 改为 Context 35% · 996K window · used 373K」）**：去 `total-input-tokens` 与 `total-output-tokens`（in 与 out 两项占宽），并把 `context-window-size` 提到 `used-tokens` 前，读序固定为百分比到窗口到用量，缺省集十二项改十项。边界如实记档：codex 内置项文案是固定形（`Context N% used` 与用量项 `N used` 后缀），实渲染为 `Context 35% used · 996K window · 373K used`，与用户给的字面差两处 used 词；hst 只能选 id、改不了 codex 的渲染（codex 无外部命令 statusline 通道，openai/codex#17827 未实现）。
+
 ### 里程碑 2026-09-28：v2.9.8 actl 适配反馈件三件
 
 - **init --yes 全局面接受（REQ-034 件一，反馈件三）**：去 clap 的 `requires = compact_pct`，非 compact 范围把 `--yes` 当确认收下（打点 `init.confirm=yes`，全量部署语义与外层幂等不变），compact 面预览与落盘行为不变；actl 侧 `toolOwnsYesIf` 特判可撤。
