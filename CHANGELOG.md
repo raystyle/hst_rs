@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 里程碑 2026-09-28：v2.9.11 mac 工位 shell 段登录杠剥除
+
+- **mac 工位 shell 段登录杠剥除（用户报 mac 工位状态栏 shell 段显示 `-zsh`）**：macOS `ps -o comm=` 取 argv[0]，登录 shell 按登录惯例带 `-` 前缀（lan-mac 实机直查在证），原生渲染器匹配包含语义命中但显示未剥登录杠原样上屏；新增 `normalize_shell_name` 归一（剥首部登录杠加 `.exe` 尾）单测七形，原生显示走归一，PS1 匹配前 TrimStart（裸名形同判；PS1 为 ^ 锚定形，路径形 comm 原生出行而 PS1 回落 `$SHELL` 属存量分歧在册）。Linux 走 /proc/comm 恒无杠不受影响。经 herdr 评审格两轮终审放行（一轮 F1 同判措辞订正加 G1 补复数杠与全杠两形）。
+
 ### 里程碑 2026-09-28：v2.9.10 状态栏 loop 段收养回落
 
 - **REQ-035 状态栏 loop 段收养回落（用户报 prs_c2coe 操作台工位重启后 loop 行消失而任务仍在发）**：durable 任务项目作用域存活并持续发进活会话，而 Claude Code 不随收养改写 `createdBySessionId`，旧等值判据致工位重启后活会话零命中、loop 行整行隐藏；归属判据改双层（等值优先，本会话零自有任务时收养回落取项目 `scheduled_tasks.json` 全量），PS1 与原生渲染器同判（PS1 回落守卫取数组型且非空，防字符串与单对象形出空行假阳）。CLI 管理面不动（`hst loop list` 的 ours 与 goal 改写前置仍等值），判据分面口径在 REQ-035 边界节与 loopmgmt 模块头在册。经 herdr 评审格三轮终审放行（一轮 F1 REQ-019 判据句时点批注加 G1 守卫数组型加 G2 边界补记加 G3 fixture 与更名；二轮 F1 守关注释订正）。
