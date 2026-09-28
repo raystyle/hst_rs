@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 里程碑 2026-09-28：v2.9.10 状态栏 loop 段收养回落
+
+- **REQ-035 状态栏 loop 段收养回落（用户报 prs_c2coe 操作台工位重启后 loop 行消失而任务仍在发）**：durable 任务项目作用域存活并持续发进活会话，而 Claude Code 不随收养改写 `createdBySessionId`，旧等值判据致工位重启后活会话零命中、loop 行整行隐藏；归属判据改双层（等值优先，本会话零自有任务时收养回落取项目 `scheduled_tasks.json` 全量），PS1 与原生渲染器同判（PS1 回落守卫取数组型且非空，防字符串与单对象形出空行假阳）。CLI 管理面不动（`hst loop list` 的 ours 与 goal 改写前置仍等值），判据分面口径在 REQ-035 边界节与 loopmgmt 模块头在册。经 herdr 评审格三轮终审放行（一轮 F1 REQ-019 判据句时点批注加 G1 守卫数组型加 G2 边界补记加 G3 fixture 与更名；二轮 F1 守关注释订正）。
+
 ### 里程碑 2026-09-28：v2.9.9 codex 状态栏项读序
 
 - **codex 状态栏项读序改（用户令「Context 35% used · 373K used · 65.4M in · 160K out · 996K window 改为 Context 35% · 996K window · used 373K」）**：去 `total-input-tokens` 与 `total-output-tokens`（in 与 out 两项占宽），并把 `context-window-size` 提到 `used-tokens` 前，读序固定为百分比到窗口到用量，缺省集十二项改十项。边界如实记档：codex 内置项文案是固定形（`Context N% used` 与用量项 `N used` 后缀），实渲染为 `Context 35% used · 996K window · 373K used`，与用户给的字面差两处 used 词；hst 只能选 id、改不了 codex 的渲染（codex 无外部命令 statusline 通道，openai/codex#17827 未实现）。
