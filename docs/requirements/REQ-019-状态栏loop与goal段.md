@@ -23,7 +23,7 @@ trace: loopmgmt 单测五件加 statusline 单测四件加门控扩加 cli 集�
 - [x] loop 段占位符 `{icon}{count}{cadence}`,cadence 为最新任务 cron 的简单形人性化(`*/N` 分 `×Nm`、小时步进 `×Nh`、每小时 `×1h`、一次性 `@HH:mm`),解析不出留空不留残迹
 - [x] goal 段占位符 `{icon}{goal}`,goal 取最新任务(createdAt 最大)的 prompt,截断 16 字符加省略号
 - [x] grok ASCII 路径两段无图标字形(`-ascii` 模板变体)
-- [x] session-only(非 durable)循环只存在内存,盘上无文件,状态栏不可见(已知边界,写明不隐藏)
+- [x] session-only(非 durable)循环只存在内存,盘上无文件,状态栏不可见(已知边界,写明不隐藏;REQ-036 起 ScheduleWakeup 形经 transcript 倒扫回落显示,本条为 REQ-019 时点口径)
 - [x] `hst statusline --example` 示例文档与集成测试同步锁(D51)覆盖新段
 
 ### 管理命令面

@@ -3,7 +3,7 @@ id: REQ-036
 title: 状态栏会话级loop段
 status: implemented
 priority: must
-trace: statusrender 单测 session_loop_probe_verdicts_four_forms（末条胜加 stop 判终加滞隐加 durable 优先集成四断言）加 statusline 单测 session_loop_row_falls_back_when_no_durable（PS1 面活态出行加 stop 行隐）；实弹 prs_c2coe 真会话 payload 渲染 `25m / 确认解题后沉淀了browse skill和解题步骤`
+trace: statusrender 单测 session_loop_probe_verdicts_four_forms（末条胜加 stop 判终加滞隐加 durable 优先集成四断言）加 statusline 单测 session_loop_row_falls_back_when_no_durable（PS1 面活态出行加 stop 行隐加滞隐行隐三态）；实弹 prs_c2coe 真会话 payload 渲染 `25m / 确认解题后沉淀了browse skill和解题步骤`
 ---
 
 # REQ-036:状态栏会话级loop段
@@ -22,7 +22,7 @@ trace: statusrender 单测 session_loop_probe_verdicts_four_forms（末条胜加
 - [x] 节拍人性化秒分级（`Xs` 加 `Xm` 加 `XhYm` 加 `XdYh`），复用 loop 段模板图标，count 记 1；零新段 id 零配置迁移
 - [x] PS1 与原生渲染器同判（转义解序 PS1 侧常见形，原生侧全形含 `\u` 代理对）
 - [x] durable 在场时会话不混入（等值与收养层优先）
-- [x] 测试：原生四形单件加 PS1 面两态件；实弹真会话 payload
+- [x] 测试：原生四形单件加 PS1 面三态件（活态出行加 stop 行隐加滞隐行隐，评审二轮回执补记）；实弹真会话 payload
 
 ## 边界
 
@@ -31,3 +31,4 @@ trace: statusrender 单测 session_loop_probe_verdicts_four_forms（末条胜加
 - timestamp 回取限距（Rust 就近无界至块首、PS1 LastIndexOf 限窗）：条目 timestamp 距标记超窗或跨界劈开时不判龄乐观显；Rust 侧 ts 回取不限行界，标记行跨界劈开时会取到上一条目 ts（判龄偏老的理论假阴，活态不误隐：上一条 ts 加两心跳约等于本条 ts 加一心跳恒大于 now；评审 G3）。滞隐判据依赖模型按心跳续期的纪律，静默弃约最长滞显两倍心跳时长。
 - 标记假阴残余（评审 G2）：更新的未再编码嵌套对象引文排在真行之后且无 delaySeconds 字段时，末中即锁会把更老的真行掩掉；转义引文形实测不命中，概率极低，收紧面（tool_use 前锚校验或假阴续扫）候裁。
 - goal 段（可选段）仍只取 durable 源，会话级 goal 文本只在 loop 行显示。
+- 非 Z 形时间戳二器语义不同（PS1 Parse 按本地时区、原生 iso_epoch 按 UTC；transcript 恒 Z 形不触发，评审二轮 G 记档候裁）。
