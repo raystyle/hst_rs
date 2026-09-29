@@ -4,7 +4,8 @@
 //! 缺省形态 PowerShell Host 渲染器会剥 ANSI，旧载体在 agent 实际调用里
 //! 无色，原生缺省带色，评审 F1）。复用单源：段序与模板配置走
 //! statusline.rs 的 StatuslineConfig 加 effective_orders；loop/goal 探针走
-//! loopmgmt；goalmode 倒序分块扫描本模块 Rust 形（流式倒扫）。性能面：无
+//! loopmgmt；goalmode 与会话级 loop（ScheduleWakeup 源，REQ-036）倒序分块
+//! 扫描本模块 Rust 形（流式倒扫）。性能面：无
 //! pwsh 冷启动（约 300ms）加流式倒扫（105MB transcript 毫秒级）。ANSI 退
 //! 裸文本开关：`NO_COLOR` 或 `HST_STATUSLINE_NO_ANSI` 任一非空（评审 F1）。
 //! 已知边界：tools 段（显式选用面）首版渲染为空、版本本地探测缓存面
@@ -1411,7 +1412,17 @@ fn mcp_count(d: &Json, claude_json: Option<&Path>, mcp_json: Option<&Path>) -> u
 }
 
 fn seg_loop(ctx: &Ctx) -> Option<String> {
-    let (count, cadence, goal) = loop_probe(ctx)?;
+    let (mut count, mut cadence, mut goal) = loop_probe(ctx)?;
+    if count == 0 {
+        // REQ-036 会话级回落：零 durable 任务时取 /loop 自调度
+        //（ScheduleWakeup）态，loop 行补齐「本会话实际在跑的 loop」语义
+        // 三层：durable 等值、durable 收养（REQ-035）、会话自调度。
+        if let Some((c, g)) = session_loop_probe(ctx) {
+            count = 1;
+            cadence = c;
+            goal = g;
+        }
+    }
     if count == 0 {
         return None;
     }
@@ -1656,6 +1667,246 @@ fn goalmode_probe(ctx: &Ctx) -> Option<(String, String)> {
         t = format!("{cut}…");
     }
     Some((state, t))
+}
+
+/// 会话级 loop 探针（REQ-036）：`/loop` 动态自调度（ScheduleWakeup）
+/// 态。源 = 会话 transcript（定位序与 goalmode 探针同：项目根 slug 加
+/// session_id）倒序分块反扫（4MB 块加 512B 跨界重叠，新者先中即锁），
+/// 末条工具调用取 delaySeconds 与 prompt（剥 `/loop ` 前缀截 60）。
+/// 判终两形：`stop:true` 显式终；就近回取条目 timestamp，now 超 ts 加
+/// 两倍心跳未续期视为弃约滞隐（timestamp 取不到不判龄，乐观显；
+/// prs_c2coe 实机 4 例均按续期或 stop 闭环）。durable 任务在 seg_loop
+/// 上层优先，本探针只在零 durable 时被消费。
+fn session_loop_probe(ctx: &Ctx) -> Option<(String, String)> {
+    let sid = s(ctx.d, &["session_id"]);
+    if sid.is_empty() {
+        return None;
+    }
+    let mut root = s(ctx.d, &["workspace", "project_dir"]);
+    if root.is_empty() || root == "." {
+        root = ctx.dir.clone();
+    }
+    let slug: String = root
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect();
+    let home = user_home().ok()?;
+    let file = home
+        .join(".claude")
+        .join("projects")
+        .join(&slug)
+        .join(format!("{sid}.jsonl"));
+    if !file.is_file() {
+        return None;
+    }
+    let mut fs = std::fs::File::open(&file).ok()?;
+    use std::io::{Read, Seek, SeekFrom};
+    let len = fs.metadata().ok()?.len();
+    let marker = "\"name\":\"ScheduleWakeup\",\"input\":{";
+    let chunk_sz: u64 = 4 * 1024 * 1024;
+    let ovl: u64 = 512;
+    let mut pos = len;
+    let mut prev_head: Vec<u8> = Vec::new();
+    while pos > 0 {
+        let take = chunk_sz.min(pos);
+        pos -= take;
+        fs.seek(SeekFrom::Start(pos)).ok()?;
+        let mut buf = vec![0u8; take as usize];
+        fs.read_exact(&mut buf).ok()?;
+        let mut comb = buf.clone();
+        comb.extend_from_slice(&prev_head);
+        prev_head = buf[..(ovl as usize).min(buf.len())].to_vec();
+        let chunk = String::from_utf8_lossy(&comb);
+        if let Some(idx) = chunk.rfind(marker) {
+            return wakeup_verdict(&chunk, idx);
+        }
+    }
+    None
+}
+
+/// 末条 ScheduleWakeup 判定：解析 input 对象三字段加就近条目
+/// timestamp，stop 或滞隐归 None（不显），活态归 (cadence, goal)。
+fn wakeup_verdict(chunk: &str, marker_idx: usize) -> Option<(String, String)> {
+    let obj = object_span(&chunk[marker_idx..]);
+    if obj.contains("\"stop\":true") {
+        return None;
+    }
+    let delay: u64 = obj
+        .find("\"delaySeconds\":")
+        .and_then(|i| {
+            let t = &obj[i + 15..];
+            let d = t.chars().take_while(|c| c.is_ascii_digit()).count();
+            u64::from_str_radix(&t[..d], 10).ok()
+        })
+        .filter(|d| *d > 0)?;
+    let prompt = obj
+        .find("\"prompt\":\"")
+        .and_then(|i| json_string_at(&obj[i + 9..]));
+    let ts = chunk[..marker_idx]
+        .rfind("\"timestamp\":\"")
+        .and_then(|i| iso_epoch(&chunk[i + 13..]));
+    if let Some(ts) = ts {
+        if epoch_now() > ts.saturating_add(delay.saturating_mul(2)) {
+            return None;
+        }
+    }
+    let mut goal = prompt
+        .map(|p| p.strip_prefix("/loop ").unwrap_or(&p).to_string())
+        .unwrap_or_default()
+        .replace(['\r', '\n'], " ")
+        .trim()
+        .to_string();
+    if goal.chars().count() > 60 {
+        let cut: String = goal.chars().take(60).collect();
+        goal = format!("{cut}…");
+    }
+    Some((delay_cadence(delay), goal))
+}
+
+/// 取首个 `{` 起的配对对象跨（字符串感知：值内花括号与引号不计数）；
+/// 跨界劈开或失配时宽容取到串尾（上层字段缺失兜底为零命中）。
+fn object_span(t: &str) -> &str {
+    let start = match t.find('{') {
+        Some(i) => i,
+        None => return "",
+    };
+    let b = t.as_bytes();
+    let (mut depth, mut in_str, mut esc) = (0i32, false, false);
+    for (j, &c) in b.iter().enumerate().skip(start) {
+        if esc {
+            esc = false;
+            continue;
+        }
+        if c == b'\\' && in_str {
+            esc = true;
+            continue;
+        }
+        match c {
+            b'"' => in_str = !in_str,
+            b'{' if !in_str => depth += 1,
+            b'}' if !in_str => {
+                depth -= 1;
+                if depth == 0 {
+                    return &t[start..=j];
+                }
+            }
+            _ => {}
+        }
+    }
+    &t[start..]
+}
+
+/// 解一个 JSON 字符串字面量（首字符须为 `"`），出解转义内容；常见转义
+/// 全覆盖，`\u` 形按 BMP 单元处理（代理对拼合与孤立代理丢弃；transcript
+/// 实测 prompt 中文恒裸 UTF-8，转义只出现在引号与换行）。尾界失配（跨界
+/// 劈开）宽容取到串尾。
+fn json_string_at(s: &str) -> Option<String> {
+    let mut it = s.chars().peekable();
+    if it.next()? != '"' {
+        return None;
+    }
+    let mut out = String::new();
+    let mut esc = false;
+    while let Some(c) = it.next() {
+        if esc {
+            esc = false;
+            match c {
+                'n' => out.push('\n'),
+                'r' => out.push('\r'),
+                't' => out.push('\t'),
+                '"' | '\\' | '/' | 'b' | 'f' => out.push(c),
+                'u' => {
+                    let mut code = 0u32;
+                    for _ in 0..4 {
+                        code = code * 16 + it.next()?.to_digit(16)?;
+                    }
+                    // 代理对拼合；孤立代理丢弃（值域外 char::from_u32 恒 None）
+                    if (0xD800..=0xDBFF).contains(&code) {
+                        let mut low = None;
+                        if it.peek() == Some(&'\\') {
+                            let mut probe = it.clone();
+                            if probe.next() == Some('\\') && probe.next() == Some('u') {
+                                let mut c2 = 0u32;
+                                for _ in 0..4 {
+                                    c2 = c2 * 16 + probe.next()?.to_digit(16)?;
+                                }
+                                low = Some(c2);
+                                it = probe;
+                            }
+                        }
+                        if let Some(lo) = low.filter(|lo| (0xDC00..=0xDFFF).contains(lo)) {
+                            code = 0x10000 + ((code - 0xD800) << 10) + (lo - 0xDC00);
+                        } else {
+                            continue;
+                        }
+                    }
+                    if let Some(ch) = char::from_u32(code) {
+                        out.push(ch);
+                    }
+                }
+                _ => {}
+            }
+            continue;
+        }
+        match c {
+            '\\' => esc = true,
+            '"' => return Some(out),
+            _ => out.push(c),
+        }
+    }
+    Some(out)
+}
+
+/// ISO 8601 UTC 形（`2026-09-29T00:37:43.611Z`）手解为 epoch 秒（无
+/// chrono 依赖；日历换算走 civil 算法）。
+fn iso_epoch(ts: &str) -> Option<u64> {
+    let y: i64 = ts.get(0..4)?.parse().ok()?;
+    let mo: i64 = ts.get(5..7)?.parse().ok()?;
+    let d: i64 = ts.get(8..10)?.parse().ok()?;
+    let h: i64 = ts.get(11..13)?.parse().ok()?;
+    let mi: i64 = ts.get(14..16)?.parse().ok()?;
+    let se: i64 = ts.get(17..19)?.parse().ok()?;
+    let yy = if mo <= 2 { y - 1 } else { y };
+    let era = yy.div_euclid(400);
+    let yoe = yy - era * 400;
+    let mp = (mo + 9) % 12;
+    let doy = (153 * mp + 2) / 5 + d - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let days = era * 146097 + doe - 719468;
+    Some((days * 86400 + h * 3600 + mi * 60 + se).max(0) as u64)
+}
+
+fn epoch_now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+/// 会话心跳节拍人性化：秒级 `Xs`、分级 `Xm`、时级整 `Xh` 带零头
+/// `XhYm`、日级整 `Xd` 带零头 `XdYh`（durable 段的 every 同位占位符）。
+fn delay_cadence(secs: u64) -> String {
+    if secs < 60 {
+        return format!("{secs}s");
+    }
+    let m = secs / 60;
+    if m < 60 {
+        return format!("{m}m");
+    }
+    let (h, rm) = (m / 60, m % 60);
+    if h < 24 {
+        return if rm == 0 {
+            format!("{h}h")
+        } else {
+            format!("{h}h{rm:02}m")
+        };
+    }
+    let (d, rh) = (h / 24, h % 24);
+    if rh == 0 {
+        format!("{d}d")
+    } else {
+        format!("{d}d{rh:02}h")
+    }
 }
 
 enum MarkerKind {
@@ -2263,6 +2514,109 @@ mod tests {
         // 选入前须 contains 命中 shell token，空名不可达不上屏。
         assert_eq!(normalize_shell_name("--zsh"), "zsh");
         assert_eq!(normalize_shell_name("-"), "");
+    }
+
+    #[test]
+    fn session_loop_probe_verdicts_four_forms() {
+        // REQ-036：末条心跳取胜（goal 剥 /loop 前缀）、stop:true 判终、
+        // 两心跳未续期滞隐、durable 在场时会话不混入（seg_loop 集成）。
+        let _env = crate::pathutil::ENV_LOCK.lock().unwrap();
+        let tmp = std::env::temp_dir().join(format!("hst-sw-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let proj = format!("{}/proj", tmp.display());
+        let slug: String = proj
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+            .collect();
+        let tdir = tmp.join(".claude").join("projects").join(&slug);
+        std::fs::create_dir_all(&tdir).unwrap();
+        let cfg = StatuslineConfig::default();
+        let d: Json =
+            serde_json::from_str(&format!(r#"{{"session_id":"s1","cwd":"{proj}"}}"#)).unwrap();
+        let ctx = Ctx {
+            d: &d,
+            agent: "claude".to_string(),
+            nerd: true,
+            cfg: &cfg,
+            home: &tmp,
+            dir: proj.clone(),
+            root: String::new(),
+            proj_kind: String::new(),
+            pkg_ver: String::new(),
+        };
+        std::env::set_var("HST_USER_HOME", &tmp);
+        let sw = |delay: u64, prompt: &str, extra: &str, ts: &str| {
+            format!(
+                r#"{{"timestamp":"{ts}","message":{{"content":[{{"type":"tool_use","name":"ScheduleWakeup","input":{{"delaySeconds":{delay},"prompt":"{prompt}","reason":"r","noop":false{extra}}}}}]}}"}}"#,
+            )
+        };
+        // 末条胜 + 前缀剥：ts 老、delay 30d → 滞隐窗外活态。
+        std::fs::write(
+            tdir.join("s1.jsonl"),
+            format!(
+                "{}\n{}\n",
+                sw(600, "/loop 旧心跳", "", "2026-09-01T00:00:00.000Z"),
+                sw(
+                    2592000,
+                    "/loop 确认解题后沉淀了步骤",
+                    "",
+                    "2026-09-01T00:30:00.000Z"
+                ),
+            ),
+        )
+        .unwrap();
+        assert_eq!(
+            session_loop_probe(&ctx),
+            Some(("30d".to_string(), "确认解题后沉淀了步骤".to_string()))
+        );
+        // seg_loop 集成：零 durable + 会话活 → 行出。
+        let row = seg_loop(&ctx).unwrap();
+        assert!(
+            row.contains("30d / 确认解题后沉淀了步骤"),
+            "session row: {row}"
+        );
+        // stop:true 判终。
+        std::fs::write(
+            tdir.join("s1.jsonl"),
+            sw(
+                2592000,
+                "/loop 终态",
+                ",\"stop\":true",
+                "2026-09-01T00:30:00.000Z",
+            ),
+        )
+        .unwrap();
+        assert_eq!(session_loop_probe(&ctx), None);
+        // 两心跳未续期滞隐（ts 2026-09-01 + 60s）。
+        std::fs::write(
+            tdir.join("s1.jsonl"),
+            sw(60, "/loop 短心跳", "", "2026-09-01T00:30:00.000Z"),
+        )
+        .unwrap();
+        assert_eq!(session_loop_probe(&ctx), None);
+        // durable 在场：会话不混入，行只出 durable。
+        let sdir = tmp.join("proj").join(".claude");
+        std::fs::create_dir_all(&sdir).unwrap();
+        std::fs::write(
+            tdir.join("s1.jsonl"),
+            sw(
+                2592000,
+                "/loop 会话心跳在场",
+                "",
+                "2026-09-01T00:30:00.000Z",
+            ),
+        )
+        .unwrap();
+        std::fs::write(
+            sdir.join("scheduled_tasks.json"),
+            r#"{"tasks":[{"id":"d1","cron":"*/15 * * * *","prompt":"durable 盯发布","createdAt":200,"createdBySessionId":"s1"}]}"#,
+        )
+        .unwrap();
+        let row = seg_loop(&ctx).unwrap();
+        assert!(row.contains("15m / durable 盯发布"), "durable wins: {row}");
+        assert!(!row.contains("会话心跳在场"), "session not mixed: {row}");
+        std::env::remove_var("HST_USER_HOME");
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 
     #[test]

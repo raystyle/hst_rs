@@ -8,7 +8,8 @@
  缺省形态 PowerShell Host 渲染器会剥 ANSI，旧载体在 agent 实际调用里
  无色，原生缺省带色，评审 F1）。复用单源：段序与模板配置走
  statusline.rs 的 StatuslineConfig 加 effective_orders；loop/goal 探针走
- loopmgmt；goalmode 倒序分块扫描本模块 Rust 形（流式倒扫）。性能面：无
+ loopmgmt；goalmode 与会话级 loop（ScheduleWakeup 源，REQ-036）倒序分块
+ 扫描本模块 Rust 形（流式倒扫）。性能面：无
  pwsh 冷启动（约 300ms）加流式倒扫（105MB transcript 毫秒级）。ANSI 退
  裸文本开关：`NO_COLOR` 或 `HST_STATUSLINE_NO_ANSI` 任一非空（评审 F1）。
  已知边界：tools 段（显式选用面）首版渲染为空、版本本地探测缓存面

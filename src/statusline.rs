@@ -549,7 +549,10 @@ if ($mcpCount) {
 /// 判据双层（REQ-035 收养回落，与原生渲染器同判）：等值优先，本会话零
 /// 自有任务时回落取项目文件全量（durable 任务项目作用域存活，创建会话
 /// 终结后触发仍落活会话而 createdBySessionId 不改写，2026-09-28
-/// prs_c2coe 工位重启实证）。文件缺失、会话 id 缺失、
+/// prs_c2coe 工位重启实证）。零 durable 任务时回落会话级 `/loop` 自调度
+/// （ScheduleWakeup）态（REQ-036，与原生渲染器同判：transcript 倒序分块
+/// 反扫末条工具调用，stop 判终加两心跳滞隐，goal 剥 `/loop ` 前缀）。
+/// 文件缺失、会话 id 缺失、
 /// JSON 坏损皆静默零命中（数据驱动退化，codex/kimi/grok 无此文件自然
 /// 无段）。
 const PS1_LOOPPROBE: &str = r#"
@@ -612,6 +615,114 @@ if ($loopSid2) {
                     $loopGoalText = $lg
                 }
             } catch {}
+        }
+        # ── REQ-036 会话级回落：/loop 自调度（ScheduleWakeup）态 ──
+        # 零 durable 任务时取会话 transcript 末条 ScheduleWakeup（倒序分
+        # 块反扫，与 goalmode 探针同技术）；stop:true 判终；就近回取条目
+        # timestamp 超两心跳未续期滞隐；与原生渲染器同判（转义解序 PS1 侧
+        # 为常见形，原生侧全形）。
+        if ($loopCount -eq 0) {
+            $swSlug = ($lpDir -replace '[^A-Za-z0-9]', '-')
+            $swFile = Join-Path (Join-Path (Join-Path $HOME '.claude') 'projects') (Join-Path $swSlug ($loopSid2 + '.jsonl'))
+            if (Test-Path -LiteralPath $swFile) {
+                try {
+                    $swMark = '"name":"ScheduleWakeup","input":{'
+                    $swFs = [System.IO.File]::Open($swFile, 'Open', 'Read', 'ReadWrite')
+                    try {
+                        # 变量异名纪律（09-26 三缺陷坑）：尺寸常量与解码串异名。
+                        $swChunkSz = 4194304
+                        $swOvl = 512
+                        $swPos = $swFs.Length
+                        $swPrevHead = New-Object byte[] 0
+                        $swHit = $false
+                        while ($swPos -gt 0 -and -not $swHit) {
+                            $swTake = [int][Math]::Min($swChunkSz, $swPos)
+                            $swPos -= $swTake
+                            $swFs.Position = $swPos
+                            $swBuf = New-Object byte[] $swTake
+                            $swOff = 0
+                            while ($swOff -lt $swTake) {
+                                $swN = $swFs.Read($swBuf, $swOff, $swTake - $swOff)
+                                if ($swN -le 0) { break }
+                                $swOff += $swN
+                            }
+                            $swComb = New-Object byte[] ($swOff + $swPrevHead.Length)
+                            [Array]::Copy($swBuf, 0, $swComb, 0, $swOff)
+                            [Array]::Copy($swPrevHead, 0, $swComb, $swOff, $swPrevHead.Length)
+                            if ($swOff -gt $swOvl) { $swPrevHead = $swComb[0..($swOvl - 1)] } else { $swPrevHead = $swComb }
+                            $swTxt = [System.Text.Encoding]::UTF8.GetString($swComb)
+                            $swIdx = $swTxt.LastIndexOf($swMark, [System.StringComparison]::Ordinal)
+                            if ($swIdx -ge 0) {
+                                $swHit = $true
+                                # input 对象跨（字符串感知找配对 }，跨界劈开宽容到串尾）
+                                $swObjStart = $swIdx + $swMark.Length - 1
+                                $swDepth = 0; $swInStr = $false; $swEsc = $false; $swObjEnd = -1
+                                for ($swJ = $swObjStart; $swJ -lt $swTxt.Length; $swJ++) {
+                                    $swC = $swTxt[$swJ]
+                                    if ($swEsc) { $swEsc = $false; continue }
+                                    if ($swC -eq '\' -and $swInStr) { $swEsc = $true; continue }
+                                    if ($swC -eq '"') { $swInStr = -not $swInStr }
+                                    if (-not $swInStr) {
+                                        if ($swC -eq '{') { $swDepth++ }
+                                        elseif ($swC -eq '}') { $swDepth--; if ($swDepth -eq 0) { $swObjEnd = $swJ; break } }
+                                    }
+                                }
+                                if ($swObjEnd -lt 0) { $swObjEnd = $swTxt.Length - 1 }
+                                $swObj = $swTxt.Substring($swObjStart, $swObjEnd - $swObjStart + 1)
+                                if ($swObj -notmatch '"stop":true') {
+                                    $swDelay = 0
+                                    if ($swObj -match '"delaySeconds":(\d+)') { $swDelay = [int64]$Matches[1] }
+                                    if ($swDelay -gt 0) {
+                                        $swLive = $true
+                                        $swTsIdx = $swTxt.LastIndexOf('"timestamp":"', $swIdx, [System.StringComparison]::Ordinal)
+                                        if ($swTsIdx -ge 0) {
+                                            $swTsStr = $swTxt.Substring($swTsIdx + 13, [Math]::Min(25, $swTxt.Length - $swTsIdx - 13))
+                                            try {
+                                                $swTs = [DateTimeOffset]::Parse($swTsStr, [System.Globalization.CultureInfo]::InvariantCulture)
+                                                if (([DateTimeOffset]::UtcNow - $swTs).TotalSeconds -gt ($swDelay * 2)) { $swLive = $false }
+                                            } catch {}
+                                        }
+                                        if ($swLive) {
+                                            $swGoal = ''
+                                            if ($swObj -match '"prompt":"((?:[^"\\]|\\.)*)"') { $swGoal = $Matches[1] }
+                                            $swGoal = (($swGoal -replace '\\n', ' ') -replace '\\r', ' ' -replace '\\"', '"' -replace '\\\\', '\').Trim()
+                                            if ($swGoal.StartsWith('/loop ')) { $swGoal = $swGoal.Substring(6).Trim() }
+                                            if ($swGoal.Length -gt 60) {
+                                                $swCut = 60
+                                                if ([char]::IsHighSurrogate($swGoal[59])) { $swCut = 59 }
+                                                $swGoal = $swGoal.Substring(0, $swCut) + '…'
+                                            }
+                                            # 节拍人性化与原生 delay_cadence 同判
+                                            $swLoopCadence = ''
+                                            if ($swDelay -lt 60) { $swLoopCadence = ('{0}s' -f $swDelay) }
+                                            else {
+                                                $swM = [math]::Floor($swDelay / 60)
+                                                if ($swM -lt 60) { $swLoopCadence = ('{0}m' -f $swM) }
+                                                else {
+                                                    $swH = [math]::Floor($swM / 60); $swRm = $swM % 60
+                                                    if ($swH -lt 24) {
+                                                        if ($swRm -eq 0) { $swLoopCadence = ('{0}h' -f $swH) }
+                                                        else { $swLoopCadence = ('{0}h{1:d2}m' -f $swH, $swRm) }
+                                                    }
+                                                    else {
+                                                        $swD = [math]::Floor($swH / 24); $swRh = $swH % 24
+                                                        if ($swRh -eq 0) { $swLoopCadence = ('{0}d' -f $swD) }
+                                                        else { $swLoopCadence = ('{0}d{1:d2}h' -f $swD, $swRh) }
+                                                    }
+                                                }
+                                            }
+                                            $loopCount = 1
+                                            $loopCadence = $swLoopCadence
+                                            $loopEvery = $swLoopCadence
+                                            $loopGoalText = $swGoal
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } finally { $swFs.Dispose() }
+                } catch {}
+            }
         }
     }
 }
@@ -3252,6 +3363,61 @@ mod tests {
         // session_id 缺失（codex/kimi/grok 同型）。
         let out = run_statusline(&p, "claude", &home, br#"{"version":"9.9.9"}"#);
         assert!(!out.contains('×'), "no sid hidden: {out}");
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn session_loop_row_falls_back_when_no_durable() {
+        // REQ-036 PS1 面：零 durable 任务时 loop 行回落会话级 /loop 自调
+        // 度态（末条 ScheduleWakeup）；stop 判终行隐。夹具同 goalmode 形：
+        // scratch 家钉 HOME，transcript 落 .claude/projects/<slug>/s1.jsonl。
+        if !pwsh_on_path() {
+            eprintln!("skip: pwsh not on path (pwsh gate)");
+            return;
+        }
+        let home = scratch("sw-st");
+        let p = deploy_script(&home).unwrap();
+        let slug: String = home
+            .to_string_lossy()
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+            .collect();
+        let sessdir = home.join(".claude").join("projects").join(&slug);
+        std::fs::create_dir_all(&sessdir).unwrap();
+        let log = sessdir.join("s1.jsonl");
+        let stdin = format!(
+            "{{\"session_id\":\"s1\",\"workspace\":{{\"project_dir\":\"{}\"}}}}",
+            home.display()
+        )
+        .into_bytes();
+        let run = || {
+            run_statusline_with(
+                &p,
+                "claude",
+                &home,
+                &stdin,
+                &[("HOME", home.as_os_str().to_os_string())],
+            )
+        };
+        // 活态：delay 30d（ts 老但在两心跳窗内）→ loop 行出 30d 加剥前缀 goal。
+        std::fs::write(
+            &log,
+            r#"{"timestamp":"2026-09-01T00:30:00.000Z","message":{"content":[{"type":"tool_use","name":"ScheduleWakeup","input":{"delaySeconds":2592000,"prompt":"/loop 确认解题后沉淀了步骤","reason":"r","noop":false}}]}}"#,
+        )
+        .unwrap();
+        let out = run();
+        assert!(
+            out.contains("30d / 确认解题后沉淀了步骤"),
+            "session row: {out}"
+        );
+        // stop 判终：行隐。
+        std::fs::write(
+            &log,
+            r#"{"timestamp":"2026-09-01T00:30:00.000Z","message":{"content":[{"type":"tool_use","name":"ScheduleWakeup","input":{"delaySeconds":2592000,"prompt":"/loop 终态","reason":"r","stop":true}}]}}"#,
+        )
+        .unwrap();
+        let out = run();
+        assert!(!out.contains("终态"), "stopped hidden: {out}");
         let _ = std::fs::remove_dir_all(&home);
     }
 
