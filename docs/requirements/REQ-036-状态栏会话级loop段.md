@@ -28,5 +28,6 @@ trace: statusrender 单测 session_loop_probe_verdicts_four_forms（末条胜加
 
 - 会话级（非 durable）CronCreate 任务不在源内（transcript 形未实证，候裁）；本 REQ 只盖 ScheduleWakeup 面。
 - 自治 loop 的哨兵 prompt（`<<autonomous-loop-dynamic>>`）显示为原文本（goal 段空串语义同 durable 空合法态）。
-- timestamp 回取限距（Rust 就近无界至块首、PS1 LastIndexOf 限窗）：条目 timestamp 距标记超窗或跨界劈开时不判龄乐观显；滞隐判据依赖模型按心跳续期的纪律，静默弃约最长滞显两倍心跳时长。
+- timestamp 回取限距（Rust 就近无界至块首、PS1 LastIndexOf 限窗）：条目 timestamp 距标记超窗或跨界劈开时不判龄乐观显；Rust 侧 ts 回取不限行界，标记行跨界劈开时会取到上一条目 ts（判龄偏老的理论假阴，活态不误隐：上一条 ts 加两心跳约等于本条 ts 加一心跳恒大于 now；评审 G3）。滞隐判据依赖模型按心跳续期的纪律，静默弃约最长滞显两倍心跳时长。
+- 标记假阴残余（评审 G2）：更新的未再编码嵌套对象引文排在真行之后且无 delaySeconds 字段时，末中即锁会把更老的真行掩掉；转义引文形实测不命中，概率极低，收紧面（tool_use 前锚校验或假阴续扫）候裁。
 - goal 段（可选段）仍只取 durable 源，会话级 goal 文本只在 loop 行显示。

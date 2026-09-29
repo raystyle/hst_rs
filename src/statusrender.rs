@@ -1814,7 +1814,9 @@ fn json_string_at(s: &str) -> Option<String> {
                 'n' => out.push('\n'),
                 'r' => out.push('\r'),
                 't' => out.push('\t'),
-                '"' | '\\' | '/' | 'b' | 'f' => out.push(c),
+                'b' => out.push('\u{8}'),
+                'f' => out.push('\u{c}'),
+                '"' | '\\' | '/' => out.push(c),
                 'u' => {
                     let mut code = 0u32;
                     for _ in 0..4 {

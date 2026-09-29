@@ -3,7 +3,9 @@
 //! CronCreate 的同源落盘形，实证 2026-09-23 探针：tasks[] 含 id / cron /
 //! prompt / recurring / createdAt / createdBySessionId / createdByPid /
 //! createdByProcStart）；hst 是该文件的读写管理面（set / list / del），
-//! 状态栏 loop 与 goal 段同源只读消费，不自建第二状态文件。会话归属
+//! 状态栏 loop 与 goal 段同源只读消费（loop 段零 durable 时回落会话 /loop
+//! 自调度态即 ScheduleWakeup 源，REQ-036；goal 段仍只取 durable 源），不自
+//! 建第二状态文件。会话归属
 //! 判据分面：CLI 管理面（ours 标记与 goal 改写前置）= `createdBySessionId`
 //! 与当前会话 id 等值；状态栏显示面在等值零命中时收养回落项目全量
 //! （REQ-035：durable 任务项目作用域存活，创建会话终结后触发仍落活会话

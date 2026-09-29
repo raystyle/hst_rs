@@ -676,7 +676,9 @@ if ($loopSid2) {
                                         $swLive = $true
                                         $swTsIdx = $swTxt.LastIndexOf('"timestamp":"', $swIdx, [System.StringComparison]::Ordinal)
                                         if ($swTsIdx -ge 0) {
-                                            $swTsStr = $swTxt.Substring($swTsIdx + 13, [Math]::Min(25, $swTxt.Length - $swTsIdx - 13))
+                                            # 取到闭合引号为止（评审 F1：固定 25 字符带尾随
+                                            # 引号致 Parse 恒抛被 catch 吞，滞隐判据恒失效）。
+                                            $swTsStr = ($swTxt.Substring($swTsIdx + 13) -split '"', 2)[0]
                                             try {
                                                 $swTs = [DateTimeOffset]::Parse($swTsStr, [System.Globalization.CultureInfo]::InvariantCulture)
                                                 if (([DateTimeOffset]::UtcNow - $swTs).TotalSeconds -gt ($swDelay * 2)) { $swLive = $false }
@@ -1939,7 +1941,8 @@ pub const EXAMPLE_TOML: &str = r#"# ~/.hst/statusline.toml —— 状态栏用�
 # segments3 = 第三行 hookstate 专属行（注册面 hook 功能别名清单，双缺
 # 整行隐藏）、
 # segments4 = 第四行 loop/goal 专属行（本会话 durable 定时任务计数加节拍
-# 与 goal 文本，无任务时整行隐藏）、
+# 与 goal 文本，零 durable 时回落会话 /loop 自调度态；goal 段仍只取
+# durable 源，无任务时整行隐藏）、
 # segments5 = 第五行 goalmode 专属行（/goal Goal Mode 条件加在役态
 # active/paused，会话 transcript 尾探，无 goal 整行隐藏），
 # 段 id 数组即全量（显隐加顺序）；tools / mcp / tokens 三段仍可显式写入
@@ -3418,6 +3421,15 @@ mod tests {
         .unwrap();
         let out = run();
         assert!(!out.contains("终态"), "stopped hidden: {out}");
+        // 滞隐：ts 2026-09-01 加 60s 心跳，远超两心跳窗（评审 F1 收口：
+        // 取值到闭合引号前，Parse 不再恒抛）。
+        std::fs::write(
+            &log,
+            r#"{"timestamp":"2026-09-01T00:30:00.000Z","message":{"content":[{"type":"tool_use","name":"ScheduleWakeup","input":{"delaySeconds":60,"prompt":"/loop 短心跳","reason":"r","noop":false}}]}}"#,
+        )
+        .unwrap();
+        let out = run();
+        assert!(!out.contains("短心跳"), "stale hidden: {out}");
         let _ = std::fs::remove_dir_all(&home);
     }
 
