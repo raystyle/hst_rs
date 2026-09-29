@@ -1,8 +1,8 @@
 //! 状态栏原生渲染引擎（ADR-0010、REQ-026）：`hst statusline render <agent>`
-//! 读 stdin agent JSON 出状态行，契约与退役中的 pwsh 脚本逐字对齐（对版
-//! 口径：pwsh 侧强制 `$PSStyle.OutputRendering='Ansi'` 后逐字相同；管道
-//! 缺省形态 PowerShell Host 渲染器会剥 ANSI，旧载体在 agent 实际调用里
-//! 无色，原生缺省带色，评审 F1）。复用单源：段序与模板配置走
+//! 读 stdin agent JSON 出状态行。REQ-038 起 PS1 载体完全淘汰，本引擎是
+//! 唯一渲染载体（历史对版口径见 ADR-0010 与 REQ-026：与退役前 pwsh 脚本
+//! 在 Ansi 形下逐字相同；管道缺省形态 PowerShell Host 渲染器剥 ANSI，旧
+//! 载体在 agent 实际调用里无色，原生缺省带色，评审 F1）。复用单源：段序与模板配置走
 //! statusline.rs 的 StatuslineConfig 加 effective_orders；loop/goal 探针走
 //! loopmgmt；goalmode 与会话级 loop（ScheduleWakeup 源，REQ-036）倒序分块
 //! 扫描本模块 Rust 形（流式倒扫）。性能面：无
@@ -1587,7 +1587,10 @@ fn seg_goalmode(ctx: &Ctx) -> Option<String> {
 }
 
 /// goalmode 探针（Rust 形倒序分块扫描）：顶层结构锚两形（全链加短形）加
-/// paused 系统事件加 clear 指令；512B 跨界重叠；状态与文本独立回溯。
+/// paused 系统事件加 clear 指令加设标形（REQ-037：2.1.270 的 /goal 以
+/// queue-operation 主链 content 加 queued_command 附件 prompt 落盘，常稳
+/// 运转不产 check-in 标记，缺此形新设 goal 行恒隐）；512B 跨界重叠；
+/// 状态与文本独立回溯。
 fn goalmode_probe(ctx: &Ctx) -> Option<(String, String)> {
     let sid = s(ctx.d, &["session_id"]);
     if sid.is_empty() {
@@ -1796,67 +1799,90 @@ fn object_span(t: &str) -> &str {
     &t[start..]
 }
 
-/// 解一个 JSON 字符串字面量（首字符须为 `"`），出解转义内容；常见转义
-/// 全覆盖，`\u` 形按 BMP 单元处理（代理对拼合与孤立代理丢弃；transcript
-/// 实测 prompt 中文恒裸 UTF-8，转义只出现在引号与换行）。尾界失配（跨界
-/// 劈开）宽容取到串尾。
-fn json_string_at(s: &str) -> Option<String> {
-    let mut it = s.chars().peekable();
-    if it.next()? != '"' {
-        return None;
-    }
+/// 串内续解原语：入口已在 JSON 字符串内部（开引号已由锚消费），解转义
+/// 直进到闭合引号；出（文本， 消费字节数含闭合引号）。`\u` 形含代理对
+/// 拼合（孤立代理丢弃）；尾界失配（跨界劈开）宽容取到串尾。多字节字符
+/// 按边界整段推进。
+fn json_capture(t: &str) -> Option<(String, usize)> {
+    let b = t.as_bytes();
     let mut out = String::new();
-    let mut esc = false;
-    while let Some(c) = it.next() {
-        if esc {
-            esc = false;
-            match c {
-                'n' => out.push('\n'),
-                'r' => out.push('\r'),
-                't' => out.push('\t'),
-                'b' => out.push('\u{8}'),
-                'f' => out.push('\u{c}'),
-                '"' | '\\' | '/' => out.push(c),
-                'u' => {
-                    let mut code = 0u32;
-                    for _ in 0..4 {
-                        code = code * 16 + it.next()?.to_digit(16)?;
-                    }
-                    // 代理对拼合；孤立代理丢弃（值域外 char::from_u32 恒 None）
+    let mut i = 0usize;
+    while i < b.len() {
+        let c = b[i] as char;
+        if c == '\\' {
+            match b.get(i + 1).map(|&x| x as char) {
+                Some('n') => {
+                    out.push('\n');
+                    i += 2;
+                }
+                Some('r') => {
+                    out.push('\r');
+                    i += 2;
+                }
+                Some('t') => {
+                    out.push('\t');
+                    i += 2;
+                }
+                Some('b') => {
+                    out.push('\u{8}');
+                    i += 2;
+                }
+                Some('f') => {
+                    out.push('\u{c}');
+                    i += 2;
+                }
+                Some('"') | Some('\\') | Some('/') => {
+                    out.push(b[i + 1] as char);
+                    i += 2;
+                }
+                Some('u') => {
+                    let hex = t.get(i + 2..i + 6)?;
+                    let code = u32::from_str_radix(hex, 16).ok()?;
+                    let mut next = i + 6;
+                    let mut val = code;
                     if (0xD800..=0xDBFF).contains(&code) {
-                        let mut low = None;
-                        if it.peek() == Some(&'\\') {
-                            let mut probe = it.clone();
-                            if probe.next() == Some('\\') && probe.next() == Some('u') {
-                                let mut c2 = 0u32;
-                                for _ in 0..4 {
-                                    c2 = c2 * 16 + probe.next()?.to_digit(16)?;
+                        if let (Some(bs), Some(h2)) =
+                            (t.get(next..next + 2), t.get(next + 2..next + 6))
+                        {
+                            if bs == "\\u" {
+                                if let Ok(lo) = u32::from_str_radix(h2, 16) {
+                                    if (0xDC00..=0xDFFF).contains(&lo) {
+                                        val = 0x10000 + ((code - 0xD800) << 10) + (lo - 0xDC00);
+                                        next += 6;
+                                    }
                                 }
-                                low = Some(c2);
-                                it = probe;
                             }
                         }
-                        if let Some(lo) = low.filter(|lo| (0xDC00..=0xDFFF).contains(lo)) {
-                            code = 0x10000 + ((code - 0xD800) << 10) + (lo - 0xDC00);
-                        } else {
-                            continue;
-                        }
                     }
-                    if let Some(ch) = char::from_u32(code) {
+                    if let Some(ch) = char::from_u32(val) {
                         out.push(ch);
                     }
+                    i = next;
                 }
-                _ => {}
+                _ => i += 1,
             }
             continue;
         }
-        match c {
-            '\\' => esc = true,
-            '"' => return Some(out),
-            _ => out.push(c),
+        if c == '"' {
+            return Some((out, i + 1));
         }
+        let mut e = i + 1;
+        while e < b.len() && (b[e] & 0xC0) == 0x80 {
+            e += 1;
+        }
+        out.push_str(&t[i..e]);
+        i = e;
     }
-    Some(out)
+    Some((out, t.len()))
+}
+
+/// 解一个 JSON 字符串字面量（首字符须为 `"`），出解转义内容。转义语义
+/// 单源在 [`json_capture`]。
+fn json_string_at(s: &str) -> Option<String> {
+    if !s.starts_with('"') {
+        return None;
+    }
+    json_capture(&s[1..]).map(|(t, _)| t)
 }
 
 /// ISO 8601 UTC 形（`2026-09-29T00:37:43.611Z`）手解为 epoch 秒（无
@@ -1934,6 +1960,13 @@ fn scan_markers(chunk: &str) -> Vec<Marker> {
     let still = "» is still active";
     let paused = r#""type":"system","subtype":"informational","content":"Goal paused"#;
     let clear = r#""role":"user","content":"/goal "#;
+    // REQ-037 设标形：2.1.270 的 /goal 设标以排队件落盘（主链
+    // queue-operation 的 content 加 queued_command 附件的 prompt，同事件
+    // 多副本同文本幂等）；常稳运转的 goal 不产 check-in 标记，缺此形则
+    // 新设 goal 行恒隐（2026-09-29 prs_c2coe 双会话实证）。
+    let set_q = r#""content":"Goal set: "#;
+    let set_a = r#""prompt":"Goal set: "#;
+    let clear_q = r#""prompt":"/goal "#;
     let mut i = 0;
     let b = chunk.as_bytes();
     while i < b.len() {
@@ -1984,6 +2017,36 @@ fn scan_markers(chunk: &str) -> Vec<Marker> {
             if rest.starts_with("clear") || rest.starts_with("off") || rest.starts_with("stop") {
                 found = Some((
                     clear.len(),
+                    Marker {
+                        kind: MarkerKind::Clear,
+                        text: None,
+                    },
+                ));
+            }
+        } else if chunk[i..].starts_with(set_q) || chunk[i..].starts_with(set_a) {
+            // REQ-037：2.1.270 设标形（queue-operation 主链 content 加
+            // queued_command 附件 prompt，同事件多副本幂等）；文本解转义
+            // 取到闭合引号，active 态。
+            let p = if chunk[i..].starts_with(set_q) {
+                set_q.len()
+            } else {
+                set_a.len()
+            };
+            if let Some((text, n)) = json_capture(&chunk[i + p..]) {
+                found = Some((
+                    p + n,
+                    Marker {
+                        kind: MarkerKind::Active,
+                        text: Some(text),
+                    },
+                ));
+            }
+        } else if chunk[i..].starts_with(clear_q) {
+            // REQ-037：排队 clear 形（queued_command 附件 prompt 载体）。
+            let rest = &chunk[i + clear_q.len()..];
+            if rest.starts_with("clear") || rest.starts_with("off") || rest.starts_with("stop") {
+                found = Some((
+                    clear_q.len(),
                     Marker {
                         kind: MarkerKind::Clear,
                         text: None,
@@ -2516,6 +2579,77 @@ mod tests {
         // 选入前须 contains 命中 shell token，空名不可达不上屏。
         assert_eq!(normalize_shell_name("--zsh"), "zsh");
         assert_eq!(normalize_shell_name("-"), "");
+    }
+
+    #[test]
+    fn scan_markers_goal_set_forms() {
+        // REQ-037：2.1.270 设标形入词表（queue-operation 主链 content 加
+        // queued_command 附件 prompt），取 active 态加解转义文本；深层
+        // 引文形不中；排队 clear 形判清态。
+        let q = r#"{"type":"queue-operation","content":"Goal set: 完成所有题目 解题过程"}"#;
+        let ms = scan_markers(q);
+        assert_eq!(ms.len(), 1);
+        assert!(matches!(ms[0].kind, MarkerKind::Active));
+        assert_eq!(ms[0].text.as_deref(), Some("完成所有题目 解题过程"));
+        let a = r#"{"type":"attachment","attachment":{"type":"queued_command","prompt":"Goal set: \"引号\"与\n换行"},"rendered":[]}"#;
+        let ms = scan_markers(a);
+        assert_eq!(ms.len(), 1);
+        assert_eq!(ms[0].text.as_deref(), Some("\"引号\"与\n换行"));
+        // 字符串值内嵌的引文形（再编码）不中。
+        let quoted = r#"{"type":"user","content":"[{\"prompt\":\"Goal set: 假标\"}]"}"#;
+        assert!(scan_markers(quoted).is_empty());
+        // 排队 clear 形。
+        let c = r#"{"type":"attachment","attachment":{"type":"queued_command","prompt":"/goal clear"}}"#;
+        let ms = scan_markers(c);
+        assert_eq!(ms.len(), 1);
+        assert!(matches!(ms[0].kind, MarkerKind::Clear));
+    }
+
+    #[test]
+    fn goalmode_probe_reads_goal_set_form() {
+        // REQ-037 端到端：仅设标形（无常稳运转不产的 check-in 标记）也
+        // 出 active 态行。夹具钉 HST_USER_HOME。
+        let _env = crate::pathutil::ENV_LOCK.lock().unwrap();
+        let tmp = std::env::temp_dir().join(format!("hst-gs-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let proj = format!("{}/proj", tmp.display());
+        let slug: String = proj
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+            .collect();
+        let tdir = tmp.join(".claude").join("projects").join(&slug);
+        std::fs::create_dir_all(&tdir).unwrap();
+        std::fs::write(
+            tdir.join("s1.jsonl"),
+            r#"{"x":1}
+{"type":"queue-operation","content":"Goal set: 完成所有题目 解题过程： browse交互逻辑分析"}
+"#,
+        )
+        .unwrap();
+        std::env::set_var("HST_USER_HOME", &tmp);
+        let cfg = StatuslineConfig::default();
+        let d: Json =
+            serde_json::from_str(&format!(r#"{{"session_id":"s1","cwd":"{proj}"}}"#)).unwrap();
+        let ctx = Ctx {
+            d: &d,
+            agent: "claude".to_string(),
+            nerd: true,
+            cfg: &cfg,
+            home: &tmp,
+            dir: proj.clone(),
+            root: String::new(),
+            proj_kind: String::new(),
+            pkg_ver: String::new(),
+        };
+        assert_eq!(
+            goalmode_probe(&ctx),
+            Some((
+                "active".to_string(),
+                "完成所有题目 解题过程： browse交互逻辑分析".to_string()
+            ))
+        );
+        std::env::remove_var("HST_USER_HOME");
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 
     #[test]
