@@ -1490,16 +1490,26 @@ fn init_compact_pct_preview_apply_off_and_doctor_check() {
 #[test]
 fn statusline_render_native_marker_smoke() {
     // REQ-038 评审 G5 加 G7.1 直钉：原生渲染全链（默认行序 + 机读标记 +
-    // 多行结构），PS1 淘汰后这是唯一渲染面。
+    // 多行结构），PS1 淘汰后这是唯一渲染面。HST_ROOT 钉 scratch 密闭
+    //（不读真实 ~/.hst 定制与状态）。
+    let tmp = std::env::temp_dir().join(format!("hst-render-smoke-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp);
+    std::fs::create_dir_all(&tmp).unwrap();
     let out = hst()
+        .env("HST_ROOT", &tmp)
+        .env("HST_USER_HOME", &tmp)
         .args(["statusline", "--render", "claude"])
         .write_stdin("{}")
         .output()
         .unwrap();
+    let _ = std::fs::remove_dir_all(&tmp);
     assert!(out.status.success());
     let s = String::from_utf8_lossy(&out.stdout);
-    assert!(s.contains("claude"), "agent marker present: {s}");
-    assert!(s.lines().count() >= 2, "multi-row layout: {s}");
+    assert!(
+        hst::verify::statusline_marker_ok("claude", &s),
+        "machine marker: {s}"
+    );
+    assert_eq!(s.lines().count(), 3, "default three-row layout (hookstate row3, loop/goalmode hidden): {s}");
 }
 
 #[test]

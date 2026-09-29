@@ -1891,7 +1891,7 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
     match grok_statusline_state(&home) {
         GrokStatusline::CmdPath => {
             #[cfg(windows)]
-            push_statusline(&mut findings, "grok", true, &grok_cfg, sl_grok_ok);
+            push_statusline(&mut findings, "grok", true, &grok_cfg);
             #[cfg(not(windows))]
             push_status(
                 &mut findings,

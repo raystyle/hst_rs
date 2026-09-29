@@ -2616,11 +2616,17 @@ mod tests {
         let ms = scan_markers(c);
         assert_eq!(ms.len(), 1);
         assert!(matches!(ms[0].kind, MarkerKind::Clear));
-        // 评审 G2：冒号后带空格的序列化形同认。
+        // 评审 G2：冒号后带空格的序列化形同认（三载体全测）。
         let sp = r#"{"type": "queue-operation", "content": "Goal set: 带空格形"}"#;
         let ms = scan_markers(sp);
         assert_eq!(ms.len(), 1);
         assert_eq!(ms[0].text.as_deref(), Some("带空格形"));
+        let sp_a = r#"{"type": "attachment", "attachment": {"type": "queued_command", "prompt": "Goal set: 附件空格形"}, "rendered": []}"#;
+        let ms = scan_markers(sp_a);
+        assert_eq!(ms.len(), 1);
+        assert_eq!(ms[0].text.as_deref(), Some("附件空格形"));
+        let sp_c = r#"{"type": "attachment", "attachment": {"type": "queued_command", "prompt": "/goal clear"}}"#;
+        assert!(matches!(scan_markers(sp_c)[0].kind, MarkerKind::Clear));
     }
 
     #[test]
