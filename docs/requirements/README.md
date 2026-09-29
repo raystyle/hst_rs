@@ -39,3 +39,5 @@
 | REQ-034 | implemented | must | actl适配反馈件三件 | init --yes 全局面接受加 doctor hooks.form 壳名族判据收编加 llms 适配面一行；实弹四判据全过加全测 258 加 49 绿 |
 | REQ-035 | implemented | must | 状态栏loop段收养回落 | statusrender 单测一件加 statusline 改件（外会话任务翻转为显示）；实弹 prs_c2coe 真 payload 双判据对照 |
 | REQ-036 | implemented | must | 状态栏会话级loop段 | statusrender 单测四形一件加 statusline PS1 面两态件；实弹真会话 payload 渲染 25m 心跳行 |
+| REQ-037 | implemented | must | 状态栏goalmode设标形 | statusrender 单测四断言加 probe 级 e2e；实弹真会话 payload 渲染 goalmode 行 |
+| REQ-038 | implemented | must | PS1载体完全淘汰 | init 退役清扫（.ps1 加 .custom 摘除）加 verify 直跑原生渲染加 doctor 判据去脚本面加 --script/--builtin 旗标摘除；实弹五端 init 清扫与冒烟 |

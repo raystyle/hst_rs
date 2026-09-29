@@ -890,19 +890,15 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
     // 级分支。
     let home_is_root = crate::pathutil::same_location(&root, &home);
 
-    // 部署诊断共享事实：状态栏脚本与 pwsh 探测一次（S025），登录态用统一
-    // 时间基准（S026）。
+    // 部署诊断共享事实：状态栏配置面（REQ-038 后无脚本在位判据，grok
+    // thin .cmd 壳除外），登录态用统一时间基准（S026）。
     let oma_root = crate::install::hst_home().ok();
-    let sl_script_ok = oma_root
+    let sl_script_ok = true;
+    let sl_grok_ok = oma_root
         .as_deref()
-        .map(crate::statusline::script_path)
+        .map(crate::statusline::grok_cmd_path)
         .is_some_and(|p| p.is_file());
-    let sl_grok_ok = sl_script_ok
-        && oma_root
-            .as_deref()
-            .map(crate::statusline::grok_cmd_path)
-            .is_some_and(|p| p.is_file());
-    let sl_pwsh_missing = !crate::statusline::pwsh_on_path();
+    let sl_pwsh_missing = false;
     let now = OffsetDateTime::now_utc();
     let now_secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)

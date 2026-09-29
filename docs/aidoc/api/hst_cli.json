@@ -775,7 +775,7 @@
     {
       "path": "hst_cli::statusline",
       "kind": "module",
-      "docs": "`hst statusline`：四家状态栏写入面幂等合并与拆段拼装（S025/D18/D42 至 D51）。\nagent 状态栏配置（用户定调 2026-09-01，参考 ohmypwsh 幂等合并形态）：\n- claude code：`~/.claude/settings.json` 合并 `statusLine` 块（serde_json\n  读改写，保留 env/permissions 等，只覆盖 statusLine 键）\n- codex：`~/.codex/config.toml` 顶层 `[tui]` 段整段替换（幂等），\n  `status_line` 为内置项 ID 数组（Codex 无外部命令面，S016）\n状态栏脚本本体（pwsh）随 hst 释放到 `~/.hst/statusline/`。\n用户定调 2026-09-02：渲染对齐用户 starship 配置风格（目录截断、git 旗标、\n包与工具链版本段、nerdfont 图标、Catppuccin 系 256 色）；hst 段 = 当前\nagent 名 + 实时四态（hook 状态通道 + 会话闸，机读标记见 S025），另探测\nagent 宿主 shell（macOS 走 ps 兜底）。"
+      "docs": "`hst statusline`：四家状态栏写入面幂等合并与拆段拼装（S025/D18/D42 至 D51）。\nagent 状态栏配置（用户定调 2026-09-01，参考 ohmypwsh 幂等合并形态）：\n- claude code：`~/.claude/settings.json` 合并 `statusLine` 块（serde_json\n  读改写，保留 env/permissions 等，只覆盖 statusLine 键）\n- codex：`~/.codex/config.toml` 顶层 `[tui]` 段整段替换（幂等），\n  `status_line` 为内置项 ID 数组（Codex 无外部命令面，S016）\nREQ-038：pwsh 脚本载体完全淘汰（用户令 2026-09-29「powershell 完全淘汰\n不用保留」，撤销 REQ-032 的弃用期保留一代）；渲染唯一载体 = 原生\n`hst statusline --render`（ADR-0010），grok 的 thin `.cmd` 壳直调原生。\n用户定调 2026-09-02：渲染对齐用户 starship 配置风格（目录截断、git 旗标、\n包与工具链版本段、nerdfont 图标、Catppuccin 系 256 色）；hst 段 = 当前\nagent 名 + 实时四态（hook 状态通道 + 会话闸，机读标记见 S025）。"
     },
     {
       "path": "hst_cli::statusline::EXAMPLE_TOML",
@@ -788,9 +788,9 @@
       "docs": "`~/.hst/statusline.toml` 用户级定制（D18）。键级缺省回落内嵌默认：\n没写的键用默认，写下的键生效；坏文件硬错退出 1。"
     },
     {
-      "path": "hst_cli::statusline::custom_active",
+      "path": "hst_cli::statusline::cleanup_legacy_script",
       "kind": "function",
-      "docs": "自备脚本当前是否在场（kv 面 statusline.custom 用）。"
+      "docs": "REQ-038：PS1 载体完全淘汰的退役清扫（幂等）。摘除弃用期保留的\n`hst-statusline.ps1` 与自备脚本标记 `.custom`（grok thin `.cmd` 壳调\n原生渲染，保留）；返回被摘除的文件名清单（kv 面回显，空 = 无残余）。"
     },
     {
       "path": "hst_cli::statusline::default_icon",
@@ -801,16 +801,6 @@
       "path": "hst_cli::statusline::default_template",
       "kind": "function",
       "docs": "内嵌默认模板（D18）。键 = 段 id；`context-ascii` 是 grok 的结构差异项\n（nerd 版带 used/window 括号对，ascii 版只有百分比加 ctx 后缀）。\n各段可用占位符见 `hst statusline --example`；git 段默认前导空格在 branch / flags 变量里。\n原生渲染引擎取默认模板（单一权威表）。"
-    },
-    {
-      "path": "hst_cli::statusline::deploy_custom_script",
-      "kind": "function",
-      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n部署用户自备脚本（D18 整脚本替换）：拷到部署位，agent 配置命令行不动\n（claude / kimi / grok 调用约定不变：首参 agent 名，stdin 喂 agent JSON，\nstdout 单行状态栏）；marker 记源路径，此后无 `--script` 的重跑跳过内嵌\n覆盖。codex 无脚本面（M045），对 codex 只有 `[codex] items` 生效。"
-    },
-    {
-      "path": "hst_cli::statusline::deploy_script",
-      "kind": "function",
-      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n释放状态栏脚本（幂等覆写）。按 `~/.hst/statusline.toml` 生成时烘焙：\nsegments 键控段序与显隐，缺省回落内嵌默认（D18）。自备脚本标记在场时\n跳过覆写（只保 grok .cmd 壳，见 D18 整脚本替换）。"
     },
     {
       "path": "hst_cli::statusline::effective_orders_pub",
@@ -838,11 +828,6 @@
       "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n状态栏的kimi面（细则见模块文档与集成测试）。\ncmd/sh 执行，首行接管 footer；300ms 超时由 kimi 侧约束，超时自动回退\n内置布局——S025）。其它表保留。\nD53（codex F1）：user_home 显式透传。"
     },
     {
-      "path": "hst_cli::statusline::pwsh_on_path",
-      "kind": "function",
-      "docs": "pwsh is the statusline runtime on every platform. Advisory only: the\nscript is deployed regardless; without pwsh the bar simply won't render\nin that environment."
-    },
-    {
       "path": "hst_cli::statusline::read_config",
       "kind": "function",
       "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n读用户定制配置；文件不存在回落全默认（不是错误）。"
@@ -853,14 +838,9 @@
       "docs": "原生渲染引擎（ADR-0010）复用口：等价 read_config。"
     },
     {
-      "path": "hst_cli::statusline::restore_builtin_script",
-      "kind": "function",
-      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n状态栏的还原内嵌脚本面（细则见模块文档与集成测试）。"
-    },
-    {
       "path": "hst_cli::statusrender",
       "kind": "module",
-      "docs": " 状态栏原生渲染引擎（ADR-0010、REQ-026）：hst statusline render 子命令\n 的 Rust 实现，退役 pwsh 脚本载体。\n 状态栏原生渲染引擎（ADR-0010、REQ-026）：`hst statusline render <agent>`\n 读 stdin agent JSON 出状态行，契约与退役中的 pwsh 脚本逐字对齐（对版\n 口径：pwsh 侧强制 `$PSStyle.OutputRendering='Ansi'` 后逐字相同；管道\n 缺省形态 PowerShell Host 渲染器会剥 ANSI，旧载体在 agent 实际调用里\n 无色，原生缺省带色，评审 F1）。复用单源：段序与模板配置走\n statusline.rs 的 StatuslineConfig 加 effective_orders；loop/goal 探针走\n loopmgmt；goalmode 与会话级 loop（ScheduleWakeup 源，REQ-036）倒序分块\n 扫描本模块 Rust 形（流式倒扫）。性能面：无\n pwsh 冷启动（约 300ms）加流式倒扫（105MB transcript 毫秒级）。ANSI 退\n 裸文本开关：`NO_COLOR` 或 `HST_STATUSLINE_NO_ANSI` 任一非空（评审 F1）。\n 已知边界：tools 段（显式选用面）首版渲染为空、版本本地探测缓存面\n（D46）未移植（payload version 字段归一承载）、REQ-014/REQ-017 哨兵面\n 未移植，见 REQ-026。"
+      "docs": " 状态栏原生渲染引擎（ADR-0010、REQ-026）：hst statusline render 子命令\n 的 Rust 实现，退役 pwsh 脚本载体。\n 状态栏原生渲染引擎（ADR-0010、REQ-026）：`hst statusline render <agent>`\n 读 stdin agent JSON 出状态行。REQ-038 起 PS1 载体完全淘汰，本引擎是\n 唯一渲染载体（历史对版口径见 ADR-0010 与 REQ-026：与退役前 pwsh 脚本\n 在 Ansi 形下逐字相同；管道缺省形态 PowerShell Host 渲染器剥 ANSI，旧\n 载体在 agent 实际调用里无色，原生缺省带色，评审 F1）。复用单源：段序与模板配置走\n statusline.rs 的 StatuslineConfig 加 effective_orders；loop/goal 探针走\n loopmgmt；goalmode 与会话级 loop（ScheduleWakeup 源，REQ-036）倒序分块\n 扫描本模块 Rust 形（流式倒扫）。性能面：无\n pwsh 冷启动（约 300ms）加流式倒扫（105MB transcript 毫秒级）。ANSI 退\n 裸文本开关：`NO_COLOR` 或 `HST_STATUSLINE_NO_ANSI` 任一非空（评审 F1）。\n 已知边界：tools 段（显式选用面）首版渲染为空、版本本地探测缓存面\n（D46）未移植（payload version 字段归一承载）、REQ-014/REQ-017 哨兵面\n 未移植，见 REQ-026。"
     },
     {
       "path": "hst_cli::statusrender::render",

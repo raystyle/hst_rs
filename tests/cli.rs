@@ -1488,23 +1488,25 @@ fn init_compact_pct_preview_apply_off_and_doctor_check() {
 }
 
 #[test]
-fn dies_statusline_script_conflicts_with_builtin_and_example() {
-    // clap 互斥：--script 与 --builtin / --example 不能同场。
+fn dies_statusline_render_conflicts_with_example() {
+    // REQ-038：--script/--builtin 随 PS1 载体退役摘除；--render 与
+    // --example 互斥仍在。
     hst()
-        .args(["statusline", "--script", "x.ps1", "--builtin"])
+        .args(["statusline", "--render", "--example"])
         .assert()
         .failure();
     hst()
-        .args(["statusline", "--script", "x.ps1", "--example"])
+        .args(["statusline", "--script", "x.ps1"])
         .assert()
         .failure();
+    hst().args(["statusline", "--builtin"]).assert().failure();
 }
 
 #[test]
-fn dies_statusline_script_unknown_agent_fails_before_deploy() {
-    // 未知名在任何部署动作前快败（自备脚本不被触碰）。
+fn dies_statusline_unknown_agent_fails_before_deploy() {
+    // 未知名在任何部署动作前快败。
     hst()
-        .args(["statusline", "no-such-agent", "--script", "x.ps1"])
+        .args(["statusline", "no-such-agent"])
         .assert()
         .failure()
         .stderr(contains("claude/codex/kimi/grok"));

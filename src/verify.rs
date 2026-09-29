@@ -177,39 +177,19 @@ fn render_layer(lines: &mut Vec<String>, agent: &str, layer: &str, verdict: &Lay
 
 // ── 层 1：状态栏 ──
 
-fn verify_statusline(agent: &str, home: &Path) -> LayerVerdict {
+fn verify_statusline(agent: &str, _home: &Path) -> LayerVerdict {
     if agent == "codex" {
         return codex_statusline_builtin();
     }
-    let script = match crate::statusline::deploy_script(home) {
-        Ok(p) => p,
-        Err(e) => {
-            return LayerVerdict::Fail {
-                reason: format!("deploy-script: {e}"),
-                hint: None,
-            }
-        }
-    };
-    if !crate::statusline::pwsh_on_path() {
-        // D37：pwsh 是可选运行时（README 前置：缺了只是不渲染），未装不
-        // 计败，skip 带 CTA；doctor 的状态栏 warn 面另行覆盖。
-        return LayerVerdict::Skip(
-            "pwsh-not-on-path（状态栏可选运行时缺位：装 PowerShell 7 后重跑 hst statusline 与 verify）".into(),
-        );
-    }
-    // D46（codex F7/F1）：mock 空 JSON 无 version 必走本地探，钉 HST_VER_CACHE_DIR
-    // 到系统临时目录的本轮专用子目录（用完即删），不读不写真实 ~/.hst/cache、
-    // 不在数据根留常驻子件（pristine 迁移判据不受扰；冷缓存每家一次
-    // --version spawn 的代价口径见集成测试）。
-    let ver_cache =
-        std::env::temp_dir().join(format!("hst-verify-ver-cache-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&ver_cache);
-    let mut child = match Command::new("pwsh")
-        .arg("-NoProfile")
-        .arg("-File")
-        .arg(&script)
+    // REQ-038：PS1 载体完全淘汰，verify 直跑原生渲染（部署方 hst 二进制
+    // `statusline --render <agent>`，stdin 喂 `{}` 走 JSON 解析路径）。
+    // 原生渲染不本地探版本（payload version 归一承载，REQ-026 边界），
+    // 无缓存面需隔离。
+    let exe = crate::statusline::hst_bin_path();
+    let mut child = match Command::new(&exe)
+        .arg("statusline")
+        .arg("--render")
         .arg(agent)
-        .env("HST_VER_CACHE_DIR", &ver_cache)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -218,30 +198,26 @@ fn verify_statusline(agent: &str, home: &Path) -> LayerVerdict {
         Ok(c) => c,
         Err(e) => {
             return LayerVerdict::Fail {
-                reason: format!("pwsh-spawn: {e}"),
+                reason: format!("render-spawn {exe}: {e}"),
                 hint: None,
             }
         }
     };
-    // 脚本对空/无 stdin 有容错；喂 `{}` 走 claude 形态的 JSON 解析路径。
     if let Some(mut stdin) = child.stdin.take() {
         let _ = stdin.write_all(b"{}");
     }
     let out = match child.wait_with_output() {
         Ok(o) => o,
         Err(e) => {
-            let _ = std::fs::remove_dir_all(&ver_cache);
             return LayerVerdict::Fail {
-                reason: format!("pwsh-wait: {e}"),
+                reason: format!("render-wait: {e}"),
                 hint: None,
-            };
+            }
         }
     };
-    // 探针隔离目录用完即删（临时目录防呆，失败不致命）。
-    let _ = std::fs::remove_dir_all(&ver_cache);
     if !out.status.success() {
         return LayerVerdict::Fail {
-            reason: format!("script-exit-{}", out.status.code().unwrap_or(-1)),
+            reason: format!("render-exit-{}", out.status.code().unwrap_or(-1)),
             hint: None,
         };
     }
@@ -252,7 +228,7 @@ fn verify_statusline(agent: &str, home: &Path) -> LayerVerdict {
         LayerVerdict::Fail {
             reason: "marker-missing".into(),
             hint: Some(format!(
-                "状态栏脚本 stdout 应含机读标记 {agent}[-<version>]:<state>（S025；D42 起 agent 态在第二行，D46 起可带连字符版本形）"
+                "原生渲染 stdout 应含机读标记 {agent}[-<version>]:<state>（S025；D42 起 agent 态在第二行，D46 起可带连字符版本形）"
             )),
         }
     }

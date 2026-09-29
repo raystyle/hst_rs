@@ -121,17 +121,11 @@ enum Commands {
         #[arg(value_name = "名")]
         names: Vec<String>,
         /// 原生渲染一次：stdin 喂 agent JSON，stdout 出状态行；供 statusLine 配置指向
-        #[arg(long, conflicts_with_all = ["example", "script", "builtin"])]
+        #[arg(long, conflicts_with = "example")]
         render: bool,
         /// 打印 ~/.hst/statusline.toml 定制示例模板后退出（D18）
         #[arg(long)]
         example: bool,
-        /// 部署自备状态栏脚本（D18 整脚本替换；调用契约：首参 agent 名、stdin 喂 agent JSON、stdout 单行）
-        #[arg(long, conflicts_with_all = ["example", "builtin"])]
-        script: Option<PathBuf>,
-        /// 还原内嵌脚本（撤销 --script 的自备替换）
-        #[arg(long, conflicts_with = "example")]
-        builtin: bool,
     },
     /// hst 自身管理（self update 自更新）
     #[command(name = "self")]
@@ -680,8 +674,6 @@ fn run() -> Result<(), String> {
         Commands::Statusline {
             names,
             example,
-            script,
-            builtin,
             render,
         } => {
             if render {
@@ -693,7 +685,7 @@ fn run() -> Result<(), String> {
                 print!("{out}");
                 return Ok(());
             }
-            cmd_agents_statusline(names, example, script, builtin)
+            cmd_agents_statusline(names, example)
         }
         Commands::SelfGroup { cmd } => match cmd {
             SelfSub::Update {
@@ -1281,12 +1273,7 @@ fn cmd_completions(shell: clap_complete::Shell) -> Result<(), String> {
 /// `hst statusline [名] [--example] [--script 路径] [--builtin]`：
 /// 配置四家状态栏（幂等）。--script 部署自备脚本（D18 整脚本替换），
 /// --builtin 还原内嵌。
-fn cmd_agents_statusline(
-    names: Vec<String>,
-    example: bool,
-    script: Option<PathBuf>,
-    builtin: bool,
-) -> Result<(), String> {
+fn cmd_agents_statusline(names: Vec<String>, example: bool) -> Result<(), String> {
     if example {
         println!("{}", hst::statusline::EXAMPLE_TOML.trim_end());
         return Ok(());
@@ -1306,11 +1293,9 @@ fn cmd_agents_statusline(
             unknown.join(",")
         ));
     }
-    // 整脚本替换先行（同一部署文件名，后续 merge 指向不变）。
-    if let Some(src) = &script {
-        hst::statusline::deploy_custom_script(&home, src)?;
-    } else if builtin {
-        hst::statusline::restore_builtin_script(&home)?;
+    // REQ-038：PS1 载体完全淘汰，退役清扫幂等摘除弃用期保留件。
+    for f in hst::statusline::cleanup_legacy_script(&home) {
+        println!("statusline.cleaned={f}");
     }
     if do_all || names.iter().any(|n| n == "claude") {
         let p = hst::statusline::merge_claude(&home, &user_home)?;
@@ -1327,22 +1312,6 @@ fn cmd_agents_statusline(
     if do_all || names.iter().any(|n| n == "grok") {
         let p = hst::statusline::merge_grok(&home, &user_home)?;
         println!("statusline.grok={p}");
-    }
-    // The bar renders through pwsh on every platform; without it the merged
-    // config is inert. Advisory, never fatal (P0027).
-    if hst::statusline::pwsh_on_path() {
-        println!("statusline.pwsh=found");
-    } else {
-        println!("statusline.pwsh=missing");
-        println!("statusline.warn=pwsh-not-on-path-statusline-will-not-run");
-    }
-    if let Some(src) = &script {
-        println!("statusline.custom=true");
-        println!("statusline.script={}", src.display());
-    } else if builtin {
-        println!("statusline.custom=false");
-    } else if hst::statusline::custom_active(&home) {
-        println!("statusline.custom=true");
     }
     println!("statusline.ok=true");
     Ok(())

@@ -1737,13 +1737,12 @@ pub fn deploy_all_with(
     retire_skills(&root, &mut report);
     retire_user_skills(user_home, &mut report);
     deploy_instructions(&root, &mut report)?;
-    // D53：状态栏面并入全套部署（与 `hst statusline` 同路径）：脚本重生
-    //（自备脚本 marker 保护跳过）加四家 statusLine 幂等合并。fleet 实弹：
-    // init 从不触碰状态栏导致在位脚本停旧版（D51 clock 段永不到位）。
-    // 注意 statusline 函数族的 home 形参是 **hst 根**（oma，脚本落
-    // `<根>/statusline/`），不是用户家目录；merge_* 内部自取 user_home。
-    // 内容判等幂等：脚本与配置无变化时零写入零输出，init 重跑安静。
-    crate::statusline::deploy_script(oma)?;
+    // D53：状态栏面并入全套部署（与 `hst statusline` 同路径）：四家
+    // statusLine 幂等合并（原生渲染直指 hst 二进制）。REQ-038：PS1 载体
+    // 完全淘汰，退役清扫摘除弃用期保留件（.ps1 与 .custom 标记；grok
+    // thin .cmd 壳保留）。home 形参是 **hst 根**（oma）；merge_* 内部自取
+    // user_home。内容判等幂等：配置无变化时零写入零输出，init 重跑安静。
+    crate::statusline::cleanup_legacy_script(oma);
     crate::statusline::merge_claude(oma, user_home)?;
     crate::statusline::merge_codex(oma, user_home)?;
     crate::statusline::merge_kimi(oma, user_home)?;
@@ -1756,10 +1755,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn init_refreshes_stale_statusline_and_respects_custom_marker() {
-        // D53（fleet 实弹）：init 全套并入状态栏面——在位旧版脚本被刷新
-        //（D51 clock 段到位）、四家 statusLine 配置幂等合并；自备脚本
-        // marker 保护不动；重跑内容判等零写入。
+    fn init_sweeps_legacy_ps1_and_merges_native_statusline() {
+        // D53（fleet 实弹）+ REQ-038：init 状态栏面 = 四家 statusLine 幂等
+        // 合并加 PS1 退役清扫——在位弃用期脚本（含 .custom 标记）被摘除，
+        // grok thin .cmd 壳由 merge_grok 落位；重跑内容判等零写入。
         let _g = crate::pathutil::ENV_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
@@ -1770,61 +1769,59 @@ mod tests {
         let oma = base.join("hst");
         fs::create_dir_all(user.join(".claude")).unwrap();
         fs::create_dir_all(&root).unwrap();
-        // 在位旧版脚本（无 marker）。
+        // 弃用期残余：旧版脚本加自备标记。
         fs::create_dir_all(oma.join("statusline")).unwrap();
         let script = oma.join("statusline").join("hst-statusline.ps1");
         fs::write(&script, "# old 09-13 era script, no clock segment\n").unwrap();
+        fs::write(
+            oma.join("statusline").join("hst-statusline.ps1.custom"),
+            "/somewhere/custom.ps1",
+        )
+        .unwrap();
         std::env::set_var("HST_USER_HOME", &user);
         std::env::set_var("HST_ROOT", &oma);
         deploy_all_with(&root, &user, &oma, host_side()).unwrap();
-        let body = fs::read_to_string(&script).unwrap();
         assert!(
-            body.contains("clock"),
-            "stale script must be refreshed with the clock segment"
+            !script.exists()
+                && !oma
+                    .join("statusline")
+                    .join("hst-statusline.ps1.custom")
+                    .exists(),
+            "REQ-038 legacy ps1 and custom marker must be swept"
+        );
+        assert!(
+            oma.join("statusline")
+                .join("hst-statusline-grok.cmd")
+                .is_file(),
+            "grok thin cmd shell deployed by merge_grok"
         );
         let settings: Json = serde_json::from_str(
             &fs::read_to_string(user.join(".claude").join("settings.json")).unwrap(),
         )
         .unwrap();
         assert!(settings.get("statusLine").is_some(), "bar config merged");
-        // 幂等：再跑脚本与四家配置 mtime 全不动（codex F2：claude 与 codex
-        // 写入也须内容判等）。
+        // 幂等：再跑 grok 壳与四家配置 mtime 全不动（内容判等）。
+        let cmd = oma.join("statusline").join("hst-statusline-grok.cmd");
         let cfgs = [
+            cmd.clone(),
             user.join(".claude").join("settings.json"),
             user.join(".codex").join("config.toml"),
             user.join(".kimi-code").join("tui.toml"),
             user.join(".grok").join("config.toml"),
         ];
-        let before: Vec<_> = std::iter::once(fs::metadata(&script).unwrap().modified().unwrap())
-            .chain(
-                cfgs.iter()
-                    .map(|c| fs::metadata(c).unwrap().modified().unwrap()),
-            )
+        let before: Vec<_> = cfgs
+            .iter()
+            .map(|c| fs::metadata(c).unwrap().modified().unwrap())
             .collect();
         std::thread::sleep(std::time::Duration::from_millis(20));
         deploy_all_with(&root, &user, &oma, host_side()).unwrap();
-        let after: Vec<_> = std::iter::once(fs::metadata(&script).unwrap().modified().unwrap())
-            .chain(
-                cfgs.iter()
-                    .map(|c| fs::metadata(c).unwrap().modified().unwrap()),
-            )
+        let after: Vec<_> = cfgs
+            .iter()
+            .map(|c| fs::metadata(c).unwrap().modified().unwrap())
             .collect();
         assert_eq!(
             before, after,
             "content-equal rerun must not touch any mtime"
-        );
-        // 自备脚本 marker：init 不覆盖用户定制。
-        fs::write(&script, "# user custom bar\n").unwrap();
-        fs::write(
-            oma.join("statusline").join("hst-statusline.ps1.custom"),
-            "/somewhere/custom.ps1",
-        )
-        .unwrap();
-        deploy_all_with(&root, &user, &oma, host_side()).unwrap();
-        assert_eq!(
-            fs::read_to_string(&script).unwrap(),
-            "# user custom bar\n",
-            "custom script marker must protect user content"
         );
         std::env::remove_var("HST_USER_HOME");
         std::env::remove_var("HST_ROOT");

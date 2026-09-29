@@ -28,7 +28,7 @@
 
 ## Must not
 
-- 手改生成物（状态栏脚本、docs/aidoc 生成面）
+- 手改生成物（grok 状态栏 .cmd 壳、docs/aidoc 生成面）
 - 另写第二真相（命令契约在 clap 与 tests，标记契约在 fmtio `///`；references 老文档层已清退，ADR-0006）
 - emoji、破折号、Unicode 箭头、非法全角（四类禁字，mdcharlint 与 rumdl 门禁，豁免区外零容忍）
 - 未经指示推远端；编排面与 token 注入面回流（ADR-0001）
