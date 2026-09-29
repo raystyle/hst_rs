@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### 里程碑 2026-09-29：v2.9.13 goalmode 设标形与 PS1 载体完全淘汰
+
+- **REQ-037 状态栏goalmode设标形（用户报 prs_c2coe 工位 goal active 而 goalmode 行不显）**：2.1.270 的 /goal 设标以排队件落盘（主链 queue-operation 的 content 加 queued_command 附件的 prompt），常稳运转的 goal 不产 check-in 标记，REQ-025 词表缺设标形致新设 goal 行恒隐；词表补设标双锚（紧凑加冒号后带空格双形）加排队 clear 锚，json_capture 解转义原语单源化（含 \u 代理对拼合）。
+- **REQ-038 PS1 载体完全淘汰（用户令「powershell 完全淘汰 不用保留」，撤销 REQ-032 弃用期保留一代）**：statusline.rs 常量族加拼装加部署面出仓（净删三千二百行），渲染唯一载体 = 原生 `hst statusline --render`；init 退役清扫幂等摘除 `hst-statusline.ps1` 与 `.custom` 标记；grok thin `.cmd` 壳改由 merge_grok 落位；verify 直跑原生渲染；doctor 判据去脚本在位与 pwsh 面；`--script` 加 `--builtin` 旗标摘除。范围 = 状态栏面，hook 面 powershell 另裁（边界在册）。经 herdr 评审格三轮终审放行（一轮 F1 加 G1 至 G8 吸收分流，二轮 F1 windows 臂残留加 G 三，三轮 CONFIRM 附 windows target 交叉核前置）。
+
 ### 里程碑 2026-09-29：v2.9.12 状态栏会话级loop段
 
 - **REQ-036 状态栏会话级loop段（用户报 prs_c2coe 工位跑会话级 `/loop` 动态自调度状态栏 loop 行不显示）**：会话 loop 状态只活在会话调度器内存与 transcript，既有探针只盖 durable 文件源；loop 行归属三层化（durable 等值、REQ-035 收养、零 durable 时会话 ScheduleWakeup 回落）。源 = 会话 transcript 倒序分块反扫（4MB 块加 512B 跨界重叠，与 goalmode 同技术）末条工具调用先中即锁；判终两形（`stop:true` 显式终加两心跳未续期滞隐）；goal 剥 `/loop` 前缀截 60；节拍人性化秒分级；PS1 与原生同判；goal 段仍只取 durable 源。经 herdr 评审格两轮终审放行（一轮 F1 PS1 timestamp 取值滞隐判据恒失效修复加 G1 三处文档口径加 G4 转义修正，二轮 CONFIRM）。

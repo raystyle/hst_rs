@@ -935,7 +935,7 @@ dependencies = [
 
 [[package]]
 name = "hst-cli"
-version = "2.9.12"
+version = "2.9.13"
 dependencies = [
  "aes-gcm",
  "age",
