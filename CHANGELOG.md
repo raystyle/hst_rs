@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 里程碑 2026-09-29：v2.9.12 状态栏会话级loop段
+
+- **REQ-036 状态栏会话级loop段（用户报 prs_c2coe 工位跑会话级 `/loop` 动态自调度状态栏 loop 行不显示）**：会话 loop 状态只活在会话调度器内存与 transcript，既有探针只盖 durable 文件源；loop 行归属三层化（durable 等值、REQ-035 收养、零 durable 时会话 ScheduleWakeup 回落）。源 = 会话 transcript 倒序分块反扫（4MB 块加 512B 跨界重叠，与 goalmode 同技术）末条工具调用先中即锁；判终两形（`stop:true` 显式终加两心跳未续期滞隐）；goal 剥 `/loop` 前缀截 60；节拍人性化秒分级；PS1 与原生同判；goal 段仍只取 durable 源。经 herdr 评审格两轮终审放行（一轮 F1 PS1 timestamp 取值滞隐判据恒失效修复加 G1 三处文档口径加 G4 转义修正，二轮 CONFIRM）。
+
 ### 里程碑 2026-09-28：v2.9.11 mac 工位 shell 段登录杠剥除
 
 - **mac 工位 shell 段登录杠剥除（用户报 mac 工位状态栏 shell 段显示 `-zsh`）**：macOS `ps -o comm=` 取 argv[0]，登录 shell 按登录惯例带 `-` 前缀（lan-mac 实机直查在证），原生渲染器匹配包含语义命中但显示未剥登录杠原样上屏；新增 `normalize_shell_name` 归一（剥首部登录杠加 `.exe` 尾）单测七形，原生显示走归一，PS1 匹配前 TrimStart（裸名形同判；PS1 为 ^ 锚定形，路径形 comm 原生出行而 PS1 回落 `$SHELL` 属存量分歧在册）。Linux 走 /proc/comm 恒无杠不受影响。经 herdr 评审格两轮终审放行（一轮 F1 同判措辞订正加 G1 补复数杠与全杠两形）。
