@@ -1948,6 +1948,17 @@ struct Marker {
     text: Option<String>,
 }
 
+/// 锚命中（评审 G2 双形：紧凑与冒号后带空格两形同认）；返回命中锚长。
+fn anchor_len(chunk: &str, i: usize, tight: &str, spaced: &str) -> Option<usize> {
+    if chunk[i..].starts_with(tight) {
+        Some(tight.len())
+    } else if chunk[i..].starts_with(spaced) {
+        Some(spaced.len())
+    } else {
+        None
+    }
+}
+
 fn scan_markers(chunk: &str) -> Vec<Marker> {
     let mut out = Vec::new();
     // pwsh 正则逐字对齐（评审 F10 松锚假阳回修）：全链形要求 summary 段
@@ -1967,6 +1978,11 @@ fn scan_markers(chunk: &str) -> Vec<Marker> {
     let set_q = r#""content":"Goal set: "#;
     let set_a = r#""prompt":"Goal set: "#;
     let clear_q = r#""prompt":"/goal "#;
+    // 评审 G2：同版本不同条目序列化器冒号后空格两形并存（020a4f1b 实证
+    // queue-operation 带空格形），双形同认。
+    let set_q_sp = r#""content": "Goal set: "#;
+    let set_a_sp = r#""prompt": "Goal set: "#;
+    let clear_q_sp = r#""prompt": "/goal "#;
     let mut i = 0;
     let b = chunk.as_bytes();
     while i < b.len() {
@@ -2023,15 +2039,12 @@ fn scan_markers(chunk: &str) -> Vec<Marker> {
                     },
                 ));
             }
-        } else if chunk[i..].starts_with(set_q) || chunk[i..].starts_with(set_a) {
+        } else if let Some(p) =
+            anchor_len(chunk, i, set_q, set_q_sp).or_else(|| anchor_len(chunk, i, set_a, set_a_sp))
+        {
             // REQ-037：2.1.270 设标形（queue-operation 主链 content 加
             // queued_command 附件 prompt，同事件多副本幂等）；文本解转义
             // 取到闭合引号，active 态。
-            let p = if chunk[i..].starts_with(set_q) {
-                set_q.len()
-            } else {
-                set_a.len()
-            };
             if let Some((text, n)) = json_capture(&chunk[i + p..]) {
                 found = Some((
                     p + n,
@@ -2041,12 +2054,12 @@ fn scan_markers(chunk: &str) -> Vec<Marker> {
                     },
                 ));
             }
-        } else if chunk[i..].starts_with(clear_q) {
+        } else if let Some(p) = anchor_len(chunk, i, clear_q, clear_q_sp) {
             // REQ-037：排队 clear 形（queued_command 附件 prompt 载体）。
-            let rest = &chunk[i + clear_q.len()..];
+            let rest = &chunk[i + p..];
             if rest.starts_with("clear") || rest.starts_with("off") || rest.starts_with("stop") {
                 found = Some((
-                    clear_q.len(),
+                    p,
                     Marker {
                         kind: MarkerKind::Clear,
                         text: None,
@@ -2603,6 +2616,11 @@ mod tests {
         let ms = scan_markers(c);
         assert_eq!(ms.len(), 1);
         assert!(matches!(ms[0].kind, MarkerKind::Clear));
+        // 评审 G2：冒号后带空格的序列化形同认。
+        let sp = r#"{"type": "queue-operation", "content": "Goal set: 带空格形"}"#;
+        let ms = scan_markers(sp);
+        assert_eq!(ms.len(), 1);
+        assert_eq!(ms[0].text.as_deref(), Some("带空格形"));
     }
 
     #[test]

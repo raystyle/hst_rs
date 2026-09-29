@@ -25,5 +25,7 @@ trace: statusline 纯函数面保留件（配置解析加四家 merge 加 grok �
 
 ## 边界
 
+- 范围 = 状态栏面。hook 面（codex 加 kimi 加 grok 的 Windows 注册仍为 powershell.exe -File hst-state.ps1 加 hst-token.ps1，deploy.rs 在册）不在本 REQ，用户令「powershell 完全淘汰」若含 hook 面另立 REQ 裁定（评审 G6 问句在册）
 - doctor 对存量 pwsh 形配置的判废夹具保留（更陈旧的错误配置仍要报）
 - Windows grok 仍走 thin `.cmd` 壳（M048 单路径约束，壳内直调原生渲染，不含 PowerShell 面）
+- D46 版本归一（seg_hst 内联）在原生面无独立单测（render e2e 冒烟带机读标记面；独立锁候裁）

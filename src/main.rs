@@ -864,7 +864,7 @@ fn synopsis(cmd: &clap::Command, path: &str) -> String {
             ) {
                 // 裸旗标合法的取值旗标（num_args 下界 0，如 --yolo）出
                 // `[--yolo[=full|partial|off]]`（有枚举值列值集，与裸旗标
-                // 取值语义对齐，codex 评审 G2）；必值旗标仍 `[--script <路径>]`。
+                // 取值语义对齐，codex 评审 G2）；必值旗标仍 `[--repo <地址>]`。
                 let optional_value = a
                     .get_num_args()
                     .map(|r| r.min_values() == 0)
@@ -1270,9 +1270,8 @@ fn cmd_completions(shell: clap_complete::Shell) -> Result<(), String> {
     Ok(())
 }
 
-/// `hst statusline [名] [--example] [--script 路径] [--builtin]`：
-/// 配置四家状态栏（幂等）。--script 部署自备脚本（D18 整脚本替换），
-/// --builtin 还原内嵌。
+/// `hst statusline [名] [--example]`：配置四家状态栏（幂等；REQ-038 起
+/// 无脚本面，PS1 退役清扫随跑）。
 fn cmd_agents_statusline(names: Vec<String>, example: bool) -> Result<(), String> {
     if example {
         println!("{}", hst::statusline::EXAMPLE_TOML.trim_end());

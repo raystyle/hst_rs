@@ -545,30 +545,17 @@ fn grok_statusline_state(home: &Path) -> GrokStatusline {
     GrokStatusline::Missing
 }
 
-fn push_statusline(
-    out: &mut Vec<Finding>,
-    agent: &str,
-    on: bool,
-    cfg: &Path,
-    script_ok: bool,
-    pwsh_missing: bool,
-) {
-    let (status, mut detail) = if !on {
+fn push_statusline(out: &mut Vec<Finding>, agent: &str, on: bool, cfg: &Path) {
+    // REQ-038：PS1 淘汰后无脚本在位与 pwsh 运行时判据（原生渲染零外部
+    // 运行时），配置在即 ok。
+    let (status, detail) = if !on {
         (
             Status::Warn,
             format!("not configured; hst statusline {agent}"),
         )
-    } else if !script_ok {
-        (
-            Status::Warn,
-            "configured but hst-statusline.ps1 missing; rerun hst statusline".into(),
-        )
     } else {
         (Status::Ok, "hst bar configured".into())
     };
-    if pwsh_missing {
-        detail.push_str("; pwsh not on PATH (bar will not render)");
-    }
     push_status(out, agent, "statusline", status, cfg, detail);
 }
 
@@ -890,15 +877,8 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
     // 级分支。
     let home_is_root = crate::pathutil::same_location(&root, &home);
 
-    // 部署诊断共享事实：状态栏配置面（REQ-038 后无脚本在位判据，grok
-    // thin .cmd 壳除外），登录态用统一时间基准（S026）。
-    let oma_root = crate::install::hst_home().ok();
-    let sl_script_ok = true;
-    let sl_grok_ok = oma_root
-        .as_deref()
-        .map(crate::statusline::grok_cmd_path)
-        .is_some_and(|p| p.is_file());
-    let sl_pwsh_missing = false;
+    // 部署诊断共享事实：登录态用统一时间基准（S026）。REQ-038 后状态栏
+    // 无脚本在位判据（grok thin .cmd 壳由 init 幂等落位，不入 doctor 面）。
     let now = OffsetDateTime::now_utc();
     let now_secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -1374,8 +1354,6 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
         "claude",
         claude_statusline_on(&home),
         &home.join(".claude").join("settings.json"),
-        sl_script_ok,
-        sl_pwsh_missing,
     );
 
     let codex_proj = root.join(".codex").join("config.toml");
@@ -1628,8 +1606,6 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
                 "codex",
                 false,
                 &cfg,
-                sl_script_ok,
-                sl_pwsh_missing,
             ),
         }
     }
@@ -1763,8 +1739,6 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
         "kimi",
         kimi_statusline_on(&home),
         &home.join(".kimi-code").join("tui.toml"),
-        sl_script_ok,
-        sl_pwsh_missing,
     );
 
     let grok_cfg = home.join(".grok").join("config.toml");
@@ -1917,14 +1891,7 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
     match grok_statusline_state(&home) {
         GrokStatusline::CmdPath => {
             #[cfg(windows)]
-            push_statusline(
-                &mut findings,
-                "grok",
-                true,
-                &grok_cfg,
-                sl_grok_ok,
-                sl_pwsh_missing,
-            );
+            push_statusline(&mut findings, "grok", true, &grok_cfg, sl_grok_ok);
             #[cfg(not(windows))]
             push_status(
                 &mut findings,
@@ -1946,14 +1913,7 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
                 "status_line is pwsh -File shell line; Grok Command::new paints os error 123 (M048); hst statusline grok",
             );
             #[cfg(not(windows))]
-            push_statusline(
-                &mut findings,
-                "grok",
-                true,
-                &grok_cfg,
-                sl_script_ok,
-                sl_pwsh_missing,
-            );
+            push_statusline(&mut findings, "grok", true, &grok_cfg);
         }
         GrokStatusline::Native => push_status(
             &mut findings,
@@ -1963,14 +1923,7 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
             &grok_cfg,
             "native render bar configured",
         ),
-        GrokStatusline::Missing => push_statusline(
-            &mut findings,
-            "grok",
-            false,
-            &grok_cfg,
-            sl_grok_ok,
-            sl_pwsh_missing,
-        ),
+        GrokStatusline::Missing => push_statusline(&mut findings, "grok", false, &grok_cfg),
     }
 
     let state_dir = crate::pathutil::project_dir(&root).join("state");

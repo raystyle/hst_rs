@@ -365,20 +365,17 @@ fn statusline_grok_cmd() -> String {
     )
 }
 
-fn grok_command_line() -> String {
+fn grok_command_line(cmd: &str) -> String {
     #[cfg(windows)]
     {
-        match grok_cmd_path(&crate::install::hst_home().unwrap_or_default())
-            .to_string_lossy()
-            .rsplit_once('/')
-        {
-            Some((dir, _)) => format!("{dir}/hst-statusline-grok.cmd"),
-            None => "hst-statusline-grok.cmd".into(),
-        }
+        // M048：单路径形（正斜杠归一）。cmd 由 merge_grok 从其 home 形参
+        // 同源生成（评审 F1：不自取 hst_home，防形参脱钩）。
+        cmd.replace('\\', "/")
     }
     #[cfg(not(windows))]
     {
         // ADR-0010：grok 同指原生渲染（部署方绝对路径）。
+        let _ = cmd;
         format!("\"{}\" statusline --render grok", hst_bin_path())
     }
 }
@@ -469,8 +466,9 @@ pub fn merge_grok(home: &Path, user_home: &Path) -> Result<String, String> {
             .map_err(|e| format!("{}: {e}", cmd.display()))?;
     }
     let config = user_home.join(".grok").join("config.toml");
+    let cmd_str = cmd.display().to_string();
     let mut toml = read_toml(&config)?;
-    if apply_grok_status_line(&mut toml)? {
+    if apply_grok_status_line(&mut toml, &cmd_str)? {
         toml_write(&config, &toml)?;
     }
     Ok(config.display().to_string())
@@ -478,7 +476,7 @@ pub fn merge_grok(home: &Path, user_home: &Path) -> Result<String, String> {
 
 /// `[ui.status_line]` 幂等落位（type=command + command 串）；返回是否变更
 /// （可测纯函数）。
-fn apply_grok_status_line(toml: &mut toml::Value) -> Result<bool, String> {
+fn apply_grok_status_line(toml: &mut toml::Value, cmd: &str) -> Result<bool, String> {
     let table = match toml {
         toml::Value::Table(t) => t,
         _ => return Err("grok config.toml is not a table".into()),
@@ -497,7 +495,7 @@ fn apply_grok_status_line(toml: &mut toml::Value) -> Result<bool, String> {
         toml::Value::Table(t) => t,
         _ => return Err("grok [ui.status_line] is not a table".into()),
     };
-    let command = grok_command_line();
+    let command = grok_command_line(cmd);
     let changed = sl.get("command").and_then(|v| v.as_str()) != Some(command.as_str())
         || sl.get("type").and_then(|v| v.as_str()) != Some("command");
     if changed {
@@ -723,10 +721,6 @@ mod tests {
     }
 
     #[test]
-    #[test]
-    #[test]
-    #[test]
-    #[test]
     fn parse_config_reads_template_and_icons_tables() {
         let cfg = parse_config("[template]\nhst = '[{state}] {agent}'\n\n[icons]\nhst = '>'\n\n")
             .unwrap();
@@ -744,18 +738,6 @@ mod tests {
         assert!(parse_config("template = \"x\"\n").is_err(), "not a table");
     }
 
-    #[test]
-    #[test]
-    #[test]
-    #[test]
-    #[test]
-    #[test]
-    #[test]
-    #[test]
-    #[test]
-    #[test]
-    #[test]
-    #[test]
     #[test]
     fn codex_items_config_overrides_builtin_list() {
         // 期望值：用户清单原样透传（含未知 id——codex 侧静默跳过，hst 不拦）。
@@ -792,37 +774,15 @@ mod tests {
     }
 
     #[test]
-    #[test]
-    #[test]
-    #[test]
-    #[test]
-    #[test]
-    #[test]
-    #[test]
-    #[test]
-    #[test]
-    #[test]
-    #[test]
-    #[test]
-    #[test]
-    #[test]
-    #[test]
-    #[test]
-    #[test]
-    #[test]
-    #[test]
-    #[test]
     fn grok_windows_command_is_bare_cmd_path() {
         // Oracle: grok-build `Command::new(entire_string)`; a shell line with
         // quotes is ERROR_INVALID_NAME 123, which is not NotFound, so the
-        // shell fallback never runs (M048).
-        let cmd = grok_command_line();
+        // shell fallback never runs (M048)。评审 F1：cmd 路径由调用方同源
+        // 传入，windows 臂原样回传（正斜杠归一）。
+        let cmd = grok_command_line("C:\\hst\\statusline\\hst-statusline-grok.cmd");
         #[cfg(windows)]
         {
-            assert_eq!(
-                cmd,
-                "C:/Users/ray/.ohmyagents/statusline/hst-statusline-grok.cmd"
-            );
+            assert_eq!(cmd, "C:/hst/statusline/hst-statusline-grok.cmd");
             assert!(
                 !cmd.contains('"'),
                 "quotes in the program name are 123: {cmd}"
@@ -877,8 +837,8 @@ mod tests {
 
         let mut grok: toml::Value =
             toml::from_str("model = \"x\"\n[ui]\npermission_mode = \"always-approve\"\n").unwrap();
-        assert!(apply_grok_status_line(&mut grok).unwrap());
-        assert!(!apply_grok_status_line(&mut grok).unwrap());
+        assert!(apply_grok_status_line(&mut grok, "C:/x/hst-statusline-grok.cmd").unwrap());
+        assert!(!apply_grok_status_line(&mut grok, "C:/x/hst-statusline-grok.cmd").unwrap());
         let grok_t = grok.as_table().unwrap();
         assert_eq!(grok_t.get("model").unwrap().as_str(), Some("x"));
         let ui = grok_t.get("ui").unwrap().as_table().unwrap();
@@ -890,7 +850,14 @@ mod tests {
         let sl = ui.get("status_line").unwrap().as_table().unwrap();
         assert_eq!(sl.get("type").unwrap().as_str(), Some("command"));
         let grok_cmd = sl.get("command").unwrap().as_str().unwrap();
-        assert_eq!(grok_cmd, grok_command_line());
+        assert_eq!(
+            grok_cmd,
+            grok_command_line(
+                &grok_cmd_path(std::path::Path::new("/tmp/x"))
+                    .display()
+                    .to_string()
+            )
+        );
         assert!(
             grok_cmd.ends_with("statusline --render grok"),
             "ADR-0010 native render: {grok_cmd}"

@@ -24,6 +24,8 @@ trace: statusrender 单测 scan_markers_goal_set_forms 四断言一件加 goalmo
 
 ## 边界
 
-- 嵌套对象载体（如 CronCreate input 的 prompt 字段文本恰以 `Goal set:` 起头）不被再编码保护，理论假阳（REQ-025 G1 已知边界同源）
-- rendered 回声副本（「The user sent a new message …: Goal set: …」）content 不以 Goal set 起头，锚不中，不重复计
-- 深层引文（字符串值内嵌）经再编码不中（单测锁）
+- 锚是载体无关的：嵌套对象载体（如 CronCreate input 的 prompt 字段）与普通用户消息 content 文本恰以 `Goal set:` 起头均出 active（评审 G1 合验证过两形；全量语料 15 处真设标全在 queued_command 加 queue-operation 载体，理论面；收紧形候裁）
+- 序列化空白：紧凑与冒号后带空格两形同认（评审 G2，020a4f1b 实证带空格形并存；其它空白形不再扩）
+- rendered 回声副本（「The user sent a new message …: Goal set: …」）content 不以 Goal set 起头，锚不中，不重复计；深层引文（字符串值内嵌）经再编码不中（单测锁）
+- goal_status 附件（`{"type":"goal_status","met":true,…}` 权威态载体）与 local-command-stdout 形未入词表：met 后仍显示 active 属既有缺口（评审 G8 实弹三例在证，候裁后续 REQ）
+- goalmode 加会话 loop 探针的 4MB 分块加 512B 重叠反扫在原生面无多块夹具（PS1 时代跨块夹具随载体退役；扫描器经真 transcript 实弹验证，夹具候裁补）

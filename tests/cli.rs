@@ -1488,6 +1488,21 @@ fn init_compact_pct_preview_apply_off_and_doctor_check() {
 }
 
 #[test]
+fn statusline_render_native_marker_smoke() {
+    // REQ-038 评审 G5 加 G7.1 直钉：原生渲染全链（默认行序 + 机读标记 +
+    // 多行结构），PS1 淘汰后这是唯一渲染面。
+    let out = hst()
+        .args(["statusline", "--render", "claude"])
+        .write_stdin("{}")
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let s = String::from_utf8_lossy(&out.stdout);
+    assert!(s.contains("claude"), "agent marker present: {s}");
+    assert!(s.lines().count() >= 2, "multi-row layout: {s}");
+}
+
+#[test]
 fn dies_statusline_render_conflicts_with_example() {
     // REQ-038：--script/--builtin 随 PS1 载体退役摘除；--render 与
     // --example 互斥仍在。
