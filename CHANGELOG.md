@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 里程碑 2026-09-30：v2.9.14 hookstate 项目级注册面
+
+- **REQ-039 状态栏hookstate项目级注册面（用户报 prs_c2coe 工位状态栏没有显示项目级别的 hook）**：hookstate 段注册面实读此前只走用户级（`~/.claude/settings.json` 族），claude 的项目级 `.claude/settings.json` 不在源内；现按 payload `workspace.project_dir` 并读项目级 `settings.json` 加 `settings.local.json`，stem 去重防跨文件重复，项目守卫按未收录语义字典序殿后显本名（不入舰队别名表）。经 herdr 评审格一轮 CONFIRM（G3 跨文件去重夹具加 G4 边界措辞顺手落；G1 回落口径加 G2 别名串限长留后笔）。
+
 ### 里程碑 2026-09-29：v2.9.13 goalmode 设标形与 PS1 载体完全淘汰
 
 - **REQ-037 状态栏goalmode设标形（用户报 prs_c2coe 工位 goal active 而 goalmode 行不显）**：2.1.270 的 /goal 设标以排队件落盘（主链 queue-operation 的 content 加 queued_command 附件的 prompt），常稳运转的 goal 不产 check-in 标记，REQ-025 词表缺设标形致新设 goal 行恒隐；词表补设标双锚（紧凑加冒号后带空格双形）加排队 clear 锚，json_capture 解转义原语单源化（含 \u 代理对拼合）。
