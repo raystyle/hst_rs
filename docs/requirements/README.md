@@ -41,3 +41,4 @@
 | REQ-036 | implemented | must | 状态栏会话级loop段 | statusrender 单测四形一件加 statusline PS1 面两态件；实弹真会话 payload 渲染 25m 心跳行 |
 | REQ-037 | implemented | must | 状态栏goalmode设标形 | statusrender 单测四断言加 probe 级 e2e；实弹真会话 payload 渲染 goalmode 行 |
 | REQ-038 | implemented | must | PS1载体完全淘汰 | init 退役清扫（.ps1 加 .custom 摘除）加 verify 直跑原生渲染加 doctor 判据去脚本面加 --script/--builtin 旗标摘除；实弹五端 init 清扫与冒烟 |
+| REQ-039 | implemented | must | 状态栏hookstate项目级注册面 | statusrender 既有件扩项目级断言；实弹真 payload 三守卫入列 |

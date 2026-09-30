@@ -939,7 +939,7 @@ const HOOK_ALIASES: &[(&str, &str)] = &[
 /// 注册面读不出 hook 时回落泛称 `hook` 保语义。
 fn seg_hookstate(ctx: &Ctx) -> Option<String> {
     let (state, present) = hook_state(ctx);
-    let alias_raw = hooked_aliases(&ctx.agent);
+    let alias_raw = hooked_aliases(&ctx.agent, ctx.d);
     // 出行门（评审快核 G1 裁）：状态文件在场或有挂载 hook 任一即出行——
     // 刚装未触发的空窗期（hook 已注册、state 未写）不应整行隐掉清单；
     // 状态缺报按 unknown 取行色。
@@ -978,22 +978,31 @@ fn seg_hookstate(ctx: &Ctx) -> Option<String> {
 /// 注册面 hook 别名清单：按 agent 定位注册文件，收集全部 hook 命令
 ///（ours 与外来都在场），stem 去重后按别名表序稳定排列（未收录 stem
 /// 字典序殿后）映射别名，分隔符 ` | ` 与他行段分隔同形（用户令
-/// 2026-09-27 两轮收敛）。文件缺失、
-/// 坏损或零挂载返回空串。codex 虽无外部状态栏面，手动 render 亦可得
-/// 清单。
-fn hooked_aliases(agent: &str) -> String {
+/// 2026-09-27 两轮收敛）。claude 额外并读项目级注册面（REQ-039：payload
+/// `workspace.project_dir` 下 `.claude/settings.json` 加
+/// `settings.local.json`，项目守卫 hook 如 session-tool-guard 族入列）。
+/// 文件缺失、坏损或零挂载返回空串。codex 虽无外部状态栏面，手动 render
+/// 亦可得清单。
+fn hooked_aliases(agent: &str, d: &Json) -> String {
     match user_home() {
-        Ok(h) => hooked_aliases_at(&h, agent),
+        Ok(h) => hooked_aliases_at(&h, agent, &s(d, &["workspace", "project_dir"])),
         Err(_) => String::new(),
     }
 }
 
-/// hooked_aliases 的可测形（home 显式透传）。
-fn hooked_aliases_at(home: &Path, agent: &str) -> String {
+/// hooked_aliases 的可测形（home 加项目根显式透传）。
+fn hooked_aliases_at(home: &Path, agent: &str, project_root: &str) -> String {
     let mut cmds: Vec<String> = Vec::new();
     match agent {
         // claude/codex/grok 注册面同构（hooks.<Event>[].hooks[].command）。
-        "claude" => collect_json_commands(&home.join(".claude").join("settings.json"), &mut cmds),
+        "claude" => {
+            collect_json_commands(&home.join(".claude").join("settings.json"), &mut cmds);
+            if !project_root.is_empty() {
+                let pdotclaude = std::path::Path::new(project_root).join(".claude");
+                collect_json_commands(&pdotclaude.join("settings.json"), &mut cmds);
+                collect_json_commands(&pdotclaude.join("settings.local.json"), &mut cmds);
+            }
+        }
         "codex" => collect_json_commands(&home.join(".codex").join("hooks.json"), &mut cmds),
         // grok 是多文件注册面（评审 F：本机 herdr 的 grok 挂载在
         // ~/.grok/hooks/herdr.json 而非 hst 的 ohmyagents-state.json），
@@ -2168,7 +2177,7 @@ mod tests {
         .unwrap();
         // 别名表序（herdr 在先，用户例序），未收录 metric-bridge 回落本名殿后。
         assert_eq!(
-            hooked_aliases_at(&tmp, "claude"),
+            hooked_aliases_at(&tmp, "claude", ""),
             "herdr agent状态监控 | hst token护栏 | hst 会话状态同步"
         );
         // kimi TOML 面：ours 加外来同列。
@@ -2180,7 +2189,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            hooked_aliases_at(&tmp, "kimi"),
+            hooked_aliases_at(&tmp, "kimi", ""),
             "herdr agent状态监控 | hst 会话状态同步"
         );
         // grok 多文件注册面（评审 F）：hst 的 ohmyagents-state.json 与
@@ -2198,15 +2207,35 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            hooked_aliases_at(&tmp, "grok"),
+            hooked_aliases_at(&tmp, "grok", ""),
             "herdr agent状态监控 | hst 会话状态同步"
+        );
+        // REQ-039：claude 项目级注册面并入（payload project_dir 下
+        // .claude/settings.json 加 settings.local.json），未收录 stem
+        //（项目守卫）字典序殿后；与用户级同 stem 去重。
+        let proj = tmp.join("proj");
+        let pdot = proj.join(".claude");
+        std::fs::create_dir_all(&pdot).unwrap();
+        std::fs::write(
+            pdot.join("settings.json"),
+            r#"{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-tool-guard.sh\""}]}]}}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            pdot.join("settings.local.json"),
+            r#"{"hooks":{"UserPromptSubmit":[{"hooks":[{"type":"command","command":"bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/knowledge-recall.sh\""}]}]}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            hooked_aliases_at(&tmp, "claude", proj.to_str().unwrap()),
+            "herdr agent状态监控 | hst token护栏 | hst 会话状态同步 | knowledge-recall | session-tool-guard"
         );
         // 坏损 JSON 零命中不炸。
         std::fs::write(claude_dir.join("settings.json"), "{ not json").unwrap();
-        assert_eq!(hooked_aliases_at(&tmp, "claude"), "");
+        assert_eq!(hooked_aliases_at(&tmp, "claude", ""), "");
         // 缺文件零命中空串（段内回落泛称 hook）。
         std::fs::remove_file(claude_dir.join("settings.json")).unwrap();
-        assert_eq!(hooked_aliases_at(&tmp, "claude"), "");
+        assert_eq!(hooked_aliases_at(&tmp, "claude", ""), "");
         let _ = std::fs::remove_dir_all(&tmp);
     }
 

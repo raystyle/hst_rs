@@ -1509,7 +1509,11 @@ fn statusline_render_native_marker_smoke() {
         hst::verify::statusline_marker_ok("claude", &s),
         "machine marker: {s}"
     );
-    assert_eq!(s.lines().count(), 3, "default three-row layout (hookstate row3, loop/goalmode hidden): {s}");
+    assert_eq!(
+        s.lines().count(),
+        3,
+        "default three-row layout (hookstate row3, loop/goalmode hidden): {s}"
+    );
 }
 
 #[test]
