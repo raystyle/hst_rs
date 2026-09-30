@@ -19,7 +19,7 @@ trace: statusrender 单测 hooked_aliases_list_known_foreign_and_fallback 扩件
 - [x] claude 家并读项目级注册面：payload `workspace.project_dir` 下 `.claude/settings.json` 加 `.claude/settings.local.json`，命令并入收集
 - [x] stem 去重天然防用户级与项目级同 stem 重复
 - [x] 未收录 stem（项目守卫族）按既有语义字典序殿后回落本名，不新增别名表项（项目守卫非舰队公共面）；跨文件同 stem 去重（评审 G3 夹具锁）
-- [x] codex 加 kimi 加 grok 项目级不在源内（项目级注册面未实证，候裁）
+- [x] codex 加 kimi 加 grok 项目级不入源：仓内已知其项目级面概念（deploy 退役趟与 doctor 残留查在册，多为 hst 旧产物），当前仅 claude 入源，其余留候裁（评审 G4 措辞收敛）
 - [x] 测试：既有件扩项目级断言；实弹真 payload 三守卫入列
 
 ## 边界
