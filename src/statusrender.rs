@@ -2218,7 +2218,7 @@ mod tests {
         std::fs::create_dir_all(&pdot).unwrap();
         std::fs::write(
             pdot.join("settings.json"),
-            r#"{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-tool-guard.sh\""}]}]}}"#,
+            r#"{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-tool-guard.sh\""}]}],"Stop":[{"hooks":[{"type":"command","command":"/x/.hst/hooks/hst-state.sh claude"}]}]}}"#,
         )
         .unwrap();
         std::fs::write(
