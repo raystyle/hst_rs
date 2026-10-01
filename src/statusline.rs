@@ -80,8 +80,8 @@ const DEFAULT_TEMPLATES: &[(&str, &str)] = &[
     ("tokens", "{icon}{used}/{window}"),
     ("tokens-ascii", "{used}/{window}"),
     ("duration", "{icon}{duration}"),
-    ("loop", "{icon}  {every} / {goal}"),
-    ("loop-ascii", "{every} / {goal}"),
+    ("loop", "{icon}  {next} / {goal}"),
+    ("loop-ascii", "{next} / {goal}"),
     ("goal", "{icon}{goal}"),
     ("goal-ascii", "{goal}"),
     ("goalmode", "{icon}  {text}"),
@@ -548,8 +548,10 @@ segments5 = ["goalmode"]
 #   占比 [sN tN mN]，transcript 可解析时才有）
 #   tools {icon}{count} / mcp {icon}{count} / tokens {icon}{used}{window}
 #   duration {icon}{duration} / git {icon}{branch}{flags}
-#   loop {icon}  {every} / {goal}（图标后双空格对齐 hst 段形；循环时间参数；{every} 为
-#   自然节拍 30m 形，{cadence} ×30m 形与 {count} 可自配）/ goal {icon}{goal}（可选段：任务 prompt 单显）
+#   loop {icon}  {next} / {goal}（图标后双空格对齐 hst 段形；{next} 缺省为
+#   活倒计时（会话 /loop 每帧走到点，durable 面回落节拍），{every} 静态自然
+#   节拍 30m 形、{cadence} ×30m 形与 {count} 为静态备选可自配）/ goal
+#   {icon}{goal}（可选段：任务 prompt 单显）
 #   hookstate {icon}  {alias}（第三行；注册面全部 hook 的功能别名清单，
 #   带属主进程前缀加 ` | ` 分隔（REQ-028 一命令一脚本一别名）：herdr-
 #   agent-state 映射 herdr agent状态监控、hst-token（hst hook token 单

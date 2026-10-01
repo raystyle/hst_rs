@@ -43,3 +43,4 @@
 | REQ-038 | implemented | must | PS1载体完全淘汰 | init 退役清扫（.ps1 加 .custom 摘除）加 verify 直跑原生渲染加 doctor 判据去脚本面加 --script/--builtin 旗标摘除；实弹五端 init 清扫与冒烟 |
 | REQ-039 | implemented | must | 状态栏hookstate项目级注册面 | statusrender 既有件扩项目级断言；实弹真 payload 三守卫入列 |
 | REQ-040 | implemented | must | 状态栏goalmode终态词表 | statusrender 新件五断言加时序；实弹真会话 payload 行由冻显转隐藏 |
+| REQ-041 | implemented | must | 状态栏loop行活倒计时 | statusrender 既有件扩三断言；实弹夹具双时点渲染倒计时跳变 |

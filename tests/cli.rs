@@ -1128,7 +1128,7 @@ fn statusline_example_prints_customization_template() {
         // 行序（用户令 2026-09-27）：hookstate 第三、loop 第四、goalmode 第五。
         .stdout(contains("segments3 = [\"hookstate\"]"))
         .stdout(contains("segments4 = [\"loop\"]"))
-        .stdout(contains("loop {icon}  {every} / {goal}"))
+        .stdout(contains("loop {icon}  {next} / {goal}"))
         .stdout(contains("segments5 = [\"goalmode\"]"))
         .stdout(contains("goalmode {icon}  {text}"));
 }

@@ -1422,14 +1422,18 @@ fn mcp_count(d: &Json, claude_json: Option<&Path>, mcp_json: Option<&Path>) -> u
 
 fn seg_loop(ctx: &Ctx) -> Option<String> {
     let (mut count, mut cadence, mut goal) = loop_probe(ctx)?;
+    // REQ-041：{next} 缺省 = 节拍（durable 面无单点下次时刻），会话面由
+    // 回落层覆写为活倒计时（每帧走到点，行随渲染刷新）。
+    let mut next = cadence.trim_start_matches('×').to_string();
     if count == 0 {
         // REQ-036 会话级回落：零 durable 任务时取 /loop 自调度
         //（ScheduleWakeup）态，loop 行补齐「本会话实际在跑的 loop」语义
         // 三层：durable 等值、durable 收养（REQ-035）、会话自调度。
-        if let Some((c, g)) = session_loop_probe(ctx) {
+        if let Some((c, g, n)) = session_loop_probe(ctx) {
             count = 1;
             cadence = c;
             goal = g;
+            next = n;
         }
     }
     if count == 0 {
@@ -1446,6 +1450,7 @@ fn seg_loop(ctx: &Ctx) -> Option<String> {
                 ("cadence", cadence),
                 ("every", every),
                 ("goal", goal),
+                ("next", next),
             ],
         ),
         "38;5;114",
@@ -1691,7 +1696,7 @@ fn goalmode_probe(ctx: &Ctx) -> Option<(String, String)> {
 /// 两倍心跳未续期视为弃约滞隐（timestamp 取不到不判龄，乐观显；
 /// prs_c2coe 实机 4 例均按续期或 stop 闭环）。durable 任务在 seg_loop
 /// 上层优先，本探针只在零 durable 时被消费。
-fn session_loop_probe(ctx: &Ctx) -> Option<(String, String)> {
+fn session_loop_probe(ctx: &Ctx) -> Option<(String, String, String)> {
     let sid = s(ctx.d, &["session_id"]);
     if sid.is_empty() {
         return None;
@@ -1732,37 +1737,61 @@ fn session_loop_probe(ctx: &Ctx) -> Option<(String, String)> {
         prev_head = buf[..(ovl as usize).min(buf.len())].to_vec();
         let chunk = String::from_utf8_lossy(&comb);
         if let Some(idx) = chunk.rfind(marker) {
-            return wakeup_verdict(&chunk, idx);
+            return wakeup_verdict(&chunk, idx).into();
         }
     }
     None
 }
 
-/// 末条 ScheduleWakeup 判定：解析 input 对象三字段加就近条目
-/// timestamp，stop 或滞隐归 None（不显），活态归 (cadence, goal)。
-fn wakeup_verdict(chunk: &str, marker_idx: usize) -> Option<(String, String)> {
+/// 末条 ScheduleWakeup 判定两态（REQ-041，用户裁定空输入 = 取消）：
+/// Terminal = stop 显式终、滞隐、或空输入退化调用（无 delaySeconds 无
+/// stop——布了空定时即「不再排程」，循环即止行立隐，防取消后挂起；
+/// 2026-10-01 prs_c2coe 实证）；Active = (cadence, goal, next)，next 为
+/// 活倒计时（ts 加 delay 减 now，负值钳 0，timestamp 取不到回落节拍）。
+enum WakeVerdict {
+    Active((String, String, String)),
+    Terminal,
+}
+
+impl From<WakeVerdict> for Option<(String, String, String)> {
+    fn from(v: WakeVerdict) -> Self {
+        match v {
+            WakeVerdict::Active(t) => Some(t),
+            WakeVerdict::Terminal => None,
+        }
+    }
+}
+
+fn wakeup_verdict(chunk: &str, marker_idx: usize) -> WakeVerdict {
     let obj = object_span(&chunk[marker_idx..]);
     if obj.contains("\"stop\":true") {
-        return None;
+        return WakeVerdict::Terminal;
     }
-    let delay: u64 = obj
+    let delay: u64 = match obj
         .find("\"delaySeconds\":")
         .and_then(|i| {
             let t = &obj[i + 15..];
             let d = t.chars().take_while(|c| c.is_ascii_digit()).count();
             u64::from_str_radix(&t[..d], 10).ok()
         })
-        .filter(|d| *d > 0)?;
+        .filter(|d| *d > 0)
+    {
+        Some(d) => d,
+        None => return WakeVerdict::Terminal,
+    };
     let prompt = obj
         .find("\"prompt\":\"")
         .and_then(|i| json_string_at(&obj[i + 9..]));
     let ts = chunk[..marker_idx]
         .rfind("\"timestamp\":\"")
         .and_then(|i| iso_epoch(&chunk[i + 13..]));
+    let mut next = delay_cadence(delay);
     if let Some(ts) = ts {
         if epoch_now() > ts.saturating_add(delay.saturating_mul(2)) {
-            return None;
+            return WakeVerdict::Terminal;
         }
+        let remain = ts.saturating_add(delay).saturating_sub(epoch_now());
+        next = delay_cadence(remain);
     }
     let mut goal = prompt
         .map(|p| p.strip_prefix("/loop ").unwrap_or(&p).to_string())
@@ -1774,7 +1803,7 @@ fn wakeup_verdict(chunk: &str, marker_idx: usize) -> Option<(String, String)> {
         let cut: String = goal.chars().take(60).collect();
         goal = format!("{cut}…");
     }
-    Some((delay_cadence(delay), goal))
+    WakeVerdict::Active((delay_cadence(delay), goal, next))
 }
 
 /// 取首个 `{` 起的配对对象跨（字符串感知：值内花括号与引号不计数）；
@@ -2704,6 +2733,51 @@ mod tests {
     }
 
     #[test]
+    fn goalmode_probe_terminal_forms_hide_row() {
+        // REQ-040 评审 G3：probe 级终态 e2e——设标后末条 cleared 或
+        // goal_status met:true,整行隐（用户可见判据上夹具）。
+        let _env = crate::pathutil::ENV_LOCK.lock().unwrap();
+        let tmp = std::env::temp_dir().join(format!("hst-gt-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let proj = format!("{}/proj", tmp.display());
+        let slug: String = proj
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+            .collect();
+        let tdir = tmp.join(".claude").join("projects").join(&slug);
+        std::fs::create_dir_all(&tdir).unwrap();
+        std::env::set_var("HST_USER_HOME", &tmp);
+        let cfg = StatuslineConfig::default();
+        let d: Json =
+            serde_json::from_str(&format!(r#"{{"session_id":"s1","cwd":"{proj}"}}"#)).unwrap();
+        let ctx = Ctx {
+            d: &d,
+            agent: "claude".to_string(),
+            nerd: true,
+            cfg: &cfg,
+            home: &tmp,
+            dir: proj.clone(),
+            root: String::new(),
+            proj_kind: String::new(),
+            pkg_ver: String::new(),
+        };
+        let set_line = r#"{"type":"queue-operation","content":"Goal set: 目标文本"}"#;
+        for tail in [
+            r#"{"type":"system","content":"<local-command-stdout>Goal cleared: 目标文本</local-command-stdout>"}"#,
+            r#"{"type":"attachment","attachment":{"type":"goal_status","met":true,"sentinel":true,"condition":"目标文本"}}"#,
+        ] {
+            std::fs::write(tdir.join("s1.jsonl"), format!("{set_line}\n{tail}\n")).unwrap();
+            assert_eq!(
+                goalmode_probe(&ctx),
+                Some((String::new(), String::new())),
+                "terminal tail hides row: {tail}"
+            );
+        }
+        std::env::remove_var("HST_USER_HOME");
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
     fn scan_markers_req040_terminal_forms() {
         // REQ-040：TUI 斜杠路径回执（Goal set 剥 local-command-stdout 尾取
         // 文本；Goal cleared 判终）与 goal_status 权威态附件（met:true 判
@@ -2828,16 +2902,14 @@ mod tests {
             ),
         )
         .unwrap();
-        assert_eq!(
-            session_loop_probe(&ctx),
-            Some(("30d".to_string(), "确认解题后沉淀了步骤".to_string()))
-        );
-        // seg_loop 集成：零 durable + 会话活 → 行出。
+        // REQ-041 起 probe 出三元组（cadence 加 goal 加 next 活倒计
+        // 时），倒计时随时钟走不钉墙钟值，钉 cadence 加 goal。
+        let probe = session_loop_probe(&ctx).unwrap();
+        assert_eq!(probe.0, "30d");
+        assert_eq!(probe.1, "确认解题后沉淀了步骤");
+        // seg_loop 集成：零 durable + 会话活 → 行出（{next} 缺省模板）。
         let row = seg_loop(&ctx).unwrap();
-        assert!(
-            row.contains("30d / 确认解题后沉淀了步骤"),
-            "session row: {row}"
-        );
+        assert!(row.contains("/ 确认解题后沉淀了步骤"), "session row: {row}");
         // stop:true 判终。
         std::fs::write(
             tdir.join("s1.jsonl"),
@@ -2878,6 +2950,42 @@ mod tests {
         let row = seg_loop(&ctx).unwrap();
         assert!(row.contains("15m / durable 盯发布"), "durable wins: {row}");
         assert!(!row.contains("会话心跳在场"), "session not mixed: {row}");
+        // REQ-041（用户裁定）：空输入 SW = 取消——即使更早布防仍在滞隐
+        // 窗内，行也立隐（防取消后挂起）；stop 判终同收口。
+        std::fs::remove_file(sdir.join("scheduled_tasks.json")).unwrap();
+        let empty_sw = r#"{"timestamp":"2026-10-01T08:16:10.402Z","message":{"content":[{"type":"tool_use","name":"ScheduleWakeup","input":{}}]}}"#;
+        std::fs::write(
+            tdir.join("s1.jsonl"),
+            format!(
+                "{}
+{}
+",
+                sw(5184000, "/loop 长心跳在途", "", "2026-09-25T00:00:00.000Z"),
+                empty_sw,
+            ),
+        )
+        .unwrap();
+        assert!(
+            session_loop_probe(&ctx).is_none(),
+            "empty SW cancels even within staleness window"
+        );
+        std::fs::write(
+            tdir.join("s1.jsonl"),
+            format!(
+                "{}
+{}
+",
+                sw(
+                    5184000,
+                    "/loop 已停",
+                    ",\"stop\":true",
+                    "2026-09-25T00:00:00.000Z"
+                ),
+                empty_sw,
+            ),
+        )
+        .unwrap();
+        assert!(session_loop_probe(&ctx).is_none(), "stop terminal wins");
         std::env::remove_var("HST_USER_HOME");
         let _ = std::fs::remove_dir_all(&tmp);
     }
