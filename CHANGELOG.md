@@ -7,7 +7,7 @@
 ### 里程碑 2026-10-01：v2.9.15 goalmode 终态词表与 loop 行活倒计时
 
 - **REQ-040 状态栏goalmode终态词表（用户报 goal 状态不刷新：goal 已清行仍显旧文）**：2.1.270 的清 goal 走 TUI 斜杠路径回执（`type:system` 的 `<local-command-stdout>Goal cleared:` 载体）与 `goal_status` 权威态附件（`met:true` 判终达成），两形入词表后清除/达成即隐，不再冻在旧设标文本（REQ-037 评审 G8 候裁项收口）。
-- **REQ-041 状态栏loop行活倒计时（用户令「loop 的状态栏也要刷新」「不要删除取消后还在状态栏挂起」）**：`{next}` 活倒计时占位符（ts 加 delay 减 now 负值钳 0，取不到回落节拍），缺省模板换装（durable 显示不变，会话行每帧走到点）；空输入 ScheduleWakeup 按用户裁定＝取消判终（滞隐窗内也立隐，防取消后挂起）。经 herdr 评审格两轮代码面 CONFIRM（Skip 回溯首轮确认后随用户裁定撤销，档面实证措辞订正）。
+- **REQ-041 状态栏loop行活倒计时（用户令「loop 的状态栏也要刷新」「不要删除取消后还在状态栏挂起」）**：`{next}` 活倒计时占位符（ts 加 delay 减 now 负值钳 0，取不到回落节拍），缺省模板换装（durable 显示不变，会话行每帧走到点）；空输入 ScheduleWakeup 按用户裁定=取消判终（滞隐窗内也立隐，防取消后挂起）。经 herdr 评审格两轮代码面 CONFIRM（Skip 回溯首轮确认后随用户裁定撤销，档面实证措辞订正）。
 
 ### 里程碑 2026-09-30：v2.9.14 hookstate 项目级注册面
 
