@@ -1599,7 +1599,9 @@ fn seg_goalmode(ctx: &Ctx) -> Option<String> {
 /// paused 系统事件加 clear 指令加设标形（REQ-037：2.1.270 的 /goal 以
 /// queue-operation 主链 content 加 queued_command 附件 prompt 落盘，常稳
 /// 运转不产 check-in 标记，缺此形新设 goal 行恒隐）；512B 跨界重叠；
-/// 状态与文本独立回溯。
+/// 状态与文本独立回溯。REQ-040 补三形：TUI 斜杠路径回执（local-
+/// command-stdout 载体的 Goal set 加 Goal cleared）与 goal_status 权威态
+/// 附件（met:true 判终；缺 cleared 形则清 goal 后行冻在旧设标文本）。
 fn goalmode_probe(ctx: &Ctx) -> Option<(String, String)> {
     let sid = s(ctx.d, &["session_id"]);
     if sid.is_empty() {
@@ -1992,6 +1994,16 @@ fn scan_markers(chunk: &str) -> Vec<Marker> {
     let set_q_sp = r#""content": "Goal set: "#;
     let set_a_sp = r#""prompt": "Goal set: "#;
     let clear_q_sp = r#""prompt": "/goal "#;
+    // REQ-040：TUI 斜杠路径回执（system 型 local-command-stdout 载体）与
+    // goal_status 权威态附件（met:true 判终达成；met:false 活态确认不产
+    // 标记）。缺 cleared 形则清 goal 后行冻在旧设标文本（2026-10-01
+    // prs_c2coe 3e21eee2 实证：末态 Goal cleared 而行仍显旧文）。
+    let lcs_set = r#""content":"<local-command-stdout>Goal set: "#;
+    let lcs_clear = r#""content":"<local-command-stdout>Goal cleared: "#;
+    let gs_met = r#""type":"goal_status","met":true"#;
+    let lcs_set_sp = r#""content": "<local-command-stdout>Goal set: "#;
+    let lcs_clear_sp = r#""content": "<local-command-stdout>Goal cleared: "#;
+    let gs_met_sp = r#""type": "goal_status", "met": true"#;
     let mut i = 0;
     let b = chunk.as_bytes();
     while i < b.len() {
@@ -2075,6 +2087,39 @@ fn scan_markers(chunk: &str) -> Vec<Marker> {
                     },
                 ));
             }
+        } else if let Some(p) = anchor_len(chunk, i, lcs_set, lcs_set_sp) {
+            // REQ-040：TUI 斜杠路径设标回执（剥 local-command-stdout 尾）。
+            if let Some((mut text, n)) = json_capture(&chunk[i + p..]) {
+                if let Some(s) = text.strip_suffix("</local-command-stdout>") {
+                    text = s.to_string();
+                }
+                found = Some((
+                    p + n,
+                    Marker {
+                        kind: MarkerKind::Active,
+                        text: Some(text),
+                    },
+                ));
+            }
+        } else if let Some(p) = anchor_len(chunk, i, lcs_clear, lcs_clear_sp) {
+            // REQ-040：TUI 斜杠路径清 goal 回执，判终。
+            found = Some((
+                p,
+                Marker {
+                    kind: MarkerKind::Clear,
+                    text: None,
+                },
+            ));
+        } else if let Some(p) = anchor_len(chunk, i, gs_met, gs_met_sp) {
+            // REQ-040：goal_status 权威态附件 met:true 判终（达成即无在役
+            // goal，行隐）。
+            found = Some((
+                p,
+                Marker {
+                    kind: MarkerKind::Clear,
+                    text: None,
+                },
+            ));
         }
         match found {
             Some((adv, m)) => {
@@ -2656,6 +2701,35 @@ mod tests {
         assert_eq!(ms[0].text.as_deref(), Some("附件空格形"));
         let sp_c = r#"{"type": "attachment", "attachment": {"type": "queued_command", "prompt": "/goal clear"}}"#;
         assert!(matches!(scan_markers(sp_c)[0].kind, MarkerKind::Clear));
+    }
+
+    #[test]
+    fn scan_markers_req040_terminal_forms() {
+        // REQ-040：TUI 斜杠路径回执（Goal set 剥 local-command-stdout 尾取
+        // 文本；Goal cleared 判终）与 goal_status 权威态附件（met:true 判
+        // 终；met:false 不产标记）；set 后 cleared 的时序终态。
+        let s = r#"{"type":"system","content":"<local-command-stdout>Goal set: 斜杠路径设标</local-command-stdout>"}"#;
+        let ms = scan_markers(s);
+        assert_eq!(ms.len(), 1);
+        assert!(matches!(ms[0].kind, MarkerKind::Active));
+        assert_eq!(ms[0].text.as_deref(), Some("斜杠路径设标"));
+        let c = r#"{"type":"system","content":"<local-command-stdout>Goal cleared: 斜杠路径清除</local-command-stdout>"}"#;
+        let ms = scan_markers(c);
+        assert_eq!(ms.len(), 1);
+        assert!(matches!(ms[0].kind, MarkerKind::Clear));
+        let met = r#"{"type":"attachment","attachment":{"type":"goal_status","met":true,"sentinel":true,"condition":"达成条件"}}"#;
+        assert!(matches!(scan_markers(met)[0].kind, MarkerKind::Clear));
+        // met:false 是活态确认，不产标记（不干扰回溯的 set 文本）。
+        let unmet = r#"{"type":"attachment","attachment":{"type":"goal_status","met":false,"condition":"未达成"}}"#;
+        assert!(scan_markers(unmet).is_empty());
+        // 时序：set 在前 cleared 在后 → 扫描器两标记都在，回溯态取新者
+        //（cleared）。
+        let both = r#"{"type":"queue-operation","content":"Goal set: 旧目标"}
+{"type":"system","content":"<local-command-stdout>Goal cleared: 旧目标</local-command-stdout>"}
+"#;
+        let ms = scan_markers(both);
+        assert_eq!(ms.len(), 2);
+        assert!(matches!(ms[ms.len() - 1].kind, MarkerKind::Clear));
     }
 
     #[test]
