@@ -10,7 +10,7 @@ trace: statusrender 单测 session_loop_probe_verdicts_four_forms 扩件（空�
 
 ## Scenario
 
-用户令（2026-10-01，REQ-040 同日续）：「loop 的状态栏也要刷新」「主要是 loop 和 goal 刷新实时状态，不要删除取消后还在状态栏挂起」。取证：活会话 3e21eee2 末条 ScheduleWakeup 为空输入退化调用（无 delaySeconds 无 stop，2026-10-01T08:16Z 实证）；且行内 `{every}` 是静态节拍，不随时钟走 `[实证: transcript 空条目对读加夹具双时点渲染]`。
+用户令（2026-10-01，REQ-040 同日续）：「loop 的状态栏也要刷新」「主要是 loop 和 goal 刷新实时状态，不要删除取消后还在状态栏挂起」。取证：活会话 3e21eee2 末条 ScheduleWakeup 为空输入退化调用（无 delaySeconds 无 stop，2026-10-01T08:16Z 在场形；该会话早前布防 120s 早已过窗，空条与否行都隐，取消语义取自用户裁定非此实证）；且行内 `{every}` 是静态节拍，不随时钟走 `[实证: transcript 空条目对读加夹具双时点渲染]`。
 
 ## Criteria
 
