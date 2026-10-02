@@ -3199,15 +3199,14 @@ mod tests {
         // CronCreate 拼回压过同块更早的 SW；G3：schema 文本形
         // CronDelete（description 载体）不判终、卷末 schema 不掩更早心跳。
         std::fs::remove_file(tmp.join(".claude").join("scheduled_tasks.json")).unwrap();
-        let filler = "x".repeat(4 * 1024 * 1024 + 200);
+        // 骑跨造法按边界算术（评审快核 G2 修正）：尾段取 4MB 减 90 字节,
+        // 标记恰跨块界（起点在老块尾、终点入末块头），512B 重叠拼回。
+        let chunk: usize = 4 * 1024 * 1024;
         let sw_early = r#"{"timestamp":"2026-10-02T08:00:00.000Z","message":{"content":[{"type":"tool_use","name":"ScheduleWakeup","input":{"delaySeconds":5184000,"prompt":"/loop 早心跳","reason":"r"}}]}}"#;
-        let cc_marker = br#"{"timestamp":"2026-10-02T09:00:00.000Z","message":{"content":[{"type":"tool_use","name":"CronCreate","input":{"cron":"*/30 * * * *","prompt":"boundary-patrol","recurring":true}}]}}"#;
-        let half = cc_marker.len() / 2;
-        let big = format!(
-            "{sw_early}\n{filler}{}{}",
-            String::from_utf8_lossy(&cc_marker[..half]),
-            String::from_utf8_lossy(&cc_marker[half..]),
-        );
+        let cc_marker = r#"{"timestamp":"2026-10-02T09:00:00.000Z","message":{"content":[{"type":"tool_use","name":"CronCreate","input":{"cron":"*/30 * * * *","prompt":"boundary-patrol","recurring":true}}]}}"#;
+        let filler = "x".repeat(chunk);
+        let tail = "y".repeat(chunk - 90);
+        let big = format!("{sw_early}\n{filler}{cc_marker}\n{tail}");
         std::fs::write(tdir.join("s1.jsonl"), &big).unwrap();
         let probe = session_loop_probe(&ctx).unwrap();
         assert_eq!(
