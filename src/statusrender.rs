@@ -1770,7 +1770,9 @@ fn session_loop_probe(ctx: &Ctx) -> Option<(String, String, String)> {
     //（取消判终，新于创建即隐）。
     let sw_marker = "\"name\":\"ScheduleWakeup\",\"input\":{";
     let cc_marker = "\"name\":\"CronCreate\",\"input\":{";
-    let cd_marker = "\"name\":\"CronDelete\"";
+    // 评审二轮 F1：带 input 守卫（裸 name 提及如 prompt_snapshot 的工具
+    // schema 文本会假中判终）。
+    let cd_marker = "\"name\":\"CronDelete\",\"input\":{\"";
     let chunk_sz: u64 = 4 * 1024 * 1024;
     let ovl: u64 = 512;
     let mut pos = len;
