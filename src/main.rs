@@ -1535,14 +1535,22 @@ fn cmd_init(
             }
             println!("compact.preview=true (zero-write; add --yes to apply)");
         }
-        // REQ-043（总台派单改进 2）：旗标形也同步 shim 壳面（幂等秒级，
-        // 兑现壳头「rerun hst init to sync」承诺；注册面照旧跳）。
-        let oma_s = hst::install::hst_home()?;
-        let (wrote, _) = hst::shim::deploy_shims(&oma_s)?;
-        for w in &wrote {
-            println!("init.shims.sync={}", w.display());
+        if yes {
+            // REQ-043（总台派单改进 2）：实做形（--yes）同步 shim 壳面
+            //（幂等秒级，兑现壳头「rerun hst init to sync」承诺；注册面
+            // 照旧跳）。评审 G-1：预览形保持零写承诺，同步绑 --yes。
+            let oma_s = hst::install::hst_home()?;
+            let (wrote, shim_warns) = hst::shim::deploy_shims(&oma_s)?;
+            for w in &wrote {
+                println!("init.shims.sync={}", w.display());
+            }
+            for warn in &shim_warns {
+                println!("init.shims.warn={warn}");
+            }
+            println!("init.hooks=registration-skipped (shims synced; hint: 注册面用裸 hst init)");
+        } else {
+            println!("init.hooks=registration-skipped (preview zero-write; shims untouched)");
         }
-        println!("init.hooks=registration-skipped (shims synced; hint: 注册面用裸 hst init)");
         println!("init.scope=compact");
         return Ok(());
     }
@@ -1574,9 +1582,13 @@ fn cmd_init(
         // REQ-043（总台派单改进 2）：旗标形也同步 shim 壳面（幂等秒级，
         // 兑现壳头「rerun hst init to sync」承诺；注册面照旧跳）。
         let oma_s = hst::install::hst_home()?;
-        let (wrote, _) = hst::shim::deploy_shims(&oma_s)?;
+        // 评审 G-2：旗标分支的 dev 回落告警也打点（不只裸 init）。
+        let (wrote, shim_warns) = hst::shim::deploy_shims(&oma_s)?;
         for w in &wrote {
             println!("init.shims.sync={}", w.display());
+        }
+        for warn in &shim_warns {
+            println!("init.shims.warn={warn}");
         }
         println!("init.hooks=registration-skipped (shims synced; hint: 注册面用裸 hst init)");
     } else if let Some(level) = project_yolo {
@@ -1594,9 +1606,13 @@ fn cmd_init(
             // REQ-043（总台派单改进 2）：旗标形也同步 shim 壳面（幂等秒级，
             // 兑现壳头「rerun hst init to sync」承诺；注册面照旧跳）。
             let oma_s = hst::install::hst_home()?;
-            let (wrote, _) = hst::shim::deploy_shims(&oma_s)?;
+            // 评审 G-2：旗标分支的 dev 回落告警也打点。
+            let (wrote, shim_warns) = hst::shim::deploy_shims(&oma_s)?;
             for w in &wrote {
                 println!("init.shims.sync={}", w.display());
+            }
+            for warn in &shim_warns {
+                println!("init.shims.warn={warn}");
             }
             println!("init.hooks=registration-skipped (shims synced; hint: 注册面用裸 hst init)");
         } else {
@@ -1616,9 +1632,13 @@ fn cmd_init(
             // REQ-043（总台派单改进 2）：旗标形也同步 shim 壳面（幂等秒级，
             // 兑现壳头「rerun hst init to sync」承诺；注册面照旧跳）。
             let oma_s = hst::install::hst_home()?;
-            let (wrote, _) = hst::shim::deploy_shims(&oma_s)?;
+            // 评审 G-2：旗标分支的 dev 回落告警也打点。
+            let (wrote, shim_warns) = hst::shim::deploy_shims(&oma_s)?;
             for w in &wrote {
                 println!("init.shims.sync={}", w.display());
+            }
+            for warn in &shim_warns {
+                println!("init.shims.warn={warn}");
             }
             println!("init.hooks=registration-skipped (shims synced; hint: 注册面用裸 hst init)");
         }
@@ -1666,9 +1686,13 @@ fn cmd_init(
             // REQ-043（总台派单改进 2）：旗标形也同步 shim 壳面（幂等秒级，
             // 兑现壳头「rerun hst init to sync」承诺；注册面照旧跳）。
             let oma_s = hst::install::hst_home()?;
-            let (wrote, _) = hst::shim::deploy_shims(&oma_s)?;
+            // 评审 G-2：旗标分支的 dev 回落告警也打点。
+            let (wrote, shim_warns) = hst::shim::deploy_shims(&oma_s)?;
             for w in &wrote {
                 println!("init.shims.sync={}", w.display());
+            }
+            for warn in &shim_warns {
+                println!("init.shims.warn={warn}");
             }
             println!("init.hooks=registration-skipped (shims synced; hint: 注册面用裸 hst init)");
         }
