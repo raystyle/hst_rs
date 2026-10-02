@@ -165,7 +165,8 @@ pub struct StatuslineConfig {
     /// `[template]`：段格式串（键 = 段 id；`<段>-ascii` 为 grok 结构差异项）；
     /// 键级回落 `DEFAULT_TEMPLATES`。
     pub template: Vec<(String, String)>,
-    /// `[icons]`：图标映射（含 `ts`、`shell-pwsh` 子项键）；键级回落
+    /// `[icons]`：图标映射（含 `ts`（node 段内部子部件，非独立段 id）、
+    /// `shell-pwsh` 子项键）；键级回落
     /// `DEFAULT_ICONS`。Grok ASCII 路径图标恒空（M046）。
     pub icons: Vec<(String, String)>,
     /// `[codex] items`：codex 内置项 ID 子集（原样透传，未知 id codex 侧
@@ -309,7 +310,7 @@ fn effective_orders(cfg: &StatuslineConfig) -> Result<Vec<Vec<&str>>, String> {
         .filter_map(|(user, _)| user.as_ref())
         .flat_map(|segs| segs.iter().map(String::as_str))
         .collect();
-    Ok(rows
+    let orders: Vec<Vec<&str>> = rows
         .iter()
         .enumerate()
         .map(|(i, (user, default))| match user {
@@ -322,7 +323,16 @@ fn effective_orders(cfg: &StatuslineConfig) -> Result<Vec<Vec<&str>>, String> {
                 .collect(),
         })
         .filter(|row| !row.is_empty())
-        .collect())
+        .collect();
+    // 全量评审 G1：跨行重复 id 拒（同 id 双显且 git 类双 spawn；单行内
+    // 重复由渲染期拼装与 UNKNOWN 校验面共同拦）。
+    let mut seen = std::collections::HashSet::new();
+    for id in orders.iter().flat_map(|r| r.iter()) {
+        if !seen.insert(*id) {
+            return Err(format!("duplicate statusline segment across rows: {id}"));
+        }
+    }
+    Ok(orders)
 }
 
 /// 部署方 hst 二进制绝对路径（ADR-0010 statusline 命令锚）：current_exe
@@ -558,7 +568,8 @@ segments5 = ["goalmode"]
 #   对）映射 hst token护栏、hst-state（hst hook state 单对）映射 hst
 #   会话状态同步，未收录 hook 回落 stem 本名，清单空回落泛称 hook；
 #   {state} 占位符可自配带回态）
-#   package 与七工具链段（含 ts）{icon}{version}
+#   package 与六工具链段（python 加 rust 加 node 加 zig 加 go 加 cpp）{icon}{version}
+#   （ts 不是独立段 id：它是 node 段内部第二部件，[icons] 的 ts 键只管该部件字形，写进 segments 会响亮报错）
 #   clock {icon}{datetime}（D51：年月日加当前时间，分钟精度）
 # 例（hst 段去图标改方括号态）：
 # [template]
@@ -629,21 +640,76 @@ fn render_codex_tui_section(items: &[&str]) -> String {
     lines.join("\n")
 }
 
-fn strip_tui_section(text: &str) -> String {
-    let mut lines: Vec<String> = Vec::new();
+/// 表头归一名（全量评审 F1）：剥 BOM 加括号内空白加行尾注释后取表名；
+/// 非表头行归 None。`[tui]` 加 `[ tui ]` 加 `[tui] # 注释` 加 BOM 首行
+/// 皆归 "tui"；`[tui.x]` 子表归 "tui.x"（不误剥）。
+fn table_header_name(ln: &str) -> Option<String> {
+    let s = ln.trim_start_matches('\u{feff}').trim();
+    let s = s.split('#').next().unwrap_or("").trim();
+    let inner = s.strip_prefix('[')?.strip_suffix(']')?;
+    Some(inner.trim().to_string())
+}
+
+/// 键名归一（全量评审 F2）：`=` 前段 trim；非键行归 None。
+fn key_name(ln: &str) -> Option<String> {
+    let (k, _) = ln.split_once('=')?;
+    Some(k.trim().to_string())
+}
+
+/// 重写 `[tui]` 表（全量评审 F1 加 F2）：表头按归一名判（不再精确串等，
+/// 防非规范形旧表未剥重复表写坏 config 且重跑不自愈）；只替换
+/// status_line 加 status_line_use_colors 两键，兄弟键原样保留并入新表
+///（存量重复 `[tui]` 表顺带合并治伤）。
+fn rewrite_tui_section(text: &str, items: &[&str]) -> String {
+    let mut out: Vec<String> = Vec::new();
+    let mut siblings: Vec<String> = Vec::new();
     let mut in_tui = false;
+    let mut skipping_target_value = false;
+    let mut skip_depth: i32 = 0;
     for ln in text.lines() {
-        if ln.trim().starts_with('[') {
-            in_tui = ln.trim() == "[tui]";
+        if let Some(name) = table_header_name(ln) {
+            in_tui = name == "tui";
             if in_tui {
                 continue;
             }
         }
-        if !in_tui {
-            lines.push(ln.to_string());
+        if in_tui {
+            if skipping_target_value {
+                skip_depth += ln.matches('[').count() as i32;
+                skip_depth -= ln.matches(']').count() as i32;
+                if skip_depth <= 0 {
+                    skipping_target_value = false;
+                }
+                continue;
+            }
+            if matches!(
+                key_name(ln).as_deref(),
+                Some("status_line") | Some("status_line_use_colors")
+            ) {
+                skip_depth = ln.matches('[').count() as i32 - ln.matches(']').count() as i32;
+                if skip_depth > 0 {
+                    skipping_target_value = true;
+                }
+                continue;
+            }
+            siblings.push(ln.to_string());
+            continue;
+        }
+        out.push(ln.to_string());
+    }
+    let mut section = render_codex_tui_section(items);
+    for s in &siblings {
+        if !s.trim().is_empty() {
+            section.push('\n');
+            section.push_str(s);
         }
     }
-    lines.join("\n")
+    let kept = out.join("\n").trim_end().to_string();
+    if kept.is_empty() {
+        format!("{section}\n")
+    } else {
+        format!("{kept}\n\n{section}\n")
+    }
 }
 
 /// # Errors
@@ -666,13 +732,7 @@ pub fn merge_codex(home: &Path, user_home: &Path) -> Result<String, String> {
     } else {
         String::new()
     };
-    let kept = strip_tui_section(&existing);
-    let kept = kept.trim_end();
-    let body = if kept.is_empty() {
-        format!("{}\n", render_codex_tui_section(&items))
-    } else {
-        format!("{kept}\n\n{}\n", render_codex_tui_section(&items))
-    };
+    let body = rewrite_tui_section(&existing, &items);
     if let Some(dir) = config.parent() {
         std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     }
@@ -903,12 +963,36 @@ mod tests {
     }
 
     #[test]
-    fn strip_tui_section_keeps_other_tables() {
-        let text = "model = \"gpt\"\n[tui]\nstatus_line = [\"old\"]\n[sandbox]\nmode = \"rw\"\n";
-        let out = strip_tui_section(text);
+    fn rewrite_tui_normalizes_headers_keeps_siblings_and_heals() {
+        // 全量评审 F1 加 F2：表头归一（空格加注释加 BOM 形皆认）；兄弟键
+        // 保留并入新表；重复 [tui] 合并治伤；幂等（重跑同文）。
+        let items = ["a", "b"];
+        let plain = "model = \"gpt\"\n[tui]\nstatus_line = [\"old\"]\nnotifications = true\n[sandbox]\nmode = \"rw\"\n";
+        let out = rewrite_tui_section(plain, &items);
         assert!(out.contains("model = \"gpt\""));
         assert!(out.contains("[sandbox]"));
         assert!(!out.contains("\"old\""));
-        assert!(!out.contains("[tui]"));
+        assert_eq!(out.matches("[tui]").count(), 1);
+        assert!(
+            out.contains("notifications = true"),
+            "sibling key kept: {out}"
+        );
+        // 非规范表头三形治坏：单表输出。
+        for hdr in ["[ tui ]", "[tui] # codex ui", "\u{feff}[tui]"] {
+            let bad = format!("x = 1\n{hdr}\nstatus_line = [\"old\"]\n");
+            let out = rewrite_tui_section(&bad, &items);
+            assert_eq!(out.matches("[tui]").count(), 1, "heals {hdr}: {out}");
+            assert!(!out.contains("\"old\""));
+        }
+        // 重复 [tui]（F1 存量伤）合并。
+        let dup = "x = 1\n[tui]\nstatus_line = [\"a\"]\n[tui]\nstatus_line = [\"b\"]\n";
+        let out = rewrite_tui_section(dup, &items);
+        assert_eq!(out.matches("[tui]").count(), 1, "merges dup: {out}");
+        // 幂等：重跑同文。
+        assert_eq!(out, rewrite_tui_section(&out, &items));
+        // 子表不误剥。
+        let sub = "[tui]\nstatus_line = [\"a\"]\n[tui.theme]\ncolor = \"dark\"\n";
+        let out = rewrite_tui_section(sub, &items);
+        assert!(out.contains("[tui.theme]"), "subtable kept: {out}");
     }
 }

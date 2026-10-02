@@ -393,15 +393,23 @@ fn seg_shell(ctx: &Ctx) -> Option<String> {
     let agent_stems = ["node", "claude", "codex", "grok", "kimi", "hst"];
     let mut chain: Vec<String> = Vec::new();
     if cfg!(target_os = "linux") {
+        // 全量评审 G5：链上任一环读取失败（进程退出竞态）break 走
+        // `$SHELL` 回落，装饰段不因瞬时竞态整段消失。
         let mut cur = std::process::id();
         for _ in 0..8 {
-            let stat = std::fs::read_to_string(format!("/proc/{cur}/stat")).ok()?;
-            let ppid: u32 = stat
+            let stat = match std::fs::read_to_string(format!("/proc/{cur}/stat")) {
+                Ok(s) => s,
+                Err(_) => break,
+            };
+            let ppid: u32 = match stat
                 .rsplit(')')
-                .next()?
-                .split_whitespace()
-                .nth(1)
-                .and_then(|t| t.parse().ok())?;
+                .next()
+                .and_then(|s| s.split_whitespace().nth(1))
+                .and_then(|t| t.parse().ok())
+            {
+                Some(p) => p,
+                None => break,
+            };
             if ppid <= 1 {
                 break;
             }
@@ -416,11 +424,14 @@ fn seg_shell(ctx: &Ctx) -> Option<String> {
     } else {
         // macOS/bsd 无 /proc（评审 G2）：单次 ps -ax 全表建 pid 加 ppid
         // 映射再走链，等价 PS1 的逐级 ps 兜底但不逐级 spawn。
-        let out = std::process::Command::new("ps")
+        let txt = match std::process::Command::new("ps")
             .args(["-o", "pid=,ppid=,comm=", "-ax"])
             .output()
-            .ok()?;
-        let txt = String::from_utf8_lossy(&out.stdout);
+        {
+            // G5：ps 失败走空链，回落 $SHELL 兜底（不整段消失）。
+            Ok(o) => String::from_utf8_lossy(&o.stdout).into_owned(),
+            Err(_) => String::new(),
+        };
         let mut map: std::collections::HashMap<u32, (u32, String)> =
             std::collections::HashMap::new();
         for l in txt.lines() {
@@ -1578,7 +1589,7 @@ fn cron_to_cadence(cron: &str) -> String {
         return String::new();
     }
     if let Some(n) = f[0].strip_prefix("*/").and_then(|x| x.parse::<u32>().ok()) {
-        if f[1] == "*" && f[2] == "*" && f[3] == "*" {
+        if n > 0 && f[1] == "*" && f[2] == "*" && f[3] == "*" {
             if n >= 60 && n % 60 == 0 {
                 return format!("×{}h", n / 60);
             }
@@ -2127,8 +2138,10 @@ fn scan_markers(chunk: &str) -> Vec<Marker> {
     // REQ-042 评审 G：retry 形 system informational（goal check could not
     // complete · retrying）是活态信号（paused 后无 check-in 的复活支），
     // 产 Active 态（text 回溯更早 set 或 check-in）。
-    let retry_act = r#""content":"Goal still active"#;
-    let retry_act_sp = r#""content": "Goal still active"#;
+    // 全量评审 N10 收紧：带 system informational 前缀与 paused 对称。
+    let retry_act = r#""type":"system","subtype":"informational","content":"Goal still active"#;
+    let retry_act_sp =
+        r#""type": "system", "subtype": "informational", "content": "Goal still active"#;
     let clear = r#""role":"user","content":"/goal "#;
     // REQ-037 设标形：2.1.270 的 /goal 设标以排队件落盘（主链
     // queue-operation 的 content 加 queued_command 附件的 prompt，同事件
@@ -3182,6 +3195,30 @@ mod tests {
             (count, cadence.as_str(), goal.as_str()),
             (1, "×20m", "全局巡检")
         );
+        // G2（全量评审配方固化）：≥2 块边界夹具——4MB 边界骑跨的
+        // CronCreate 拼回压过同块更早的 SW；G3：schema 文本形
+        // CronDelete（description 载体）不判终、卷末 schema 不掩更早心跳。
+        std::fs::remove_file(tmp.join(".claude").join("scheduled_tasks.json")).unwrap();
+        let filler = "x".repeat(4 * 1024 * 1024 + 200);
+        let sw_early = r#"{"timestamp":"2026-10-02T08:00:00.000Z","message":{"content":[{"type":"tool_use","name":"ScheduleWakeup","input":{"delaySeconds":5184000,"prompt":"/loop 早心跳","reason":"r"}}]}}"#;
+        let cc_marker = br#"{"timestamp":"2026-10-02T09:00:00.000Z","message":{"content":[{"type":"tool_use","name":"CronCreate","input":{"cron":"*/30 * * * *","prompt":"boundary-patrol","recurring":true}}]}}"#;
+        let half = cc_marker.len() / 2;
+        let big = format!(
+            "{sw_early}\n{filler}{}{}",
+            String::from_utf8_lossy(&cc_marker[..half]),
+            String::from_utf8_lossy(&cc_marker[half..]),
+        );
+        std::fs::write(tdir.join("s1.jsonl"), &big).unwrap();
+        let probe = session_loop_probe(&ctx).unwrap();
+        assert_eq!(
+            (probe.0.as_str(), probe.1.as_str()),
+            ("30m", "boundary-patrol"),
+            "boundary CronCreate wins over earlier SW: {probe:?}"
+        );
+        let schema = r#"{"type":"user","message":{"content":[{"type":"text","text":"tool CronDelete: {"name":"CronDelete","description":"Delete"}"}}]}"#;
+        std::fs::write(tdir.join("s1.jsonl"), format!("{sw_early}\n{schema}\n")).unwrap();
+        let probe = session_loop_probe(&ctx).unwrap();
+        assert_eq!(probe.1, "早心跳", "schema text not terminal: {probe:?}");
         std::fs::write(
             tdir.join("s1.jsonl"),
             format!(
