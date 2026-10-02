@@ -480,6 +480,7 @@ cmd。Windows 注册走 thin ps1 一行壳（REQ-032 评审 F2 方案③，D39 �
 
 - `deploy_shims` — # Errors
 - `deploy_shims_with` — # Errors
+- `deploy_shims_with_exe` — deploy_shims_with 的 exe 注入形（REQ-043 可测面）。
 - `grok_wrapper` — grok 单路径包装生成（M048：Windows grok 只认可整串 spawn 的单路径；
 - `host_shell` — 宿主 shell 选择（M060b 抽出成映射）：macOS 落 zsh shebang（缺
 - `thin_cmd` — thin cmd 壳生成（REQ-032）：`"<exe>" hook <腿> --agent %1`，stdin 由

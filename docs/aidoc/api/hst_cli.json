@@ -748,6 +748,11 @@
       "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n壳部署（REQ-032 thin 透传面）：state/token 两腿 sh 加 ps1 加 cmd 三\n载体加 grok 两包装，exe 烘焙部署方 current_exe 绝对路径；幂等内容判\n等；oma 旧名件与 pentest 退役件清扫。"
     },
     {
+      "path": "hst_cli::shim::deploy_shims_with_exe",
+      "kind": "function",
+      "docs": "deploy_shims_with 的 exe 注入形（REQ-043 可测面）。"
+    },
+    {
       "path": "hst_cli::shim::grok_wrapper",
       "kind": "function",
       "docs": "grok 单路径包装生成（M048：Windows grok 只认可整串 spawn 的单路径；\n包装烘焙 agent 参转调 thin cmd）。"

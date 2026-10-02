@@ -45,3 +45,4 @@
 | REQ-040 | implemented | must | 状态栏goalmode终态词表 | statusrender 新件五断言加时序；实弹真会话 payload 行由冻显转隐藏 |
 | REQ-041 | implemented | must | 状态栏loop行活倒计时 | statusrender 既有件扩三断言；实弹夹具双时点渲染倒计时跳变 |
 | REQ-042 | implemented | must | 状态栏loop全源支持(会话内存加用户级全局) | statusrender 新件三断言加全局收养扩断言；实弹真会话 payload 渲染 30m 行 |
+| REQ-043 | implemented | must | hook壳烘焙安全序与init同步 | shim 单测四断言加八件告警改件；实弹三场景（debug 回落装位加旗标同步死路径加告警打点） |

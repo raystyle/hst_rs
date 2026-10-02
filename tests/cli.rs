@@ -683,7 +683,7 @@ fn init_full_deploys_hooks_yolo_and_sweeps_skills() {
         .assert()
         .success()
         .stdout(contains("init.scope=yolo"))
-        .stdout(contains("init.hooks=skipped"));
+        .stdout(contains("init.hooks=registration-skipped"));
     assert!(
         !tmp2
             .join("proj")
@@ -908,7 +908,7 @@ fn init_clear_project_yolo_strips_interference() {
         .success()
         .stdout(contains("init.flag.clear_project_yolo=true"))
         .stdout(contains("(cleared-yolo)"))
-        .stdout(contains("init.hooks=skipped"));
+        .stdout(contains("init.hooks=registration-skipped"));
     let v: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(proj.join(".claude").join("settings.json")).unwrap(),
     )
@@ -969,7 +969,7 @@ fn init_yolo_partial_and_off_level_markers() {
         .success()
         .stdout(contains("init.scope=yolo"))
         .stdout(contains("init.yolo.level=partial"))
-        .stdout(contains("init.hooks=skipped"));
+        .stdout(contains("init.hooks=registration-skipped"));
     let uc: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(user.join(".claude").join("settings.json")).unwrap(),
     )
@@ -1401,7 +1401,7 @@ fn init_compact_pct_preview_apply_off_and_doctor_check() {
         .stdout(contains(
             "compact.plan key=CLAUDE_AUTOCOMPACT_PCT_OVERRIDE value=70",
         ))
-        .stdout(contains("init.hooks=skipped"));
+        .stdout(contains("init.hooks=registration-skipped"));
     assert!(!settings.exists(), "preview must not write");
     // 种窗口覆盖键（doctor 阈值行需要窗口可知）。
     std::fs::create_dir_all(home.join(".claude")).unwrap();

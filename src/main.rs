@@ -1535,7 +1535,14 @@ fn cmd_init(
             }
             println!("compact.preview=true (zero-write; add --yes to apply)");
         }
-        println!("init.hooks=skipped (hint: hooks 部署用裸 hst init，带旗标范围设计性跳过)");
+        // REQ-043（总台派单改进 2）：旗标形也同步 shim 壳面（幂等秒级，
+        // 兑现壳头「rerun hst init to sync」承诺；注册面照旧跳）。
+        let oma_s = hst::install::hst_home()?;
+        let (wrote, _) = hst::shim::deploy_shims(&oma_s)?;
+        for w in &wrote {
+            println!("init.shims.sync={}", w.display());
+        }
+        println!("init.hooks=registration-skipped (shims synced; hint: 注册面用裸 hst init)");
         println!("init.scope=compact");
         return Ok(());
     }
@@ -1564,7 +1571,14 @@ fn cmd_init(
                 println!("init.retired={p}");
             }
         }
-        println!("init.hooks=skipped (hint: hooks 部署用裸 hst init，带旗标范围设计性跳过)");
+        // REQ-043（总台派单改进 2）：旗标形也同步 shim 壳面（幂等秒级，
+        // 兑现壳头「rerun hst init to sync」承诺；注册面照旧跳）。
+        let oma_s = hst::install::hst_home()?;
+        let (wrote, _) = hst::shim::deploy_shims(&oma_s)?;
+        for w in &wrote {
+            println!("init.shims.sync={}", w.display());
+        }
+        println!("init.hooks=registration-skipped (shims synced; hint: 注册面用裸 hst init)");
     } else if let Some(level) = project_yolo {
         println!("init.flag.project_yolo=true");
         println!("init.yolo.level={}", level.as_str());
@@ -1577,7 +1591,14 @@ fn cmd_init(
                 "init.warn=project-yolo skipped: root is the user home \
                  (home is not a project; user-level keys stay)"
             );
-            println!("init.hooks=skipped (hint: hooks 部署用裸 hst init，带旗标范围设计性跳过)");
+            // REQ-043（总台派单改进 2）：旗标形也同步 shim 壳面（幂等秒级，
+            // 兑现壳头「rerun hst init to sync」承诺；注册面照旧跳）。
+            let oma_s = hst::install::hst_home()?;
+            let (wrote, _) = hst::shim::deploy_shims(&oma_s)?;
+            for w in &wrote {
+                println!("init.shims.sync={}", w.display());
+            }
+            println!("init.hooks=registration-skipped (shims synced; hint: 注册面用裸 hst init)");
         } else {
             match level {
                 yolo::YoloLevel::Off => {
@@ -1592,7 +1613,14 @@ fn cmd_init(
                     }
                 }
             }
-            println!("init.hooks=skipped (hint: hooks 部署用裸 hst init，带旗标范围设计性跳过)");
+            // REQ-043（总台派单改进 2）：旗标形也同步 shim 壳面（幂等秒级，
+            // 兑现壳头「rerun hst init to sync」承诺；注册面照旧跳）。
+            let oma_s = hst::install::hst_home()?;
+            let (wrote, _) = hst::shim::deploy_shims(&oma_s)?;
+            for w in &wrote {
+                println!("init.shims.sync={}", w.display());
+            }
+            println!("init.hooks=registration-skipped (shims synced; hint: 注册面用裸 hst init)");
         }
     } else {
         // 裸 init（无旗标）= 全套部署，用户级 yolo 固定 full 级；
@@ -1635,7 +1663,14 @@ fn cmd_init(
                 println!("init.hooks.warn={w}");
             }
         } else {
-            println!("init.hooks=skipped (hint: hooks 部署用裸 hst init，带旗标范围设计性跳过)");
+            // REQ-043（总台派单改进 2）：旗标形也同步 shim 壳面（幂等秒级，
+            // 兑现壳头「rerun hst init to sync」承诺；注册面照旧跳）。
+            let oma_s = hst::install::hst_home()?;
+            let (wrote, _) = hst::shim::deploy_shims(&oma_s)?;
+            for w in &wrote {
+                println!("init.shims.sync={}", w.display());
+            }
+            println!("init.hooks=registration-skipped (shims synced; hint: 注册面用裸 hst init)");
         }
     }
     if pretrust {

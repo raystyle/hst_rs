@@ -97,9 +97,72 @@ pub fn deploy_shims_with(
 ) -> Result<(Vec<PathBuf>, Vec<String>), String> {
     let dir = root_param.join("hooks");
     std::fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-    let exe = std::env::current_exe()
-        .map(|p| p.display().to_string())
-        .unwrap_or_else(|_| "hst".to_string());
+    let cur = std::env::current_exe().ok();
+    let exe = shim_exe_path(cur.as_deref());
+    let mut extra_warns: Vec<String> = Vec::new();
+    // REQ-043 改进 3：生成器为仓内开发构建位时告警（壳已回落装位，不阻断）。
+    if cur.is_some_and(|c| {
+        let s = c.display().to_string();
+        s.contains("/target/debug/")
+            || s.contains("\\target\\debug\\")
+            || s.contains("/target/release/")
+            || s.contains("\\target\\release\\")
+    }) {
+        extra_warns.push(format!(
+            "shim exe fallback: generator is a dev build, shims baked to \"{exe}\" (rerun bare hst init from an installed binary)"
+        ));
+    }
+    let (wrote, mut warns) = deploy_shims_with_exe(root_param, shell, &exe)?;
+    warns.extend(extra_warns);
+    Ok((wrote, warns))
+}
+
+/// REQ-043（总台派单实战爆雷）：exe 烘焙安全序——current_exe 落在仓内
+/// 开发构建位（`/target/debug/` 加 `/target/release/` 族，正反斜杠形）
+/// 时不烘焙（cargo clean 即断链，2026-10-02 六件喷屏实证），回落装位
+/// 探测（unix 家目录 `.local/bin`，win `ohmyenv/hst` 族，再 PATH 首个
+/// `hst`），全落空回落裸名（PATH 相对，self update 不受影响）。正装
+/// current_exe 照旧绝对路径烘焙（REQ-032 原位替换路径不漂设计保持）。
+fn shim_exe_path(current: Option<&std::path::Path>) -> String {
+    let dev_form = |p: &str| {
+        p.contains("/target/debug/")
+            || p.contains("\\target\\debug\\")
+            || p.contains("/target/release/")
+            || p.contains("\\target\\release\\")
+    };
+    if let Some(cur) = current {
+        let s = cur.display().to_string();
+        if !s.is_empty() && !dev_form(&s) {
+            return s;
+        }
+    }
+    if let Ok(home) = crate::pathutil::user_home() {
+        let cand = if cfg!(windows) {
+            home.join(".local").join("bin").join("hst.exe")
+        } else {
+            home.join(".local").join("bin").join("hst")
+        };
+        if cand.is_file() {
+            return cand.display().to_string();
+        }
+    }
+    if let Some(found) = crate::pathutil::find_on_path("hst") {
+        let s = found.display().to_string();
+        if !dev_form(&s) {
+            return s;
+        }
+    }
+    "hst".to_string()
+}
+
+/// deploy_shims_with 的 exe 注入形（REQ-043 可测面）。
+pub fn deploy_shims_with_exe(
+    root_param: &std::path::Path,
+    shell: &str,
+    exe: &str,
+) -> Result<(Vec<PathBuf>, Vec<String>), String> {
+    let dir = root_param.join("hooks");
+    std::fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     let mut wrote: Vec<PathBuf> = Vec::new();
     let mut warns = Vec::new();
     for (leg, stem) in [("state", "hst-state"), ("token", "hst-token")] {
@@ -159,6 +222,22 @@ pub fn deploy_shims_with(
 mod tests {
     use super::*;
 
+    #[test]
+    fn shim_exe_path_falls_back_from_dev_forms() {
+        // REQ-043：开发构建位不烘焙（cargo clean 断链事故形）；正装照旧；
+        // current 缺失走回落链不炸。
+        let dev = std::path::Path::new("/x/target/debug/hst");
+        assert_ne!(shim_exe_path(Some(dev)), "/x/target/debug/hst");
+        let dev_win = std::path::Path::new("C:\\r\\target\\release\\hst.exe");
+        assert_ne!(
+            shim_exe_path(Some(dev_win)),
+            "C:\\r\\target\\release\\hst.exe"
+        );
+        let ok = std::path::Path::new("/usr/local/bin/hst");
+        assert_eq!(shim_exe_path(Some(ok)), "/usr/local/bin/hst");
+        assert!(!shim_exe_path(None).is_empty());
+    }
+
     /// 独占临时目录（行为测试用）。
     fn scratch(tag: &str) -> std::path::PathBuf {
         let p = std::env::temp_dir().join(format!(
@@ -216,7 +295,11 @@ mod tests {
             8,
             "eight thin shells (sh/ps1/cmd x2 + grok x2): {wrote:?}"
         );
-        assert!(warns.is_empty(), "{warns:?}");
+        // REQ-043：测试进程即开发构建位，告警恰在（回落装位烘焙）。
+        assert!(
+            warns.iter().any(|w| w.starts_with("shim exe fallback")),
+            "dev-build warn present: {warns:?}"
+        );
         for name in [
             "hst-state.sh",
             "hst-state.ps1",
