@@ -1,12 +1,12 @@
 ---
 id: REQ-042
-title: 状态栏loop全源支持(会话内存加用户级全局)
+title: 状态栏loop全源支持
 status: implemented
 priority: must
 trace: statusrender 单测 session_cron_probe_reads_croncreate_family 新件（会话级 CronCreate 出行加 CronDelete 新于创建判取消加 durable:true 归文件层）加 loop_probe_adoption 扩全局收养断言；实弹 prs_c2coe 真会话 payload（fc60bb08，文件恒空）渲染 30m 行
 ---
 
-# REQ-042:状态栏loop全源支持(会话内存加用户级全局)
+# REQ-042:状态栏loop全源支持
 
 ## Scenario
 
