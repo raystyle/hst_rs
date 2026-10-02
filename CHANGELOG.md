@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 里程碑 2026-10-02：v2.9.16 loop 全源支持
+
+- **REQ-042 状态栏loop全源支持（用户报 /loop 30m 后行不显示；续令「用户级 全局 和 会话内存态都要支持」「包括goal的 都要review」）**：会话级 CronCreate（durable 缺省 false 只活会话内存，/loop <interval> 形走此道）入探针源族（三标记取新者：ScheduleWakeup 加 CronCreate 加 CronDelete 取消判终，cd 锚带 input 守卫防 schema 文本假中）；durable 层两文件并源（项目级加用户级全局 `~/.claude/scheduled_tasks.json`，家根会话 durable 落点，家根双读去重）；goalmode 词面完备扫收口（retry 形 `Goal still active · retrying` 产 Active 态）；cron_to_cadence 补 offset-step 分钟形。经 herdr 评审格三轮终审放行（含真语料穷举审计与真文件独立复跑）。
+
 ### 里程碑 2026-10-01：v2.9.15 goalmode 终态词表与 loop 行活倒计时
 
 - **REQ-040 状态栏goalmode终态词表（用户报 goal 状态不刷新：goal 已清行仍显旧文）**：2.1.270 的清 goal 走 TUI 斜杠路径回执（`type:system` 的 `<local-command-stdout>Goal cleared:` 载体）与 `goal_status` 权威态附件（`met:true` 判终达成），两形入词表后清除/达成即隐，不再冻在旧设标文本（REQ-037 评审 G8 候裁项收口）。
