@@ -1505,14 +1505,17 @@ fn loop_probe(ctx: &Ctx) -> Option<(usize, String, String)> {
     // scheduled_tasks.json` 加用户级全局 `~/.claude/scheduled_tasks.json`
     //（家根会话的 durable 落点；全局 loop 与项目无关，处处可见，用户令
     // 「用户级 全局 和 会话内存态都要支持」）。
+    // 评审 F1：家根会话两路径同文件去重；全局 home 解析失败只跳过全局源
+    //（不炸项目层，原行为不受影响）。
+    let mut paths = vec![crate::loopmgmt::scheduled_tasks_path(Path::new(&root))];
+    if let Ok(h) = user_home() {
+        let g = h.join(".claude").join("scheduled_tasks.json");
+        if !paths.iter().any(|p: &PathBuf| *p == g) {
+            paths.push(g);
+        }
+    }
     let mut sources: Vec<Json> = Vec::new();
-    for path in [
-        crate::loopmgmt::scheduled_tasks_path(Path::new(&root)),
-        user_home()
-            .ok()?
-            .join(".claude")
-            .join("scheduled_tasks.json"),
-    ] {
+    for path in paths {
         if !path.is_file() {
             continue;
         }
@@ -1580,6 +1583,24 @@ fn cron_to_cadence(cron: &str) -> String {
                 return format!("×{}h", n / 60);
             }
             return format!("×{n}m");
+        }
+    }
+    // REQ-042 评审 G：offset-step 分钟形（3-59/23，真语料在证）按步进取
+    // 节拍；绝对日期形（12 7 30 9 *）无周期义，回落空记边界。
+    if f[1] == "*" && f[2] == "*" && f[3] == "*" && f[4] == "*" {
+        if let Some((rng, step)) = f[0].split_once('/') {
+            if let (Ok(_lo), Ok(_hi), Ok(s)) = (
+                rng.split('-').next().unwrap_or("").parse::<u32>(),
+                rng.split('-').nth(1).unwrap_or("").parse::<u32>(),
+                step.parse::<u32>(),
+            ) {
+                if s > 0 {
+                    if s >= 60 {
+                        return format!("×{}h", s / 60);
+                    }
+                    return format!("×{s}m");
+                }
+            }
         }
     }
     if f[0].parse::<u32>().is_ok() && f[2] == "*" && f[3] == "*" && f[4] == "*" {
@@ -2101,6 +2122,11 @@ fn scan_markers(chunk: &str) -> Vec<Marker> {
     let short_head = r#""role":"user","content":"Goal check-in: «"#;
     let still = "» is still active";
     let paused = r#""type":"system","subtype":"informational","content":"Goal paused"#;
+    // REQ-042 评审 G：retry 形 system informational（goal check could not
+    // complete · retrying）是活态信号（paused 后无 check-in 的复活支），
+    // 产 Active 态（text 回溯更早 set 或 check-in）。
+    let retry_act = r#""content":"Goal still active"#;
+    let retry_act_sp = r#""content": "Goal still active"#;
     let clear = r#""role":"user","content":"/goal "#;
     // REQ-037 设标形：2.1.270 的 /goal 设标以排队件落盘（主链
     // queue-operation 的 content 加 queued_command 附件的 prompt，同事件
@@ -2161,6 +2187,14 @@ fn scan_markers(chunk: &str) -> Vec<Marker> {
                     ));
                 }
             }
+        } else if let Some(p) = anchor_len(chunk, i, retry_act, retry_act_sp) {
+            found = Some((
+                p,
+                Marker {
+                    kind: MarkerKind::Active,
+                    text: None,
+                },
+            ));
         } else if chunk[i..].starts_with(paused) {
             found = Some((
                 paused.len(),
@@ -2271,6 +2305,10 @@ mod tests {
         assert_eq!(cron_to_cadence("7 */2 * * *"), "×2h");
         assert_eq!(cron_to_cadence("30 14 * * *"), "@14:30");
         assert_eq!(cron_to_cadence("0 0 1 1 *"), "");
+        // REQ-042 评审 G：offset-step 分钟形按步进取节拍；绝对日期回落空。
+        assert_eq!(cron_to_cadence("3-59/23 * * * *"), "×23m");
+        assert_eq!(cron_to_cadence("8-59/21 * * * *"), "×21m");
+        assert_eq!(cron_to_cadence("12 7 30 9 *"), "");
     }
 
     #[test]
@@ -2786,6 +2824,20 @@ mod tests {
         // 选入前须 contains 命中 shell token，空名不可达不上屏。
         assert_eq!(normalize_shell_name("--zsh"), "zsh");
         assert_eq!(normalize_shell_name("-"), "");
+    }
+
+    #[test]
+    fn scan_markers_still_active_retry_form() {
+        // REQ-042 评审 G：retry 形 system informational 产 Active 态（text
+        // 回溯），paused 后无 check-in 的复活支不再冻在 paused。
+        let both = r#"{"type":"queue-operation","content":"Goal set: 目标甲"}
+{"type":"system","subtype":"informational","content":"Goal paused · the goal check timed out"}
+{"type":"system","subtype":"informational","content":"Goal still active · the goal check could not complete · retrying"}
+"#;
+        let ms = scan_markers(both);
+        assert_eq!(ms.len(), 3);
+        assert!(matches!(ms[ms.len() - 1].kind, MarkerKind::Active));
+        assert_eq!(ms[ms.len() - 1].text, None, "text backtracks to set");
     }
 
     #[test]

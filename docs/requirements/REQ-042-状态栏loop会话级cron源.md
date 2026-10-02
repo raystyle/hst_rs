@@ -23,6 +23,9 @@ trace: statusrender 单测 session_cron_probe_reads_croncreate_family 新件（�
 
 ## 边界
 
+- 全局源语义（评审 F1 裁）：`~/.claude/scheduled_tasks.json` 非独立用户级命名空间，是家根会话的 durable 落点（2.1.270 的 CronCreate durable 只有项目文件档）；「他话全局任务在任何项目处处可见」是用户令「全局都要支持」的裁定形非默认语义；家根会话两路径同文件去重（评审 F1 修复），全局 home 解析失败只跳过全局源不炸项目层。
+- goalmode 词面（评审 G 完备扫收口）：retry 形 system informational（`Goal still active · the goal check could not complete · retrying`）产 Active 态；`/goal clear|off|stop` 用户指令载体真语料零命中（真实清态全走 lcs `Goal cleared:`），两形已在词表仅未以真样本锁形，备查。
+- cron_to_cadence 补 offset-step 分钟形（`3-59/23` 按步进取节拍，真语料在证）；绝对日期形（`12 7 30 9 *`）无周期义回落空，候裁。
 - CronDelete 未按 jobId 配对（transcript 的 job id 在 tool_result 载体，配对复杂度高）；任何新于最后一次 CronCreate 的 CronDelete 判取消，误伤面 = 同会话先建会话 cron 再删旧 durable 件的序（文件层与会的删除交错，概率低，记档）。
 - 一次性会话 cron（recurring:false）同显（触发即自删的短窗如实显示）。
 - durable:true 且文件被外部删除的窗口期：文件层零命中时会话层也归 None，行隐（durable 层语义优先，接受）。
