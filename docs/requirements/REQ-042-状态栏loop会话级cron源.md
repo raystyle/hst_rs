@@ -1,12 +1,12 @@
 ---
 id: REQ-042
-title: 状态栏loop会话级cron源
+title: 状态栏loop全源支持(会话内存加用户级全局)
 status: implemented
 priority: must
-trace: statusrender 单测 session_cron_probe_reads_croncreate_family 新件（会话级 CronCreate 出行加 CronDelete 新于创建判取消加 durable:true 归文件层）；实弹 prs_c2coe 真会话 payload（fc60bb08，文件恒空）渲染 30m 行
+trace: statusrender 单测 session_cron_probe_reads_croncreate_family 新件（会话级 CronCreate 出行加 CronDelete 新于创建判取消加 durable:true 归文件层）加 loop_probe_adoption 扩全局收养断言；实弹 prs_c2coe 真会话 payload（fc60bb08，文件恒空）渲染 30m 行
 ---
 
-# REQ-042:状态栏loop会话级cron源
+# REQ-042:状态栏loop全源支持(会话内存加用户级全局)
 
 ## Scenario
 
@@ -17,6 +17,7 @@ trace: statusrender 单测 session_cron_probe_reads_croncreate_family 新件（�
 验收判据,可检验、可勾选:
 
 - [x] 会话级 loop 探针源族三标记取新者：ScheduleWakeup 加 CronCreate 加 CronDelete（取消判终，新于创建即隐）
+- [x] durable 层两文件并源（用户令「用户级 全局 和 会话内存态都要支持」）：项目级 `<root>/.claude/scheduled_tasks.json` 加用户级全局 `~/.claude/scheduled_tasks.json`（家根会话的 durable 落点，全局 loop 处处可见），等值与收养回落跨两文件取新者
 - [x] CronCreate 判定：`durable:true` 属文件层归 None（本探针只在文件层零命中时被咨询）；会话级取 cron 节拍（cron_to_cadence 剥 × 对齐 SW 形）加 prompt（剥 /loop 前缀截 60）；next 回落节拍（会话 cron 无单点下次时刻）
 - [x] 测试：新件三断言；实弹真会话 payload 渲染 30m 行
 

@@ -1501,16 +1501,37 @@ fn loop_probe(ctx: &Ctx) -> Option<(usize, String, String)> {
     if root.is_empty() || root == "." {
         root = std::env::current_dir().ok()?.display().to_string();
     }
-    let path = crate::loopmgmt::scheduled_tasks_path(Path::new(&root));
-    if !path.is_file() {
+    // REQ-042：durable 层两文件并源——项目级 `<root>/.claude/
+    // scheduled_tasks.json` 加用户级全局 `~/.claude/scheduled_tasks.json`
+    //（家根会话的 durable 落点；全局 loop 与项目无关，处处可见，用户令
+    // 「用户级 全局 和 会话内存态都要支持」）。
+    let mut sources: Vec<Json> = Vec::new();
+    for path in [
+        crate::loopmgmt::scheduled_tasks_path(Path::new(&root)),
+        user_home()
+            .ok()?
+            .join(".claude")
+            .join("scheduled_tasks.json"),
+    ] {
+        if !path.is_file() {
+            continue;
+        }
+        if let Ok(v) = crate::yolo::read_json(&path) {
+            sources.push(v);
+        }
+    }
+    if sources.is_empty() {
         return Some((0, String::new(), String::new()));
     }
-    let Ok(v) = crate::yolo::read_json(&path) else {
+    let mut tasks: Vec<&Json> = Vec::new();
+    for v in &sources {
+        if let Some(arr) = v.get("tasks").and_then(|t| t.as_array()) {
+            tasks.extend(arr.iter());
+        }
+    }
+    if tasks.is_empty() {
         return Some((0, String::new(), String::new()));
-    };
-    let Some(tasks) = v.get("tasks").and_then(|t| t.as_array()) else {
-        return Some((0, String::new(), String::new()));
-    };
+    }
     let mut mine: Vec<&Json> = tasks
         .iter()
         .filter(|t| {
@@ -1519,11 +1540,12 @@ fn loop_probe(ctx: &Ctx) -> Option<(usize, String, String)> {
                 .map(|x| x == sid)
                 .unwrap_or(false)
         })
+        .map(|t| *t)
         .collect();
     if mine.is_empty() {
-        // REQ-035 收养回落：本会话零自有任务时取项目全量（判据见函数
+        // REQ-035 收养回落：本会话零自有任务时取并源全量（判据见函数
         // 注）；全量也空才真零命中。
-        mine = tasks.iter().collect();
+        mine = tasks.clone();
     }
     if mine.is_empty() {
         return Some((0, String::new(), String::new()));
@@ -3092,6 +3114,19 @@ mod tests {
         assert!(
             session_loop_probe(&ctx).is_none(),
             "empty SW cancels even within staleness window"
+        );
+        // REQ-042 用户级全局源：项目文件缺位时 ~/.claude/scheduled_tasks.json
+        // 的全局任务照显（收养回落语义同项目层）。
+        std::fs::write(tdir.join("s1.jsonl"), "").unwrap();
+        std::fs::write(
+            tmp.join(".claude").join("scheduled_tasks.json"),
+            r#"{"tasks":[{"id":"g1","cron":"*/20 * * * *","prompt":"全局巡检","createdAt":400,"createdBySessionId":"other"}]}"#,
+        )
+        .unwrap();
+        let (count, cadence, goal) = loop_probe(&ctx).unwrap();
+        assert_eq!(
+            (count, cadence.as_str(), goal.as_str()),
+            (1, "×20m", "全局巡检")
         );
         std::fs::write(
             tdir.join("s1.jsonl"),
