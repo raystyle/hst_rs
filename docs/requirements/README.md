@@ -44,3 +44,4 @@
 | REQ-039 | implemented | must | 状态栏hookstate项目级注册面 | statusrender 既有件扩项目级断言；实弹真 payload 三守卫入列 |
 | REQ-040 | implemented | must | 状态栏goalmode终态词表 | statusrender 新件五断言加时序；实弹真会话 payload 行由冻显转隐藏 |
 | REQ-041 | implemented | must | 状态栏loop行活倒计时 | statusrender 既有件扩三断言；实弹夹具双时点渲染倒计时跳变 |
+| REQ-042 | implemented | must | 状态栏loop会话级cron源 | statusrender 新件三断言；实弹真会话 payload 渲染 30m 行 |

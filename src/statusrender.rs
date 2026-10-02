@@ -1721,7 +1721,13 @@ fn session_loop_probe(ctx: &Ctx) -> Option<(String, String, String)> {
     let mut fs = std::fs::File::open(&file).ok()?;
     use std::io::{Read, Seek, SeekFrom};
     let len = fs.metadata().ok()?.len();
-    let marker = "\"name\":\"ScheduleWakeup\",\"input\":{";
+    // REQ-042：源族三标记取新者——ScheduleWakeup（自调度）加 CronCreate
+    //（会话级 cron，durable 缺省 false 只活会话内存，/loop <interval> 形
+    // 走此道，2026-10-02 prs_c2coe fc60bb08 实证文件恒空）加 CronDelete
+    //（取消判终，新于创建即隐）。
+    let sw_marker = "\"name\":\"ScheduleWakeup\",\"input\":{";
+    let cc_marker = "\"name\":\"CronCreate\",\"input\":{";
+    let cd_marker = "\"name\":\"CronDelete\"";
     let chunk_sz: u64 = 4 * 1024 * 1024;
     let ovl: u64 = 512;
     let mut pos = len;
@@ -1736,8 +1742,24 @@ fn session_loop_probe(ctx: &Ctx) -> Option<(String, String, String)> {
         comb.extend_from_slice(&prev_head);
         prev_head = buf[..(ovl as usize).min(buf.len())].to_vec();
         let chunk = String::from_utf8_lossy(&comb);
-        if let Some(idx) = chunk.rfind(marker) {
-            return wakeup_verdict(&chunk, idx).into();
+        let sw = chunk.rfind(sw_marker);
+        let cc = chunk.rfind(cc_marker);
+        let cd = chunk.rfind(cd_marker);
+        let newest = [sw, cc, cd]
+            .into_iter()
+            .flatten()
+            .max_by_key(|&i| i)
+            .map(|i| (i, sw == Some(i), cc == Some(i), cd == Some(i)));
+        if let Some((idx, is_sw, is_cc, is_cd)) = newest {
+            if is_sw {
+                return wakeup_verdict(&chunk, idx).into();
+            }
+            if is_cd {
+                return None;
+            }
+            // CronCreate：durable:true 属文件层（durable 探针管辖，本探针
+            // 只在文件层零命中时被咨询）；会话级取 cron 加 prompt。
+            return cron_verdict(&chunk, idx).into();
         }
     }
     None
@@ -1804,6 +1826,53 @@ fn wakeup_verdict(chunk: &str, marker_idx: usize) -> WakeVerdict {
         goal = format!("{cut}…");
     }
     WakeVerdict::Active((delay_cadence(delay), goal, next))
+}
+
+/// 会话级 CronCreate 判定（REQ-042）：`durable:true` 属文件层归 None
+///（本探针只在文件层零命中时被咨询）；会话级取 cron 节拍（cron_to_
+/// cadence 剥 × 对齐 SW 形）加 prompt 文本，next 回落节拍（会话 cron 无
+/// 单点下次时刻）。无 cron 字段的退化输入归 None。
+fn cron_verdict(chunk: &str, marker_idx: usize) -> CronOutcome {
+    let obj = object_span(&chunk[marker_idx..]);
+    if obj.contains("\"durable\":true") {
+        return CronOutcome::FileLayer;
+    }
+    let cron = obj
+        .find("\"cron\":\"")
+        .and_then(|i| json_string_at(&obj[i + 7..]))
+        .unwrap_or_default();
+    if cron.is_empty() {
+        return CronOutcome::FileLayer;
+    }
+    let prompt = obj
+        .find("\"prompt\":\"")
+        .and_then(|i| json_string_at(&obj[i + 9..]));
+    let cadence = cron_to_cadence(&cron).trim_start_matches('×').to_string();
+    let mut goal = prompt
+        .map(|p| p.strip_prefix("/loop ").unwrap_or(&p).to_string())
+        .unwrap_or_default()
+        .replace(['\r', '\n'], " ")
+        .trim()
+        .to_string();
+    if goal.chars().count() > 60 {
+        let cut: String = goal.chars().take(60).collect();
+        goal = format!("{cut}…");
+    }
+    CronOutcome::Session((cadence.clone(), goal, cadence))
+}
+
+enum CronOutcome {
+    Session((String, String, String)),
+    FileLayer,
+}
+
+impl From<CronOutcome> for Option<(String, String, String)> {
+    fn from(v: CronOutcome) -> Self {
+        match v {
+            CronOutcome::Session(t) => Some(t),
+            CronOutcome::FileLayer => None,
+        }
+    }
 }
 
 /// 取首个 `{` 起的配对对象跨（字符串感知：值内花括号与引号不计数）；
@@ -2773,6 +2842,61 @@ mod tests {
                 "terminal tail hides row: {tail}"
             );
         }
+        std::env::remove_var("HST_USER_HOME");
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn session_cron_probe_reads_croncreate_family() {
+        // REQ-042：/loop <interval> 形走会话级 CronCreate（durable 缺省
+        // false 只活会话内存，文件恒空）；取 cron 节拍加 prompt；CronDelete
+        // 新于创建判取消；durable:true 属文件层归 None。
+        let _env = crate::pathutil::ENV_LOCK.lock().unwrap();
+        let tmp = std::env::temp_dir().join(format!("hst-sc-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let proj = format!("{}/proj", tmp.display());
+        let slug: String = proj
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+            .collect();
+        let tdir = tmp.join(".claude").join("projects").join(&slug);
+        std::fs::create_dir_all(&tdir).unwrap();
+        std::env::set_var("HST_USER_HOME", &tmp);
+        let cfg = StatuslineConfig::default();
+        let d: Json =
+            serde_json::from_str(&format!(r#"{{"session_id":"s1","cwd":"{proj}"}}"#)).unwrap();
+        let ctx = Ctx {
+            d: &d,
+            agent: "claude".to_string(),
+            nerd: true,
+            cfg: &cfg,
+            home: &tmp,
+            dir: proj.clone(),
+            root: String::new(),
+            proj_kind: String::new(),
+            pkg_ver: String::new(),
+        };
+        let cc = r#"{"timestamp":"2026-10-02T08:55:00.000Z","message":{"content":[{"type":"tool_use","name":"CronCreate","input":{"cron":"*/30 * * * *","prompt":"继续 按进度完成goal","recurring":true}}]}}"#;
+        let cd = r#"{"timestamp":"2026-10-02T09:00:00.000Z","message":{"content":[{"type":"tool_use","name":"CronDelete","input":{"jobId":"fc60bb08"}}]}}"#;
+        let cc_durable = r#"{"timestamp":"2026-10-02T09:05:00.000Z","message":{"content":[{"type":"tool_use","name":"CronCreate","input":{"cron":"*/5 * * * *","prompt":"durable 件","recurring":true,"durable":true}}]}}"#;
+        // 会话级 CronCreate → 30m 节拍加 prompt（无 timestamp 依赖，next 回
+        // 落节拍）。
+        std::fs::write(tdir.join("s1.jsonl"), format!("{cc}\n")).unwrap();
+        let probe = session_loop_probe(&ctx).unwrap();
+        assert_eq!(
+            probe,
+            (
+                "30m".to_string(),
+                "继续 按进度完成goal".to_string(),
+                "30m".to_string()
+            )
+        );
+        // CronDelete 新于创建 → 取消判终。
+        std::fs::write(tdir.join("s1.jsonl"), format!("{cc}\n{cd}\n")).unwrap();
+        assert!(session_loop_probe(&ctx).is_none());
+        // durable:true 属文件层（文件层零命中时被咨询 → None）。
+        std::fs::write(tdir.join("s1.jsonl"), format!("{cc}\n{cc_durable}\n")).unwrap();
+        assert!(session_loop_probe(&ctx).is_none());
         std::env::remove_var("HST_USER_HOME");
         let _ = std::fs::remove_dir_all(&tmp);
     }
