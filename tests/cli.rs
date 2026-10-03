@@ -1806,6 +1806,19 @@ fn deployed_state_shim_roundtrips_stdin_payload() {
     let root = tmp.join("hst-root");
     std::fs::create_dir_all(&root).unwrap();
     let state_file = tmp.join("state.json");
+    // REQ-043 后 shim 烘焙安全序：开发构建位（cargo test 的
+    // target/debug 形）不烘焙 current_exe，回落装位（HST_USER_HOME 下
+    // .local/bin/hst）。预装一份构建位 hst 到 scratch 装位，回落链第二
+    // 腿命中——CI 无全局装位 hst，此前靠环境侥幸（本机装位在场绿、CI
+    // 断链红，2026-10-03 v2.9.17 轮坐实），预装后全环境确定。
+    let install = tmp.join("user").join(".local").join("bin").join("hst");
+    std::fs::create_dir_all(install.parent().unwrap()).unwrap();
+    std::fs::copy(env!("CARGO_BIN_EXE_hst"), &install).expect("preinstall hst");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&install, std::fs::Permissions::from_mode(0o755));
+    }
     // 部署 shim：走产品面（hook init 落全套 shim 到 HST_ROOT）。
     let dep = std::process::Command::new(env!("CARGO_BIN_EXE_hst"))
         .args(["hook", "init", "--project"])
