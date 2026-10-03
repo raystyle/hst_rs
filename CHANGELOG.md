@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 里程碑 2026-10-03：v2.9.17 hookstate 插件面与宽感知折行
+
+- **REQ-044 状态栏hookstate插件面与宽感知折行（用户报 hook 清单被终端截断 `session-tool-g…` 且全局插件 hook 整条不显示）**：claude 家并入插件注册面（`~/.claude/plugins/installed_plugins.json` v2 形，enabledPlugins 三级门控 local 大于项目大于用户级首见即用，user 作用域全收加 project 作用域命中根者收），插件 hook 显示 = 插件名连字符加其 statusMessage（缺席回落干 stem），与 settings 面 stem 去重；hookstate 行 COLUMNS 宽感知折行（Claude Code 跑脚本前钦定设此宽源，本机实弹 96 验证），CJK 双格计宽在 ` | ` 处贪心断行、续行缩进、逐行 SGR，COLUMNS 缺席维持单行；三别名改连字符形（herdr-agent状态监控加 hst-token护栏加 hst-会话状态同步，用户令）。
+
 ### 里程碑 2026-10-02：v2.9.16 loop 全源支持
 
 - **REQ-042 状态栏loop全源支持（用户报 /loop 30m 后行不显示；续令「用户级 全局 和 会话内存态都要支持」「包括goal的 都要review」）**：会话级 CronCreate（durable 缺省 false 只活会话内存，/loop <interval> 形走此道）入探针源族（三标记取新者：ScheduleWakeup 加 CronCreate 加 CronDelete 取消判终，cd 锚带 input 守卫防 schema 文本假中）；durable 层两文件并源（项目级加用户级全局 `~/.claude/scheduled_tasks.json`，家根会话 durable 落点，家根双读去重）；goalmode 词面完备扫收口（retry 形 `Goal still active · retrying` 产 Active 态）；cron_to_cadence 补 offset-step 分钟形。经 herdr 评审格三轮终审放行（含真语料穷举审计与真文件独立复跑）。
