@@ -1498,9 +1498,6 @@ fn statusline_render_native_marker_smoke() {
     let out = hst()
         .env("HST_ROOT", &tmp)
         .env("HST_USER_HOME", &tmp)
-        // REQ-044：COLUMNS 在场会触发 hookstate 宽感知折行，钉死缺席保
-        // 三行断言确定（外层 shell 偶有导出）。
-        .env_remove("COLUMNS")
         .args(["statusline", "--render", "claude"])
         .write_stdin("{}")
         .output()

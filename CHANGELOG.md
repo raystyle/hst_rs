@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 里程碑 2026-10-03：v2.9.18 hookstate 折行裁撤回归单行
+
+- **hookstate 恒单行（用户令「状态栏的hook显示 不要换行」当日裁撤 v2.9.17 折行面）**：COLUMNS 宽感知折行上线即撤，hookstate 行恢复恒单行，超宽由终端截断（Claude Code 渲染层行为，hst 不代劳）；折行伴生三助手（term_columns 加 cells 加 wrap_sep_lines）与折行测试件同批出仓。插件面与连字符别名（v2.9.17 落）不动。
+
 ### 里程碑 2026-10-03：v2.9.17 hookstate 插件面与宽感知折行
 
 - **REQ-044 状态栏hookstate插件面与宽感知折行（用户报 hook 清单被终端截断 `session-tool-g…` 且全局插件 hook 整条不显示）**：claude 家并入插件注册面（`~/.claude/plugins/installed_plugins.json` v2 形，enabledPlugins 三级门控 local 大于项目大于用户级首见即用，user 作用域全收加 project 作用域命中根者收），插件 hook 显示 = 插件名连字符加其 statusMessage（缺席回落干 stem），与 settings 面 stem 去重；hookstate 行 COLUMNS 宽感知折行（Claude Code 跑脚本前钦定设此宽源，本机实弹 96 验证），CJK 双格计宽在 ` | ` 处贪心断行、续行缩进、逐行 SGR，COLUMNS 缺席维持单行；三别名改连字符形（herdr-agent状态监控加 hst-token护栏加 hst-会话状态同步，用户令）。

@@ -46,4 +46,4 @@
 | REQ-041 | implemented | must | 状态栏loop行活倒计时 | statusrender 既有件扩三断言；实弹夹具双时点渲染倒计时跳变 |
 | REQ-042 | implemented | must | 状态栏loop全源支持(会话内存加用户级全局) | statusrender 新件三断言加全局收养扩断言；实弹真会话 payload 渲染 30m 行 |
 | REQ-043 | implemented | must | hook壳烘焙安全序与init同步 | shim 单测四断言加八件告警改件；实弹三场景（debug 回落装位加旗标同步死路径加告警打点） |
-| REQ-044 | implemented | must | 状态栏hookstate插件面与宽感知折行 | statusrender 新件二（插件面 enabled 门控三态加折行 CJK 计宽）加既有件改形；实弹真 payload 渲染插件 hook 入列加 COLUMNS=96 折行 |
+| REQ-044 | implemented | must | 状态栏hookstate插件面与宽感知折行 | statusrender 新件（插件面 enabled 门控三态）加既有件改形；实弹真 payload 插件 hook 单行入列（折行面 v2.9.17 上线即裁撤） |

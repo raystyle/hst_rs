@@ -949,8 +949,9 @@ const HOOK_ALIASES: &[(&str, &str)] = &[
 /// 占位符保留供自配）；出行门 = 状态文件在场或有挂载 hook 任一（评审
 /// 快核 G1：刚装未触发的空窗期不隐清单）；双缺整行隐藏（零噪声）；
 /// 注册面读不出 hook 时回落泛称 `hook` 保语义。注册面三源（用户级
-/// settings 加项目级 settings 族加全局插件面，REQ-044）；行超终端宽
-///（COLUMNS）时折续行（REQ-044，见 `wrap_sep_lines`）。
+/// settings 加项目级 settings 族加全局插件面，REQ-044）。恒单行不折
+///（REQ-044 折行面上线即裁撤，用户令 2026-10-03「不要换行」：超宽由
+/// 终端截断，Claude Code 渲染层行为，hst 不代劳）。
 fn seg_hookstate(ctx: &Ctx) -> Option<String> {
     let (state, present) = hook_state(ctx);
     let alias_raw = hooked_aliases(&ctx.agent, ctx.d);
@@ -976,95 +977,17 @@ fn seg_hookstate(ctx: &Ctx) -> Option<String> {
     } else {
         alias_raw
     };
-    let text = apply_fmt(
-        &tmpl_of(ctx, key),
-        &[
-            ("icon", icon_of(ctx, "hookstate")),
-            ("alias", alias),
-            ("state", state),
-        ],
-    );
-    // 宽感知折行（REQ-044）：清单超终端宽时在 ` | ` 处断续行，逐行着色
-    //（跨行 SGR 续色依赖渲染器实现，逐行自带色码不赌）。
-    let wrapped = match term_columns() {
-        Some(w) => wrap_sep_lines(&text, w),
-        None => text,
-    };
-    Some(
-        wrapped
-            .lines()
-            .map(|l| ansi(l, color))
-            .collect::<Vec<_>>()
-            .join("\n"),
-    )
-}
-
-/// 终端宽（REQ-044）：Claude Code 跑状态栏脚本前设 COLUMNS（官方钦定
-/// 宽源，statusline 文档 Sizing output to the terminal 节；本机实弹抓
-/// 帧 96 验证）。无效或缺席返回 None（不折，维持单行现状形）。
-fn term_columns() -> Option<usize> {
-    let c = std::env::var("COLUMNS").ok()?;
-    let n: usize = c.trim().parse().ok()?;
-    (n > 0).then_some(n)
-}
-
-/// 显示宽（CJK 双格启发式，nerd PUA 图标保守 2 格）：状态栏折行专用，
-/// 非全量 East Asian Width 实现（REQ-044 边界）。
-fn cells(s: &str) -> usize {
-    s.chars()
-        .map(|c| {
-            let u = c as u32;
-            usize::from(
-                (0x1100..=0x115F).contains(&u)
-                    || (0x2E80..=0x303E).contains(&u)
-                    || (0x3041..=0x33FF).contains(&u)
-                    || (0x3400..=0x4DBF).contains(&u)
-                    || (0x4E00..=0x9FFF).contains(&u)
-                    || (0xA000..=0xA4CF).contains(&u)
-                    || (0xAC00..=0xD7A3).contains(&u)
-                    || (0xE000..=0xF8FF).contains(&u)
-                    || (0xF900..=0xFAFF).contains(&u)
-                    || (0xFE30..=0xFE4F).contains(&u)
-                    || (0xFF00..=0xFF60).contains(&u)
-                    || (0xFFE0..=0xFFE6).contains(&u)
-                    || (0x1F300..=0x1F64F).contains(&u)
-                    || (0x1F680..=0x1F6FF).contains(&u)
-                    || (0x1F900..=0x1F9FF).contains(&u)
-                    || (0x20000..=0x2FFFD).contains(&u)
-                    || (0x30000..=0x3FFFD).contains(&u),
-            ) + 1
-        })
-        .sum()
-}
-
-/// 宽感知折行（REQ-044）：整行显示宽超终端宽时在 ` | ` 分隔符处贪心
-/// 断行（别名值内无该分隔符，REQ-028 拆条后内嵌分隔已禁；插件
-/// statusMessage 是任意文本，内含 ` | ` 时会在标签内部断行，评审 G2 现
-/// 行为在册），续行两空格缩进；单条超宽不硬拆（该条仍受终端截断，与
-/// 现状同）；未超宽原样返回。budget 留 1 格余量（宁折勿截，评审 G1）。
-fn wrap_sep_lines(text: &str, width: usize) -> String {
-    let budget = width.saturating_sub(1).max(1);
-    if cells(text) <= budget {
-        return text.to_string();
-    }
-    let mut lines: Vec<String> = Vec::new();
-    let mut cur = String::new();
-    for chunk in text.split(" | ") {
-        if cur.is_empty() {
-            cur.push_str(chunk);
-            continue;
-        }
-        if cells(&cur) + 3 + cells(chunk) <= budget {
-            cur.push_str(" | ");
-            cur.push_str(chunk);
-        } else {
-            lines.push(std::mem::take(&mut cur));
-            cur.push_str("  ");
-            cur.push_str(chunk);
-        }
-    }
-    lines.push(cur);
-    lines.join("\n")
+    Some(ansi(
+        &apply_fmt(
+            &tmpl_of(ctx, key),
+            &[
+                ("icon", icon_of(ctx, "hookstate")),
+                ("alias", alias),
+                ("state", state),
+            ],
+        ),
+        color,
+    ))
 }
 
 /// 注册面 hook 别名清单：按 agent 定位注册文件，收集全部 hook 命令
@@ -2743,26 +2666,6 @@ mod tests {
         .unwrap();
         assert_eq!(hooked_aliases_at(&tmp, "claude", ""), "hst-会话状态同步");
         let _ = std::fs::remove_dir_all(&tmp);
-    }
-
-    #[test]
-    fn wrap_sep_lines_cjk_aware_greedy() {
-        // REQ-044：未超宽原样；超宽在 ` | ` 处贪心断行、续行两空格缩进；
-        // CJK 双格计宽；单条超宽不硬拆。
-        assert_eq!(cells("abc"), 3);
-        assert_eq!(cells("中a"), 3);
-        assert_eq!(cells("\u{f0f1}"), 2, "nerd PUA conservative 2 cells");
-        assert_eq!(wrap_sep_lines("a | b", 10), "a | b");
-        let s = "herdr-agent状态监控 | hst-token护栏 | hst-会话状态同步";
-        // cells：19 加 13 加 16 加分隔 6 = 54；宽 40（budget 39）断在
-        // 第二条后。
-        assert_eq!(
-            wrap_sep_lines(s, 40),
-            "herdr-agent状态监控 | hst-token护栏\n  hst-会话状态同步"
-        );
-        // 单条超宽不硬拆（该条仍受终端截断，与现状同）。
-        let one = "超长单条不拆";
-        assert_eq!(wrap_sep_lines(one, 5), one);
     }
 
     #[test]
