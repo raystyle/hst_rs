@@ -918,24 +918,25 @@ fn state_color(state: &str) -> &'static str {
     }
 }
 
-/// hook 功能别名清单（用户令 2026-09-27 多轮收敛）：别名带属主进程前缀
-/// （「别名 加上什么进程」，例序 herdr 在先），分隔符 ` | ` 与他行段分隔
-/// 同形；预对齐解耦后命令名 `hst token` 与 `hst state`（REQ-028 候裁）。
-/// 未收录的回落 stem 本名；清单含外来 hook（herdr 等）。
+/// hook 功能别名清单（用户令 2026-09-27 多轮收敛，2026-10-03 改连字符
+/// 形）：别名带属主进程前缀（「别名-加上什么进程」，例序 herdr 在先），
+/// 分隔符 ` | ` 与他行段分隔同形；预对齐解耦后命令名 `hst token` 与
+/// `hst state`（REQ-028 候裁）。未收录的回落 stem 本名；清单含外来
+/// hook（herdr 等）。
 const HOOK_ALIASES: &[(&str, &str)] = &[
-    // 别名带属主前缀（用户令 2026-09-27「别名 加上什么进程」，例序 herdr
-    // 在先）；分隔符 ` | ` 与他行段分隔同形。REQ-028 拆条后一命令一脚本
-    // 一别名：`hst hook token` 单对 hst-token.sh、`hst hook state` 单对
+    // 别名带属主前缀连字符接功能（用户令 2026-10-03 改形，原空格接）；
+    // 分隔符 ` | ` 与他行段分隔同形。REQ-028 拆条后一命令一脚本一别名：
+    // `hst hook token` 单对 hst-token.sh、`hst hook state` 单对
     // hst-state.sh；未来 `hst hook <x>` 循此式加条即入列。
     // herdr agent 状态监控 hook：claude/grok 面 SessionStart 会话登记推
     // herdr server（pane 与会话绑定），kimi 面每事件推 working/idle 态。
-    ("herdr-agent-state", "herdr agent状态监控"),
+    ("herdr-agent-state", "herdr-agent状态监控"),
     // hst token 护栏 hook（REQ-028）：PreToolUse/UserPromptSubmit 跑
     // secretguard 密钥拦截（S030：API key 命中 exit 2 阻断）。
-    ("hst-token", "hst token护栏"),
+    ("hst-token", "hst-token护栏"),
     // hst 会话状态同步 hook（S025/D28）：事件映射四态写 ~/.hst/state
     // 会话键。
-    ("hst-state", "hst 会话状态同步"),
+    ("hst-state", "hst-会话状态同步"),
 ];
 
 /// 新增 hook 收录指引（评审 G3）：只改 HOOK_ALIASES 一处加 stem 判定回
@@ -947,7 +948,9 @@ const HOOK_ALIASES: &[(&str, &str)] = &[
 /// 状态 显示hook功能的别名」：态文本退出缺省显示，仅以行色暗示；{state}
 /// 占位符保留供自配）；出行门 = 状态文件在场或有挂载 hook 任一（评审
 /// 快核 G1：刚装未触发的空窗期不隐清单）；双缺整行隐藏（零噪声）；
-/// 注册面读不出 hook 时回落泛称 `hook` 保语义。
+/// 注册面读不出 hook 时回落泛称 `hook` 保语义。注册面三源（用户级
+/// settings 加项目级 settings 族加全局插件面，REQ-044）；行超终端宽
+///（COLUMNS）时折续行（REQ-044，见 `wrap_sep_lines`）。
 fn seg_hookstate(ctx: &Ctx) -> Option<String> {
     let (state, present) = hook_state(ctx);
     let alias_raw = hooked_aliases(&ctx.agent, ctx.d);
@@ -973,17 +976,94 @@ fn seg_hookstate(ctx: &Ctx) -> Option<String> {
     } else {
         alias_raw
     };
-    Some(ansi(
-        &apply_fmt(
-            &tmpl_of(ctx, key),
-            &[
-                ("icon", icon_of(ctx, "hookstate")),
-                ("alias", alias),
-                ("state", state),
-            ],
-        ),
-        color,
-    ))
+    let text = apply_fmt(
+        &tmpl_of(ctx, key),
+        &[
+            ("icon", icon_of(ctx, "hookstate")),
+            ("alias", alias),
+            ("state", state),
+        ],
+    );
+    // 宽感知折行（REQ-044）：清单超终端宽时在 ` | ` 处断续行，逐行着色
+    //（跨行 SGR 续色依赖渲染器实现，逐行自带色码不赌）。
+    let wrapped = match term_columns() {
+        Some(w) => wrap_sep_lines(&text, w),
+        None => text,
+    };
+    Some(
+        wrapped
+            .lines()
+            .map(|l| ansi(l, color))
+            .collect::<Vec<_>>()
+            .join("\n"),
+    )
+}
+
+/// 终端宽（REQ-044）：Claude Code 跑状态栏脚本前设 COLUMNS（官方钦定
+/// 宽源，statusline 文档 Sizing output to the terminal 节；本机实弹抓
+/// 帧 96 验证）。无效或缺席返回 None（不折，维持单行现状形）。
+fn term_columns() -> Option<usize> {
+    let c = std::env::var("COLUMNS").ok()?;
+    let n: usize = c.trim().parse().ok()?;
+    (n > 0).then_some(n)
+}
+
+/// 显示宽（CJK 双格启发式，nerd PUA 图标保守 2 格）：状态栏折行专用，
+/// 非全量 East Asian Width 实现（REQ-044 边界）。
+fn cells(s: &str) -> usize {
+    s.chars()
+        .map(|c| {
+            let u = c as u32;
+            usize::from(
+                (0x1100..=0x115F).contains(&u)
+                    || (0x2E80..=0x303E).contains(&u)
+                    || (0x3041..=0x33FF).contains(&u)
+                    || (0x3400..=0x4DBF).contains(&u)
+                    || (0x4E00..=0x9FFF).contains(&u)
+                    || (0xA000..=0xA4CF).contains(&u)
+                    || (0xAC00..=0xD7A3).contains(&u)
+                    || (0xE000..=0xF8FF).contains(&u)
+                    || (0xF900..=0xFAFF).contains(&u)
+                    || (0xFE30..=0xFE4F).contains(&u)
+                    || (0xFF00..=0xFF60).contains(&u)
+                    || (0xFFE0..=0xFFE6).contains(&u)
+                    || (0x1F300..=0x1F64F).contains(&u)
+                    || (0x1F680..=0x1F6FF).contains(&u)
+                    || (0x1F900..=0x1F9FF).contains(&u)
+                    || (0x20000..=0x2FFFD).contains(&u)
+                    || (0x30000..=0x3FFFD).contains(&u),
+            ) + 1
+        })
+        .sum()
+}
+
+/// 宽感知折行（REQ-044）：整行显示宽超终端宽时在 ` | ` 分隔符处贪心
+/// 断行（别名值内无该分隔符，REQ-028 拆条后内嵌分隔已禁），续行两空格
+/// 缩进；单条超宽不硬拆（该条仍受终端截断，与现状同）；未超宽原样
+/// 返回。budget 留 1 格余量（渲染侧前缀贴边防抖）。
+fn wrap_sep_lines(text: &str, width: usize) -> String {
+    let budget = width.saturating_sub(1).max(1);
+    if cells(text) <= budget {
+        return text.to_string();
+    }
+    let mut lines: Vec<String> = Vec::new();
+    let mut cur = String::new();
+    for chunk in text.split(" | ") {
+        if cur.is_empty() {
+            cur.push_str(chunk);
+            continue;
+        }
+        if cells(&cur) + 3 + cells(chunk) <= budget {
+            cur.push_str(" | ");
+            cur.push_str(chunk);
+        } else {
+            lines.push(std::mem::take(&mut cur));
+            cur.push_str("  ");
+            cur.push_str(chunk);
+        }
+    }
+    lines.push(cur);
+    lines.join("\n")
 }
 
 /// 注册面 hook 别名清单：按 agent 定位注册文件，收集全部 hook 命令
@@ -991,9 +1071,10 @@ fn seg_hookstate(ctx: &Ctx) -> Option<String> {
 /// 字典序殿后）映射别名，分隔符 ` | ` 与他行段分隔同形（用户令
 /// 2026-09-27 两轮收敛）。claude 额外并读项目级注册面（REQ-039：payload
 /// `workspace.project_dir` 下 `.claude/settings.json` 加
-/// `settings.local.json`，项目守卫 hook 如 session-tool-guard 族入列）。
-/// 文件缺失、坏损或零挂载返回空串。codex 虽无外部状态栏面，手动 render
-/// 亦可得清单。
+/// `settings.local.json`，项目守卫 hook 如 session-tool-guard 族入列）与
+/// 插件注册面（REQ-044：`~/.claude/plugins/` 全局插件 hook，显示形走
+/// 覆写表）。文件缺失、坏损或零挂载返回空串。codex 虽无外部状态栏面，
+/// 手动 render 亦可得清单。
 fn hooked_aliases(agent: &str, d: &Json) -> String {
     match user_home() {
         Ok(h) => hooked_aliases_at(&h, agent, &s(d, &["workspace", "project_dir"])),
@@ -1004,6 +1085,8 @@ fn hooked_aliases(agent: &str, d: &Json) -> String {
 /// hooked_aliases 的可测形（home 加项目根显式透传）。
 fn hooked_aliases_at(home: &Path, agent: &str, project_root: &str) -> String {
     let mut cmds: Vec<String> = Vec::new();
+    // stem 到显示名覆写表（REQ-044 插件面：插件名连字符加 statusMessage）。
+    let mut display: std::collections::BTreeMap<String, String> = Default::default();
     match agent {
         // claude/codex/grok 注册面同构（hooks.<Event>[].hooks[].command）。
         "claude" => {
@@ -1013,6 +1096,7 @@ fn hooked_aliases_at(home: &Path, agent: &str, project_root: &str) -> String {
                 collect_json_commands(&pdotclaude.join("settings.json"), &mut cmds);
                 collect_json_commands(&pdotclaude.join("settings.local.json"), &mut cmds);
             }
+            collect_plugin_hooks(home, project_root, &mut cmds, &mut display);
         }
         "codex" => collect_json_commands(&home.join(".codex").join("hooks.json"), &mut cmds),
         // grok 是多文件注册面（评审 F：本机 herdr 的 grok 挂载在
@@ -1041,19 +1125,111 @@ fn hooked_aliases_at(home: &Path, agent: &str, project_root: &str) -> String {
     }
     let stems: std::collections::BTreeSet<String> =
         cmds.iter().filter_map(|c| hook_stem(c)).collect();
-    let mut out: Vec<&str> = HOOK_ALIASES
+    let mut out: Vec<String> = HOOK_ALIASES
         .iter()
         .filter(|(stem, _)| stems.contains(*stem))
-        .map(|(_, alias)| *alias)
+        .map(|(_, alias)| (*alias).to_string())
         .collect();
     let known: Vec<&str> = HOOK_ALIASES.iter().map(|(s, _)| *s).collect();
     out.extend(
         stems
             .iter()
             .filter(|s| !known.contains(&s.as_str()))
-            .map(String::as_str),
+            .map(|s| {
+                // 覆写表只作用于未收录 stem（已知表 stem 是舰队公共别名，表形
+                // 优先不覆写）。
+                display.get(s).cloned().unwrap_or_else(|| s.clone())
+            }),
     );
     out.join(" | ")
+}
+
+/// claude 插件注册面收集（REQ-044）：`~/.claude/plugins/installed_plugins.json`
+///（v2 形 plugins 名到条目数组，名形 `plugin@marketplace`）；enabled 门控
+/// 见 `plugin_enabled`；条目 user 作用域全收，project 作用域仅 projectPath
+/// 命中当前根者收；逐条读 installPath 下 `hooks/hooks.json`。显示形 =
+/// 插件名连字符加 statusMessage（hook 自带态文案，缺席回落干 stem）记入
+/// 覆写表。installed_plugins.json 缺席加坏损零命中不炸。
+fn collect_plugin_hooks(
+    home: &Path,
+    project_root: &str,
+    cmds: &mut Vec<String>,
+    display: &mut std::collections::BTreeMap<String, String>,
+) {
+    let ip = home
+        .join(".claude")
+        .join("plugins")
+        .join("installed_plugins.json");
+    let Ok(v) = crate::yolo::read_json(&ip) else {
+        return;
+    };
+    let Some(plugins) = v.get("plugins").and_then(|p| p.as_object()) else {
+        return;
+    };
+    for (name, entries) in plugins {
+        let Some(entries) = entries.as_array() else {
+            continue;
+        };
+        if !plugin_enabled(home, project_root, name) {
+            continue;
+        }
+        let short = name.split('@').next().unwrap_or(name);
+        for e in entries {
+            let scope = e.get("scope").and_then(|x| x.as_str()).unwrap_or("");
+            if scope == "project" {
+                let pp = e.get("projectPath").and_then(|x| x.as_str()).unwrap_or("");
+                if project_root.is_empty() || std::path::Path::new(pp) != Path::new(project_root) {
+                    continue;
+                }
+            }
+            let Some(install) = e.get("installPath").and_then(|x| x.as_str()) else {
+                continue;
+            };
+            let hj = Path::new(install).join("hooks").join("hooks.json");
+            let Ok(hv) = crate::yolo::read_json(&hj) else {
+                continue;
+            };
+            walk_json_hooks(&hv, |c, m| {
+                cmds.push(c.to_string());
+                if let Some(stem) = hook_stem(c) {
+                    let label = if m.is_empty() {
+                        stem.clone()
+                    } else {
+                        m.to_string()
+                    };
+                    display
+                        .entry(stem)
+                        .or_insert_with(|| format!("{short}-{label}"));
+                }
+            });
+        }
+    }
+}
+
+/// enabledPlugins 门控（REQ-044）：项目 local 大于项目大于用户级首见即
+/// 用（Claude Code settings 层叠序）；无显式项判未启用（安装动作落
+/// true、禁用动作落 false，缺省关闭）。企业 managed settings 面不入源
+///（REQ-044 边界）。
+fn plugin_enabled(home: &Path, project_root: &str, name: &str) -> bool {
+    let mut files = vec![home.join(".claude").join("settings.json")];
+    if !project_root.is_empty() {
+        let pdotclaude = Path::new(project_root).join(".claude");
+        files.push(pdotclaude.join("settings.json"));
+        files.push(pdotclaude.join("settings.local.json"));
+    }
+    // 逆序遍历：最具体作用域优先（local > project > user）。
+    for f in files.iter().rev() {
+        if let Ok(v) = crate::yolo::read_json(f) {
+            if let Some(b) = v
+                .get("enabledPlugins")
+                .and_then(|p| p.get(name))
+                .and_then(|x| x.as_bool())
+            {
+                return b;
+            }
+        }
+    }
+    false
 }
 
 /// 命令到 hook 干 stem：已知 stem 子串直配（解释器前缀与引号都拦不住）；
@@ -1113,6 +1289,12 @@ fn collect_json_commands(path: &Path, cmds: &mut Vec<String>) {
     let Ok(v) = crate::yolo::read_json(path) else {
         return;
     };
+    walk_json_hooks(&v, |c, _| cmds.push(c.to_string()));
+}
+
+/// hooks.<Event>[].hooks[] 遍历（REQ-044 抽出共用）：对每条命令回调
+///（command 加 statusMessage，statusMessage 缺席空串）。
+fn walk_json_hooks(v: &Json, mut f: impl FnMut(&str, &str)) {
     let Some(obj) = v.get("hooks").and_then(|h| h.as_object()) else {
         return;
     };
@@ -1124,7 +1306,11 @@ fn collect_json_commands(path: &Path, cmds: &mut Vec<String>) {
             if let Some(hs) = g.get("hooks").and_then(|h| h.as_array()) {
                 for h in hs {
                     if let Some(c) = h.get("command").and_then(|c| c.as_str()) {
-                        cmds.push(c.to_string());
+                        let m = h
+                            .get("statusMessage")
+                            .and_then(|m| m.as_str())
+                            .unwrap_or("");
+                        f(c, m);
                     }
                 }
             }
@@ -2396,7 +2582,7 @@ mod tests {
         // 别名表序（herdr 在先，用户例序），未收录 metric-bridge 回落本名殿后。
         assert_eq!(
             hooked_aliases_at(&tmp, "claude", ""),
-            "herdr agent状态监控 | hst token护栏 | hst 会话状态同步"
+            "herdr-agent状态监控 | hst-token护栏 | hst-会话状态同步"
         );
         // kimi TOML 面：ours 加外来同列。
         let kimi_dir = tmp.join(".kimi-code");
@@ -2408,7 +2594,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             hooked_aliases_at(&tmp, "kimi", ""),
-            "herdr agent状态监控 | hst 会话状态同步"
+            "herdr-agent状态监控 | hst-会话状态同步"
         );
         // grok 多文件注册面（评审 F）：hst 的 ohmyagents-state.json 与
         // herdr 的 herdr.json 双文件合并收集。
@@ -2426,7 +2612,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             hooked_aliases_at(&tmp, "grok", ""),
-            "herdr agent状态监控 | hst 会话状态同步"
+            "herdr-agent状态监控 | hst-会话状态同步"
         );
         // REQ-039：claude 项目级注册面并入（payload project_dir 下
         // .claude/settings.json 加 settings.local.json），未收录 stem
@@ -2446,7 +2632,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             hooked_aliases_at(&tmp, "claude", proj.to_str().unwrap()),
-            "herdr agent状态监控 | hst token护栏 | hst 会话状态同步 | knowledge-recall | session-tool-guard"
+            "herdr-agent状态监控 | hst-token护栏 | hst-会话状态同步 | knowledge-recall | session-tool-guard"
         );
         // 坏损 JSON 零命中不炸。
         std::fs::write(claude_dir.join("settings.json"), "{ not json").unwrap();
@@ -2455,6 +2641,127 @@ mod tests {
         std::fs::remove_file(claude_dir.join("settings.json")).unwrap();
         assert_eq!(hooked_aliases_at(&tmp, "claude", ""), "");
         let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn hooked_aliases_plugin_face_enabled_gated_and_display() {
+        // REQ-044：全局插件 hook 入列——installed_plugins.json v2 形收
+        // user 作用域条目；enabledPlugins 门控（user true 收、false 拒、
+        // 无显式项缺省关、项目 local 覆写用户级）；project 作用域仅
+        // projectPath 命中当前根者收；显示 = 插件名连字符加 statusMessage
+        //（缺席回落干 stem）；坏损 installed_plugins.json 零命中不炸。
+        let tmp = std::env::temp_dir().join(format!("hst-hpl-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let claude_dir = tmp.join(".claude");
+        std::fs::create_dir_all(&claude_dir).unwrap();
+        let proj = tmp.join("proj");
+        let pdot = proj.join(".claude");
+        std::fs::create_dir_all(&pdot).unwrap();
+        // 插件缓存面：a（user 作用域，带 statusMessage）、b（user 作用域，
+        // 无 statusMessage 回落 stem）、d（project 作用域钉 proj 根）。
+        // hooks.json 用 json! 构（命令含引号与 ${} 面，format! 直插会产
+        // 坏 JSON）。
+        let mk_hooks = |rel: &str, cmd: &str, msg: &str| {
+            let dir = tmp.join(rel).join("hooks");
+            std::fs::create_dir_all(&dir).unwrap();
+            let mut h = serde_json::json!({"hooks":{"PostToolUse":[{"hooks":[{"command":cmd}]}]}});
+            if !msg.is_empty() {
+                h["hooks"]["PostToolUse"][0]["hooks"][0]["statusMessage"] = serde_json::json!(msg);
+            }
+            std::fs::write(dir.join("hooks.json"), h.to_string()).unwrap();
+        };
+        mk_hooks(
+            "plugins-cache/a/1",
+            "uv run --no-project \"${CLAUDE_PLUGIN_ROOT}/skills/code-kit/scripts/md-guard.py\"",
+            "md 禁字门禁",
+        );
+        mk_hooks(
+            "plugins-cache/b/1",
+            "bash ${CLAUDE_PLUGIN_ROOT}/hooks/plain-guard.sh",
+            "",
+        );
+        mk_hooks(
+            "plugins-cache/d/1",
+            "bash ${CLAUDE_PLUGIN_ROOT}/hooks/proj-guard.sh",
+            "项目守卫",
+        );
+        let ip = serde_json::json!({
+            "version": 2,
+            "plugins": {
+                "plug-a@mk": [{ "scope": "user", "installPath": tmp.join("plugins-cache/a/1") }],
+                "plug-b@mk": [{ "scope": "user", "installPath": tmp.join("plugins-cache/b/1") }],
+                "plug-c@mk": [{ "scope": "user", "installPath": tmp.join("plugins-cache/c/1") }],
+                "plug-d@mk": [{ "scope": "project", "projectPath": proj, "installPath": tmp.join("plugins-cache/d/1") }]
+            }
+        });
+        let plugdir = tmp.join(".claude").join("plugins");
+        std::fs::create_dir_all(&plugdir).unwrap();
+        std::fs::write(
+            plugdir.join("installed_plugins.json"),
+            serde_json::to_string(&ip).unwrap(),
+        )
+        .unwrap();
+        // 用户级 settings：ours hook + enabledPlugins（a 显式 true、b
+        // 显式 false、c 无显式项缺省关、d 依赖项目根命中）。
+        std::fs::write(
+            claude_dir.join("settings.json"),
+            r#"{"hooks":{"Stop":[{"hooks":[{"command":"/x/.hst/hooks/hst-state.sh claude"}]}]},"enabledPlugins":{"plug-a@mk":true,"plug-b@mk":false}}"#,
+        )
+        .unwrap();
+        // 无项目根：user 作用域 a 入列（statusMessage 形），b 拒，c 缺省
+        // 关，d 项目作用域无根不收。
+        assert_eq!(
+            hooked_aliases_at(&tmp, "claude", ""),
+            "hst-会话状态同步 | plug-a-md 禁字门禁"
+        );
+        // 项目根命中：d 入列（projectPath 同根；项目作用域插件由项目级
+        // settings 落 enabled，项目档入链）；项目 local 把 b 覆写 true
+        //（local 大于项目大于用户级）——b 无 statusMessage 回落干 stem
+        // 形 plug-b-plain-guard。
+        std::fs::write(
+            pdot.join("settings.json"),
+            r#"{"enabledPlugins":{"plug-d@mk":true}}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            pdot.join("settings.local.json"),
+            r#"{"enabledPlugins":{"plug-b@mk":true}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            hooked_aliases_at(&tmp, "claude", proj.to_str().unwrap()),
+            "hst-会话状态同步 | plug-a-md 禁字门禁 | plug-b-plain-guard | plug-d-项目守卫"
+        );
+        // 坏损 installed_plugins.json 零命中不炸（回落 settings 面）。
+        std::fs::write(
+            tmp.join(".claude")
+                .join("plugins")
+                .join("installed_plugins.json"),
+            "{ not json",
+        )
+        .unwrap();
+        assert_eq!(hooked_aliases_at(&tmp, "claude", ""), "hst-会话状态同步");
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn wrap_sep_lines_cjk_aware_greedy() {
+        // REQ-044：未超宽原样；超宽在 ` | ` 处贪心断行、续行两空格缩进；
+        // CJK 双格计宽；单条超宽不硬拆。
+        assert_eq!(cells("abc"), 3);
+        assert_eq!(cells("中a"), 3);
+        assert_eq!(cells("\u{f0f1}"), 2, "nerd PUA conservative 2 cells");
+        assert_eq!(wrap_sep_lines("a | b", 10), "a | b");
+        let s = "herdr-agent状态监控 | hst-token护栏 | hst-会话状态同步";
+        // cells：19 加 13 加 16 加分隔 6 = 54；宽 40（budget 39）断在
+        // 第二条后。
+        assert_eq!(
+            wrap_sep_lines(s, 40),
+            "herdr-agent状态监控 | hst-token护栏\n  hst-会话状态同步"
+        );
+        // 单条超宽不硬拆（该条仍受终端截断，与现状同）。
+        let one = "超长单条不拆";
+        assert_eq!(wrap_sep_lines(one, 5), one);
     }
 
     #[test]

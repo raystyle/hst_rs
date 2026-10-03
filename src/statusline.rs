@@ -563,11 +563,13 @@ segments5 = ["goalmode"]
 #   节拍 30m 形、{cadence} ×30m 形与 {count} 为静态备选可自配）/ goal
 #   {icon}{goal}（可选段：任务 prompt 单显）
 #   hookstate {icon}  {alias}（第三行；注册面全部 hook 的功能别名清单，
-#   带属主进程前缀加 ` | ` 分隔（REQ-028 一命令一脚本一别名）：herdr-
-#   agent-state 映射 herdr agent状态监控、hst-token（hst hook token 单
-#   对）映射 hst token护栏、hst-state（hst hook state 单对）映射 hst
-#   会话状态同步，未收录 hook 回落 stem 本名，清单空回落泛称 hook；
-#   {state} 占位符可自配带回态）
+#   带属主进程前缀连字符接功能加 ` | ` 分隔（REQ-028 一命令一脚本一别
+#   名）：herdr-agent-state 映射 herdr-agent状态监控、hst-token（hst
+#   hook token 单对）映射 hst-token护栏、hst-state（hst hook state 单
+#   对）映射 hst-会话状态同步，未收录 hook 回落 stem 本名，全局插件
+#   hook 显示插件名连字符加其 statusMessage（REQ-044），清单空回落泛
+#   称 hook；行超终端宽（COLUMNS）自动折续行（REQ-044）；{state} 占位
+#   符可自配带回态）
 #   package 与六工具链段（python 加 rust 加 node 加 zig 加 go 加 cpp）{icon}{version}
 #   （ts 不是独立段 id：它是 node 段内部第二部件，[icons] 的 ts 键只管该部件字形，写进 segments 会响亮报错）
 #   clock {icon}{datetime}（D51：年月日加当前时间，分钟精度）
