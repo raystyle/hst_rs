@@ -30,3 +30,7 @@ trace: statusrender 新件二（hooked_aliases_plugin_face_enabled_gated_and_dis
 - 企业 managed settings 的强制 enabledPlugins 面不入源（读用户加项目两级）。
 - 已知表 stem（舰队公共别名）不被插件覆写形覆盖，表形优先。
 - 生效面：部署位 hst 发布新版后状态栏实装（渲染走 ~/.local/bin/hst，仓内 debug 实弹已验）。
+- 评审 G2：插件 statusMessage 是任意文本，内含 ` | ` 时折行会在标签内部断（概率低，现行为在册不拦）。
+- 评审 G3：project 作用域命中用 Path 精确比较，无跨平台归一；同项目 Windows 原生形（`C:\...`）与 WSL 形（`/mnt/c/...`）不互命中（本机真实数据同为 WSL 形态无碍）。
+- 评审 G4：非 project 的 scope 一律收；Claude Code 未来若引入 project 级 local 等新作用域会绕过命中判据，届时补判。
+- 评审 G1/G5：budget 取宽减 1 宁折勿截；折行只盖 hookstate 段，其余超宽段仍走终端截断。

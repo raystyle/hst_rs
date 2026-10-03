@@ -1038,9 +1038,10 @@ fn cells(s: &str) -> usize {
 }
 
 /// 宽感知折行（REQ-044）：整行显示宽超终端宽时在 ` | ` 分隔符处贪心
-/// 断行（别名值内无该分隔符，REQ-028 拆条后内嵌分隔已禁），续行两空格
-/// 缩进；单条超宽不硬拆（该条仍受终端截断，与现状同）；未超宽原样
-/// 返回。budget 留 1 格余量（渲染侧前缀贴边防抖）。
+/// 断行（别名值内无该分隔符，REQ-028 拆条后内嵌分隔已禁；插件
+/// statusMessage 是任意文本，内含 ` | ` 时会在标签内部断行，评审 G2 现
+/// 行为在册），续行两空格缩进；单条超宽不硬拆（该条仍受终端截断，与
+/// 现状同）；未超宽原样返回。budget 留 1 格余量（宁折勿截，评审 G1）。
 fn wrap_sep_lines(text: &str, width: usize) -> String {
     let budget = width.saturating_sub(1).max(1);
     if cells(text) <= budget {
