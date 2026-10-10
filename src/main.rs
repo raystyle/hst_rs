@@ -8,9 +8,9 @@ use serde_json::Value;
 
 use hst::agents;
 use hst::doctor;
+use hst::goal;
 use hst::hook;
 use hst::install;
-use hst::loopmgmt;
 use hst::trace;
 use hst::yolo;
 
@@ -168,12 +168,7 @@ enum Commands {
         #[command(subcommand)]
         cmd: DiagnoseCmd,
     },
-    /// loop 与 goal 管理面（REQ-019）：当前会话 durable 定时任务的设置、列表、删除；唯一真相 = 项目 .claude/scheduled_tasks.json，状态栏 loop/goal 段同源显示
-    Loop {
-        #[command(subcommand)]
-        cmd: LoopCmd,
-    },
-    /// goal 面（REQ-019）：当前会话最新 loop 的 goal 文本设置、查看与清空（改目标不动节奏）
+    /// goal 自治面（REQ-045，REQ-019 演进）：hst 自有存储的项目级 goal 设置、查看与清空；Stop hook 每轮提醒，状态栏 goal 段同源显示（用户令 2026-10-11「hst 不再关联 goal 和 loop」；loop 面退役，Claude Code 原生 CronCreate/ScheduleWakeup 域）
     Goal {
         #[command(subcommand)]
         cmd: GoalCmd,
@@ -181,88 +176,26 @@ enum Commands {
 }
 
 #[derive(Subcommand)]
-enum LoopCmd {
-    /// 设置当前会话 loop（goal 文本落 prompt 字段；--every 周期形与 --at 一次性形二选一）
-    Set {
-        /// goal 文本（任务 prompt；状态栏 goal 段显示源）
-        goal: String,
-        /// 周期间隔（Nm 分钟 1 至 59、Nh 小时 1 至 23；小时形分钟位取落盘时刻并避开 0 与 30）
-        #[arg(long, conflicts_with = "at")]
-        every: Option<String>,
-        /// 一次性时刻（HH:MM 24 小时制；到点触发后任务自动删除）
-        #[arg(long = "at", conflicts_with = "every")]
-        at: Option<String>,
-        /// 会话 id；缺省解析序：CLAUDE_CODE_SESSION_ID 环境变量回落 ~/.claude.json 项目表 lastSessionId
-        #[arg(long)]
-        session: Option<String>,
-        /// 项目根；默认当前目录
-        #[arg(long)]
-        project: Option<PathBuf>,
-        /// herdr 即时通道目标（agent 名或 pane id）：经 agent.prompt 派原生 CronCreate 指令到在跑会话即时生效；session 与 project 在此路径忽略；缺省走盘面（重启装载生效）
-        #[arg(long = "via-herdr", value_name = "target")]
-        via_herdr: Option<String>,
-    },
-    /// 列出项目定时任务（全量并标 ours 归属，含非本会话）
-    List {
-        /// 会话 id（ours 归属判据；解析序同 set，失败不影响列表）
-        #[arg(long)]
-        session: Option<String>,
-        /// 项目根；默认当前目录
-        #[arg(long)]
-        project: Option<PathBuf>,
-    },
-    /// 删除定时任务（id 精确删任意任务；latest 本会话最新；all 本会话全部）
-    Del {
-        /// 目标：任务 id 或 latest 或 all
-        target: String,
-        /// 会话 id（latest 与 all 的归属判据；解析序同 set）
-        #[arg(long)]
-        session: Option<String>,
-        /// 项目根；默认当前目录
-        #[arg(long)]
-        project: Option<PathBuf>,
-        /// herdr 即时通道目标：派 CronDelete 指令到在跑会话即时删（own 判据同本地面）
-        #[arg(long = "via-herdr", value_name = "target")]
-        via_herdr: Option<String>,
-    },
-}
-
-#[derive(Subcommand)]
 enum GoalCmd {
-    /// 设置当前会话最新 loop 的 goal 文本（prompt 就地改写；无本会话任务报错）
+    /// 设置本项目 goal（自有存储覆盖旧 goal，rounds 重计；Stop 每轮提醒随之换目标）
     Set {
-        /// goal 文本（trim 后非空；状态栏 goal 段显示源）
+        /// goal 文本（trim 后非空；Stop 提醒与状态栏 goal 段显示源）
         text: String,
-        /// 会话 id；解析序同 loop set
-        #[arg(long)]
-        session: Option<String>,
-        /// 项目根；默认当前目录
+        /// 项目根；默认当前目录（状态栏与 Stop 腿按 payload 项目根同规则键控，子目录调用须显式给）
         #[arg(long)]
         project: Option<PathBuf>,
-        /// herdr 即时通道目标：派 own-latest 删旧建新保节奏指令到在跑会话（任务 id 换新，与本地保 id 形语义差异在册）
-        #[arg(long = "via-herdr", value_name = "target")]
-        via_herdr: Option<String>,
     },
-    /// 查看当前会话最新 loop 的 goal（无任务或会话不可解析给 goal.present=false）
+    /// 查看本项目 goal（无 goal 给 goal.present=false）
     Show {
-        /// 会话 id；解析序同 loop set
-        #[arg(long)]
-        session: Option<String>,
         /// 项目根；默认当前目录
         #[arg(long)]
         project: Option<PathBuf>,
     },
-    /// 清空当前会话最新 loop 的 goal（prompt 置空、任务与节奏保留）
+    /// 清空本项目 goal（Stop 提醒与状态栏段随撤；无 goal 零改动退 0）
     Clear {
-        /// 会话 id；解析序同 loop set
-        #[arg(long)]
-        session: Option<String>,
         /// 项目根；默认当前目录
         #[arg(long)]
         project: Option<PathBuf>,
-        /// herdr 即时通道目标：派 own-latest 整任务退役指令到在跑会话（原生无空 prompt 形，节奏一并停，语义差异在册）
-        #[arg(long = "via-herdr", value_name = "target")]
-        via_herdr: Option<String>,
     },
 }
 
@@ -541,6 +474,17 @@ enum HookCmd {
         #[arg(long)]
         agent: Option<String>,
     },
+    /// goal 腿（REQ-045）：Claude Code Stop 事件提醒注入（rounds 计数落盘
+    /// 加自然停一轮 decision block；stop_hook_active 防环放行），单对
+    /// hst-goal 脚本，claude Stop 事件与 state 腿双挂
+    Goal {
+        /// 事件名；省略则读 stdin JSON（注册面形）
+        #[arg(value_name = "事件")]
+        event: Option<String>,
+        /// agent 名（注册参数注入）
+        #[arg(long)]
+        agent: Option<String>,
+    },
     /// hook 层无头验收（agents verify 的 hook 子面）
     Verify {
         /// 指定 agent（claude/codex/grok/kimi）；缺省四家全验
@@ -669,6 +613,7 @@ fn run() -> Result<(), String> {
             HookCmd::Status { event, agent } => cmd_hook(event, agent),
             HookCmd::State { event, agent } => cmd_hook_state(event, agent),
             HookCmd::Token { event, agent } => cmd_hook_token(event, agent),
+            HookCmd::Goal { event, agent } => cmd_hook_goal(event, agent),
             HookCmd::Verify { names, timeout } => cmd_agents_verify(names, timeout, true),
         },
         Commands::Statusline {
@@ -715,43 +660,10 @@ fn run() -> Result<(), String> {
             YoloCmd::Check { project } => cmd_yolo_check(project),
         },
         Commands::Diagnose { cmd } => cmd_diagnose(cmd),
-        Commands::Loop { cmd } => match cmd {
-            LoopCmd::Set {
-                goal,
-                every,
-                at,
-                session,
-                project,
-                via_herdr,
-            } => cmd_loop_set(
-                &goal,
-                every.as_deref(),
-                at.as_deref(),
-                session.as_deref(),
-                project,
-                via_herdr.as_deref(),
-            ),
-            LoopCmd::List { session, project } => cmd_loop_list(session.as_deref(), project),
-            LoopCmd::Del {
-                target,
-                session,
-                project,
-                via_herdr,
-            } => cmd_loop_del(&target, session.as_deref(), project, via_herdr.as_deref()),
-        },
         Commands::Goal { cmd } => match cmd {
-            GoalCmd::Set {
-                text,
-                session,
-                project,
-                via_herdr,
-            } => cmd_goal_set(&text, session.as_deref(), project, via_herdr.as_deref()),
-            GoalCmd::Show { session, project } => cmd_goal_show(session.as_deref(), project),
-            GoalCmd::Clear {
-                session,
-                project,
-                via_herdr,
-            } => cmd_goal_clear(session.as_deref(), project, via_herdr.as_deref()),
+            GoalCmd::Set { text, project } => cmd_goal_set(&text, project),
+            GoalCmd::Show { project } => cmd_goal_show(project),
+            GoalCmd::Clear { project } => cmd_goal_clear(project),
         },
         Commands::Issue { cmd } => cmd_issue(cmd),
     }
@@ -1741,166 +1653,83 @@ fn agent_report_row(r: &agents::Report) -> Value {
     }
 }
 
-/// herdr 即时通道派发共用腿：发 agent.prompt（wait
-/// 含 blocked，timeout 120s），返回目标 agent 回执态。
-fn herdr_arm(target: &str, text: &str) -> Result<String, String> {
-    let resp = hst::herdrrpc::agent_prompt(target, text, 120_000)
-        .map_err(|e| format!("herdr error={}: {e}", e.code()))?;
-    // 评审 F1 回填：agent_status 嵌在 result.agent 下（非顶层）。
-    Ok(resp
-        .get("agent")
-        .and_then(|a| a.get("agent_status"))
-        .and_then(|v| v.as_str())
-        .unwrap_or("unknown")
-        .to_string())
-}
-
-fn cmd_loop_set(
-    goal: &str,
-    every: Option<&str>,
-    at: Option<&str>,
-    session: Option<&str>,
-    project: Option<PathBuf>,
-    via_herdr: Option<&str>,
-) -> Result<(), String> {
+/// goal 自治面（REQ-045）：set/show/clear 读写自有存储
+/// `~/.hst/state/goal/<slug>.json`（项目键 slug 同 trace 与 projyolo）。
+fn cmd_goal_set(text: &str, project: Option<PathBuf>) -> Result<(), String> {
     let root = project_root(project)?;
-    // REQ-021：互斥检查归 CLI 解析层（lib 面由 Cadence 枚举在类型层
-    // 不可表示双缺/双给）。
-    let cadence = match (every, at) {
-        (Some(e), None) => loopmgmt::Cadence::Every(e),
-        (None, Some(a)) => loopmgmt::Cadence::At(a),
-        _ => {
-            return Err(
-                "exactly one of --every / --at is required (they are mutually exclusive)"
-                    .to_string(),
-            )
-        }
-    };
-    if let Some(target) = via_herdr {
-        let (cron, recurring, text) = loopmgmt::arm_set_text(goal, cadence)
-            .map_err(|e| format!("loop error={}: {e}", e.code()))?;
-        let status = herdr_arm(target, &text)?;
-        println!("loop.arm target={target}");
-        println!("loop.arm cron={cron}");
-        println!("loop.arm recurring={recurring}");
-        println!("loop.arm agent_status={status}");
-        println!("loop.arm hint=指令已派发目标会话原生 CronCreate 通道即时生效；目标回执见其窗格");
-        return Ok(());
-    }
-    let r = loopmgmt::set_loop(&root, goal, cadence, session)
-        .map_err(|e| format!("loop error={}: {e}", e.code()))?;
-    println!("loop.set id={}", r.id);
-    println!("loop.set cron={}", r.cron);
-    println!("loop.set recurring={}", r.recurring);
-    println!("loop.set session={}", r.session);
-    println!("loop.set file={}", r.file.display());
+    let home = hst::install::hst_home()?;
+    let r =
+        goal::set_goal(&home, &root, text).map_err(|e| format!("goal error={}: {e}", e.code()))?;
+    println!("goal.set text={}", r.text);
+    println!("goal.set project={}", root.display());
+    println!("goal.set file={}", goal::goal_path(&home, &root).display());
     println!(
-        "loop.hint=durable 任务由 Claude Code 会话载入执行（会话启动时载入；已在跑会话不接管盘上外部写入，2026-09-26 实证阴性，写入后重开会话生效；在跑会话即时生效走 --via-herdr 派原生 CronCreate 指令）"
+        "goal.hint=Stop 每轮提醒由 hst-goal hook 腿承载（hst init 注册 claude Stop 事件）；达成后 hst goal clear 收束"
     );
     Ok(())
 }
 
-fn cmd_loop_list(session: Option<&str>, project: Option<PathBuf>) -> Result<(), String> {
+fn cmd_goal_show(project: Option<PathBuf>) -> Result<(), String> {
     let root = project_root(project)?;
-    let (rows, resolved) = loopmgmt::list_tasks(&root, session)
-        .map_err(|e| format!("loop error={}: {e}", e.code()))?;
-    println!("loop.count={}", rows.len());
-    if let Some(s) = resolved {
-        println!("loop.session={s}");
-    }
-    for t in rows {
-        println!(
-            "loop.task id={} cron=\"{}\" recurring={} session={} ours={} goal={}",
-            t.id, t.cron, t.recurring, t.session, t.ours, t.goal
-        );
-    }
-    Ok(())
-}
-
-fn cmd_loop_del(
-    target: &str,
-    session: Option<&str>,
-    project: Option<PathBuf>,
-    via_herdr: Option<&str>,
-) -> Result<(), String> {
-    if let Some(dst) = via_herdr {
-        let text = loopmgmt::arm_del_text(target);
-        let status = herdr_arm(dst, &text)?;
-        println!("loop.arm.del target={dst}");
-        println!("loop.arm.del spec={}", target.trim());
-        println!("loop.arm.del agent_status={status}");
-        println!("loop.arm.del hint=CronDelete 指令已派发目标会话即时执行；回执见其窗格");
-        return Ok(());
-    }
-    let root = project_root(project)?;
-    let removed = loopmgmt::del_loops(&root, target, session)
-        .map_err(|e| format!("loop error={}: {e}", e.code()))?;
-    println!("loop.del count={}", removed.len());
-    for id in removed {
-        println!("loop.del id={id}");
-    }
-    Ok(())
-}
-
-fn cmd_goal_set(
-    text: &str,
-    session: Option<&str>,
-    project: Option<PathBuf>,
-    via_herdr: Option<&str>,
-) -> Result<(), String> {
-    if let Some(dst) = via_herdr {
-        let text = loopmgmt::arm_goal_set_text(text)
-            .map_err(|e| format!("goal error={}: {e}", e.code()))?;
-        let status = herdr_arm(dst, &text)?;
-        println!("goal.arm target={dst}");
-        println!("goal.arm agent_status={status}");
-        println!("goal.arm hint=own-latest 删旧建新保节奏指令已派发（任务 id 换新，与本地保 id 形差异在册 REQ-023）；回执见其窗格");
-        return Ok(());
-    }
-    let root = project_root(project)?;
-    let r = loopmgmt::set_goal(&root, text, session)
-        .map_err(|e| format!("goal error={}: {e}", e.code()))?;
-    println!("goal.set id={}", r.id);
-    println!("goal.set cron={}", r.cron);
-    println!("goal.set text={}", text.trim());
-    Ok(())
-}
-
-fn cmd_goal_show(session: Option<&str>, project: Option<PathBuf>) -> Result<(), String> {
-    let root = project_root(project)?;
-    match loopmgmt::show_goal(&root, session)
-        .map_err(|e| format!("goal error={}: {e}", e.code()))?
-    {
-        Some(t) => {
+    let home = hst::install::hst_home()?;
+    match goal::show_goal(&home, &root).map_err(|e| format!("goal error={}: {e}", e.code()))? {
+        Some(r) => {
             println!("goal.present=true");
-            println!("goal.id={}", t.id);
-            println!("goal.cron={}", t.cron);
-            println!("goal.text={}", t.goal);
+            println!("goal.text={}", r.text);
+            println!("goal.rounds={}", r.rounds);
+            println!("goal.set_at={}", r.set_at);
+            if r.last_stop_at > 0 {
+                println!("goal.last_stop_at={}", r.last_stop_at);
+            }
         }
         None => println!("goal.present=false"),
     }
     Ok(())
 }
 
-fn cmd_goal_clear(
-    session: Option<&str>,
-    project: Option<PathBuf>,
-    via_herdr: Option<&str>,
-) -> Result<(), String> {
-    if let Some(dst) = via_herdr {
-        let text = loopmgmt::arm_goal_clear_text();
-        let status = herdr_arm(dst, &text)?;
-        println!("goal.arm.clear target={dst}");
-        println!("goal.arm.clear agent_status={status}");
-        println!("goal.arm.clear hint=own-latest 整任务退役指令已派发（原生无空 prompt 形，节奏一并停）；回执见其窗格");
-        return Ok(());
-    }
+fn cmd_goal_clear(project: Option<PathBuf>) -> Result<(), String> {
     let root = project_root(project)?;
-    match loopmgmt::clear_goal(&root, session)
-        .map_err(|e| format!("goal error={}: {e}", e.code()))?
-    {
-        Some(id) => println!("goal.clear id={id}"),
-        None => println!("goal.clear count=0"),
+    let home = hst::install::hst_home()?;
+    let removed =
+        goal::clear_goal(&home, &root).map_err(|e| format!("goal error={}: {e}", e.code()))?;
+    if removed {
+        println!("goal.clear present=true");
+        println!("goal.clear project={}", root.display());
+    } else {
+        println!("goal.clear present=false");
+    }
+    Ok(())
+}
+
+/// REQ-045 goal 腿分派：Stop 事件提醒注入（自然停一轮 decision block 加
+/// rounds 计数落盘；stop_hook_active 防环放行）。stdout 出提醒 JSON
+/// （Claude Code Stop 契约：block 加 reason 续跑一轮）；错误面 fail-open
+/// 不挡 agent 停止（同 state 腿纪律，写盘故障只在 HST_HOOK_VERBOSE 打点）。
+fn cmd_hook_goal(event: Option<String>, agent: Option<String>) -> Result<(), String> {
+    let _ = agent;
+    let payload = if event.is_some() {
+        None
+    } else {
+        hst::hook::read_stdin_json()
+    };
+    let verbose = std::env::var_os("HST_HOOK_VERBOSE").is_some();
+    let home = match hst::install::hst_home() {
+        Ok(h) => h,
+        Err(e) => {
+            if verbose {
+                eprintln!("hst hook goal: {e}");
+            }
+            return Ok(());
+        }
+    };
+    match hst::goal::stop_hook(&home, payload.as_ref(), event.as_deref()) {
+        Ok(Some(out)) => println!("{out}"),
+        Ok(None) => {}
+        Err(e) => {
+            if verbose {
+                eprintln!("hst hook goal: {e}");
+            }
+        }
     }
     Ok(())
 }

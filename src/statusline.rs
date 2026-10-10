@@ -41,12 +41,12 @@ pub(crate) const DEFAULT_SEGMENTS2: &[&str] = &["hst", "model", "context", "dura
 /// 缺省回落此序。
 pub(crate) const DEFAULT_SEGMENTS3: &[&str] = &["hookstate"];
 
-/// 默认第四行 = loop 专属行（REQ-024 翻转 D44 默认空；REQ-025 风格
-/// 统一后任务 prompt 文本并入 loop 行，goal 段退可选段；2026-09-27 行
-/// 序调整自第三行顺移）：本会话 durable 定时任务循环时间参数加原始参
-/// 数文本；无任务时整行剔除（零噪声不变）。tools / mcp / tokens 与
-/// goal 段仍可显式写 `segments4` 换位。`segments4` 键缺省回落此序。
-pub(crate) const DEFAULT_SEGMENTS4: &[&str] = &["loop"];
+/// 默认第四行 = goal 专属行（REQ-045 起：hst goal 自治面，自有存储源，
+/// loop 段随 loop 面退役出仓；REQ-024 至 REQ-042 时点口径为 loop 行）：
+/// 本项目 goal 文本加 Stop 腿轮次；无 goal 时整行剔除（零噪声不变）。
+/// tools / mcp / tokens 仍可显式写 `segments4` 换位。`segments4` 键缺省
+/// 回落此序。
+pub(crate) const DEFAULT_SEGMENTS4: &[&str] = &["goal"];
 
 /// 默认第五行 = goalmode 专属行（REQ-025；2026-09-27 行序调整自第四行
 /// 顺移）：`/goal` Goal Mode 条件文本加在役态（active/paused，会话
@@ -80,9 +80,7 @@ const DEFAULT_TEMPLATES: &[(&str, &str)] = &[
     ("tokens", "{icon}{used}/{window}"),
     ("tokens-ascii", "{used}/{window}"),
     ("duration", "{icon}{duration}"),
-    ("loop", "{icon}  {next} / {goal}"),
-    ("loop-ascii", "{next} / {goal}"),
-    ("goal", "{icon}{goal}"),
+    ("goal", "{icon}  {goal}"),
     ("goal-ascii", "{goal}"),
     ("goalmode", "{icon}  {text}"),
     ("goalmode-ascii", "{text}"),
@@ -124,7 +122,6 @@ const DEFAULT_ICONS: &[(&str, &str)] = &[
     ("mcp", "\u{f233} "),
     ("tokens", "\u{f080} "),
     ("duration", "\u{f0150} "),
-    ("loop", "\u{f021}"),
     ("goal", "\u{f140} "),
     ("goalmode", "\u{f140}"),
     ("hookstate", "\u{f0f1}"),
@@ -273,8 +270,8 @@ fn parse_config(text: &str) -> Result<StatuslineConfig, String> {
     Ok(cfg)
 }
 
-/// 段序生效值（D42 三行、D44 曾默认两行、REQ-024 起默认三行：第三行
-/// loop/goal 专属，无任务时行空即剔除）：各行取用户清单或默认序（未知与
+/// 段序生效值（D42 三行、D44 曾默认两行、REQ-024 起默认三行、REQ-045 起
+/// 第四行 goal 自治专属，无任务时行空即剔除）：各行取用户清单或默认序（未知与
 /// 跨行重复 id 由拼装器拒，空行由拼装器剔除）。**老配置原样升级语义**
 /// （codex D42 评审 F1/H1 两轮收口）：用户显式写过 `segments` 而未写任何
 /// 后续行键时，未写的行**不补默认**（D18 老单排与 v1.1.0 双排两种老形态
@@ -521,23 +518,23 @@ pub const EXAMPLE_TOML: &str = r#"# ~/.hst/statusline.toml —— 状态栏用�
 # 原生渲染每帧直读本文件（改完即生效，无需重跑部署）。
 # 键级缺省回落：没写的键用内嵌默认；坏文件硬错退出 1。
 
-# 段落清单（五段行，行序用户令 2026-09-27：hookstate 第三、loop 第四、
+# 段落清单（五段行，行序用户令 2026-09-27：hookstate 第三、goal 第四、
 # goalmode 第五）：
 # segments = 第一行项目状态（shell / cwd / git 分支 / 包版本与工具链尾巴）、
 # segments2 = 第二行 agent 状态（agent 态 / 模型 / context 百分比加 token
 # 绝对值 / 耗时）、
 # segments3 = 第三行 hookstate 专属行（注册面 hook 功能别名清单，双缺
 # 整行隐藏）、
-# segments4 = 第四行 loop/goal 专属行（本会话 durable 定时任务计数加节拍
-# 与 goal 文本，零 durable 时回落会话 /loop 自调度态；goal 段仍只取
-# durable 源，无任务时整行隐藏）、
+# segments4 = 第四行 goal 专属行（hst goal 自治面，REQ-045：自有存储源加
+# Stop 腿轮次，无 goal 整行隐藏）、
 # segments5 = 第五行 goalmode 专属行（/goal Goal Mode 条件加在役态
 # active/paused，会话 transcript 尾探，无 goal 整行隐藏），
 # 段 id 数组即全量（显隐加顺序）；tools / mcp / tokens 三段仍可显式写入
 # 后续行与专属段同线换位，如：
-#   segments4 = ["loop", "tools", "mcp"]
-# loop / goal 段的任务经 `hst loop set "goal 文本" --every 5m` 设置、
-# `hst loop list` 列出、`hst loop del latest` 删除（REQ-019）。
+#   segments4 = ["goal", "tools", "mcp"]
+# goal 经 `hst goal set "goal 文本"` 设置、`hst goal show` 查看、
+# `hst goal clear` 清空（REQ-045，自治面；loop 段已随 loop 面退役，定时
+# 任务归 Claude Code 原生 CronCreate/ScheduleWakeup）。
 # 例（隐藏 shell 与时长段、git 提到目录前）：
 #   segments = ["dir", "git"]
 #   segments2 = ["hst", "model", "context"]
@@ -547,7 +544,7 @@ pub const EXAMPLE_TOML: &str = r#"# ~/.hst/statusline.toml —— 状态栏用�
 segments = ["shell", "dir", "git", "package", "python", "rust", "node", "zig", "go", "cpp", "clock"]
 segments2 = ["hst", "model", "context", "duration"]
 segments3 = ["hookstate"]
-segments4 = ["loop"]
+segments4 = ["goal"]
 segments5 = ["goalmode"]
 
 # 段内模板（[template]）：每段一条格式串；`<段>-ascii` 是 grok 的 ASCII 形
@@ -558,10 +555,8 @@ segments5 = ["goalmode"]
 #   占比 [sN tN mN]，transcript 可解析时才有）
 #   tools {icon}{count} / mcp {icon}{count} / tokens {icon}{used}{window}
 #   duration {icon}{duration} / git {icon}{branch}{flags}
-#   loop {icon}  {next} / {goal}（图标后双空格对齐 hst 段形；{next} 缺省为
-#   活倒计时（会话 /loop 每帧走到点，durable 面回落节拍），{every} 静态自然
-#   节拍 30m 形、{cadence} ×30m 形与 {count} 为静态备选可自配）/ goal
-#   {icon}{goal}（可选段：任务 prompt 单显）
+#   goal {icon}  {goal}（第四行；图标后双空格对齐 hst 段形；{goal} 截 60、
+#   {count} = Stop 腿轮次，可自配）
 #   hookstate {icon}  {alias}（第三行；注册面全部 hook 的功能别名清单，
 #   带属主进程前缀连字符接功能加 ` | ` 分隔（REQ-028 一命令一脚本一别
 #   名）：herdr-agent-state 映射 herdr-agent状态监控、hst-token（hst
@@ -579,7 +574,8 @@ segments5 = ["goalmode"]
 
 # 图标映射（[icons]）：键级回落；hst 机器人宽字形默认跟两空格。
 # 可用键：shell / shell-pwsh / dir / git / hst / model / context / tools / mcp / tokens
-#         / duration / loop / goal（REQ-019 加）
+#         / duration / goal（REQ-019 加，REQ-045 起自有存储源）
+#         / goalmode（REQ-025 加）
 #         / package / python / rust / node / ts / zig / go / cpp
 #         / clock（D51 加）
 # 例：

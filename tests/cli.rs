@@ -567,10 +567,12 @@ fn init_full_deploys_hooks_yolo_and_sweeps_skills() {
             .filter(|h| h["command"].as_str().is_some_and(|c| c.contains("hst")))
             .collect();
         // REQ-028 双挂（state 加 token）；REQ-031 pentest 腿退役后
-        // PreToolUse 维持双挂。
+        // PreToolUse 维持双挂；REQ-045 Stop 双挂（state 加 goal）。
         let want = if event == "PreToolUse" {
             2
         } else if event == "UserPromptSubmit" {
+            2
+        } else if event == "Stop" {
             2
         } else {
             1
@@ -1123,182 +1125,21 @@ fn statusline_example_prints_customization_template() {
         // D51：--example 随默认段同步（codex F1：漂移会误导照抄丢时钟段）。
         .stdout(contains("\"clock\"]"))
         .stdout(contains("clock {icon}{datetime}"))
-        // REQ-024：loop / goal 两段移默认第三行专属行与模板文档。
+        // REQ-024 时点行序承接到 REQ-045：hookstate 第三、goal 第四、
+        // goalmode 第五（loop 段随 loop 面退役出仓）。
         .stdout(contains("\"context\", \"duration\"]"))
-        // 行序（用户令 2026-09-27）：hookstate 第三、loop 第四、goalmode 第五。
         .stdout(contains("segments3 = [\"hookstate\"]"))
-        .stdout(contains("segments4 = [\"loop\"]"))
-        .stdout(contains("loop {icon}  {next} / {goal}"))
+        .stdout(contains("segments4 = [\"goal\"]"))
+        .stdout(contains("goal {icon}  {goal}"))
         .stdout(contains("segments5 = [\"goalmode\"]"))
         .stdout(contains("goalmode {icon}  {text}"));
 }
 
 #[test]
-fn loop_set_list_del_roundtrip() {
-    // REQ-019 命令面：set 落盘（cron 形与 kv 回显）、list 标 ours 归属、
-    // del latest 只删本会话最新（外会话保留）、del 无目标零改动退 0。
-    let tmp = std::env::temp_dir().join(format!(
-        "hst-cli-loop-{}-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_millis(),
-        NEXT_TEST_DIR.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-    ));
-    std::fs::create_dir_all(&tmp).unwrap();
-    // 外会话既有任务（模拟 agent 原生落盘）。
-    std::fs::create_dir_all(tmp.join(".claude")).unwrap();
-    std::fs::write(
-        tmp.join(".claude").join("scheduled_tasks.json"),
-        r#"{"tasks":[{"id":"fgn00001","cron":"*/9 * * * *","prompt":"外会话","createdAt":1,"recurring":true,"createdBySessionId":"other"}]}"#,
-    )
-    .unwrap();
-    hst()
-        .args([
-            "loop",
-            "set",
-            "盯CI发布",
-            "--every",
-            "5m",
-            "--session",
-            "s1",
-        ])
-        .arg("--project")
-        .arg(&tmp)
-        .assert()
-        .success()
-        .stdout(contains("loop.set id="))
-        .stdout(contains("loop.set cron=*/5 * * * *"))
-        .stdout(contains("loop.set recurring=true"))
-        .stdout(contains("loop.set session=s1"));
-    hst()
-        .args([
-            "loop",
-            "set",
-            "定点提醒",
-            "--at",
-            "14:30",
-            "--session",
-            "s1",
-        ])
-        .arg("--project")
-        .arg(&tmp)
-        .assert()
-        .success()
-        .stdout(contains("loop.set cron=30 14 * * *"))
-        .stdout(contains("loop.set recurring=false"));
-    hst()
-        .args(["loop", "list", "--session", "s1"])
-        .arg("--project")
-        .arg(&tmp)
-        .assert()
-        .success()
-        .stdout(contains("loop.count=3"))
-        .stdout(contains("ours=true").and(contains("ours=false")))
-        .stdout(contains("goal=外会话"));
-    // del latest：删本会话 createdAt 最新（定点提醒），外会话与 5m 保留。
-    hst()
-        .args(["loop", "del", "latest", "--session", "s1"])
-        .arg("--project")
-        .arg(&tmp)
-        .assert()
-        .success()
-        .stdout(contains("loop.del count=1"));
-    // del all：本会话清零，外会话仍在；再跑零改动退 0。
-    hst()
-        .args(["loop", "del", "all", "--session", "s1"])
-        .arg("--project")
-        .arg(&tmp)
-        .assert()
-        .success()
-        .stdout(contains("loop.del count=1"));
-    hst()
-        .args(["loop", "list"])
-        .arg("--project")
-        .arg(&tmp)
-        .assert()
-        .success()
-        .stdout(contains("loop.count=1"))
-        .stdout(contains("goal=外会话"));
-    // 校验错：--every 与 --at 双缺。
-    hst()
-        .args(["loop", "set", "缺节奏", "--session", "s1"])
-        .arg("--project")
-        .arg(&tmp)
-        .assert()
-        .failure()
-        .stderr(contains("exactly one of --every / --at"));
-    // REQ-021：双给由 clap conflicts_with 先拦（解析层互斥）。
-    hst()
-        .args([
-            "loop",
-            "set",
-            "双给",
-            "--every",
-            "5m",
-            "--at",
-            "10:00",
-            "--session",
-            "s1",
-        ])
-        .arg("--project")
-        .arg(&tmp)
-        .assert()
-        .failure()
-        .stderr(contains("cannot be used with"));
-    hst()
-        .args(["loop", "set", "越界", "--every", "60m", "--session", "s1"])
-        .arg("--project")
-        .arg(&tmp)
-        .assert()
-        .failure()
-        .stderr(contains("loop error=bad_every"));
-    // 评审 G6 回填：corrupt 短码端到端（tasks 键非数组拒覆写，评审 F2）。
-    let bad = std::env::temp_dir().join(format!(
-        "hst-cli-loopbad-{}-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_millis(),
-        NEXT_TEST_DIR.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-    ));
-    std::fs::create_dir_all(bad.join(".claude")).unwrap();
-    std::fs::write(
-        bad.join(".claude").join("scheduled_tasks.json"),
-        r#"{"tasks":{"weird":1}}"#,
-    )
-    .unwrap();
-    hst()
-        .args(["loop", "list"])
-        .arg("--project")
-        .arg(&bad)
-        .assert()
-        .failure()
-        .stderr(contains("loop error=corrupt"))
-        .stderr(contains("not an array"));
-    // 评审 G6 回填：no_session 短码端到端（剥会话环境加空家目录，三级
-    // 解析全落空）。
-    let empty_home = bad.join("empty-home");
-    std::fs::create_dir_all(&empty_home).unwrap();
-    hst()
-        .args(["loop", "del", "latest"])
-        .arg("--project")
-        .arg(&tmp)
-        .env_remove("CLAUDE_CODE_SESSION_ID")
-        .env("HST_USER_HOME", &empty_home)
-        .assert()
-        .failure()
-        .stderr(contains("loop error=no_session"));
-    let _ = std::fs::remove_dir_all(&tmp);
-    let _ = std::fs::remove_dir_all(&bad);
-}
-
-#[test]
-fn goal_set_show_clear_roundtrip() {
-    // REQ-019 goal 面：loop set 建任务后 goal set 改目标不动节奏、show
-    // 回读、clear 置空任务保留、无任务会话 set 报错。
+fn goal_set_show_clear_roundtrip_own_store() {
+    // REQ-045 goal 自治面（用户令 2026-10-11「hst 不再关联 goal 和
+    // loop」）：set/show/clear 读写自有存储（HST_ROOT 缝注入临时根），
+    // 与项目 .claude/scheduled_tasks.json 零关联（不生成不触碰）。
     let tmp = std::env::temp_dir().join(format!(
         "hst-cli-goal-{}-{}-{}",
         std::process::id(),
@@ -1309,67 +1150,184 @@ fn goal_set_show_clear_roundtrip() {
         NEXT_TEST_DIR.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     ));
     std::fs::create_dir_all(&tmp).unwrap();
+    let proj = tmp.join("proj");
+    std::fs::create_dir_all(&proj).unwrap();
     hst()
-        .args(["loop", "set", "盯CI", "--every", "5m", "--session", "s1"])
-        .arg("--project")
-        .arg(&tmp)
-        .assert()
-        .success();
-    hst()
-        .args(["goal", "set", "改盯发布", "--session", "s1"])
-        .arg("--project")
-        .arg(&tmp)
+        .env("HST_ROOT", &tmp)
+        .args(["goal", "set", "盯发布窗口", "--project"])
+        .arg(&proj)
         .assert()
         .success()
-        .stdout(contains("goal.set cron=*/5 * * * *"))
-        .stdout(contains("goal.set text=改盯发布"));
+        .stdout(contains("goal.set text=盯发布窗口"))
+        .stdout(contains("goal.set file="));
+    // 自有存储落位；scheduled_tasks.json 不生成（关联解除断言面）。
+    let slug: String = proj
+        .display()
+        .to_string()
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect();
+    assert!(
+        tmp.join("state")
+            .join("goal")
+            .join(format!("{slug}.json"))
+            .exists(),
+        "own store at state/goal/{slug}.json"
+    );
+    assert!(
+        !proj.join(".claude").join("scheduled_tasks.json").exists(),
+        "scheduled_tasks.json untouched"
+    );
     hst()
-        .args(["goal", "show", "--session", "s1"])
-        .arg("--project")
-        .arg(&tmp)
-        .assert()
-        .success()
-        .stdout(contains("goal.present=true"))
-        .stdout(contains("goal.text=改盯发布"));
-    hst()
-        .args(["goal", "clear", "--session", "s1"])
-        .arg("--project")
-        .arg(&tmp)
-        .assert()
-        .success()
-        .stdout(contains("goal.clear id="));
-    // 置空后任务仍在,goal 段文本为空行。
-    hst()
-        .args(["goal", "show", "--session", "s1"])
-        .arg("--project")
-        .arg(&tmp)
+        .env("HST_ROOT", &tmp)
+        .args(["goal", "show", "--project"])
+        .arg(&proj)
         .assert()
         .success()
         .stdout(contains("goal.present=true"))
-        .stdout(contains("goal.text=\n"));
+        .stdout(contains("goal.text=盯发布窗口"))
+        .stdout(contains("goal.rounds=0"));
     hst()
-        .args(["loop", "list"])
-        .arg("--project")
-        .arg(&tmp)
+        .env("HST_ROOT", &tmp)
+        .args(["goal", "clear", "--project"])
+        .arg(&proj)
         .assert()
         .success()
-        .stdout(contains("loop.count=1"));
-    // 无本会话任务：set 报错,clear 零改动退 0。
+        .stdout(contains("goal.clear present=true"));
     hst()
-        .args(["goal", "set", "无任务", "--session", "zz"])
-        .arg("--project")
-        .arg(&tmp)
+        .env("HST_ROOT", &tmp)
+        .args(["goal", "show", "--project"])
+        .arg(&proj)
+        .assert()
+        .success()
+        .stdout(contains("goal.present=false"));
+    // 无 goal 再 clear：零改动合法退 0。
+    hst()
+        .env("HST_ROOT", &tmp)
+        .args(["goal", "clear", "--project"])
+        .arg(&proj)
+        .assert()
+        .success()
+        .stdout(contains("goal.clear present=false"));
+    // 空文本短码承接（goal error=empty_goal）。
+    hst()
+        .env("HST_ROOT", &tmp)
+        .args(["goal", "set", "  ", "--project"])
+        .arg(&proj)
         .assert()
         .failure()
-        .stderr(contains("no loop task"));
+        .stderr(contains("goal error=empty_goal"));
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
+fn goal_stop_hook_leg_reminds_on_natural_stop_only() {
+    // REQ-045 Stop 腿 e2e：goal 在役时 stdin 喂 Stop payload，stdout 出
+    // decision block 提醒 JSON（Claude Code Stop 契约）加 rounds 落盘；
+    // stop_hook_active 续跑再停放行零输出（防环）；非 Stop 事件静默。
+    let tmp = std::env::temp_dir().join(format!(
+        "hst-cli-goalhook-{}-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis(),
+        NEXT_TEST_DIR.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    std::fs::create_dir_all(&tmp).unwrap();
+    let proj = tmp.join("proj");
+    std::fs::create_dir_all(&proj).unwrap();
     hst()
-        .args(["goal", "clear", "--session", "zz"])
-        .arg("--project")
-        .arg(&tmp)
+        .env("HST_ROOT", &tmp)
+        .args(["goal", "set", "闭环 REQ 收尾", "--project"])
+        .arg(&proj)
+        .assert()
+        .success();
+    let stop_payload = format!(
+        r#"{{"hook_event_name":"Stop","session_id":"s1","cwd":"{}"}}"#,
+        proj.display()
+    );
+    let out = hst()
+        .env("HST_ROOT", &tmp)
+        .args(["hook", "goal", "--agent", "claude"])
+        .write_stdin(stop_payload.as_str())
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let s = String::from_utf8_lossy(&out.stdout);
+    assert!(s.contains("\"decision\":\"block\""), "block JSON: {s}");
+    assert!(s.contains("闭环 REQ 收尾"), "reason carries goal: {s}");
+    assert!(
+        s.contains("hst goal clear"),
+        "reason carries close hint: {s}"
+    );
+    hst()
+        .env("HST_ROOT", &tmp)
+        .args(["goal", "show", "--project"])
+        .arg(&proj)
         .assert()
         .success()
-        .stdout(contains("goal.clear count=0"));
+        .stdout(contains("goal.rounds=1"))
+        .stdout(contains("goal.last_stop_at="));
+    // 续跑再停（stop_hook_active）：放行零输出，计数仍落盘。
+    let again = format!(
+        r#"{{"hook_event_name":"Stop","cwd":"{}","stop_hook_active":true}}"#,
+        proj.display()
+    );
+    let out = hst()
+        .env("HST_ROOT", &tmp)
+        .args(["hook", "goal", "--agent", "claude"])
+        .write_stdin(again.as_str())
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert!(
+        out.stdout.is_empty(),
+        "hook-forced stop passes silently: {:?}",
+        String::from_utf8_lossy(&out.stdout)
+    );
+    hst()
+        .env("HST_ROOT", &tmp)
+        .args(["goal", "show", "--project"])
+        .arg(&proj)
+        .assert()
+        .success()
+        .stdout(contains("goal.rounds=2"));
+    // 非 Stop 事件：静默零改动。
+    let other = format!(
+        r#"{{"hook_event_name":"PreToolUse","cwd":"{}"}}"#,
+        proj.display()
+    );
+    let out = hst()
+        .env("HST_ROOT", &tmp)
+        .args(["hook", "goal", "--agent", "claude"])
+        .write_stdin(other.as_str())
+        .output()
+        .unwrap();
+    assert!(out.status.success() && out.stdout.is_empty());
     let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
+fn loop_commands_retired() {
+    // REQ-045（用户令 2026-10-11「hst 不再关联 goal 和 loop」）：loop 面
+    // 撤净（Claude Code 原生 CronCreate/ScheduleWakeup 域），命令位不再
+    // 存在，unrecognized subcommand 非零退（迁移面见 changelog 与 REQ-019
+    // 演进节）。
+    hst()
+        .args(["loop", "list"])
+        .assert()
+        .failure()
+        .stderr(contains("unrecognized subcommand"));
+    hst()
+        .args(["loop", "set", "x", "--every", "5m"])
+        .assert()
+        .failure();
+    // goal 旧 scheduled_tasks 旗标（--session/--via-herdr）随关联解除撤。
+    hst()
+        .args(["goal", "set", "x", "--via-herdr", "t"])
+        .assert()
+        .failure();
 }
 
 #[test]
@@ -1512,7 +1470,7 @@ fn statusline_render_native_marker_smoke() {
     assert_eq!(
         s.lines().count(),
         3,
-        "default three-row layout (hookstate row3, loop/goalmode hidden): {s}"
+        "default three-row layout (hookstate row3, goal/goalmode hidden): {s}"
     );
 }
 
@@ -2323,155 +2281,4 @@ fn update_version_output_parses() {
         .rev()
         .find(|t| t.chars().next().is_some_and(|c| c.is_ascii_digit()));
     assert_eq!(dotted, Some(env!("CARGO_PKG_VERSION")), "输出形：{s}");
-}
-
-#[cfg(unix)]
-#[test]
-fn loop_via_herdr_speaks_agent_prompt_ndjson() {
-    // REQ-023 假服务器协议测试：hst 侧 NDJSON 请求 schema（agent.prompt
-    // 加 wait 含 blocked）与响应三态（idle 成功、api 错误透传、blocked
-    // 分流）端到端；socket 缺席报错不回落写盘。真 herdr 实弹另在 diary
-    // 记（CI 无 herdr）。
-    use std::io::{BufRead, BufReader, Read, Write};
-    use std::os::unix::net::UnixListener;
-    use std::sync::mpsc::channel;
-    use std::time::Duration;
-
-    let dir = std::env::temp_dir().join(format!(
-        "hst-cli-herdr-{}-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_millis(),
-        NEXT_TEST_DIR.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-    ));
-    std::fs::create_dir_all(&dir).unwrap();
-    let sock = dir.join("fake.sock");
-    let listener = UnixListener::bind(&sock).unwrap();
-    let (tx, rx) = channel::<serde_json::Value>();
-    let srv = std::thread::spawn(move || {
-        // 恰收四次连接（成功 set、api 错 del、blocked goal set、clear 成功）。
-        for _ in 0..4 {
-            let Ok((mut s, _)) = listener.accept() else {
-                break;
-            };
-            let mut line = String::new();
-            let mut clone = s.try_clone().unwrap();
-            BufReader::new(&mut clone).read_line(&mut line).unwrap();
-            let req: serde_json::Value = serde_json::from_str(line.trim()).unwrap();
-            let id = req["id"].as_str().unwrap().to_string();
-            let resp = match req["params"]["target"].as_str() {
-                Some("err-target") => serde_json::json!({
-                    "id": id,
-                    "error": {"code": "agent_not_found", "message": "no such agent"}
-                }),
-                // 评审 F1 回填：真响应形 agent 嵌套（AgentInfo 含
-                // agent_status 与 pane_id），非顶层。
-                Some("blocked-target") => serde_json::json!({
-                    "id": id,
-                    "result": {"type": "agent_prompted",
-                               "agent": {"agent_status": "blocked", "pane_id": "w9:p9"}}
-                }),
-                _ => serde_json::json!({
-                    "id": id,
-                    "result": {"type": "agent_prompted",
-                               "agent": {"agent_status": "idle", "pane_id": "w9:p1"}}
-                }),
-            };
-            s.write_all((resp.to_string() + "\n").as_bytes()).unwrap();
-            let _ = s.read(&mut []); // 对端半关前保持活连接
-            if tx.send(req).is_err() {
-                break;
-            }
-        }
-    });
-
-    // 成功：loop set --via-herdr 全链（请求 schema 断言在收包后）。
-    hst()
-        .args([
-            "loop",
-            "set",
-            "盯CI发布",
-            "--every",
-            "5m",
-            "--via-herdr",
-            "w9:p1",
-        ])
-        .env("HERDR_SOCKET_PATH", &sock)
-        .assert()
-        .success()
-        .stdout(contains("loop.arm target=w9:p1"))
-        .stdout(contains("loop.arm cron=*/5 * * * *"))
-        .stdout(contains("loop.arm agent_status=idle"));
-    let req = rx.recv_timeout(Duration::from_secs(5)).unwrap();
-    assert_eq!(req["method"], "agent.prompt", "request: {req}");
-    assert_eq!(req["params"]["target"], "w9:p1");
-    let text = req["params"]["text"].as_str().unwrap();
-    assert!(
-        text.contains("CronCreate") && text.contains("durable=true"),
-        "text: {text}"
-    );
-    let until: Vec<&str> = req["params"]["wait"]["until"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter_map(|v| v.as_str())
-        .collect();
-    assert!(until.contains(&"blocked"), "wait until: {until:?}");
-    assert_eq!(req["params"]["wait"]["timeout_ms"], 120_000);
-
-    // api 错误透传：del 目标不存在。
-    hst()
-        .args(["loop", "del", "latest", "--via-herdr", "err-target"])
-        .env("HERDR_SOCKET_PATH", &sock)
-        .assert()
-        .failure()
-        .stderr(contains("herdr error=agent_not_found"));
-
-    // blocked 分流：goal set 打进权限框的格。
-    hst()
-        .args(["goal", "set", "新目标", "--via-herdr", "blocked-target"])
-        .env("HERDR_SOCKET_PATH", &sock)
-        .assert()
-        .failure()
-        .stderr(contains("herdr error=agent_blocked"));
-
-    // goal clear 成功形。
-    hst()
-        .args(["goal", "clear", "--via-herdr", "w9:p1"])
-        .env("HERDR_SOCKET_PATH", &sock)
-        .assert()
-        .success()
-        .stdout(contains("goal.arm.clear target=w9:p1"))
-        .stdout(contains("goal.arm.clear agent_status=idle"));
-
-    // socket 缺席：报错退出，不静默回落写盘。G2 评审回填：钉 --project
-    // 到临时根并断言仓库自身 scheduled_tasks.json 字节不动（hst() 子进程
-    // cwd = 仓库根，早退回归被写的会是仓库盘，查 dir/.claude 恒真无效）。
-    let repo_tasks = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join(".claude")
-        .join("scheduled_tasks.json");
-    let before = std::fs::read(&repo_tasks).unwrap_or_default();
-    hst()
-        .args(["loop", "set", "g", "--every", "5m", "--via-herdr", "w9:p1"])
-        .arg("--project")
-        .arg(&dir)
-        .env("HERDR_SOCKET_PATH", dir.join("missing.sock"))
-        .assert()
-        .failure()
-        .stderr(contains("herdr error=no_socket"));
-    assert!(
-        !dir.join(".claude").exists(),
-        "via-herdr 失败路径绝不写项目盘"
-    );
-    assert_eq!(
-        std::fs::read(&repo_tasks).unwrap_or_default(),
-        before,
-        "via-herdr 失败路径绝不写仓库盘"
-    );
-
-    drop(rx);
-    let _ = srv.join();
-    let _ = std::fs::remove_dir_all(&dir);
 }

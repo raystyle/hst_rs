@@ -1,4 +1,4 @@
-# hst-cli 2.9.18
+# hst-cli 2.10.0
 
 hst-cli：HST（Hooks, Statusline, Trace）库面——四家 agent（claude、
 codex、grok、kimi）的部署配置与诊断内核。承载五功能：hook 状态落盘
@@ -17,11 +17,10 @@ docs/research 与 docs/adr；输出信封契约见 fmtio 模块文档。
 - [`diagnose`](diagnose.md): `hst diagnose` 活性诊断族：网关缓存命中矩阵与配置活性（D21）。
 - [`doctor`](doctor.md): `hst doctor` 只读体检：yolo、信任、二进制、登录态、hook 形态、状态栏与状态面。
 - [`fmtio`](fmtio.md): 全局输出三态（kv/json/jsonl）与结构化错误出口契约。
-- [`herdrrpc`](herdrrpc.md): herdr 本地 NDJSON RPC 最小客户端（ADR-0009、REQ-023）：ping 探活与
+- [`goal`](goal.md): `hst goal` 自治面（REQ-045，REQ-019 演进）：自有存储、Stop 事件提醒
 - [`hook`](hook.md): `hst hook`：事件到四态映射、用户级 session 分键 state 落盘与密钥拦截分流（D28/S030）。
 - [`install`](install.md): hst 根解析与共享下载件（self update 复用）。
 - [`ledger`](ledger.md): 统一 issue 入口客户端面（issues.ohmygh.com，REQ-057 对齐）。
-- [`loopmgmt`](loopmgmt.md): `hst loop`：当前会话 durable 定时任务与 goal 管理面（REQ-019）。
 - [`pathutil`](pathutil.md): 的路径工具面（细则见模块文档与集成测试）。
 - [`secretguard`](secretguard.md): 的密钥拦截闸面（细则见模块文档与集成测试）。
 - [`shim`](shim.md): shim 三形态自包含状态写入器：cmd/ps1/sh 加 grok 包装（D27/D28/D39）。

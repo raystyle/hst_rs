@@ -5,6 +5,7 @@
 ## Functions
 
 - `map_event` — Map a hook event (already normalized) to a four-state label.
+- `read_stdin_json` — 读 stdin 全量为 JSON（空串与坏形返回 None；REQ-045 起共用给 goal 腿
 - `run` — # Errors
 - `run_state` — REQ-028 state 腿（payload 穿透命令族）：只做四态写盘（D28 读序含会话
 - `run_token` — REQ-028 token 腿（payload 穿透命令族）：只做 secretguard 密钥扫描

@@ -138,6 +138,7 @@ pub(crate) fn is_ours(command: &str) -> bool {
         let stem = token_stem(prog);
         return stem.starts_with("hst-state")
             || stem.starts_with("hst-token")
+            || stem.starts_with("hst-goal")
             || stem.starts_with("hst-pentest")
             || stem.starts_with("oma-state")
             || stem == "hst"
@@ -224,20 +225,21 @@ fn merge_hook_event(
         })
     });
     // 就近替换与去重：byte-equal 的现行 handler 每条保首份；旧形态 ours
-    // 按 hst-token stem 映射 token 腿、否则首 handler，原位替换（保组位）。
+    // 按 hst-token/hst-goal stem 映射各自腿、否则首 handler，原位替换
+    //（保组位）。
     let nearest = |cmd: &str| -> &Json {
-        if cmd.contains("hst-token") {
-            our_handlers
-                .iter()
-                .find(|h| {
+        for stem in ["hst-token", "hst-goal"] {
+            if cmd.contains(stem) {
+                if let Some(h) = our_handlers.iter().find(|h| {
                     h.get("command")
                         .and_then(|c| c.as_str())
-                        .is_some_and(|c| c.contains("hst-token"))
-                })
-                .unwrap_or(&our_handlers[0])
-        } else {
-            &our_handlers[0]
+                        .is_some_and(|c| c.contains(stem))
+                }) {
+                    return h;
+                }
+            }
         }
+        &our_handlers[0]
     };
     let mut present: Vec<bool> = vec![false; our_handlers.len()];
     for group in arr.iter_mut() {
@@ -694,6 +696,30 @@ fn token_handler(agent: &str, oma: &Path, side: OsSide) -> Json {
     })
 }
 
+/// REQ-045 goal 腿 handler（Stop 事件提醒注入，仅 claude 挂载；decision
+/// block 契约是 Claude Code 专属面）：注册指向 hst-goal shim（与 state
+/// 同目录同三载体，Stop 事件与 state 腿双挂），Windows 用 powershell
+/// -File 前缀形（D39 同款）。
+fn goal_handler(agent: &str, oma: &Path, side: OsSide) -> Json {
+    let command = match side {
+        OsSide::Windows => format!(
+            "powershell.exe -NoProfile -ExecutionPolicy Bypass -File {} {}",
+            crate::pathutil::forward_slash(&oma.join("hooks").join("hst-goal.ps1")),
+            agent
+        ),
+        OsSide::Unix => format!(
+            "\"{}\" {}",
+            oma.join("hooks").join("hst-goal.sh").display(),
+            agent
+        ),
+    };
+    json!({
+        "type": "command",
+        "command": command,
+        "timeout": 10,
+    })
+}
+
 /// 部署的D27面（细则见模块文档与集成测试）。
 /// 根，跨项目共享、hst 轮换无痛）。Windows 用 **`powershell.exe -NoProfile
 /// -ExecutionPolicy Bypass -File` 前缀加无引号正斜杠 ps1 路径**加参数
@@ -941,7 +967,8 @@ fn deploy_claude_user(
     changed |= sweep_unmanaged_ours(&mut settings, &events);
     for event in events {
         // REQ-028：PreToolUse 与 UserPromptSubmit 双挂（state 加 token 腿，
-        // 单对各自 shim；state shim 已剥 guard 透传腿），其余单挂 state。
+        // 单对各自 shim；state shim 已剥 guard 透传腿），其余单挂 state；
+        // REQ-045：Stop 再加 goal 腿（提醒注入，仅 claude）三挂。
         let handlers: Vec<Json> = if event == "PreToolUse" {
             // REQ-031 退役后 PreToolUse 双挂（state 加 token）。
             vec![
@@ -953,6 +980,8 @@ fn deploy_claude_user(
                 claude_handler(oma, side),
                 token_handler("claude", oma, side),
             ]
+        } else if event == "Stop" {
+            vec![claude_handler(oma, side), goal_handler("claude", oma, side)]
         } else {
             vec![claude_handler(oma, side)]
         };
@@ -2343,10 +2372,16 @@ mod tests {
 
         let mut r = DeployReport::default();
         deploy_user_hooks_with(&user, &oma, host_side(), &mut r).unwrap();
-        // 注入的三条旧形态都在 Stop 事件：收敛为现行单条；全文件无旧路径残留。
+        // 注入的三条旧形态都在 Stop 事件：收敛为现行两挂（state 加 goal，
+        // REQ-045）；全文件无旧路径残留。
         let ours = ours_in_event(&claude, "Stop");
-        assert_eq!(ours.len(), 1, "legacy forms collapse to one: {ours:?}");
-        assert!(ours[0].contains("hst-state"), "{}", ours[0]);
+        assert_eq!(
+            ours.len(),
+            2,
+            "legacy forms collapse to current pair: {ours:?}"
+        );
+        assert!(ours.iter().any(|c| c.contains("hst-state")), "{ours:?}");
+        assert!(ours.iter().any(|c| c.contains("hst-goal")), "{ours:?}");
         let cmds = collect_commands(&claude);
         assert!(!cmds.iter().any(|c| c.contains("D:\\old")), "old exe gone");
         assert!(
@@ -2787,7 +2822,13 @@ hooks = [
         let mut r2 = DeployReport::default();
         deploy_user_hooks_with(&user, &oma, host_side(), &mut r2).unwrap();
         let ours = ours_in_event(&claude, "Stop");
-        assert_eq!(ours.len(), 1, "duplicates must collapse: {ours:?}");
+        // REQ-045：Stop 双挂（state 加 goal）；同形重复条目只保首份。
+        assert_eq!(ours.len(), 2, "duplicates must collapse: {ours:?}");
+        assert_eq!(
+            ours.iter().filter(|c| c.contains("hst-state")).count(),
+            1,
+            "state duplicates collapse: {ours:?}"
+        );
         let mut r3 = DeployReport::default();
         deploy_user_hooks_with(&user, &oma, host_side(), &mut r3).unwrap();
         assert!(

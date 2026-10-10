@@ -129,7 +129,9 @@ fn atomic_write(path: &Path, body: &str) -> Result<(), String> {
     })
 }
 
-fn read_stdin_json() -> Option<Json> {
+/// 读 stdin 全量为 JSON（空串与坏形返回 None；REQ-045 起共用给 goal 腿
+/// 入口）。
+pub fn read_stdin_json() -> Option<Json> {
     let mut buf = String::new();
     io::stdin().read_to_string(&mut buf).ok()?;
     let trimmed = buf.trim();

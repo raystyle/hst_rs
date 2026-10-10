@@ -3,9 +3,10 @@
 //! 唯一渲染载体（历史对版口径见 ADR-0010 与 REQ-026：与退役前 pwsh 脚本
 //! 在 Ansi 形下逐字相同；管道缺省形态 PowerShell Host 渲染器剥 ANSI，旧
 //! 载体在 agent 实际调用里无色，原生缺省带色，评审 F1）。复用单源：段序与模板配置走
-//! statusline.rs 的 StatuslineConfig 加 effective_orders；loop/goal 探针走
-//! loopmgmt；goalmode 与会话级 loop（ScheduleWakeup 源，REQ-036）倒序分块
-//! 扫描本模块 Rust 形（流式倒扫）。性能面：无
+//! statusline.rs 的 StatuslineConfig 加 effective_orders；goal 段走 goal
+//! 自有存储（REQ-045，用户令 2026-10-11「hst 不再关联 goal 和 loop」，
+//! loop 段随 loop 面退役出仓）；goalmode（/goal 原生态）倒序分块扫描本
+//! 模块 Rust 形（流式倒扫）。性能面：无
 //! pwsh 冷启动（约 300ms）加流式倒扫（105MB transcript 毫秒级）。ANSI 退
 //! 裸文本开关：`NO_COLOR` 或 `HST_STATUSLINE_NO_ANSI` 任一非空（评审 F1）。
 //! 已知边界：tools 段（显式选用面）首版渲染为空、版本本地探测缓存面
@@ -196,7 +197,6 @@ fn render_segment(ctx: &Ctx, id: &str) -> Result<Option<String>, String> {
         "mcp",
         "tokens",
         "duration",
-        "loop",
         "goal",
         "goalmode",
         "hookstate",
@@ -270,7 +270,6 @@ fn segment_opt(ctx: &Ctx, id: &str) -> Option<String> {
             ))
         }
         "hookstate" => seg_hookstate(ctx),
-        "loop" => seg_loop(ctx),
         "goal" => seg_goal(ctx),
         "goalmode" => seg_goalmode(ctx),
         "mcp" => {
@@ -1541,204 +1540,43 @@ fn mcp_count(d: &Json, claude_json: Option<&Path>, mcp_json: Option<&Path>) -> u
     n
 }
 
-fn seg_loop(ctx: &Ctx) -> Option<String> {
-    let (mut count, mut cadence, mut goal) = loop_probe(ctx)?;
-    // REQ-041：{next} 缺省 = 节拍（durable 面无单点下次时刻），会话面由
-    // 回落层覆写为活倒计时（每帧走到点，行随渲染刷新）。
-    let mut next = cadence.trim_start_matches('×').to_string();
-    if count == 0 {
-        // REQ-036 会话级回落：零 durable 任务时取 /loop 自调度
-        //（ScheduleWakeup）态，loop 行补齐「本会话实际在跑的 loop」语义
-        // 三层：durable 等值、durable 收养（REQ-035）、会话自调度。
-        if let Some((c, g, n)) = session_loop_probe(ctx) {
-            count = 1;
-            cadence = c;
-            goal = g;
-            next = n;
-        }
-    }
-    if count == 0 {
-        return None;
-    }
-    let every = cadence.trim_start_matches('×').to_string();
-    let key = if ctx.nerd { "loop" } else { "loop-ascii" };
-    Some(ansi(
-        &apply_fmt(
-            &tmpl_of(ctx, key),
-            &[
-                ("icon", icon_of(ctx, "loop")),
-                ("count", count.to_string()),
-                ("cadence", cadence),
-                ("every", every),
-                ("goal", goal),
-                ("next", next),
-            ],
-        ),
-        "38;5;114",
-    ))
-}
-
+/// REQ-045：goal 段改 hst 自有存储源（`~/.hst/state/goal/<slug>.json`，
+/// slug 同 trace 与 projyolo 规则；Stop 腿 rounds 事件驱动刷新）。项目根
+/// 解析序承接旧 loop 探针链（workspace.project_dir 回落 current_dir 回落
+/// dir）；四家同源显示，不再锚 claude session。存储坏损容忍隐行（读侧
+/// 只读不修，doctor check=goal 报 warn）。
 fn seg_goal(ctx: &Ctx) -> Option<String> {
-    let (count, _, goal) = loop_probe(ctx)?;
-    if count == 0 || goal.is_empty() {
+    let root = {
+        let mut root = s(ctx.d, &["workspace", "project_dir"]);
+        if root.is_empty() || root == "." {
+            root = s(ctx.d, &["workspace", "current_dir"]);
+        }
+        if root.is_empty() || root == "." {
+            root = ctx.dir.clone();
+        }
+        root
+    };
+    let rec = crate::goal::show_goal(ctx.home, Path::new(&root)).ok()??;
+    let mut text = rec.text.replace(['\r', '\n'], " ").trim().to_string();
+    if text.is_empty() {
         return None;
+    }
+    if text.chars().count() > 60 {
+        let cut: String = text.chars().take(60).collect();
+        text = format!("{cut}…");
     }
     let key = if ctx.nerd { "goal" } else { "goal-ascii" };
     Some(ansi(
         &apply_fmt(
             &tmpl_of(ctx, key),
-            &[("icon", icon_of(ctx, "goal")), ("goal", goal)],
+            &[
+                ("icon", icon_of(ctx, "goal")),
+                ("goal", text),
+                ("count", rec.rounds.to_string()),
+            ],
         ),
         "38;5;179",
     ))
-}
-
-/// loop 探针：本会话 durable 任务（count、最新任务节拍人性化、prompt 截
-/// 60）。项目根解析序与 PS1 同（workspace.project_dir 回落链）。归属判据
-/// 双层（REQ-035 收养回落）：`createdBySessionId` 等值优先；本会话零自有
-/// 任务时回落取项目文件全量。durable 任务项目作用域存活，创建会话终结后
-/// 触发仍落本项目活会话而 `createdBySessionId` 不被改写（2026-09-28
-/// prs_c2coe 工位重启实证：任务 15:37 仍发、创建会话 14:29 已终），
-/// 单看等值会话栏误报无 loop。代价：同项目并行双会话各自都显示项目
-/// loop（接受，见 REQ-035 边界节）。
-fn loop_probe(ctx: &Ctx) -> Option<(usize, String, String)> {
-    let sid = {
-        let mut sid = s(ctx.d, &["session_id"]);
-        if sid.is_empty() {
-            sid = s(ctx.d, &["sessionId"]);
-        }
-        sid
-    };
-    if sid.is_empty() {
-        return Some((0, String::new(), String::new()));
-    }
-    let mut root = s(ctx.d, &["workspace", "project_dir"]);
-    if root.is_empty() || root == "." {
-        root = s(ctx.d, &["workspace", "current_dir"]);
-    }
-    if root.is_empty() || root == "." {
-        root = s(ctx.d, &["cwd"]);
-    }
-    if root.is_empty() || root == "." {
-        root = std::env::current_dir().ok()?.display().to_string();
-    }
-    // REQ-042：durable 层两文件并源——项目级 `<root>/.claude/
-    // scheduled_tasks.json` 加用户级全局 `~/.claude/scheduled_tasks.json`
-    //（家根会话的 durable 落点；全局 loop 与项目无关，处处可见，用户令
-    // 「用户级 全局 和 会话内存态都要支持」）。
-    // 评审 F1：家根会话两路径同文件去重；全局 home 解析失败只跳过全局源
-    //（不炸项目层，原行为不受影响）。
-    let mut paths = vec![crate::loopmgmt::scheduled_tasks_path(Path::new(&root))];
-    if let Ok(h) = user_home() {
-        let g = h.join(".claude").join("scheduled_tasks.json");
-        if !paths.iter().any(|p: &PathBuf| *p == g) {
-            paths.push(g);
-        }
-    }
-    let mut sources: Vec<Json> = Vec::new();
-    for path in paths {
-        if !path.is_file() {
-            continue;
-        }
-        if let Ok(v) = crate::yolo::read_json(&path) {
-            sources.push(v);
-        }
-    }
-    if sources.is_empty() {
-        return Some((0, String::new(), String::new()));
-    }
-    let mut tasks: Vec<&Json> = Vec::new();
-    for v in &sources {
-        if let Some(arr) = v.get("tasks").and_then(|t| t.as_array()) {
-            tasks.extend(arr.iter());
-        }
-    }
-    if tasks.is_empty() {
-        return Some((0, String::new(), String::new()));
-    }
-    let mut mine: Vec<&Json> = tasks
-        .iter()
-        .filter(|t| {
-            t.get("createdBySessionId")
-                .and_then(|x| x.as_str())
-                .map(|x| x == sid)
-                .unwrap_or(false)
-        })
-        .map(|t| *t)
-        .collect();
-    if mine.is_empty() {
-        // REQ-035 收养回落：本会话零自有任务时取并源全量（判据见函数
-        // 注）；全量也空才真零命中。
-        mine = tasks.clone();
-    }
-    if mine.is_empty() {
-        return Some((0, String::new(), String::new()));
-    }
-    let newest = mine
-        .iter()
-        .max_by_key(|t| t.get("createdAt").and_then(|x| x.as_u64()).unwrap_or(0))?;
-    let cron = newest.get("cron").and_then(|x| x.as_str()).unwrap_or("");
-    let cadence = cron_to_cadence(cron);
-    let mut goal = newest
-        .get("prompt")
-        .and_then(|x| x.as_str())
-        .unwrap_or("")
-        .replace(['\r', '\n'], " ")
-        .trim()
-        .to_string();
-    if goal.chars().count() > 60 {
-        let cut: String = goal.chars().take(60).collect();
-        goal = format!("{cut}…");
-    }
-    Some((mine.len(), cadence, goal))
-}
-
-fn cron_to_cadence(cron: &str) -> String {
-    let f: Vec<&str> = cron.split_whitespace().collect();
-    if f.len() != 5 {
-        return String::new();
-    }
-    if let Some(n) = f[0].strip_prefix("*/").and_then(|x| x.parse::<u32>().ok()) {
-        if n > 0 && f[1] == "*" && f[2] == "*" && f[3] == "*" {
-            if n >= 60 && n % 60 == 0 {
-                return format!("×{}h", n / 60);
-            }
-            return format!("×{n}m");
-        }
-    }
-    // REQ-042 评审 G：offset-step 分钟形（3-59/23，真语料在证）按步进取
-    // 节拍；绝对日期形（12 7 30 9 *）无周期义，回落空记边界。
-    if f[1] == "*" && f[2] == "*" && f[3] == "*" && f[4] == "*" {
-        if let Some((rng, step)) = f[0].split_once('/') {
-            if let (Ok(_lo), Ok(_hi), Ok(s)) = (
-                rng.split('-').next().unwrap_or("").parse::<u32>(),
-                rng.split('-').nth(1).unwrap_or("").parse::<u32>(),
-                step.parse::<u32>(),
-            ) {
-                if s > 0 {
-                    if s >= 60 {
-                        return format!("×{}h", s / 60);
-                    }
-                    return format!("×{s}m");
-                }
-            }
-        }
-    }
-    if f[0].parse::<u32>().is_ok() && f[2] == "*" && f[3] == "*" && f[4] == "*" {
-        if f[1] == "*" {
-            return "×1h".to_string();
-        }
-        if let Some(n) = f[1].strip_prefix("*/").and_then(|x| x.parse::<u32>().ok()) {
-            return format!("×{n}h");
-        }
-    }
-    if let (Ok(m), Ok(h)) = (f[0].parse::<u32>(), f[1].parse::<u32>()) {
-        if f[2] == "*" && f[3] == "*" && f[4] == "*" {
-            let _ = h;
-            return format!("@{h:02}:{m:02}");
-        }
-    }
-    String::new()
 }
 
 fn seg_goalmode(ctx: &Ctx) -> Option<String> {
@@ -1852,228 +1690,6 @@ fn goalmode_probe(ctx: &Ctx) -> Option<(String, String)> {
     Some((state, t))
 }
 
-/// 会话级 loop 探针（REQ-036）：`/loop` 动态自调度（ScheduleWakeup）
-/// 态。源 = 会话 transcript（定位序与 goalmode 探针同：项目根 slug 加
-/// session_id）倒序分块反扫（4MB 块加 512B 跨界重叠，新者先中即锁），
-/// 末条工具调用取 delaySeconds 与 prompt（剥 `/loop ` 前缀截 60）。
-/// 判终两形：`stop:true` 显式终；就近回取条目 timestamp，now 超 ts 加
-/// 两倍心跳未续期视为弃约滞隐（timestamp 取不到不判龄，乐观显；
-/// prs_c2coe 实机 4 例均按续期或 stop 闭环）。durable 任务在 seg_loop
-/// 上层优先，本探针只在零 durable 时被消费。
-fn session_loop_probe(ctx: &Ctx) -> Option<(String, String, String)> {
-    let sid = s(ctx.d, &["session_id"]);
-    if sid.is_empty() {
-        return None;
-    }
-    let mut root = s(ctx.d, &["workspace", "project_dir"]);
-    if root.is_empty() || root == "." {
-        root = ctx.dir.clone();
-    }
-    let slug: String = root
-        .chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
-        .collect();
-    let home = user_home().ok()?;
-    let file = home
-        .join(".claude")
-        .join("projects")
-        .join(&slug)
-        .join(format!("{sid}.jsonl"));
-    if !file.is_file() {
-        return None;
-    }
-    let mut fs = std::fs::File::open(&file).ok()?;
-    use std::io::{Read, Seek, SeekFrom};
-    let len = fs.metadata().ok()?.len();
-    // REQ-042：源族三标记取新者——ScheduleWakeup（自调度）加 CronCreate
-    //（会话级 cron，durable 缺省 false 只活会话内存，/loop <interval> 形
-    // 走此道，2026-10-02 prs_c2coe fc60bb08 实证文件恒空）加 CronDelete
-    //（取消判终，新于创建即隐）。
-    let sw_marker = "\"name\":\"ScheduleWakeup\",\"input\":{";
-    let cc_marker = "\"name\":\"CronCreate\",\"input\":{";
-    // 评审二轮 F1：带 input 守卫（裸 name 提及如 prompt_snapshot 的工具
-    // schema 文本会假中判终）。
-    let cd_marker = "\"name\":\"CronDelete\",\"input\":{\"";
-    let chunk_sz: u64 = 4 * 1024 * 1024;
-    let ovl: u64 = 512;
-    let mut pos = len;
-    let mut prev_head: Vec<u8> = Vec::new();
-    while pos > 0 {
-        let take = chunk_sz.min(pos);
-        pos -= take;
-        fs.seek(SeekFrom::Start(pos)).ok()?;
-        let mut buf = vec![0u8; take as usize];
-        fs.read_exact(&mut buf).ok()?;
-        let mut comb = buf.clone();
-        comb.extend_from_slice(&prev_head);
-        prev_head = buf[..(ovl as usize).min(buf.len())].to_vec();
-        let chunk = String::from_utf8_lossy(&comb);
-        let sw = chunk.rfind(sw_marker);
-        let cc = chunk.rfind(cc_marker);
-        let cd = chunk.rfind(cd_marker);
-        let newest = [sw, cc, cd]
-            .into_iter()
-            .flatten()
-            .max_by_key(|&i| i)
-            .map(|i| (i, sw == Some(i), cc == Some(i), cd == Some(i)));
-        if let Some((idx, is_sw, is_cc, is_cd)) = newest {
-            if is_sw {
-                return wakeup_verdict(&chunk, idx).into();
-            }
-            if is_cd {
-                return None;
-            }
-            // CronCreate：durable:true 属文件层（durable 探针管辖，本探针
-            // 只在文件层零命中时被咨询）；会话级取 cron 加 prompt。
-            return cron_verdict(&chunk, idx).into();
-        }
-    }
-    None
-}
-
-/// 末条 ScheduleWakeup 判定两态（REQ-041，用户裁定空输入 = 取消）：
-/// Terminal = stop 显式终、滞隐、或空输入退化调用（无 delaySeconds 无
-/// stop——布了空定时即「不再排程」，循环即止行立隐，防取消后挂起；
-/// 2026-10-01 prs_c2coe 实证）；Active = (cadence, goal, next)，next 为
-/// 活倒计时（ts 加 delay 减 now，负值钳 0，timestamp 取不到回落节拍）。
-enum WakeVerdict {
-    Active((String, String, String)),
-    Terminal,
-}
-
-impl From<WakeVerdict> for Option<(String, String, String)> {
-    fn from(v: WakeVerdict) -> Self {
-        match v {
-            WakeVerdict::Active(t) => Some(t),
-            WakeVerdict::Terminal => None,
-        }
-    }
-}
-
-fn wakeup_verdict(chunk: &str, marker_idx: usize) -> WakeVerdict {
-    let obj = object_span(&chunk[marker_idx..]);
-    if obj.contains("\"stop\":true") {
-        return WakeVerdict::Terminal;
-    }
-    let delay: u64 = match obj
-        .find("\"delaySeconds\":")
-        .and_then(|i| {
-            let t = &obj[i + 15..];
-            let d = t.chars().take_while(|c| c.is_ascii_digit()).count();
-            u64::from_str_radix(&t[..d], 10).ok()
-        })
-        .filter(|d| *d > 0)
-    {
-        Some(d) => d,
-        None => return WakeVerdict::Terminal,
-    };
-    let prompt = obj
-        .find("\"prompt\":\"")
-        .and_then(|i| json_string_at(&obj[i + 9..]));
-    let ts = chunk[..marker_idx]
-        .rfind("\"timestamp\":\"")
-        .and_then(|i| iso_epoch(&chunk[i + 13..]));
-    let mut next = delay_cadence(delay);
-    if let Some(ts) = ts {
-        if epoch_now() > ts.saturating_add(delay.saturating_mul(2)) {
-            return WakeVerdict::Terminal;
-        }
-        let remain = ts.saturating_add(delay).saturating_sub(epoch_now());
-        next = delay_cadence(remain);
-    }
-    let mut goal = prompt
-        .map(|p| p.strip_prefix("/loop ").unwrap_or(&p).to_string())
-        .unwrap_or_default()
-        .replace(['\r', '\n'], " ")
-        .trim()
-        .to_string();
-    if goal.chars().count() > 60 {
-        let cut: String = goal.chars().take(60).collect();
-        goal = format!("{cut}…");
-    }
-    WakeVerdict::Active((delay_cadence(delay), goal, next))
-}
-
-/// 会话级 CronCreate 判定（REQ-042）：`durable:true` 属文件层归 None
-///（本探针只在文件层零命中时被咨询）；会话级取 cron 节拍（cron_to_
-/// cadence 剥 × 对齐 SW 形）加 prompt 文本，next 回落节拍（会话 cron 无
-/// 单点下次时刻）。无 cron 字段的退化输入归 None。
-fn cron_verdict(chunk: &str, marker_idx: usize) -> CronOutcome {
-    let obj = object_span(&chunk[marker_idx..]);
-    if obj.contains("\"durable\":true") {
-        return CronOutcome::FileLayer;
-    }
-    let cron = obj
-        .find("\"cron\":\"")
-        .and_then(|i| json_string_at(&obj[i + 7..]))
-        .unwrap_or_default();
-    if cron.is_empty() {
-        return CronOutcome::FileLayer;
-    }
-    let prompt = obj
-        .find("\"prompt\":\"")
-        .and_then(|i| json_string_at(&obj[i + 9..]));
-    let cadence = cron_to_cadence(&cron).trim_start_matches('×').to_string();
-    let mut goal = prompt
-        .map(|p| p.strip_prefix("/loop ").unwrap_or(&p).to_string())
-        .unwrap_or_default()
-        .replace(['\r', '\n'], " ")
-        .trim()
-        .to_string();
-    if goal.chars().count() > 60 {
-        let cut: String = goal.chars().take(60).collect();
-        goal = format!("{cut}…");
-    }
-    CronOutcome::Session((cadence.clone(), goal, cadence))
-}
-
-enum CronOutcome {
-    Session((String, String, String)),
-    FileLayer,
-}
-
-impl From<CronOutcome> for Option<(String, String, String)> {
-    fn from(v: CronOutcome) -> Self {
-        match v {
-            CronOutcome::Session(t) => Some(t),
-            CronOutcome::FileLayer => None,
-        }
-    }
-}
-
-/// 取首个 `{` 起的配对对象跨（字符串感知：值内花括号与引号不计数）；
-/// 跨界劈开或失配时宽容取到串尾（上层字段缺失兜底为零命中）。
-fn object_span(t: &str) -> &str {
-    let start = match t.find('{') {
-        Some(i) => i,
-        None => return "",
-    };
-    let b = t.as_bytes();
-    let (mut depth, mut in_str, mut esc) = (0i32, false, false);
-    for (j, &c) in b.iter().enumerate().skip(start) {
-        if esc {
-            esc = false;
-            continue;
-        }
-        if c == b'\\' && in_str {
-            esc = true;
-            continue;
-        }
-        match c {
-            b'"' => in_str = !in_str,
-            b'{' if !in_str => depth += 1,
-            b'}' if !in_str => {
-                depth -= 1;
-                if depth == 0 {
-                    return &t[start..=j];
-                }
-            }
-            _ => {}
-        }
-    }
-    &t[start..]
-}
-
 /// 串内续解原语：入口已在 JSON 字符串内部（开引号已由锚消费），解转义
 /// 直进到闭合引号；出（文本， 消费字节数含闭合引号）。`\u` 形含代理对
 /// 拼合（孤立代理丢弃）；尾界失配（跨界劈开）宽容取到串尾。多字节字符
@@ -2149,67 +1765,6 @@ fn json_capture(t: &str) -> Option<(String, usize)> {
         i = e;
     }
     Some((out, t.len()))
-}
-
-/// 解一个 JSON 字符串字面量（首字符须为 `"`），出解转义内容。转义语义
-/// 单源在 [`json_capture`]。
-fn json_string_at(s: &str) -> Option<String> {
-    if !s.starts_with('"') {
-        return None;
-    }
-    json_capture(&s[1..]).map(|(t, _)| t)
-}
-
-/// ISO 8601 UTC 形（`2026-09-29T00:37:43.611Z`）手解为 epoch 秒（无
-/// chrono 依赖；日历换算走 civil 算法）。
-fn iso_epoch(ts: &str) -> Option<u64> {
-    let y: i64 = ts.get(0..4)?.parse().ok()?;
-    let mo: i64 = ts.get(5..7)?.parse().ok()?;
-    let d: i64 = ts.get(8..10)?.parse().ok()?;
-    let h: i64 = ts.get(11..13)?.parse().ok()?;
-    let mi: i64 = ts.get(14..16)?.parse().ok()?;
-    let se: i64 = ts.get(17..19)?.parse().ok()?;
-    let yy = if mo <= 2 { y - 1 } else { y };
-    let era = yy.div_euclid(400);
-    let yoe = yy - era * 400;
-    let mp = (mo + 9) % 12;
-    let doy = (153 * mp + 2) / 5 + d - 1;
-    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    let days = era * 146097 + doe - 719468;
-    Some((days * 86400 + h * 3600 + mi * 60 + se).max(0) as u64)
-}
-
-fn epoch_now() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
-}
-
-/// 会话心跳节拍人性化：秒级 `Xs`、分级 `Xm`、时级整 `Xh` 带零头
-/// `XhYm`、日级整 `Xd` 带零头 `XdYh`（durable 段的 every 同位占位符）。
-fn delay_cadence(secs: u64) -> String {
-    if secs < 60 {
-        return format!("{secs}s");
-    }
-    let m = secs / 60;
-    if m < 60 {
-        return format!("{m}m");
-    }
-    let (h, rm) = (m / 60, m % 60);
-    if h < 24 {
-        return if rm == 0 {
-            format!("{h}h")
-        } else {
-            format!("{h}h{rm:02}m")
-        };
-    }
-    let (d, rh) = (h / 24, h % 24);
-    if rh == 0 {
-        format!("{d}d")
-    } else {
-        format!("{d}d{rh:02}h")
-    }
 }
 
 enum MarkerKind {
@@ -2421,20 +1976,6 @@ fn scan_markers(chunk: &str) -> Vec<Marker> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn cron_cadence_forms() {
-        assert_eq!(cron_to_cadence("*/5 * * * *"), "×5m");
-        assert_eq!(cron_to_cadence("*/120 * * * *"), "×2h");
-        assert_eq!(cron_to_cadence("17 * * * *"), "×1h");
-        assert_eq!(cron_to_cadence("7 */2 * * *"), "×2h");
-        assert_eq!(cron_to_cadence("30 14 * * *"), "@14:30");
-        assert_eq!(cron_to_cadence("0 0 1 1 *"), "");
-        // REQ-042 评审 G：offset-step 分钟形按步进取节拍；绝对日期回落空。
-        assert_eq!(cron_to_cadence("3-59/23 * * * *"), "×23m");
-        assert_eq!(cron_to_cadence("8-59/21 * * * *"), "×21m");
-        assert_eq!(cron_to_cadence("12 7 30 9 *"), "");
-    }
 
     #[test]
     fn scan_markers_two_forms_and_quotes() {
@@ -2976,68 +2517,6 @@ mod tests {
     }
 
     #[test]
-    fn loop_probe_adoption_fallback_prefers_own() {
-        // REQ-035 收养回落：工位重启后创建会话已终而任务仍项目级发着
-        //（2026-09-28 prs_c2coe 实证），零自有任务时显示面回落全量；
-        // 自有任务在场时优先且不混入他话任务。
-        let tmp = std::env::temp_dir().join(format!("hst-loop-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&tmp);
-        std::fs::create_dir_all(tmp.join(".claude")).unwrap();
-        // 收养面可见性：他话任务 createdAt 更新，回落时 newest 取它。
-        std::fs::write(
-            tmp.join(".claude").join("scheduled_tasks.json"),
-            r#"{"tasks":[
-                {"id":"own","cron":"*/15 * * * *","prompt":"本话盯发布","createdAt":200,"createdBySessionId":"s2"},
-                {"id":"orphan","cron":"*/30 * * * *","prompt":"他话巡检","createdAt":300,"createdBySessionId":"dead"}
-            ]}"#,
-        )
-        .unwrap();
-        let cfg = StatuslineConfig::default();
-        let cwd = tmp.display().to_string().replace('\\', "/");
-        fn ctx_of<'a>(d: &'a Json, cfg: &'a StatuslineConfig, home: &'a Path) -> Ctx<'a> {
-            Ctx {
-                d,
-                agent: "claude".to_string(),
-                nerd: true,
-                cfg,
-                home,
-                dir: String::new(),
-                root: String::new(),
-                proj_kind: String::new(),
-                pkg_ver: String::new(),
-            }
-        }
-        let d_of = |sid: &str| {
-            serde_json::from_str::<Json>(&format!(r#"{{"session_id":"{sid}","cwd":"{cwd}"}}"#))
-                .unwrap()
-        };
-        // 自有优先：只算本话任务，不混入 createdAt 更新的他话任务。
-        let d2 = d_of("s2");
-        assert_eq!(
-            loop_probe(&ctx_of(&d2, &cfg, &tmp)).unwrap(),
-            (1, "×15m".to_string(), "本话盯发布".to_string())
-        );
-        // 零自有回落：收养项目全量，newest 按 createdAt 取他话任务。
-        let d3 = d_of("s3");
-        assert_eq!(
-            loop_probe(&ctx_of(&d3, &cfg, &tmp)).unwrap(),
-            (2, "×30m".to_string(), "他话巡检".to_string())
-        );
-        // 全量也空才真零命中（行隐藏判据不变）。
-        std::fs::write(
-            tmp.join(".claude").join("scheduled_tasks.json"),
-            r#"{"tasks":[]}"#,
-        )
-        .unwrap();
-        let d4 = d_of("s3");
-        assert_eq!(
-            loop_probe(&ctx_of(&d4, &cfg, &tmp)).unwrap(),
-            (0, String::new(), String::new())
-        );
-        let _ = std::fs::remove_dir_all(&tmp);
-    }
-
-    #[test]
     fn normalize_shell_name_strips_login_dash_and_exe() {
         // macOS `ps -o comm=` 取 argv[0]，登录 shell 带登录杠前缀（-zsh
         // 原样上屏是 2026-09-28 mac 工位实弹缺陷）；.exe 剥除是既有行为。
@@ -3102,352 +2581,65 @@ mod tests {
     }
 
     #[test]
-    fn goalmode_probe_terminal_forms_hide_row() {
-        // REQ-040 评审 G3：probe 级终态 e2e——设标后末条 cleared 或
-        // goal_status met:true,整行隐（用户可见判据上夹具）。
-        let _env = crate::pathutil::ENV_LOCK.lock().unwrap();
-        let tmp = std::env::temp_dir().join(format!("hst-gt-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&tmp);
-        let proj = format!("{}/proj", tmp.display());
-        let slug: String = proj
-            .chars()
-            .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
-            .collect();
-        let tdir = tmp.join(".claude").join("projects").join(&slug);
-        std::fs::create_dir_all(&tdir).unwrap();
-        std::env::set_var("HST_USER_HOME", &tmp);
-        let cfg = StatuslineConfig::default();
-        let d: Json =
-            serde_json::from_str(&format!(r#"{{"session_id":"s1","cwd":"{proj}"}}"#)).unwrap();
-        let ctx = Ctx {
-            d: &d,
-            agent: "claude".to_string(),
-            nerd: true,
-            cfg: &cfg,
-            home: &tmp,
-            dir: proj.clone(),
-            root: String::new(),
-            proj_kind: String::new(),
-            pkg_ver: String::new(),
+    fn goal_segment_reads_own_storage_and_truncates() {
+        // REQ-045：goal 段改 hst 自有存储源（四家同源，不再锚 claude
+        // session）；{count} 承 Stop 腿轮次；截 60；缺 goal 隐行；payload
+        // 项目根缺席回落 dir。
+        let home = std::env::temp_dir().join(format!(
+            "hst-sr-goal-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+        ));
+        std::fs::create_dir_all(&home).unwrap();
+        let root = std::path::Path::new("/w/hst-proj");
+        crate::goal::set_goal(&home, root, "盯发布窗口").unwrap();
+        let cfg = StatuslineConfig {
+            template: vec![("goal-ascii".to_string(), "{goal}|{count}".to_string())],
+            ..Default::default()
         };
-        let set_line = r#"{"type":"queue-operation","content":"Goal set: 目标文本"}"#;
-        for tail in [
-            r#"{"type":"system","content":"<local-command-stdout>Goal cleared: 目标文本</local-command-stdout>"}"#,
-            r#"{"type":"attachment","attachment":{"type":"goal_status","met":true,"sentinel":true,"condition":"目标文本"}}"#,
-        ] {
-            std::fs::write(tdir.join("s1.jsonl"), format!("{set_line}\n{tail}\n")).unwrap();
-            assert_eq!(
-                goalmode_probe(&ctx),
-                Some((String::new(), String::new())),
-                "terminal tail hides row: {tail}"
-            );
+        macro_rules! mk_ctx {
+            ($d:expr, $dir:expr) => {
+                Ctx {
+                    d: $d,
+                    agent: "claude".to_string(),
+                    nerd: false,
+                    cfg: &cfg,
+                    home: &home,
+                    dir: $dir.to_string(),
+                    root: String::new(),
+                    proj_kind: String::new(),
+                    pkg_ver: String::new(),
+                }
+            };
         }
-        std::env::remove_var("HST_USER_HOME");
-        let _ = std::fs::remove_dir_all(&tmp);
-    }
-
-    #[test]
-    fn session_cron_probe_reads_croncreate_family() {
-        // REQ-042：/loop <interval> 形走会话级 CronCreate（durable 缺省
-        // false 只活会话内存，文件恒空）；取 cron 节拍加 prompt；CronDelete
-        // 新于创建判取消；durable:true 属文件层归 None。
-        let _env = crate::pathutil::ENV_LOCK.lock().unwrap();
-        let tmp = std::env::temp_dir().join(format!("hst-sc-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&tmp);
-        let proj = format!("{}/proj", tmp.display());
-        let slug: String = proj
-            .chars()
-            .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
-            .collect();
-        let tdir = tmp.join(".claude").join("projects").join(&slug);
-        std::fs::create_dir_all(&tdir).unwrap();
-        std::env::set_var("HST_USER_HOME", &tmp);
-        let cfg = StatuslineConfig::default();
-        let d: Json =
-            serde_json::from_str(&format!(r#"{{"session_id":"s1","cwd":"{proj}"}}"#)).unwrap();
-        let ctx = Ctx {
-            d: &d,
-            agent: "claude".to_string(),
-            nerd: true,
-            cfg: &cfg,
-            home: &tmp,
-            dir: proj.clone(),
-            root: String::new(),
-            proj_kind: String::new(),
-            pkg_ver: String::new(),
-        };
-        let cc = r#"{"timestamp":"2026-10-02T08:55:00.000Z","message":{"content":[{"type":"tool_use","name":"CronCreate","input":{"cron":"*/30 * * * *","prompt":"继续 按进度完成goal","recurring":true}}]}}"#;
-        let cd = r#"{"timestamp":"2026-10-02T09:00:00.000Z","message":{"content":[{"type":"tool_use","name":"CronDelete","input":{"jobId":"fc60bb08"}}]}}"#;
-        let cc_durable = r#"{"timestamp":"2026-10-02T09:05:00.000Z","message":{"content":[{"type":"tool_use","name":"CronCreate","input":{"cron":"*/5 * * * *","prompt":"durable 件","recurring":true,"durable":true}}]}}"#;
-        // 会话级 CronCreate → 30m 节拍加 prompt（无 timestamp 依赖，next 回
-        // 落节拍）。
-        std::fs::write(tdir.join("s1.jsonl"), format!("{cc}\n")).unwrap();
-        let probe = session_loop_probe(&ctx).unwrap();
-        assert_eq!(
-            probe,
-            (
-                "30m".to_string(),
-                "继续 按进度完成goal".to_string(),
-                "30m".to_string()
-            )
-        );
-        // CronDelete 新于创建 → 取消判终。
-        std::fs::write(tdir.join("s1.jsonl"), format!("{cc}\n{cd}\n")).unwrap();
-        assert!(session_loop_probe(&ctx).is_none());
-        // durable:true 属文件层（文件层零命中时被咨询 → None）。
-        std::fs::write(tdir.join("s1.jsonl"), format!("{cc}\n{cc_durable}\n")).unwrap();
-        assert!(session_loop_probe(&ctx).is_none());
-        std::env::remove_var("HST_USER_HOME");
-        let _ = std::fs::remove_dir_all(&tmp);
-    }
-
-    #[test]
-    fn scan_markers_req040_terminal_forms() {
-        // REQ-040：TUI 斜杠路径回执（Goal set 剥 local-command-stdout 尾取
-        // 文本；Goal cleared 判终）与 goal_status 权威态附件（met:true 判
-        // 终；met:false 不产标记）；set 后 cleared 的时序终态。
-        let s = r#"{"type":"system","content":"<local-command-stdout>Goal set: 斜杠路径设标</local-command-stdout>"}"#;
-        let ms = scan_markers(s);
-        assert_eq!(ms.len(), 1);
-        assert!(matches!(ms[0].kind, MarkerKind::Active));
-        assert_eq!(ms[0].text.as_deref(), Some("斜杠路径设标"));
-        let c = r#"{"type":"system","content":"<local-command-stdout>Goal cleared: 斜杠路径清除</local-command-stdout>"}"#;
-        let ms = scan_markers(c);
-        assert_eq!(ms.len(), 1);
-        assert!(matches!(ms[0].kind, MarkerKind::Clear));
-        let met = r#"{"type":"attachment","attachment":{"type":"goal_status","met":true,"sentinel":true,"condition":"达成条件"}}"#;
-        assert!(matches!(scan_markers(met)[0].kind, MarkerKind::Clear));
-        // met:false 是活态确认，不产标记（不干扰回溯的 set 文本）。
-        let unmet = r#"{"type":"attachment","attachment":{"type":"goal_status","met":false,"condition":"未达成"}}"#;
-        assert!(scan_markers(unmet).is_empty());
-        // 时序：set 在前 cleared 在后 → 扫描器两标记都在，回溯态取新者
-        //（cleared）。
-        let both = r#"{"type":"queue-operation","content":"Goal set: 旧目标"}
-{"type":"system","content":"<local-command-stdout>Goal cleared: 旧目标</local-command-stdout>"}
-"#;
-        let ms = scan_markers(both);
-        assert_eq!(ms.len(), 2);
-        assert!(matches!(ms[ms.len() - 1].kind, MarkerKind::Clear));
-    }
-
-    #[test]
-    fn goalmode_probe_reads_goal_set_form() {
-        // REQ-037 端到端：仅设标形（无常稳运转不产的 check-in 标记）也
-        // 出 active 态行。夹具钉 HST_USER_HOME。
-        let _env = crate::pathutil::ENV_LOCK.lock().unwrap();
-        let tmp = std::env::temp_dir().join(format!("hst-gs-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&tmp);
-        let proj = format!("{}/proj", tmp.display());
-        let slug: String = proj
-            .chars()
-            .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
-            .collect();
-        let tdir = tmp.join(".claude").join("projects").join(&slug);
-        std::fs::create_dir_all(&tdir).unwrap();
-        std::fs::write(
-            tdir.join("s1.jsonl"),
-            r#"{"x":1}
-{"type":"queue-operation","content":"Goal set: 完成所有题目 解题过程： browse交互逻辑分析"}
-"#,
+        // payload 带项目根：键中自有存储。
+        let with_root: Json = serde_json::from_str(
+            r#"{"session_id":"s1","workspace":{"project_dir":"/w/hst-proj"}}"#,
         )
         .unwrap();
-        std::env::set_var("HST_USER_HOME", &tmp);
-        let cfg = StatuslineConfig::default();
-        let d: Json =
-            serde_json::from_str(&format!(r#"{{"session_id":"s1","cwd":"{proj}"}}"#)).unwrap();
-        let ctx = Ctx {
-            d: &d,
-            agent: "claude".to_string(),
-            nerd: true,
-            cfg: &cfg,
-            home: &tmp,
-            dir: proj.clone(),
-            root: String::new(),
-            proj_kind: String::new(),
-            pkg_ver: String::new(),
-        };
-        assert_eq!(
-            goalmode_probe(&ctx),
-            Some((
-                "active".to_string(),
-                "完成所有题目 解题过程： browse交互逻辑分析".to_string()
-            ))
-        );
-        std::env::remove_var("HST_USER_HOME");
-        let _ = std::fs::remove_dir_all(&tmp);
-    }
-
-    #[test]
-    fn session_loop_probe_verdicts_four_forms() {
-        // REQ-036：末条心跳取胜（goal 剥 /loop 前缀）、stop:true 判终、
-        // 两心跳未续期滞隐、durable 在场时会话不混入（seg_loop 集成）。
-        let _env = crate::pathutil::ENV_LOCK.lock().unwrap();
-        let tmp = std::env::temp_dir().join(format!("hst-sw-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&tmp);
-        let proj = format!("{}/proj", tmp.display());
-        let slug: String = proj
-            .chars()
-            .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
-            .collect();
-        let tdir = tmp.join(".claude").join("projects").join(&slug);
-        std::fs::create_dir_all(&tdir).unwrap();
-        let cfg = StatuslineConfig::default();
-        let d: Json =
-            serde_json::from_str(&format!(r#"{{"session_id":"s1","cwd":"{proj}"}}"#)).unwrap();
-        let ctx = Ctx {
-            d: &d,
-            agent: "claude".to_string(),
-            nerd: true,
-            cfg: &cfg,
-            home: &tmp,
-            dir: proj.clone(),
-            root: String::new(),
-            proj_kind: String::new(),
-            pkg_ver: String::new(),
-        };
-        std::env::set_var("HST_USER_HOME", &tmp);
-        let sw = |delay: u64, prompt: &str, extra: &str, ts: &str| {
-            format!(
-                r#"{{"timestamp":"{ts}","message":{{"content":[{{"type":"tool_use","name":"ScheduleWakeup","input":{{"delaySeconds":{delay},"prompt":"{prompt}","reason":"r","noop":false{extra}}}}}]}}"}}"#,
-            )
-        };
-        // 末条胜 + 前缀剥：ts 老、delay 30d → 滞隐窗外活态。
-        std::fs::write(
-            tdir.join("s1.jsonl"),
-            format!(
-                "{}\n{}\n",
-                sw(600, "/loop 旧心跳", "", "2026-09-01T00:00:00.000Z"),
-                sw(
-                    2592000,
-                    "/loop 确认解题后沉淀了步骤",
-                    "",
-                    "2026-09-01T00:30:00.000Z"
-                ),
-            ),
-        )
-        .unwrap();
-        // REQ-041 起 probe 出三元组（cadence 加 goal 加 next 活倒计
-        // 时），倒计时随时钟走不钉墙钟值，钉 cadence 加 goal。
-        let probe = session_loop_probe(&ctx).unwrap();
-        assert_eq!(probe.0, "30d");
-        assert_eq!(probe.1, "确认解题后沉淀了步骤");
-        // seg_loop 集成：零 durable + 会话活 → 行出（{next} 缺省模板）。
-        let row = seg_loop(&ctx).unwrap();
-        assert!(row.contains("/ 确认解题后沉淀了步骤"), "session row: {row}");
-        // stop:true 判终。
-        std::fs::write(
-            tdir.join("s1.jsonl"),
-            sw(
-                2592000,
-                "/loop 终态",
-                ",\"stop\":true",
-                "2026-09-01T00:30:00.000Z",
-            ),
-        )
-        .unwrap();
-        assert_eq!(session_loop_probe(&ctx), None);
-        // 两心跳未续期滞隐（ts 2026-09-01 + 60s）。
-        std::fs::write(
-            tdir.join("s1.jsonl"),
-            sw(60, "/loop 短心跳", "", "2026-09-01T00:30:00.000Z"),
-        )
-        .unwrap();
-        assert_eq!(session_loop_probe(&ctx), None);
-        // durable 在场：会话不混入，行只出 durable。
-        let sdir = tmp.join("proj").join(".claude");
-        std::fs::create_dir_all(&sdir).unwrap();
-        std::fs::write(
-            tdir.join("s1.jsonl"),
-            sw(
-                2592000,
-                "/loop 会话心跳在场",
-                "",
-                "2026-09-01T00:30:00.000Z",
-            ),
-        )
-        .unwrap();
-        std::fs::write(
-            sdir.join("scheduled_tasks.json"),
-            r#"{"tasks":[{"id":"d1","cron":"*/15 * * * *","prompt":"durable 盯发布","createdAt":200,"createdBySessionId":"s1"}]}"#,
-        )
-        .unwrap();
-        let row = seg_loop(&ctx).unwrap();
-        assert!(row.contains("15m / durable 盯发布"), "durable wins: {row}");
-        assert!(!row.contains("会话心跳在场"), "session not mixed: {row}");
-        // REQ-041（用户裁定）：空输入 SW = 取消——即使更早布防仍在滞隐
-        // 窗内，行也立隐（防取消后挂起）；stop 判终同收口。
-        std::fs::remove_file(sdir.join("scheduled_tasks.json")).unwrap();
-        let empty_sw = r#"{"timestamp":"2026-10-01T08:16:10.402Z","message":{"content":[{"type":"tool_use","name":"ScheduleWakeup","input":{}}]}}"#;
-        std::fs::write(
-            tdir.join("s1.jsonl"),
-            format!(
-                "{}
-{}
-",
-                sw(5184000, "/loop 长心跳在途", "", "2026-09-25T00:00:00.000Z"),
-                empty_sw,
-            ),
-        )
-        .unwrap();
-        assert!(
-            session_loop_probe(&ctx).is_none(),
-            "empty SW cancels even within staleness window"
-        );
-        // REQ-042 用户级全局源：项目文件缺位时 ~/.claude/scheduled_tasks.json
-        // 的全局任务照显（收养回落语义同项目层）。
-        std::fs::write(tdir.join("s1.jsonl"), "").unwrap();
-        std::fs::write(
-            tmp.join(".claude").join("scheduled_tasks.json"),
-            r#"{"tasks":[{"id":"g1","cron":"*/20 * * * *","prompt":"全局巡检","createdAt":400,"createdBySessionId":"other"}]}"#,
-        )
-        .unwrap();
-        let (count, cadence, goal) = loop_probe(&ctx).unwrap();
-        assert_eq!(
-            (count, cadence.as_str(), goal.as_str()),
-            (1, "×20m", "全局巡检")
-        );
-        // G2（全量评审配方固化）：≥2 块边界夹具——4MB 边界骑跨的
-        // CronCreate 拼回压过同块更早的 SW；G3：schema 文本形
-        // CronDelete（description 载体）不判终、卷末 schema 不掩更早心跳。
-        std::fs::remove_file(tmp.join(".claude").join("scheduled_tasks.json")).unwrap();
-        // 骑跨造法按边界算术（评审快核 G2 修正）：尾段取 4MB 减 90 字节,
-        // 标记恰跨块界（起点在老块尾、终点入末块头），512B 重叠拼回。
-        let chunk: usize = 4 * 1024 * 1024;
-        let sw_early = r#"{"timestamp":"2026-10-02T08:00:00.000Z","message":{"content":[{"type":"tool_use","name":"ScheduleWakeup","input":{"delaySeconds":5184000,"prompt":"/loop 早心跳","reason":"r"}}]}}"#;
-        let cc_marker = r#"{"timestamp":"2026-10-02T09:00:00.000Z","message":{"content":[{"type":"tool_use","name":"CronCreate","input":{"cron":"*/30 * * * *","prompt":"boundary-patrol","recurring":true}}]}}"#;
-        let filler = "x".repeat(chunk);
-        let tail = "y".repeat(chunk - 90);
-        let big = format!("{sw_early}\n{filler}{cc_marker}\n{tail}");
-        std::fs::write(tdir.join("s1.jsonl"), &big).unwrap();
-        let probe = session_loop_probe(&ctx).unwrap();
-        assert_eq!(
-            (probe.0.as_str(), probe.1.as_str()),
-            ("30m", "boundary-patrol"),
-            "boundary CronCreate wins over earlier SW: {probe:?}"
-        );
-        let schema = r#"{"type":"user","message":{"content":[{"type":"text","text":"tool CronDelete: {"name":"CronDelete","description":"Delete"}"}}]}"#;
-        std::fs::write(tdir.join("s1.jsonl"), format!("{sw_early}\n{schema}\n")).unwrap();
-        let probe = session_loop_probe(&ctx).unwrap();
-        assert_eq!(probe.1, "早心跳", "schema text not terminal: {probe:?}");
-        std::fs::write(
-            tdir.join("s1.jsonl"),
-            format!(
-                "{}
-{}
-",
-                sw(
-                    5184000,
-                    "/loop 已停",
-                    ",\"stop\":true",
-                    "2026-09-25T00:00:00.000Z"
-                ),
-                empty_sw,
-            ),
-        )
-        .unwrap();
-        assert!(session_loop_probe(&ctx).is_none(), "stop terminal wins");
-        std::env::remove_var("HST_USER_HOME");
-        let _ = std::fs::remove_dir_all(&tmp);
+        let row = seg_goal(&mk_ctx!(&with_root, "/elsewhere")).unwrap();
+        assert!(row.contains("盯发布窗口|0"), "{row}");
+        // payload 项目根缺席：回落 dir（后续断言共用该形）。
+        let bare: Json = serde_json::from_str(r#"{"session_id":"s1"}"#).unwrap();
+        let row = seg_goal(&mk_ctx!(&bare, "/w/hst-proj")).unwrap();
+        assert!(row.contains("盯发布窗口"), "dir fallback: {row}");
+        // 轮次随 Stop 腿计数联动。
+        let stop = serde_json::json!({ "hook_event_name": "Stop", "cwd": "/w/hst-proj" });
+        crate::goal::stop_hook(&home, Some(&stop), None).unwrap();
+        let row = seg_goal(&mk_ctx!(&bare, "/w/hst-proj")).unwrap();
+        assert!(row.contains("盯发布窗口|1"), "{row}");
+        // 超 60 字截断。
+        let long = "长".repeat(72);
+        crate::goal::set_goal(&home, root, &long).unwrap();
+        let row = seg_goal(&mk_ctx!(&bare, "/w/hst-proj")).unwrap();
+        assert!(row.contains(&format!("{}…", "长".repeat(60))), "{row}");
+        // 清空隐行。
+        crate::goal::clear_goal(&home, root).unwrap();
+        assert!(seg_goal(&mk_ctx!(&bare, "/w/hst-proj")).is_none());
+        let _ = std::fs::remove_dir_all(&home);
     }
 
     #[test]
@@ -3478,7 +2670,7 @@ mod tests {
     fn icon_of_honors_user_override() {
         // 评审 F3：[icons] 键级覆盖优先于默认表；非 nerd 恒空。
         let cfg = StatuslineConfig {
-            icons: vec![("loop".to_string(), "LOOP ".to_string())],
+            icons: vec![("goal".to_string(), "GOAL ".to_string())],
             ..Default::default()
         };
         let d: Json = serde_json::from_str("{}").unwrap();
@@ -3493,7 +2685,7 @@ mod tests {
             proj_kind: String::new(),
             pkg_ver: String::new(),
         };
-        assert_eq!(icon_of(&ctx, "loop"), "LOOP ");
+        assert_eq!(icon_of(&ctx, "goal"), "GOAL ");
         assert_eq!(icon_of(&ctx, "hst"), "\u{f06a9}  ", "default survives");
         let ctx_ascii = Ctx {
             d: &d,

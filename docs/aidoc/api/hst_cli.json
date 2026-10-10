@@ -1,6 +1,6 @@
 {
   "crate": "hst-cli",
-  "version": "2.9.18",
+  "version": "2.10.0",
   "items": [
     {
       "path": "hst_cli::agents",
@@ -348,34 +348,59 @@
       "docs": "结构化模式（错误走单行 JSON、stdout 纯数据）。"
     },
     {
-      "path": "hst_cli::herdrrpc",
+      "path": "hst_cli::goal",
       "kind": "module",
-      "docs": "herdr 本地 NDJSON RPC 最小客户端（ADR-0009、REQ-023）：ping 探活与\nagent.prompt 派发两方法，一连接一请求短连接，传输零新依赖。\nherdr 本地 NDJSON RPC 最小客户端（ADR-0009、REQ-023）：仅 `ping` 探\n活与 `agent.prompt`（带 wait）派发两方法，一连接一请求短连接，不做\n事件流长连接。传输零新依赖：Unix 走 std UnixStream，Windows 命名管\n道按文件开（`\\\\.\\pipe\\` 前缀映射，对齐 herdr 二进制 strings 实证）；\nserde_json 组帧；sha256 请求 id（tokio/thiserror/uuid/dirs 不进\nCargo.toml）。socket 路径解析序：`HERDR_SOCKET_PATH` 到\n`HERDR_SESSION`（`~/.config/herdr/sessions/<名>/herdr.sock`）到缺省\n`~/.config/herdr/herdr.sock`。本通道不注入任何 token：本地 socket\n权限（srw-------）即边界（评审 F2 回填；用户工件情报\nHERDR_SOCKET_PASSWORD 经 schema 加文档加二进制加全站检索四路核实\n非 herdr 机制）。"
+      "docs": "`hst goal` 自治面（REQ-045，REQ-019 演进）：自有存储、Stop 事件提醒\n腿与状态栏自源显示（用户令 2026-10-11「hst 不再关联 goal 和 loop」）。\nhst goal 自治面（REQ-045，REQ-019 演进；用户令 2026-10-11「hst 不再\n关联 goal 和 loop」「hst 自己用 hook 实现 goal」）：goal 文本由 hst\n自有存储承载（`~/.hst/state/goal/<slug>.json`，slug 规则同 trace 与\nprojyolo：路径非字母数字一律 `-`），与项目 `.claude/scheduled_tasks.json`\n的一切读写解除（该文件回归 Claude Code 原生 CronCreate 域，loop 面\nv2.10.0 退役）。Stop 事件腿（`hst hook goal`，注册面 Claude Stop 事件\n与 state 腿双挂，仅 claude）：每轮 agent 停止 rounds 计数落盘（状态栏\ngoal 段的事件驱动数据源），自然停（payload 无 stop_hook_active）出\n`decision: block` 加 reason 提醒注入一轮、续跑引发的再停放行（Claude\nCode Stop 契约，[实证: code.claude.com/docs/en/hooks 2026-10-11 查：\nstop_hook_active 在场须 exit 0 防死环；block 加 reason 续跑]），\n恒无死环。CLI 面 set/show/clear 语义承接 REQ-019 管理命令面（项目级，\n--project 缺省当前目录；项目键 = CLI 侧项目根与 payload 侧\nworkspace.project_dir 同一 slug，子目录调用键不中，须在项目根跑或显式\n给 --project，边界同 projyolo marker 先例）。"
     },
     {
-      "path": "hst_cli::herdrrpc::HerdrError",
+      "path": "hst_cli::goal::GoalError",
       "kind": "enum",
-      "docs": "herdr RPC 面错误（REQ-023）：`Display` 面向人，`code` 给 agent 短码\n（api 变体透传 herdr 错误码如 agent_blocked、agent_not_found）。"
+      "docs": "goal 面错误（承接 REQ-021 类型契约先例）：`Display` 面向人，\n[`GoalError::code`] 给 agent 稳定短码（CLI 错误面 `goal error=<code>`）。"
     },
     {
-      "path": "hst_cli::herdrrpc::agent_prompt",
-      "kind": "function",
-      "docs": "派发即回执：`agent.prompt` 带 wait（until 三态含 blocked，blocked 单\n独分流为 [`HerdrError::AgentBlocked`]，绝不把指令打进权限框）。\n\n# Errors\n\n同 [`call`]，另加目标 blocked 态。"
+      "path": "hst_cli::goal::GoalRecord",
+      "kind": "struct",
+      "docs": "goal 记录（自有存储单文件形，项目一键一文件）。"
     },
     {
-      "path": "hst_cli::herdrrpc::call",
+      "path": "hst_cli::goal::clear_goal",
       "kind": "function",
-      "docs": "发一次 NDJSON RPC（一连接一请求）：写请求行，读一行响应，id 配对\n校验，error 分流为 [`HerdrError::Api`]，result 原样返回。\n\n# Errors\n\nsocket 缺席、连接、读写、协议不合约或 herdr API 错误时返回\n[`HerdrError`]。"
+      "docs": "清空本项目 goal（删文件；返回是否真删，无 goal 零改动合法）。\n\n# Errors\n\nIO 失败时返回 [`GoalError`]。"
     },
     {
-      "path": "hst_cli::herdrrpc::ping",
+      "path": "hst_cli::goal::goal_dir",
       "kind": "function",
-      "docs": "探活：`ping` 一发（返回 pong result 原样）。\n\n# Errors\n\n同 [`call`]。"
+      "docs": "goal 存储目录（`<hst 自管根>/state/goal/`；测试经 HST_ROOT 缝注入）。"
     },
     {
-      "path": "hst_cli::herdrrpc::socket_path",
+      "path": "hst_cli::goal::goal_path",
       "kind": "function",
-      "docs": "socket 路径解析：`HERDR_SOCKET_PATH` 到 `HERDR_SESSION`\n（`~/.config/herdr/sessions/<名>/herdr.sock`）到缺省\n`~/.config/herdr/herdr.sock`（序同 herdr 官方文档）。\n\n# Errors\n\n用户家目录不可解析时返回 [`HerdrError::Io`]。"
+      "docs": "项目 goal 文件路径（`<dir>/<slug>.json`）。"
+    },
+    {
+      "path": "hst_cli::goal::reminder_json",
+      "kind": "function",
+      "docs": "Stop 提醒 JSON（Claude Code Stop 契约：`decision: block` 加 `reason`\n续跑一轮，reason 即注入下轮的提醒文本）。\n\n# Errors\n\n序列化失败时返回 `String`（纯字符串组合，实跑不可达，类型面完整）。"
+    },
+    {
+      "path": "hst_cli::goal::set_goal",
+      "kind": "function",
+      "docs": "设置本项目 goal（覆盖旧 goal，rounds 归零重计）。\n\n# Errors\n\n文本 trim 后为空、存储坏损或 IO 失败时返回 [`GoalError`]。"
+    },
+    {
+      "path": "hst_cli::goal::show_goal",
+      "kind": "function",
+      "docs": "查看本项目 goal（无 goal 返回 None，查看面不受阻）。\n\n# Errors\n\n存储坏损或 IO 失败时返回 [`GoalError`]。"
+    },
+    {
+      "path": "hst_cli::goal::slug",
+      "kind": "function",
+      "docs": "项目键 slug（规则同 trace 与 projyolo marker：路径非字母数字一律 `-`）。"
+    },
+    {
+      "path": "hst_cli::goal::stop_hook",
+      "kind": "function",
+      "docs": "Stop 腿入口（`hst hook goal`）：非 Stop 事件或本项目无 goal 返回\nNone（静默放行）；有 goal 则 rounds 递增落盘后，自然停（payload 无\nstop_hook_active）返回提醒 JSON、续跑再停（stop_hook_active=true）返回\nNone。计数落盘恒执行（防环放行轮也计），状态栏 goal 段数据随之刷新。\n\n# Errors\n\n存储坏损或 IO 失败时返回 `String`（调用方 fail-open，不挡 agent 停止）。"
     },
     {
       "path": "hst_cli::hook",
@@ -391,6 +416,11 @@
       "path": "hst_cli::hook::map_event",
       "kind": "function",
       "docs": "Map a hook event (already normalized) to a four-state label."
+    },
+    {
+      "path": "hst_cli::hook::read_stdin_json",
+      "kind": "function",
+      "docs": "读 stdin 全量为 JSON（空串与坏形返回 None；REQ-045 起共用给 goal 腿\n入口）。"
     },
     {
       "path": "hst_cli::hook::run",
@@ -508,121 +538,6 @@
       "docs": "digest 本地快检（服务端 DIGEST_RE 同源，不触网秒红）：`sha256:<64hex\n小写>`。\n# Errors\n\n形不符返回 `String` 错误。"
     },
     {
-      "path": "hst_cli::loopmgmt",
-      "kind": "module",
-      "docs": "`hst loop`：当前会话 durable 定时任务与 goal 管理面（REQ-019）。\nloop 与 goal 管理面（REQ-019、REQ-021 类型契约化试点）。hst 侧唯一\n真相 = 项目根 `.claude/scheduled_tasks.json`（Claude Code durable\nCronCreate 的同源落盘形，实证 2026-09-23 探针：tasks[] 含 id / cron /\nprompt / recurring / createdAt / createdBySessionId / createdByPid /\ncreatedByProcStart）；hst 是该文件的读写管理面（set / list / del），\n状态栏 loop 与 goal 段同源只读消费（loop 段零 durable 时回落会话 /loop\n自调度态即 ScheduleWakeup 源，REQ-036；goal 段仍只取 durable 源），不自\n建第二状态文件。会话归属\n判据分面：CLI 管理面（ours 标记与 goal 改写前置）= `createdBySessionId`\n与当前会话 id 等值；状态栏显示面在等值零命中时收养回落项目全量\n（REQ-035：durable 任务项目作用域存活，创建会话终结后触发仍落活会话\n而 createdBySessionId 不改写，2026-09-28 prs_c2coe 工位重启实证）。\ngoal 语义 = 任务\n`prompt` 文本。并发面与 Claude Code 同款读改写（无锁，后写覆盖先写）；\n同一会话内混用 hst 与 agent 原生 cron 工具会互相覆盖盘上变更，管理\n纪律是单向（要么全经 hst，要么全经会话内工具）。已在跑会话不接管\n盘上外部写入（2026-09-26 探针实证阴性：agent 进程 inotify 盯着项目\n.claude 目录但任务变更不被采纳，会话运行期调度器状态在内存注册表，盘上\n文件是重启装载的持久化镜像而非活输入通道）。重启装载面同日实证\n阳性：新会话启动装载本文件，missed 一次性任务以补触发形浮出（带\n用户确认门，prompt 即 goal 文本）并自删；hst 写盘后重开会话即生效。\n\n类型契约（REQ-021）：节拍互斥由 Cadence 枚举在类型层表达（双缺\n或双给的检查上移 CLI 解析层）；任务行由 Task 结构体 typed 承载\n（缺键容忍默认、错型响亮报错、未知键 flatten 保真）；错误由\nLoopError 枚举承载（LoopError::code 给 agent 稳定短码，CLI 错误面\n「loop error=<code>:」前缀即 agent 判别契约；结构化短码字段面候裁\nREQ-011，评审 G3 回填）。"
-    },
-    {
-      "path": "hst_cli::loopmgmt::Cadence",
-      "kind": "enum",
-      "docs": "节拍规格（REQ-021）：`--every` 周期形与 `--at` 一次性形的互斥枚举，\n非法组合（双缺或双给）在类型层不可表示，检查归 CLI 解析层。"
-    },
-    {
-      "path": "hst_cli::loopmgmt::GoalReport",
-      "kind": "struct",
-      "docs": "goal 改写报告：被改任务的 id 与 cron。"
-    },
-    {
-      "path": "hst_cli::loopmgmt::LoopError",
-      "kind": "enum",
-      "docs": "loop 与 goal 面错误（REQ-021）：`Display` 面向人，[`LoopError::code`]\n给 agent 稳定短码（机器判别不靠字符串前缀分流）。"
-    },
-    {
-      "path": "hst_cli::loopmgmt::LoopHealth",
-      "kind": "struct",
-      "docs": "doctor 消费的 loop 面健康快照（REQ-020）：计数面；坏损走 Err 不在\n快照里表达。"
-    },
-    {
-      "path": "hst_cli::loopmgmt::SetReport",
-      "kind": "struct",
-      "docs": "set 落盘报告：新任务的 id、cron、recurring、归属会话与文件路径。"
-    },
-    {
-      "path": "hst_cli::loopmgmt::Task",
-      "kind": "struct",
-      "docs": "scheduled_tasks.json 的任务行（REQ-021 typed 承载）：核心八字段加\nflatten 未知键保真。五字段（createdAt/recurring/createdBy 三件）\n`#[serde(default)]` 容忍缺键（历史文件可能短字段；外会话行经 hst\n写盘会补全默认值，属接受的可见变化，评审 G5 回填）；id/cron/prompt\n三必需字段缺失或错型均响亮报错（缺 id 会让 del 定位失准，不给默认，\n评审 F1 回填）。键序不承诺与原生落盘形同序（hst 写盘按结构体字段序\n重排、未知键居末，JSON 消费方不受影响，评审 G4 回填）；文件属主是\nClaude Code，schema 可能长，未知键读改写幸存。"
-    },
-    {
-      "path": "hst_cli::loopmgmt::TaskRow",
-      "kind": "struct",
-      "docs": "任务行（list / del 判据用）：文件内每条任务的展开视图。"
-    },
-    {
-      "path": "hst_cli::loopmgmt::arm_del_text",
-      "kind": "function",
-      "docs": " 远端 del 指令：target 为任务 id 精确、`latest`（own 最新）或 `all`\n（own 全部）；own 判据 = 任务 createdBySessionId 与目标 agent 当前\n 会话 id（其环境变量 CLAUDE_CODE_SESSION_ID）等值，同本地面语义（空\n spec 走 id 分支零改动回执）。"
-    },
-    {
-      "path": "hst_cli::loopmgmt::arm_goal_clear_text",
-      "kind": "function",
-      "docs": "远端 goal clear 指令：own-latest 整任务退役（原生无空 prompt 重建形，\n清空即连节奏一并停，与本地 clear 保任务的语义差异明示于 REQ-023）。"
-    },
-    {
-      "path": "hst_cli::loopmgmt::arm_goal_set_text",
-      "kind": "function",
-      "docs": "远端 goal set 指令：own-latest 删旧建新保节奏（原生无 prompt 就地改写\n面；任务 id 与 createdAt 会换新，与本地 goal set 保 id 的语义差异明示\n于 REQ-023）。\n\n# Errors\n\n文本空时返回 [`LoopError`]。"
-    },
-    {
-      "path": "hst_cli::loopmgmt::arm_set_text",
-      "kind": "function",
-      "docs": "远端 set 指令（ADR-0009 即时通道）：节奏由本侧翻译单源（every_to_cron\n/at_to_cron），目标 agent 只执行 CronCreate。\n\n# Errors\n\n节拍形坏或越界时返回 [`LoopError`]（同 set_loop 判据）。"
-    },
-    {
-      "path": "hst_cli::loopmgmt::at_to_cron",
-      "kind": "function",
-      "docs": "一次性时刻转 cron：`HH:MM`（24 小时制）得 `M H * * *`（到点触发后由\n运行时自动删除；非 recurring 形由 [`Cadence::At`] 变体决定）。\n\n# Errors\n\n时刻形坏或越界时返回 [`LoopError::BadAt`]。"
-    },
-    {
-      "path": "hst_cli::loopmgmt::clear_goal",
-      "kind": "function",
-      "docs": "清空当前会话最新 loop 的 goal（prompt 置空、任务与节奏保留；返回被改\n任务 id，无本会话任务返回 None）。\n\n# Errors\n\n会话不可解析、文件坏损或 IO 失败时返回 [`LoopError`]。"
-    },
-    {
-      "path": "hst_cli::loopmgmt::del_loops",
-      "kind": "function",
-      "docs": "删除任务：target 为任务 id（精确匹配任意任务，不限会话）、`latest`\n（本会话 createdAt 最新一条）或 `all`（本会话全部）；latest / all\n需要可解析的当前会话。返回被删 id 清单（空 = 零改动，合法回执）。\n\n# Errors\n\nlatest/all 会话不可解析、文件坏损或 IO 失败时返回 [`LoopError`]。"
-    },
-    {
-      "path": "hst_cli::loopmgmt::every_to_cron",
-      "kind": "function",
-      "docs": "周期间隔转 cron：`Nm`（1 至 59）得 `*/N * * * *`；`Nh`（1 至 23）得\n`M */N * * *`（评审 F2：N 必须进小时步进位，否则 6h 静默放大成每小\n时），M 取落盘时刻分钟位并避开 0 与 30（舰队避整点半点纪律）。恒为\nrecurring 形（由 [`Cadence::Every`] 变体决定，不再以布尔元组携带）。\n\n# Errors\n\n形坏或数值越界时返回 [`LoopError::BadEvery`]。"
-    },
-    {
-      "path": "hst_cli::loopmgmt::health",
-      "kind": "function",
-      "docs": "loop 面健康快照（REQ-020）：读项目 scheduled_tasks.json 计总数、本\n会话数与死属主；文件缺失或空任务合法返回零计数；坏损（顶层非对象、\ntasks 键非数组、任务行缺必需字段或错型）返回 Err。\n\n# Errors\n\n文件坏损或 IO 失败时返回 [`LoopError`]（评审 G2 回填：不再走模块\n唯一 String 出口，doctor 侧 Display 直渲）。"
-    },
-    {
-      "path": "hst_cli::loopmgmt::list_tasks",
-      "kind": "function",
-      "docs": "列出项目定时任务（全量，不按会话过滤；`ours` 标当前会话归属，\n会话解析失败时返回 None 且 ours 恒 false，列表本身不受阻）。\n\n# Errors\n\n文件坏损（含任务字段错型）或 IO 失败时返回 [`LoopError`]（会话解析\n失败不算错）。"
-    },
-    {
-      "path": "hst_cli::loopmgmt::resolve_session",
-      "kind": "function",
-      "docs": "解析「当前会话」：显式 `--session` 优先，其次 agent 会话内环境变量\n`CLAUDE_CODE_SESSION_ID`，再次 `~/.claude.json` 项目表 `lastSessionId`\n（键 = 项目根正斜杠形，与 pretrust 面同判）；全落空报错并提示显式给。\n\n# Errors\n\n三级解析全落空时返回 [`LoopError::SessionUnresolved`]（提示显式给\n--session）。"
-    },
-    {
-      "path": "hst_cli::loopmgmt::scheduled_tasks_path",
-      "kind": "function",
-      "docs": "定时任务文件路径（项目根下 `.claude/scheduled_tasks.json`）。"
-    },
-    {
-      "path": "hst_cli::loopmgmt::set_goal",
-      "kind": "function",
-      "docs": "设置当前会话最新 loop 的 goal 文本（prompt 就地改写，节奏与属主不动；\n无本会话任务报错，先 `hst loop set` 建任务）。\n\n# Errors\n\n文本空、无本会话任务、文件坏损或 IO 失败时返回 [`LoopError`]。"
-    },
-    {
-      "path": "hst_cli::loopmgmt::set_loop",
-      "kind": "function",
-      "docs": "设置当前会话 loop：节拍由 [`Cadence`] 枚举承载（互斥在类型层成立），\ngoal 文本 trim 后非空；读改写保留既有任务（含外会话与 agent 原生\n落盘项）。\n\n# Errors\n\ngoal 空、节拍形坏或越界、会话不可解析、文件坏损或 IO 失败时返回\n[`LoopError`]。"
-    },
-    {
-      "path": "hst_cli::loopmgmt::show_goal",
-      "kind": "function",
-      "docs": "查看当前会话最新 loop 的 goal（会话不可解析或无任务返回 None，查看面\n不受阻）。\n\n# Errors\n\n文件坏损（含任务字段错型）或 IO 失败时返回 [`LoopError`]（会话不可\n解析返回 None 不算错）。"
-    },
-    {
       "path": "hst_cli::pathutil",
       "kind": "module",
       "docs": "的路径工具面（细则见模块文档与集成测试）。"
@@ -735,7 +650,7 @@
     {
       "path": "hst_cli::shim",
       "kind": "module",
-      "docs": "shim 三形态自包含状态写入器：cmd/ps1/sh 加 grok 包装（D27/D28/D39）。\n用户级 hook 壳（REQ-032 载体全原生）：thin 透传，cmd 与 sh 两载体，\n全部逻辑收进 hst 二进制本体（`hst hook state/token`）。部署时\n烘焙部署方二进制绝对路径（self update 原位替换，路径不漂）。D28 自包\n含设计退役记档：hst 缺位或故障时 shell 退出码非 2，agent 侧按非阻塞\n错误处理 = fail-open（状态通道回落 unknown）；M060a 白名单语义由 hst\n本体内化（token 腿 exit 硬约束 0 与 2，仅自判 block 出 2）。\ngrok 的 Windows 单路径包装（M048）保留：包装烘焙 agent 参转调 thin\ncmd。Windows 注册走 thin ps1 一行壳（REQ-032 评审 F2 方案③，D39 三壳\n通吃形 powershell.exe -File <正斜杠>）；.cmd 只留 grok 包装与手工面。"
+      "docs": "shim 三形态自包含状态写入器：cmd/ps1/sh 加 grok 包装（D27/D28/D39）。\n用户级 hook 壳（REQ-032 载体全原生）：thin 透传，cmd 与 sh 两载体，\n全部逻辑收进 hst 二进制本体（`hst hook state/token/goal`，goal 腿\nREQ-045 加，仅 claude Stop 事件挂载）。部署时\n烘焙部署方二进制绝对路径（self update 原位替换，路径不漂）。D28 自包\n含设计退役记档：hst 缺位或故障时 shell 退出码非 2，agent 侧按非阻塞\n错误处理 = fail-open（状态通道回落 unknown）；M060a 白名单语义由 hst\n本体内化（token 腿 exit 硬约束 0 与 2，仅自判 block 出 2）。\ngrok 的 Windows 单路径包装（M048）保留：包装烘焙 agent 参转调 thin\ncmd。Windows 注册走 thin ps1 一行壳（REQ-032 评审 F2 方案③，D39 三壳\n通吃形 powershell.exe -File <正斜杠>）；.cmd 只留 grok 包装与手工面。"
     },
     {
       "path": "hst_cli::shim::deploy_shims",
@@ -745,7 +660,7 @@
     {
       "path": "hst_cli::shim::deploy_shims_with",
       "kind": "function",
-      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n壳部署（REQ-032 thin 透传面）：state/token 两腿 sh 加 ps1 加 cmd 三\n载体加 grok 两包装，exe 烘焙部署方 current_exe 绝对路径；幂等内容判\n等；oma 旧名件与 pentest 退役件清扫。"
+      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n壳部署（REQ-032 thin 透传面）：state/token/goal 三腿（goal 腿 REQ-045\n加）sh 加 ps1 加 cmd 三载体加 grok 包装，exe 烘焙部署方 current_exe\n绝对路径；幂等内容判等；oma 旧名件与 pentest 退役件清扫。"
     },
     {
       "path": "hst_cli::shim::deploy_shims_with_exe",
@@ -810,7 +725,7 @@
     {
       "path": "hst_cli::statusline::effective_orders_pub",
       "kind": "function",
-      "docs": "段序生效值（D42 三行、D44 曾默认两行、REQ-024 起默认三行：第三行\nloop/goal 专属，无任务时行空即剔除）：各行取用户清单或默认序（未知与\n跨行重复 id 由拼装器拒，空行由拼装器剔除）。**老配置原样升级语义**\n（codex D42 评审 F1/H1 两轮收口）：用户显式写过 `segments` 而未写任何\n后续行键时，未写的行**不补默认**（D18 老单排与 v1.1.0 双排两种老形态\n原样升级，行为零漂移；新装用户键全缺省得两行默认）；用户写过任一后续\n行键（segments2 或 segments3）时，未写的行**补默认并去重**（显式段\nid 从默认行剔除，防跨行重复硬错）。显式写的行不去重（跨行重复仍由拼\n装器拒）。\n原生渲染引擎（ADR-0010）复用口：等价 effective_orders。"
+      "docs": "段序生效值（D42 三行、D44 曾默认两行、REQ-024 起默认三行、REQ-045 起\n第四行 goal 自治专属，无任务时行空即剔除）：各行取用户清单或默认序（未知与\n跨行重复 id 由拼装器拒，空行由拼装器剔除）。**老配置原样升级语义**\n（codex D42 评审 F1/H1 两轮收口）：用户显式写过 `segments` 而未写任何\n后续行键时，未写的行**不补默认**（D18 老单排与 v1.1.0 双排两种老形态\n原样升级，行为零漂移；新装用户键全缺省得两行默认）；用户写过任一后续\n行键（segments2 或 segments3）时，未写的行**补默认并去重**（显式段\nid 从默认行剔除，防跨行重复硬错）。显式写的行不去重（跨行重复仍由拼\n装器拒）。\n原生渲染引擎（ADR-0010）复用口：等价 effective_orders。"
     },
     {
       "path": "hst_cli::statusline::merge_claude",
@@ -845,7 +760,7 @@
     {
       "path": "hst_cli::statusrender",
       "kind": "module",
-      "docs": " 状态栏原生渲染引擎（ADR-0010、REQ-026）：hst statusline render 子命令\n 的 Rust 实现，退役 pwsh 脚本载体。\n 状态栏原生渲染引擎（ADR-0010、REQ-026）：`hst statusline render <agent>`\n 读 stdin agent JSON 出状态行。REQ-038 起 PS1 载体完全淘汰，本引擎是\n 唯一渲染载体（历史对版口径见 ADR-0010 与 REQ-026：与退役前 pwsh 脚本\n 在 Ansi 形下逐字相同；管道缺省形态 PowerShell Host 渲染器剥 ANSI，旧\n 载体在 agent 实际调用里无色，原生缺省带色，评审 F1）。复用单源：段序与模板配置走\n statusline.rs 的 StatuslineConfig 加 effective_orders；loop/goal 探针走\n loopmgmt；goalmode 与会话级 loop（ScheduleWakeup 源，REQ-036）倒序分块\n 扫描本模块 Rust 形（流式倒扫）。性能面：无\n pwsh 冷启动（约 300ms）加流式倒扫（105MB transcript 毫秒级）。ANSI 退\n 裸文本开关：`NO_COLOR` 或 `HST_STATUSLINE_NO_ANSI` 任一非空（评审 F1）。\n 已知边界：tools 段（显式选用面）首版渲染为空、版本本地探测缓存面\n（D46）未移植（payload version 字段归一承载）、REQ-014/REQ-017 哨兵面\n 未移植，见 REQ-026。"
+      "docs": " 状态栏原生渲染引擎（ADR-0010、REQ-026）：hst statusline render 子命令\n 的 Rust 实现，退役 pwsh 脚本载体。\n 状态栏原生渲染引擎（ADR-0010、REQ-026）：`hst statusline render <agent>`\n 读 stdin agent JSON 出状态行。REQ-038 起 PS1 载体完全淘汰，本引擎是\n 唯一渲染载体（历史对版口径见 ADR-0010 与 REQ-026：与退役前 pwsh 脚本\n 在 Ansi 形下逐字相同；管道缺省形态 PowerShell Host 渲染器剥 ANSI，旧\n 载体在 agent 实际调用里无色，原生缺省带色，评审 F1）。复用单源：段序与模板配置走\n statusline.rs 的 StatuslineConfig 加 effective_orders；goal 段走 goal\n 自有存储（REQ-045，用户令 2026-10-11「hst 不再关联 goal 和 loop」，\n loop 段随 loop 面退役出仓）；goalmode（/goal 原生态）倒序分块扫描本\n 模块 Rust 形（流式倒扫）。性能面：无\n pwsh 冷启动（约 300ms）加流式倒扫（105MB transcript 毫秒级）。ANSI 退\n 裸文本开关：`NO_COLOR` 或 `HST_STATUSLINE_NO_ANSI` 任一非空（评审 F1）。\n 已知边界：tools 段（显式选用面）首版渲染为空、版本本地探测缓存面\n（D46）未移植（payload version 字段归一承载）、REQ-014/REQ-017 哨兵面\n 未移植，见 REQ-026。"
     },
     {
       "path": "hst_cli::statusrender::render",

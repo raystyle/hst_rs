@@ -572,12 +572,19 @@ fn command_target(c: &str) -> std::path::PathBuf {
 
 /// JSON 形 hook 注册（claude settings、grok ohmyagents-state.json）的 oma
 /// 体检的形态面（细则见模块文档与集成测试）。
-/// ours shim 载体名族（state 与 token 两腿，加退役遗留 pentest 与 oma 纪元
+/// ours shim 载体名族（state、token 与 goal 三腿，加退役遗留 pentest 与
+/// oma 纪元
 /// 名）：命中即该注册指向我们部署的绝对路径壳，按脚本在位否判 shim 与
 /// shim-dead。REQ-028 加 token 腿后此判据未同步，token 壳按「带路径分隔符
 /// 的 ours 绝对路径」落 absolute，codex 侧「取最差形态」遂常驻 hooks.form
 /// warn（反馈件二，2026-09-28 修）。
-const OURS_SHIM_STEMS: &[&str] = &["hst-state", "hst-token", "hst-pentest", "oma-state"];
+const OURS_SHIM_STEMS: &[&str] = &[
+    "hst-state",
+    "hst-token",
+    "hst-goal",
+    "hst-pentest",
+    "oma-state",
+];
 
 /// 该 ours 注册命令是否指向 ours shim 载体（名族判定，不解析路径）。
 fn is_ours_shim_command(c: &str) -> bool {
@@ -919,58 +926,59 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
         }
     }
 
-    // REQ-020：loop/goal 面健康检查（scheduled_tasks.json 属主是 Claude
-    // Code，hst 是管理面）。文件缺失或零任务判 ok（零任务合法态）；坏损
-    // warn（顶层非对象、tasks 键非数组、任务行错型，loopmgmt read_tasks
-    // 同判）；Linux 死属主 warn（pid 在而进程不在或 procStart 不匹配），
-    // 非 Linux 该子面无判据降 ok 加注记（Status 无 info 档，同 compact
-    // 信息型先例）；本会话与外会话计数为对账面不告警。
+    // REQ-045 goal 自治面体检（用户令 2026-10-11「hst 不再关联 goal 和
+    // loop」；REQ-020 的 scheduled_tasks 读检随 loop 退役出仓，对该文件
+    // 的读写关联全解除，属主回归 Claude Code 原生 CronCreate）：两面——
+    // claude Stop 事件 goal 腿注册在场（hst-goal shim，缺席 rerun hst
+    // init 补挂）与自有存储 `~/.hst/state/goal/` 可读；本项目 goal 现状
+    //（文本与轮次）为对账面不告警。
     {
-        let lt_path = root.join(".claude").join("scheduled_tasks.json");
-        match crate::loopmgmt::health(&root) {
-            Ok(h) => {
-                let session_face = match h.ours {
-                    Some(o) => format!("ours={o} foreign={}", h.total - o),
-                    None => "session unresolved".to_string(),
-                };
-                if h.dead_owner > 0 {
-                    push_status(
-                        &mut findings,
-                        "claude",
-                        "loop",
-                        Status::Warn,
-                        &lt_path,
-                        format!(
-                            "tasks={} {session_face} dead_owner={} (owning pid gone or \
-                             procStart mismatch; reload happens on new session start)",
-                            h.total, h.dead_owner
-                        ),
-                    );
-                } else {
-                    let liveness = if h.owner_check {
-                        "dead_owner=0".to_string()
-                    } else {
-                        "owner liveness unchecked (non-linux)".to_string()
-                    };
-                    push_status(
-                        &mut findings,
-                        "claude",
-                        "loop",
-                        Status::Ok,
-                        &lt_path,
-                        format!("tasks={} {session_face} {liveness}", h.total),
-                    );
+        let hst_home = crate::install::hst_home().unwrap_or_else(|_| home.clone());
+        let gdir = crate::goal::goal_dir(&hst_home);
+        let stop_goal_registered = json_file(&home.join(".claude").join("settings.json"))
+            .and_then(|v| v.get("hooks").cloned())
+            .and_then(|h| h.get("Stop").and_then(|s| s.as_array()).cloned())
+            .is_some_and(|groups| {
+                groups.iter().any(|g| {
+                    g.get("hooks")
+                        .and_then(|hs| hs.as_array())
+                        .is_some_and(|hs| {
+                            hs.iter().any(|h| {
+                                h.get("command")
+                                    .and_then(|c| c.as_str())
+                                    .is_some_and(|c| c.contains("hst-goal"))
+                            })
+                        })
+                })
+            });
+        let mut status = if stop_goal_registered {
+            Status::Ok
+        } else {
+            Status::Warn
+        };
+        let mut detail = if stop_goal_registered {
+            "stop goal-hook registered".to_string()
+        } else {
+            "stop goal-hook missing (rerun hst init)".to_string()
+        };
+        match crate::goal::show_goal(&hst_home, &root) {
+            Ok(Some(rec)) => {
+                let mut text = rec.text.replace(['\r', '\n'], " ");
+                if text.chars().count() > 40 {
+                    text = format!("{}…", text.chars().take(40).collect::<String>());
                 }
+                detail.push_str(&format!(
+                    " project goal present rounds={} text={text}",
+                    rec.rounds
+                ));
             }
-            Err(e) => push_status(
-                &mut findings,
-                "claude",
-                "loop",
-                Status::Warn,
-                &lt_path,
-                format!("scheduled tasks unreadable: {e}"),
-            ),
+            Ok(None) => detail.push_str(" project goal none"),
+            Err(e) => {
+                status = Status::Warn;
+                detail.push_str(&format!(" goal store unreadable: {e}"));
+            }
         }
+        push_status(&mut findings, "claude", "goal", status, &gdir, detail);
     }
 
     // D28 第 3 轮：yolo 两级显式（--yolo 用户级、--project-yolo 项目级），
@@ -2297,69 +2305,114 @@ mod tests {
         ))
     }
 
-    // ===== REQ-020：loop/goal 面健康检查三态 =====
+    // ===== REQ-045：goal 自治面体检三态 =====
 
-    #[test]
-    fn loop_check_ok_when_no_tasks() {
-        let root = temp_root("lpo");
+    /// 独占临时 user 家与 hst 根（HST_USER_HOME 加 HST_ROOT 双缝注入）。
+    /// 返回的 env 锁守卫必须活在测试作用域（锁在 goal_env 内释会把并行
+    /// 测试的 env 注入漏进来，lib.rs testenv 节在册纪律）。
+    fn goal_env(
+        tag: &str,
+    ) -> (
+        std::sync::MutexGuard<'static, ()>,
+        std::path::PathBuf,
+        std::path::PathBuf,
+        std::path::PathBuf,
+    ) {
+        let g = crate::pathutil::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let user = temp_root(&format!("{tag}-user"));
+        let oma = temp_root(&format!("{tag}-oma"));
+        let root = temp_root(&format!("{tag}-proj"));
+        fs::create_dir_all(user.join(".claude")).unwrap();
         fs::create_dir_all(&root).unwrap();
-        let d = diagnose(&root).expect("diagnose");
-        assert_eq!(d.status("claude", "loop"), Some(Status::Ok));
-        let row = d.findings.iter().find(|f| f.check == "loop").unwrap();
-        assert!(row.detail.contains("tasks=0"), "detail: {}", row.detail);
-        let _ = fs::remove_dir_all(&root);
+        std::env::set_var("HST_USER_HOME", &user);
+        std::env::set_var("HST_ROOT", &oma);
+        (g, user, oma, root)
+    }
+
+    fn goal_env_cleanup(user: &std::path::Path, oma: &std::path::Path, root: &std::path::Path) {
+        std::env::remove_var("HST_USER_HOME");
+        std::env::remove_var("HST_ROOT");
+        let _ = fs::remove_dir_all(user);
+        let _ = fs::remove_dir_all(oma);
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]
-    fn loop_check_warn_on_corrupt_tasks_file() {
-        let root = temp_root("lpc");
-        fs::create_dir_all(root.join(".claude")).unwrap();
+    fn goal_check_ok_when_registered_and_project_goal_present() {
+        let (_g, user, oma, root) = goal_env("glreg");
         fs::write(
-            root.join(".claude").join("scheduled_tasks.json"),
-            r#"{"tasks":{"weird":1}}"#,
+            user.join(".claude").join("settings.json"),
+            r#"{"hooks": {"Stop": [{"matcher": "*", "hooks": [
+                {"type": "command", "command": "/sh/hst-state.sh claude", "timeout": 10},
+                {"type": "command", "command": "/sh/hst-goal.sh claude", "timeout": 10}
+            ]}]}}"#,
         )
         .unwrap();
+        crate::goal::set_goal(&oma, &root, "盯发布窗口").unwrap();
         let d = diagnose(&root).expect("diagnose");
-        assert_eq!(d.status("claude", "loop"), Some(Status::Warn));
-        let row = d.findings.iter().find(|f| f.check == "loop").unwrap();
+        goal_env_cleanup(&user, &oma, &root);
+        assert_eq!(d.status("claude", "goal"), Some(Status::Ok));
+        let row = d.findings.iter().find(|f| f.check == "goal").unwrap();
         assert!(
-            row.detail.contains("not an array"),
-            "detail names cause: {}",
+            row.detail.contains("stop goal-hook registered"),
+            "detail: {}",
             row.detail
         );
-        let _ = fs::remove_dir_all(&root);
+        assert!(
+            row.detail
+                .contains("project goal present rounds=0 text=盯发布窗口"),
+            "detail carries goal face: {}",
+            row.detail
+        );
     }
 
     #[test]
-    fn loop_check_warn_on_dead_owner_linux() {
-        // 死属主：pid 在而进程不在（4_000_000 取超界不活跃 pid）；pid=0
-        //（归属未知）不算死。非 Linux 该子面无判据，跳断言。
-        if !cfg!(target_os = "linux") {
-            return;
-        }
-        let root = temp_root("lpd");
-        fs::create_dir_all(root.join(".claude")).unwrap();
+    fn goal_check_warn_when_stop_goal_hook_missing() {
+        // claude 用户级 settings 在场而 Stop 无 hst-goal 腿：warn 提示
+        // rerun hst init（REQ-045 注册面）。
+        let (_g, user, oma, root) = goal_env("glmiss");
         fs::write(
-            root.join(".claude").join("scheduled_tasks.json"),
-            r#"{"tasks":[
-                {"id":"dead1","cron":"*/5 * * * *","prompt":"a","createdAt":1,
-                 "recurring":true,"createdBySessionId":"s1",
-                 "createdByPid":4000000,"createdByProcStart":"1"},
-                {"id":"anon0","cron":"*/7 * * * *","prompt":"b","createdAt":2,
-                 "recurring":true,"createdBySessionId":"s1",
-                 "createdByPid":0,"createdByProcStart":""}
-            ]}"#,
+            user.join(".claude").join("settings.json"),
+            r#"{"hooks": {"Stop": [{"matcher": "*", "hooks": [
+                {"type": "command", "command": "/sh/hst-state.sh claude", "timeout": 10}
+            ]}]}}"#,
         )
         .unwrap();
         let d = diagnose(&root).expect("diagnose");
-        assert_eq!(d.status("claude", "loop"), Some(Status::Warn));
-        let row = d.findings.iter().find(|f| f.check == "loop").unwrap();
+        goal_env_cleanup(&user, &oma, &root);
+        assert_eq!(d.status("claude", "goal"), Some(Status::Warn));
+        let row = d.findings.iter().find(|f| f.check == "goal").unwrap();
         assert!(
-            row.detail.contains("dead_owner=1"),
-            "only the vanished pid counts dead: {}",
+            row.detail
+                .contains("stop goal-hook missing (rerun hst init)"),
+            "detail: {}",
             row.detail
         );
-        let _ = fs::remove_dir_all(&root);
+        assert!(
+            row.detail.contains("project goal none"),
+            "detail: {}",
+            row.detail
+        );
+    }
+
+    #[test]
+    fn goal_check_warn_on_corrupt_store() {
+        let (_g, user, oma, root) = goal_env("glcor");
+        fs::write(user.join(".claude").join("settings.json"), "{}").unwrap();
+        let p = crate::goal::goal_path(&oma, &root);
+        fs::create_dir_all(p.parent().unwrap()).unwrap();
+        fs::write(&p, "not-json").unwrap();
+        let d = diagnose(&root).expect("diagnose");
+        goal_env_cleanup(&user, &oma, &root);
+        assert_eq!(d.status("claude", "goal"), Some(Status::Warn));
+        let row = d.findings.iter().find(|f| f.check == "goal").unwrap();
+        assert!(
+            row.detail.contains("goal store unreadable"),
+            "detail: {}",
+            row.detail
+        );
     }
 
     #[test]

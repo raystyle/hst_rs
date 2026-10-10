@@ -18,7 +18,7 @@ agent 名 + 实时四态（hook 状态通道 + 会话闸，机读标记见 S025�
 - `cleanup_legacy_script` — REQ-038：PS1 载体完全淘汰的退役清扫（幂等）。摘除弃用期保留的
 - `default_icon` — 内嵌默认图标（码位与拆段前脚本逐字对齐；hst 机器人宽字形跟两空格，
 - `default_template` — 内嵌默认模板（D18）。键 = 段 id；`context-ascii` 是 grok 的结构差异项
-- `effective_orders_pub` — 段序生效值（D42 三行、D44 曾默认两行、REQ-024 起默认三行：第三行
+- `effective_orders_pub` — 段序生效值（D42 三行、D44 曾默认两行、REQ-024 起默认三行、REQ-045 起
 - `merge_claude` — # Errors
 - `merge_codex` — # Errors
 - `merge_grok` — # Errors

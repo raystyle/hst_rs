@@ -2,7 +2,8 @@
 
 shim 三形态自包含状态写入器：cmd/ps1/sh 加 grok 包装（D27/D28/D39）。
 用户级 hook 壳（REQ-032 载体全原生）：thin 透传，cmd 与 sh 两载体，
-全部逻辑收进 hst 二进制本体（`hst hook state/token`）。部署时
+全部逻辑收进 hst 二进制本体（`hst hook state/token/goal`，goal 腿
+REQ-045 加，仅 claude Stop 事件挂载）。部署时
 烘焙部署方二进制绝对路径（self update 原位替换，路径不漂）。D28 自包
 含设计退役记档：hst 缺位或故障时 shell 退出码非 2，agent 侧按非阻塞
 错误处理 = fail-open（状态通道回落 unknown）；M060a 白名单语义由 hst

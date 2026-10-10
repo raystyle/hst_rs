@@ -1,5 +1,6 @@
 //! 用户级 hook 壳（REQ-032 载体全原生）：thin 透传，cmd 与 sh 两载体，
-//! 全部逻辑收进 hst 二进制本体（`hst hook state/token`）。部署时
+//! 全部逻辑收进 hst 二进制本体（`hst hook state/token/goal`，goal 腿
+//! REQ-045 加，仅 claude Stop 事件挂载）。部署时
 //! 烘焙部署方二进制绝对路径（self update 原位替换，路径不漂）。D28 自包
 //! 含设计退役记档：hst 缺位或故障时 shell 退出码非 2，agent 侧按非阻塞
 //! 错误处理 = fail-open（状态通道回落 unknown）；M060a 白名单语义由 hst
@@ -88,9 +89,9 @@ pub fn deploy_shims(root: &std::path::Path) -> Result<(Vec<PathBuf>, Vec<String>
 /// # Errors
 ///
 /// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
-/// 壳部署（REQ-032 thin 透传面）：state/token 两腿 sh 加 ps1 加 cmd 三
-/// 载体加 grok 两包装，exe 烘焙部署方 current_exe 绝对路径；幂等内容判
-/// 等；oma 旧名件与 pentest 退役件清扫。
+/// 壳部署（REQ-032 thin 透传面）：state/token/goal 三腿（goal 腿 REQ-045
+/// 加）sh 加 ps1 加 cmd 三载体加 grok 包装，exe 烘焙部署方 current_exe
+/// 绝对路径；幂等内容判等；oma 旧名件与 pentest 退役件清扫。
 pub fn deploy_shims_with(
     root_param: &std::path::Path,
     shell: &str,
@@ -165,7 +166,11 @@ pub fn deploy_shims_with_exe(
     std::fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     let mut wrote: Vec<PathBuf> = Vec::new();
     let mut warns = Vec::new();
-    for (leg, stem) in [("state", "hst-state"), ("token", "hst-token")] {
+    for (leg, stem) in [
+        ("state", "hst-state"),
+        ("token", "hst-token"),
+        ("goal", "hst-goal"),
+    ] {
         let sh = dir.join(format!("{stem}.sh"));
         if write_if_changed(&sh, &thin_sh(&exe, leg, shell))? {
             wrote.push(sh.clone());
@@ -286,31 +291,26 @@ mod tests {
     }
 
     #[test]
-    fn deploy_shims_writes_eight_and_is_idempotent() {
-        // 两腿（sh 加 ps1 加 cmd 加 grok 包装）= 八件；幂等。
-        let dir = scratch("eight");
+    fn deploy_shims_writes_twelve_and_is_idempotent() {
+        // 三腿（sh 加 ps1 加 cmd 加 grok 包装）= 十二件（REQ-045 加 goal
+        // 腿）；幂等。
+        let dir = scratch("twelve");
         let (wrote, warns) = deploy_shims_with(&dir, "bash").unwrap();
         assert_eq!(
             wrote.len(),
-            8,
-            "eight thin shells (sh/ps1/cmd x2 + grok x2): {wrote:?}"
+            12,
+            "twelve thin shells (sh/ps1/cmd x3 + grok x3): {wrote:?}"
         );
         // REQ-043：测试进程即开发构建位，告警恰在（回落装位烘焙）。
         assert!(
             warns.iter().any(|w| w.starts_with("shim exe fallback")),
             "dev-build warn present: {warns:?}"
         );
-        for name in [
-            "hst-state.sh",
-            "hst-state.ps1",
-            "hst-state.cmd",
-            "hst-state-grok.cmd",
-            "hst-token.sh",
-            "hst-token.ps1",
-            "hst-token.cmd",
-            "hst-token-grok.cmd",
-        ] {
-            assert!(dir.join("hooks").join(name).exists(), "missing {name}");
+        for stem in ["hst-state", "hst-token", "hst-goal"] {
+            for name in [".sh", ".ps1", ".cmd", "-grok.cmd"] {
+                let f = format!("{stem}{name}");
+                assert!(dir.join("hooks").join(&f).exists(), "missing {f}");
+            }
         }
         // 第二趟幂等：零写。
         let (wrote2, _) = deploy_shims_with(&dir, "bash").unwrap();
