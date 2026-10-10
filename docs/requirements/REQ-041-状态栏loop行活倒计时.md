@@ -26,3 +26,7 @@ trace: statusrender 单测 session_loop_probe_verdicts_four_forms 扩件（空�
 - 倒计时粒度随节拍人性化档（秒分级），渲染频率随状态栏渲染事件（不独立走秒）。
 - 空输入 SW 语义按用户裁定 = 取消（Claude Code 工具面全参可选；上游若明文赋予其它语义需回填）。
 - 滞隐窗（两心跳）内已过期的会话 loop 显示 0s（到期未续的真话形）。
+
+## 退役注记 2026-10-11
+
+`{next}` 活倒计时随 loop 段出仓(REQ-045,用户令「hst 不再关联 goal 和 loop」)。上文 Criteria 与边界为本 REQ 时点口径存档。

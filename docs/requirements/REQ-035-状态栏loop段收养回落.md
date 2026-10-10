@@ -30,3 +30,7 @@ trace: statusrender 单测收养回落一件（自有优先加零自有回落加
 - 收养期 count 为项目全量计数（默认模板无 count 占位符，默认面不受影响）；行在位而 `hst loop list` 报 ours=false 加 `hst goal set` 报 no_own_task 属判据分面口径差（管理面不动），文案与 hint 缓解候裁。
 - 会话键缺失早退不收养（Claude 恒有 session_id，codex 加 kimi 加 grok 无此文件，与旧行为同形）。
 - goalmode 行（REQ-025）不在本 REQ 范围：goal 由会话内 /goal 设定，老会话终结后新会话未重设则如实无行（本次工位 goal 行消失即此形，重设即回）。
+
+## 退役注记 2026-10-11
+
+收养回落判据随 loop 段出仓(REQ-045,用户令「hst 不再关联 goal 和 loop」):状态栏不再读 scheduled_tasks.json,等值加收养加边界节全部随实现出仓。上文 Criteria 与边界为本 REQ 时点口径存档。

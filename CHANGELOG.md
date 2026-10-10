@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 里程碑 2026-10-11：v2.10.0 loop 与 goal 面退役及 goal 自治
+
+- **REQ-045 goal 自治与 loop 面退役（用户令三段合成单 2026-10-11：「hst 不再关联 goal 和 loop」「hst 自己用 hook 实现 goal」「自己能管理、自己能控制状态栏显示 goal」；ADR-0011，REQ-019 演进）**：hst 与项目 `.claude/scheduled_tasks.json` 的一切读写关联解除（原生 CronCreate 常驻会话实时生效经用户确认，2026-09-26 重启装载阴性实证口径作废）；loop 管理命令组与状态栏 loop 段（含会话级 ScheduleWakeup/CronCreate 探针族，REQ-024/035/036/041/042）撤净不留迁移桩，定时任务归 Claude Code 原生 CronCreate/ScheduleWakeup 域。goal 搬家 hst 自治：自有存储 `~/.hst/state/goal/<slug>.json`（项目键同 trace 与 projyolo），`hst goal set/show/clear` 语义承接（--project 缺省当前目录，rounds 重计，`goal error=<code>` 短码承接）；Claude Code Stop 事件 hook 腿（claude Stop 与 state 腿双挂，单对 hst-goal shim）：rounds 计数落盘加自然停一轮 `decision: block` 提醒注入（stop_hook_active 防环放行，恒无死环），goal 达成由 agent 侧 `hst goal clear` 收束；状态栏 goal 段同源切自有存储（四家同源，默认第四行，`{count}` 轮次占位符）；doctor check=goal 两面（Stop goal 腿注册在场加自有存储可读，替位 REQ-020 的 scheduled_tasks 读检）。herdr 即时通道随 arm 入口出仓（REQ-023，ADR-0009 转 superseded）。破坏面：`hst loop` 命令与状态栏 `loop` 段 id 撤除，用户 toml 显式写 loop 段须手改（unknown segment 响亮报错）；goal 旧 `--session/--via-herdr` 旗标撤。
+
 ### 里程碑 2026-10-03：v2.9.18 hookstate 折行裁撤回归单行
 
 - **hookstate 恒单行（用户令「状态栏的hook显示 不要换行」当日裁撤 v2.9.17 折行面）**：COLUMNS 宽感知折行上线即撤，hookstate 行恢复恒单行，超宽由终端截断（Claude Code 渲染层行为，hst 不代劳）；折行伴生三助手（term_columns 加 cells 加 wrap_sep_lines）与折行测试件同批出仓。插件面与连字符别名（v2.9.17 落）不动。

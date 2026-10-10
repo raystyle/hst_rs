@@ -24,3 +24,7 @@ trace: loopmgmt 单测十一件（含评审 F1 F2 G1 G2 G5 回填五面）加 cl
 - [x] 不新增第三方依赖（Display 手写，thiserror 不进 Cargo.toml）
 - [x] 单测：十一件（评审回填追加四件：非数组拒覆写、必需字段行级报错、外会话缺键补全、空文本指引），cli 集成绿
 - [x] 实现后回填 frontmatter 的 trace，状态改 implemented
+
+## 退役注记 2026-10-11
+
+loopmgmt 模块随 loop 面退役整体出仓(REQ-045,用户令「hst 不再关联 goal 和 loop」)。类型契约试点的先例面由 goal 模块承接(GoalError 枚举带 code() 短码,`goal error=<code>` 同判;坏损响亮不静默覆写同纪律),REQ-022 的推广裁定不受影响。上文 Criteria 为本 REQ 时点口径存档。

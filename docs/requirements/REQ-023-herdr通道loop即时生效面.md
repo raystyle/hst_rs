@@ -26,3 +26,7 @@ hst 写盘的 loop/goal 对在跑会话不生效（2026-09-26 实证，重启装
 - [x] loop.hint 与模块文档补双通道口径（写盘重启装载加 herdr 即时）
 - [x] 目标边界：时间面四入口仅 Claude Code 格（原生 Cron 家族）；codex 无对等 /loop（Goal Mode 条件驱动属另一机制），错发由目标自报无工具
 - [x] 实现后回填 frontmatter 的 trace，状态改 implemented
+
+## 退役注记 2026-10-11
+
+herdr 即时通道随 loop/goal 面退役整体出仓(REQ-045,用户令「hst 不再关联 goal 和 loop」):四个 `--via-herdr` 入口随 loop/goal 命令组撤除后全仓零调用面,herdrrpc 模块与 herdr_arm 删;决策沿革见 ADR-0009 追记。goal 的在跑会话即时性改由 Claude Code Stop 事件 hook 腿原生承载(REQ-045)。上文 Criteria 为本 REQ 时点口径存档。

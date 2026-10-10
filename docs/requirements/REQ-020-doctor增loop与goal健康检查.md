@@ -22,3 +22,7 @@ trace: loopmgmt 单测 health 两件加 g8 一件加 doctor 单测三态三件�
 - [x] detail 行含任务计数加 dead_owner 计数；会话可解析时附本会话 ours 计数与外会话计数（堆积对账面，info 性质不告警；非 Linux 的 ok 分支以无判据注记替代 dead_owner 计数）
 - [x] doctor 单测三态三件（diagnose 直调）：正常（ok）、坏损（warn）、死属主（warn）
 - [x] 实现后回填 frontmatter 的 trace，状态改 implemented
+
+## 退役注记 2026-10-11
+
+check=loop 的 scheduled_tasks 读检随 loop 面退役出仓(REQ-045,用户令「hst 不再关联 goal 和 loop」):对 `.claude/scheduled_tasks.json` 的读写关联全解除,属主回归 Claude Code 原生 CronCreate。doctor 的 goal 面检测由 REQ-045 的 check=goal 替位(Stop 事件 goal 腿注册在场加自有存储可读两面)。上文 Criteria 为本 REQ 时点口径存档。

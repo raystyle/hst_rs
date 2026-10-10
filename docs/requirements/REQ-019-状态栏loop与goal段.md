@@ -36,3 +36,15 @@ trace: loopmgmt 单测五件加 statusline 单测四件加门控扩加 cli 集�
 - [x] `hst goal set/show/clear`(用户令「hst goal 呢」扩面):改写、回读、清空当前会话最新 loop 的 goal 文本,节奏与属主不动;无本会话任务 set 报错、clear 零改动退 0、show 会话不可解析不受阻
 
 实现后回填 frontmatter 的 trace(测试路径或验收命令),状态改 implemented。
+
+## 演进 2026-10-11
+
+用户令三段合成单:「hst 不再关联 goal 和 loop」「hst 自己用 hook 实现 goal」「自己能管理、自己能控制状态栏显示 goal」。本 REQ 交付的 scheduled_tasks 关联形态整体退役,goal 面搬家为 hst 自治功能(后续契约与 trace 见 REQ-045,本节只记沿革):
+
+- loop 管理命令组(`hst loop set/list/del`)退役撤净:定时任务归 Claude Code 原生 CronCreate/ScheduleWakeup 域(原生面已完备且常驻会话实时生效,2026-10-11 用户确认推翻 2026-09-26 的重启装载阴性实证口径)
+- goal 命令组语义承接但换存储:`hst goal set/show/clear` 改读写自有存储 `~/.hst/state/goal/`,与 `.claude/scheduled_tasks.json` 一切读写解除
+- 状态栏 loop 段随 loop 面出仓;goal 段保留但数据源切自有存储(四家同源,不再锚 claude session),默认行位仍第四行
+- goal 的每轮呈现改 Claude Code Stop 事件 hook 腿承载(rounds 计数加自然停提醒注入),不再经 durable 任务触发
+- 连带退役:REQ-020 的 doctor scheduled_tasks 读检(替位 check=goal)、REQ-023/ADR-0009 的 herdr 即时通道(arm 入口随命令组出仓)
+
+上文 Criteria 各条为 REQ-019 时点口径存档(等值判据、durable 源、会话解析序等细节随实现出仓,不再描述现状)。

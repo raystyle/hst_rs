@@ -1,12 +1,12 @@
 ---
 id: ADR-0009
 title: 受限编排面herdr即时生效通道
-status: accepted
+status: superseded
 date: 2026-09-26
 deciders:
   - raystyle
 supersedes: []
-superseded_by: None
+superseded_by: ADR-0011
 tags: ['定位', 'herdr', 'loop']
 ---
 
@@ -23,3 +23,7 @@ hst 内嵌 herdr NDJSON RPC 最小客户端，仅服务 loop/goal 即时生效�
 ## Consequences
 
 ADR-0001 的 D15 在本通道范围内局部解除（token 注入禁令 D20 不动：本通道不注入任何 token，本地 socket 权限即边界；工件口令情报 HERDR_SOCKET_PASSWORD 经评审四路核实非 herdr 机制，F2 回填）。herdr 缺席或目标不可达时 `--via-herdr` 报错退出，不静默回落写盘（即时通道与重启装载通道语义不混，hint 与文档双通道口径并存）。节奏契约单源仍在 hst（every_to_cron/at_to_cron 翻译后随指令派发），目标 agent 只执行不翻译。目标边界：时间面四入口仅 Claude Code 格（原生 Cron 家族）；codex 无对等 /loop（其 /goal 是 Goal Mode 条件驱动续跑，与本通道的 durable cron 语义不同物），错发由目标自报无工具。
+
+## 追记 2026-10-11 通道退役
+
+本通道的四个入口（loop set/del 与 goal set/clear 的 --via-herdr）随 loop/goal scheduled_tasks 关联面退役出仓（用户令「hst 不再关联 goal 和 loop」；原生 CronCreate 常驻会话实时生效确认后，写盘与派发两通道都失存在前提）：herdrrpc 模块与 herdr_arm 删，全仓零调用面，ADR-0001 D15 的 send 面局部解除回归全禁。本 ADR 转 superseded，由 ADR-0011 承接互指。goal 的在跑会话呈现改 Claude Code Stop 事件 hook 腿原生承载（REQ-045）。

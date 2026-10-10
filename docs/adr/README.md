@@ -12,5 +12,6 @@
 | ADR-0006 | accepted | 文档体系完整重构契约回归代码与投影 | 取代 09-15 guide/guides 并存裁定，清退 references/G/M/proven 老文档层 |
 | ADR-0007 | accepted | 发布流水线对齐build-release标准 | 三段式产地迁移（本地编译打包加 gh 直发），dev 轻岗豁免与读序豁免入册（总台核准单 2026-09-17） |
 | ADR-0008 | accepted | selfupdate家族统一标准对齐 | 承接 ADR-0004；镜像优先缺省、官方腿锚校验、自替换锁与自证回滚、管理方让位（REQ-013，总台家族标准轮 2026-09-18） |
-| ADR-0009 | accepted | 受限编排面herdr即时生效通道 | 局部解除 ADR-0001 D15：仅 ping 与 agent.prompt 两方法服务 loop/goal 四入口，零依赖短连接，token 注入禁令不动（REQ-023，用户裁定 2026-09-26） |
+| ADR-0009 | superseded | 受限编排面herdr即时生效通道 | 局部解除 ADR-0001 D15：仅 ping 与 agent.prompt 两方法服务 loop/goal 四入口，零依赖短连接，token 注入禁令不动（REQ-023，用户裁定 2026-09-26）；2026-10-11 通道随 loop/goal 面退役，被 ADR-0011 承接 |
 | ADR-0010 | accepted | 状态栏渲染原生化退役pwsh脚本 | 渲染收进 hst 二进制（statusline --render 子命令，契约与 pwsh 逐字对齐），claude/kimi/grok 指向部署方绝对路径，codex 维持内置，pwsh 弃用期一轮（REQ-026，用户令 2026-09-26） |
+| ADR-0011 | accepted | loop与goal面退役及goal自治 | scheduled_tasks 关联全解除，loop 面撤净，goal 搬家自有存储加 Stop hook 腿（REQ-045，用户令 2026-10-11 三段合成单）；承接 ADR-0009 退役 |

@@ -29,3 +29,7 @@ trace: statusrender 单测 session_cron_probe_reads_croncreate_family 新件（�
 - CronDelete 未按 jobId 配对（transcript 的 job id 在 tool_result 载体，配对复杂度高）；任何新于最后一次 CronCreate 的 CronDelete 判取消，误伤面 = 同会话先建会话 cron 再删旧 durable 件的序（文件层与会的删除交错，概率低，记档）。
 - 一次性会话 cron（recurring:false）同显（触发即自删的短窗如实显示）。
 - durable:true 且文件被外部删除的窗口期：文件层零命中时会话层也归 None，行隐（durable 层语义优先，接受）。
+
+## 退役注记 2026-10-11
+
+loop 全源探针(会话级 CronCreate 族加 durable 两文件并源)随 loop 段出仓(REQ-045,用户令「hst 不再关联 goal 和 loop」):状态栏对 scheduled_tasks.json 的读关联全解除。上文 Criteria 与边界为本 REQ 时点口径存档。

@@ -32,3 +32,7 @@ trace: statusrender 单测 session_loop_probe_verdicts_four_forms（末条胜加
 - 标记假阴残余（评审 G2）：更新的未再编码嵌套对象引文排在真行之后且无 delaySeconds 字段时，末中即锁会把更老的真行掩掉；转义引文形实测不命中，概率极低，收紧面（tool_use 前锚校验或假阴续扫）候裁。
 - goal 段（可选段）仍只取 durable 源，会话级 goal 文本只在 loop 行显示。
 - 非 Z 形时间戳二器语义不同（PS1 Parse 按本地时区、原生 iso_epoch 按 UTC；transcript 恒 Z 形不触发，评审二轮 G 记档候裁）。
+
+## 退役注记 2026-10-11
+
+会话级 loop 探针(ScheduleWakeup transcript 反扫)随 loop 段出仓(REQ-045,用户令「hst 不再关联 goal 和 loop」):loop 显示面整体退役,原生 loop 态由 Claude Code 自家界面承载。倒序分块扫描技术由 goalmode 探针(REQ-025/037/040)继续承载。上文 Criteria 与边界为本 REQ 时点口径存档。

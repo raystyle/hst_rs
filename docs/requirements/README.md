@@ -22,12 +22,12 @@
 | REQ-016 | draft | must | claude注册迁移skills插件形 | 待实施后回填 |
 | REQ-017 | implemented | should | 项目级yolo干扰检测告警 | yolo.rs 检测单测加 cli 集成加 statusline 单测两件加实弹 |
 | REQ-018 | implemented | must | ledger账本集成 | ledger.rs 单测六件加 cli 集成三件加实弹三验 |
-| REQ-019 | implemented | must | 状态栏loop与goal段加管理命令面 | loopmgmt 单测五件加 statusline 单测四件加门控扩加 cli 集成三件加实弹（loop 与 goal 回环加部署脚本直跑） |
-| REQ-020 | implemented | should | doctor增loop与goal健康检查 | loopmgmt 单测三件加 doctor 单测三态三件 |
-| REQ-021 | implemented | should | loopmgmt类型契约化试点 | loopmgmt 单测十一件（含评审回填五面）加 cli 集成五断言面（双缺加双给加 bad_every 加 corrupt 加 no_session 短码） |
+| REQ-019 | implemented | must | 状态栏loop与goal段加管理命令面 | loopmgmt 单测五件加 statusline 单测四件加门控扩加 cli 集成三件加实弹（loop 与 goal 回环加部署脚本直跑）；2026-10-11 演进：scheduled_tasks 关联形态退役，goal 搬家自治见 REQ-045 演进节 |
+| REQ-020 | implemented | should | doctor增loop与goal健康检查 | loopmgmt 单测三件加 doctor 单测三态三件；2026-10-11 退役：scheduled_tasks 读检出仓，替位 check=goal 见 REQ-045 |
+| REQ-021 | implemented | should | loopmgmt类型契约化试点 | loopmgmt 单测十一件（含评审回填五面）加 cli 集成五断言面（双缺加双给加 bad_every 加 corrupt 加 no_session 短码）；2026-10-11 退役：模块随 loop 面出仓，短码先例由 goal 承接 |
 | REQ-022 | implemented | should | 类型契约化推广裁定与compact收尾 | compact 单测三件加推广面实测盘点 |
-| REQ-023 | implemented | must | herdr通道loop即时生效面 | herdrrpc 加 arm 单测加假服务器集成加真 socket ping 实弹（ADR-0009） |
-| REQ-024 | implemented | must | 状态栏第三行loop与goal专属行 | statusline 单测四件改加加实弹三行渲染（goal 截断放宽 60） |
+| REQ-023 | implemented | must | herdr通道loop即时生效面 | herdrrpc 加 arm 单测加假服务器集成加真 socket ping 实弹（ADR-0009）；2026-10-11 退役：通道随 loop/goal arm 出仓（ADR-0009 追记） |
+| REQ-024 | implemented | must | 状态栏第三行loop与goal专属行 | statusline 单测四件改加加实弹三行渲染（goal 截断放宽 60）；2026-10-11 退役：loop 段出仓，第四行转 goal 自治专属行（REQ-045） |
 | REQ-025 | implemented | must | 状态栏第四行goalmode专属行 | goalmode 四态单测加实弹（105MB 真机 transcript 倒序分块扫描） |
 | REQ-026 | implemented | must | 状态栏渲染原生化与hookstate专属行 | statusrender 单测三件加 statusline plumbing 加实弹（第5行渲染、0.217s 对 0.95s、BYTE-IDENTICAL diff 空；ADR-0010） |
 | REQ-027 | draft | should | 原生渲染哨兵面回填 | 待实施后回填（REQ-014 加 REQ-017 哨兵面，pwsh 弃用期收尾前必办） |
@@ -37,13 +37,14 @@
 | REQ-031 | implemented | must | 渗透授权hook | 授权获取命令短路服务层（检测 curl/wget 取 security.txt/scope.txt 族）；功能已由用户令 2026-09-27 整体退役（模块与命令与 shim 与注册与别名四去，详见该 REQ 退役节） |
 | REQ-032 | implemented | must | 载体全原生cmd与sh透传 | thin 壳九件（sh 兼容 zsh 加 bash 加 sh）加 ps1 退役清扫加 Windows 注册单路径 .cmd；实弹注册面零 powershell、三腿 e2e 绿 |
 | REQ-034 | implemented | must | actl适配反馈件三件 | init --yes 全局面接受加 doctor hooks.form 壳名族判据收编加 llms 适配面一行；实弹四判据全过加全测 258 加 49 绿 |
-| REQ-035 | implemented | must | 状态栏loop段收养回落 | statusrender 单测一件加 statusline 改件（外会话任务翻转为显示）；实弹 prs_c2coe 真 payload 双判据对照 |
-| REQ-036 | implemented | must | 状态栏会话级loop段 | statusrender 单测四形一件加 statusline PS1 面两态件；实弹真会话 payload 渲染 25m 心跳行 |
+| REQ-035 | implemented | must | 状态栏loop段收养回落 | statusrender 单测一件加 statusline 改件（外会话任务翻转为显示）；实弹 prs_c2coe 真 payload 双判据对照；2026-10-11 退役：随 loop 段出仓（REQ-045） |
+| REQ-036 | implemented | must | 状态栏会话级loop段 | statusrender 单测四形一件加 statusline PS1 面两态件；实弹真会话 payload 渲染 25m 心跳行；2026-10-11 退役：随 loop 段出仓（REQ-045） |
 | REQ-037 | implemented | must | 状态栏goalmode设标形 | statusrender 单测四断言加 probe 级 e2e；实弹真会话 payload 渲染 goalmode 行 |
 | REQ-038 | implemented | must | PS1载体完全淘汰 | init 退役清扫（.ps1 加 .custom 摘除）加 verify 直跑原生渲染加 doctor 判据去脚本面加 --script/--builtin 旗标摘除；实弹五端 init 清扫与冒烟 |
 | REQ-039 | implemented | must | 状态栏hookstate项目级注册面 | statusrender 既有件扩项目级断言；实弹真 payload 三守卫入列 |
 | REQ-040 | implemented | must | 状态栏goalmode终态词表 | statusrender 新件五断言加时序；实弹真会话 payload 行由冻显转隐藏 |
-| REQ-041 | implemented | must | 状态栏loop行活倒计时 | statusrender 既有件扩三断言；实弹夹具双时点渲染倒计时跳变 |
-| REQ-042 | implemented | must | 状态栏loop全源支持(会话内存加用户级全局) | statusrender 新件三断言加全局收养扩断言；实弹真会话 payload 渲染 30m 行 |
+| REQ-041 | implemented | must | 状态栏loop行活倒计时 | statusrender 既有件扩三断言；实弹夹具双时点渲染倒计时跳变；2026-10-11 退役：随 loop 段出仓（REQ-045） |
+| REQ-042 | implemented | must | 状态栏loop全源支持(会话内存加用户级全局) | statusrender 新件三断言加全局收养扩断言；实弹真会话 payload 渲染 30m 行；2026-10-11 退役：随 loop 段出仓（REQ-045） |
 | REQ-043 | implemented | must | hook壳烘焙安全序与init同步 | shim 单测四断言加八件告警改件；实弹三场景（debug 回落装位加旗标同步死路径加告警打点） |
 | REQ-044 | implemented | must | 状态栏hookstate插件面与宽感知折行 | statusrender 新件（插件面 enabled 门控三态）加既有件改形；实弹真 payload 插件 hook 单行入列（折行面 v2.9.17 上线即裁撤） |
+| REQ-045 | implemented | must | goal自治与loop面退役 | goal 单测五件加 doctor 三件加 statusrender 一件加 cli 三件加 shim 十二件改件；实弹本机 init 部署 Stop 双挂与 goal/hook goal 回环（用户令 2026-10-11 三段合成单） |

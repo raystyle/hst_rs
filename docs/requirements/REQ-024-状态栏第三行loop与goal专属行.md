@@ -23,3 +23,7 @@ trace: statusline 单测新增专属行判据一件（三行布局加节拍与 g
 - [x] 老配置升级语义不变（effective_orders 判据不动；未写 segments3 的老双排配置默认新增专属行，无任务时整行隐藏）
 - [x] 测试：专属行三布局判据新件、截断 60 改件、默认段序断言翻转、example 锁同步（D51）；实弹部署脚本直跑三行渲染
 - [x] 实现后回填 frontmatter 的 trace，状态改 implemented
+
+## 退役注记 2026-10-11
+
+loop 段随 loop 面退役出仓(REQ-045,用户令「hst 不再关联 goal 和 loop」);第四行默认位转 goal 自治专属行(`DEFAULT_SEGMENTS4 = ["goal"]`,自有存储源),goal 文本截 60 承接。上文 Criteria 为本 REQ 时点口径存档。
