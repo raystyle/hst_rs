@@ -2308,16 +2308,29 @@ mod tests {
     // ===== REQ-045：goal 自治面体检三态 =====
 
     /// 独占临时 user 家与 hst 根（HST_USER_HOME 加 HST_ROOT 双缝注入）。
-    /// 返回的 env 锁守卫必须活在测试作用域（锁在 goal_env 内释会把并行
-    /// 测试的 env 注入漏进来，lib.rs testenv 节在册纪律）。
-    fn goal_env(
-        tag: &str,
-    ) -> (
-        std::sync::MutexGuard<'static, ()>,
-        std::path::PathBuf,
-        std::path::PathBuf,
-        std::path::PathBuf,
-    ) {
+    /// Drop 恒清 env（断言 panic 不清会把泄漏 env 毒化并行测试，mac CI
+    /// 实弹 2026-10-11：goal 断言红连带 ledger 加 secretguard 加 sentinel
+    /// 三家 env 缝测试翻红）；root 先 canonicalize 再用（macOS 的
+    /// /var/... 经 diagnose 的 abs_display 会解到 /private/var/...，slug
+    /// 键漂移，测试写与读必须同用解析后形）。
+    struct GoalEnv {
+        user: std::path::PathBuf,
+        oma: std::path::PathBuf,
+        root: std::path::PathBuf,
+        _g: std::sync::MutexGuard<'static, ()>,
+    }
+
+    impl Drop for GoalEnv {
+        fn drop(&mut self) {
+            std::env::remove_var("HST_USER_HOME");
+            std::env::remove_var("HST_ROOT");
+            let _ = fs::remove_dir_all(&self.user);
+            let _ = fs::remove_dir_all(&self.oma);
+            let _ = fs::remove_dir_all(&self.root);
+        }
+    }
+
+    fn goal_env(tag: &str) -> GoalEnv {
         let g = crate::pathutil::ENV_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
@@ -2328,31 +2341,28 @@ mod tests {
         fs::create_dir_all(&root).unwrap();
         std::env::set_var("HST_USER_HOME", &user);
         std::env::set_var("HST_ROOT", &oma);
-        (g, user, oma, root)
-    }
-
-    fn goal_env_cleanup(user: &std::path::Path, oma: &std::path::Path, root: &std::path::Path) {
-        std::env::remove_var("HST_USER_HOME");
-        std::env::remove_var("HST_ROOT");
-        let _ = fs::remove_dir_all(user);
-        let _ = fs::remove_dir_all(oma);
-        let _ = fs::remove_dir_all(root);
+        GoalEnv {
+            user,
+            oma,
+            root: std::fs::canonicalize(&root).unwrap_or(root),
+            _g: g,
+        }
     }
 
     #[test]
     fn goal_check_ok_when_registered_and_project_goal_present() {
-        let (_g, user, oma, root) = goal_env("glreg");
+        let env = goal_env("glreg");
         fs::write(
-            user.join(".claude").join("settings.json"),
+            env.user.join(".claude").join("settings.json"),
             r#"{"hooks": {"Stop": [{"matcher": "*", "hooks": [
                 {"type": "command", "command": "/sh/hst-state.sh claude", "timeout": 10},
                 {"type": "command", "command": "/sh/hst-goal.sh claude", "timeout": 10}
             ]}]}}"#,
         )
         .unwrap();
-        crate::goal::set_goal(&oma, &root, "盯发布窗口").unwrap();
-        let d = diagnose(&root).expect("diagnose");
-        goal_env_cleanup(&user, &oma, &root);
+        crate::goal::set_goal(&env.oma, &env.root, "盯发布窗口").unwrap();
+        let d = diagnose(&env.root).expect("diagnose");
+        drop(env);
         assert_eq!(d.status("claude", "goal"), Some(Status::Ok));
         let row = d.findings.iter().find(|f| f.check == "goal").unwrap();
         assert!(
@@ -2372,16 +2382,16 @@ mod tests {
     fn goal_check_warn_when_stop_goal_hook_missing() {
         // claude 用户级 settings 在场而 Stop 无 hst-goal 腿：warn 提示
         // rerun hst init（REQ-045 注册面）。
-        let (_g, user, oma, root) = goal_env("glmiss");
+        let env = goal_env("glmiss");
         fs::write(
-            user.join(".claude").join("settings.json"),
+            env.user.join(".claude").join("settings.json"),
             r#"{"hooks": {"Stop": [{"matcher": "*", "hooks": [
                 {"type": "command", "command": "/sh/hst-state.sh claude", "timeout": 10}
             ]}]}}"#,
         )
         .unwrap();
-        let d = diagnose(&root).expect("diagnose");
-        goal_env_cleanup(&user, &oma, &root);
+        let d = diagnose(&env.root).expect("diagnose");
+        drop(env);
         assert_eq!(d.status("claude", "goal"), Some(Status::Warn));
         let row = d.findings.iter().find(|f| f.check == "goal").unwrap();
         assert!(
@@ -2399,13 +2409,13 @@ mod tests {
 
     #[test]
     fn goal_check_warn_on_corrupt_store() {
-        let (_g, user, oma, root) = goal_env("glcor");
-        fs::write(user.join(".claude").join("settings.json"), "{}").unwrap();
-        let p = crate::goal::goal_path(&oma, &root);
+        let env = goal_env("glcor");
+        fs::write(env.user.join(".claude").join("settings.json"), "{}").unwrap();
+        let p = crate::goal::goal_path(&env.oma, &env.root);
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(&p, "not-json").unwrap();
-        let d = diagnose(&root).expect("diagnose");
-        goal_env_cleanup(&user, &oma, &root);
+        let d = diagnose(&env.root).expect("diagnose");
+        drop(env);
         assert_eq!(d.status("claude", "goal"), Some(Status::Warn));
         let row = d.findings.iter().find(|f| f.check == "goal").unwrap();
         assert!(
