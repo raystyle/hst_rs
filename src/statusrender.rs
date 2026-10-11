@@ -1008,7 +1008,8 @@ fn hooked_aliases(agent: &str, d: &Json) -> String {
 /// hooked_aliases 的可测形（home 加项目根显式透传）。
 fn hooked_aliases_at(home: &Path, agent: &str, project_root: &str) -> String {
     let mut cmds: Vec<String> = Vec::new();
-    // stem 到显示名覆写表（REQ-044 插件面：插件名连字符加 statusMessage）。
+    // stem 到显示名覆写表（REQ-044 插件面：插件名连字符加 statusMessage，
+    // 自带前缀不双拼）。
     let mut display: std::collections::BTreeMap<String, String> = Default::default();
     match agent {
         // claude/codex/grok 注册面同构（hooks.<Event>[].hooks[].command）。
@@ -1071,8 +1072,9 @@ fn hooked_aliases_at(home: &Path, agent: &str, project_root: &str) -> String {
 ///（v2 形 plugins 名到条目数组，名形 `plugin@marketplace`）；enabled 门控
 /// 见 `plugin_enabled`；条目 user 作用域全收，project 作用域仅 projectPath
 /// 命中当前根者收；逐条读 installPath 下 `hooks/hooks.json`。显示形 =
-/// 插件名连字符加 statusMessage（hook 自带态文案，缺席回落干 stem）记入
-/// 覆写表。installed_plugins.json 缺席加坏损零命中不炸。
+/// 插件名连字符加 statusMessage（hook 自带态文案，缺席回落干 stem；文案
+/// 自带插件名前缀时不双拼，见 `plugin_display`）记入覆写表。
+/// installed_plugins.json 缺席加坏损零命中不炸。
 fn collect_plugin_hooks(
     home: &Path,
     project_root: &str,
@@ -1122,10 +1124,26 @@ fn collect_plugin_hooks(
                     };
                     display
                         .entry(stem)
-                        .or_insert_with(|| format!("{short}-{label}"));
+                        .or_insert_with(|| plugin_display(short, &label));
                 }
             });
         }
+    }
+}
+
+/// 插件段显示名：REQ-044 形 `{插件名}-{文案}`；文案自带插件名前缀时原样
+/// 用不双拼。statusMessage 在 Claude Code 原生显示面即全文文案，插件作者
+/// 常把插件名写进首段（evo-lint 0.8.0 的「evo-lint 后缀静检」实证），
+/// 无条件前缀会产「evo-lint-evo-lint 后缀静检」双拼。前缀边界认全等加
+/// 空格加连字符三形；无缝前缀（如 `plug` 对 `plugx`）不算命中照常拼。
+fn plugin_display(short: &str, label: &str) -> String {
+    if label == short
+        || label.starts_with(&format!("{short} "))
+        || label.starts_with(&format!("{short}-"))
+    {
+        label.to_string()
+    } else {
+        format!("{short}-{label}")
     }
 }
 
@@ -2115,7 +2133,8 @@ mod tests {
         // user 作用域条目；enabledPlugins 门控（user true 收、false 拒、
         // 无显式项缺省关、项目 local 覆写用户级）；project 作用域仅
         // projectPath 命中当前根者收；显示 = 插件名连字符加 statusMessage
-        //（缺席回落干 stem）；坏损 installed_plugins.json 零命中不炸。
+        //（缺席回落干 stem；自带插件名前缀不双拼，修复单 2026-10-12）；
+        // 坏损 installed_plugins.json 零命中不炸。
         let tmp = std::env::temp_dir().join(format!("hst-hpl-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&tmp);
         let claude_dir = tmp.join(".claude");
@@ -2124,7 +2143,8 @@ mod tests {
         let pdot = proj.join(".claude");
         std::fs::create_dir_all(&pdot).unwrap();
         // 插件缓存面：a（user 作用域，带 statusMessage）、b（user 作用域，
-        // 无 statusMessage 回落 stem）、d（project 作用域钉 proj 根）。
+        // 无 statusMessage 回落 stem）、d（project 作用域钉 proj 根）、
+        // e（user 作用域，statusMessage 自带插件名前缀，双拼防回归件）。
         // hooks.json 用 json! 构（命令含引号与 ${} 面，format! 直插会产
         // 坏 JSON）。
         let mk_hooks = |rel: &str, cmd: &str, msg: &str| {
@@ -2151,13 +2171,19 @@ mod tests {
             "bash ${CLAUDE_PLUGIN_ROOT}/hooks/proj-guard.sh",
             "项目守卫",
         );
+        mk_hooks(
+            "plugins-cache/e/1",
+            "uv run --no-project \"${CLAUDE_PLUGIN_ROOT}/scripts/prefix-guard.py\"",
+            "plug-e 前缀静检",
+        );
         let ip = serde_json::json!({
             "version": 2,
             "plugins": {
                 "plug-a@mk": [{ "scope": "user", "installPath": tmp.join("plugins-cache/a/1") }],
                 "plug-b@mk": [{ "scope": "user", "installPath": tmp.join("plugins-cache/b/1") }],
                 "plug-c@mk": [{ "scope": "user", "installPath": tmp.join("plugins-cache/c/1") }],
-                "plug-d@mk": [{ "scope": "project", "projectPath": proj, "installPath": tmp.join("plugins-cache/d/1") }]
+                "plug-d@mk": [{ "scope": "project", "projectPath": proj, "installPath": tmp.join("plugins-cache/d/1") }],
+                "plug-e@mk": [{ "scope": "user", "installPath": tmp.join("plugins-cache/e/1") }]
             }
         });
         let plugdir = tmp.join(".claude").join("plugins");
@@ -2168,17 +2194,18 @@ mod tests {
         )
         .unwrap();
         // 用户级 settings：ours hook + enabledPlugins（a 显式 true、b
-        // 显式 false、c 无显式项缺省关、d 依赖项目根命中）。
+        // 显式 false、c 无显式项缺省关、d 依赖项目根命中、e 显式 true）。
         std::fs::write(
             claude_dir.join("settings.json"),
-            r#"{"hooks":{"Stop":[{"hooks":[{"command":"/x/.hst/hooks/hst-state.sh claude"}]}]},"enabledPlugins":{"plug-a@mk":true,"plug-b@mk":false}}"#,
+            r#"{"hooks":{"Stop":[{"hooks":[{"command":"/x/.hst/hooks/hst-state.sh claude"}]}]},"enabledPlugins":{"plug-a@mk":true,"plug-b@mk":false,"plug-e@mk":true}}"#,
         )
         .unwrap();
-        // 无项目根：user 作用域 a 入列（statusMessage 形），b 拒，c 缺省
-        // 关，d 项目作用域无根不收。
+        // 无项目根：user 作用域 a 入列（statusMessage 形），e 入列且自带
+        // 插件名前缀不双拼（修复单 2026-10-12），b 拒，c 缺省关，d 项目
+        // 作用域无根不收。
         assert_eq!(
             hooked_aliases_at(&tmp, "claude", ""),
-            "hst-会话状态同步 | plug-a-md 禁字门禁"
+            "hst-会话状态同步 | plug-a-md 禁字门禁 | plug-e 前缀静检"
         );
         // 项目根命中：d 入列（projectPath 同根；项目作用域插件由项目级
         // settings 落 enabled，项目档入链）；项目 local 把 b 覆写 true
@@ -2196,7 +2223,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             hooked_aliases_at(&tmp, "claude", proj.to_str().unwrap()),
-            "hst-会话状态同步 | plug-a-md 禁字门禁 | plug-b-plain-guard | plug-d-项目守卫"
+            "hst-会话状态同步 | plug-a-md 禁字门禁 | plug-b-plain-guard | plug-e 前缀静检 | plug-d-项目守卫"
         );
         // 坏损 installed_plugins.json 零命中不炸（回落 settings 面）。
         std::fs::write(
@@ -2208,6 +2235,30 @@ mod tests {
         .unwrap();
         assert_eq!(hooked_aliases_at(&tmp, "claude", ""), "hst-会话状态同步");
         let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn plugin_display_dedups_short_prefix_in_label() {
+        // 修复单 2026-10-12：statusMessage 自带插件名前缀（evo-lint 0.8.0
+        // 的「evo-lint 后缀静检」实证，插件作者按 Claude Code 原生显示习惯
+        // 写全文案）不双拼；边界三形全等加空格加连字符；无缝前缀不算命中。
+        assert_eq!(plugin_display("evo-lint", "后缀静检"), "evo-lint-后缀静检");
+        assert_eq!(
+            plugin_display("evo-lint", "evo-lint 后缀静检"),
+            "evo-lint 后缀静检",
+            "空格边界原样用"
+        );
+        assert_eq!(
+            plugin_display("evo-lint", "evo-lint-后缀静检"),
+            "evo-lint-后缀静检",
+            "连字符边界原样用"
+        );
+        assert_eq!(plugin_display("evo-lint", "evo-lint"), "evo-lint");
+        assert_eq!(
+            plugin_display("plug", "plugx 守卫"),
+            "plug-plugx 守卫",
+            "无缝前缀照常拼"
+        );
     }
 
     #[test]

@@ -3,7 +3,7 @@ id: REQ-044
 title: 状态栏hookstate插件面与宽感知折行
 status: implemented
 priority: must
-trace: statusrender 新件 hooked_aliases_plugin_face_enabled_gated_and_display（插件面三态）加既有件改形四断言；实弹真 payload 渲染插件 hook 入列（折行面 v2.9.17 上线即裁撤，v2.9.18 回归恒单行）
+trace: statusrender 新件 hooked_aliases_plugin_face_enabled_gated_and_display（插件面三态）加既有件改形四断言；2026-10-12 修复单加 plugin_display_dedups_short_prefix_in_label（前缀去重边界三形）；实弹真 payload 渲染插件 hook 入列（折行面 v2.9.17 上线即裁撤，v2.9.18 回归恒单行）
 ---
 
 # REQ-044:状态栏hookstate插件面与宽感知折行
@@ -17,7 +17,7 @@ trace: statusrender 新件 hooked_aliases_plugin_face_enabled_gated_and_display�
 验收判据,可检验、可勾选:
 
 - [x] claude 家并入插件注册面：`~/.claude/plugins/installed_plugins.json`（v2 形 plugins 名到条目数组），enabled 门控读 enabledPlugins（项目 local 大于项目大于用户级首见即用，缺省未启用），user 作用域全收、project 作用域仅 projectPath 命中当前根者，逐条读 installPath 下 hooks/hooks.json 收集命令
-- [x] 插件 hook 显示形 = 插件名连字符加 statusMessage（hooks.json 自带态文案），statusMessage 缺席回落干 stem；与 settings 面同 stem 去重；未收录 stem 既有字典序殿后语义不变
+- [x] 插件 hook 显示形 = 插件名连字符加 statusMessage（hooks.json 自带态文案），statusMessage 缺席回落干 stem；与 settings 面同 stem 去重；未收录 stem 既有字典序殿后语义不变；2026-10-12 修复单补：statusMessage 自带插件名前缀时不双拼（evo-lint 0.8.0「evo-lint 后缀静检」实证，插件作者按原生显示习惯写全文案；plugin_display 边界三形全等加空格加连字符），防「evo-lint-evo-lint 后缀静检」双拼
 - [x] 三别名改连字符形：herdr-agent状态监控加 hst-token护栏加 hst-会话状态同步（用户令 2026-10-03）
 - [x] codex 加 kimi 加 grok 不入插件源（无插件体系）；installed_plugins.json 缺席加坏损零命中不炸
 - [x] 测试：插件面三态（enabled 加 disabled 加 projectPath 不命中）；实弹真 payload 渲染全 hook 单行入列
