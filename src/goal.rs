@@ -6,7 +6,8 @@
 //! v2.10.0 退役）。Stop 事件腿（`hst hook goal`，注册面 Claude Stop 事件
 //! 与 state 腿双挂，仅 claude）：每轮 agent 停止 rounds 计数落盘（状态栏
 //! goal 段的事件驱动数据源），自然停（payload 无 stop_hook_active）出
-//! `decision: block` 加 reason 提醒注入一轮、续跑引发的再停放行（Claude
+//! additionalContext 提醒注入一轮（goal-02 干净显示形，续跑同 decision
+//! block 语义）、续跑引发的再停放行（Claude
 //! Code Stop 契约，[实证: code.claude.com/docs/en/hooks 2026-10-11 查：
 //! stop_hook_active 在场须 exit 0 防死环；block 加 reason 续跑]），
 //! 恒无死环。CLI 面 set/show/clear 语义承接 REQ-019 管理命令面（项目级，
@@ -254,8 +255,15 @@ fn flatten_inline(s: &str) -> String {
         .to_string()
 }
 
-/// Stop 提醒 JSON（Claude Code Stop 契约：`decision: block` 加 `reason`
-/// 续跑一轮，reason 即注入下轮的提醒文本）。
+/// Stop 提醒 JSON（goal-02 输出面调优）：`hookSpecificOutput.additionalContext`
+/// 形（Claude Code Stop 契约，2.1.163 起），续跑语义与 `decision: block`
+/// 同（同 `stop_hook_active` 防环加 8 连续续跑帽），但 transcript 标注
+/// `Stop hook feedback` 且不发 hook error 通知——消除「Stop hook error:」
+/// 观感（用户报 2026-10-11，文档引文在 REQ-046 goal-02 注记）。
+///
+/// # Errors
+///
+/// 序列化失败时返回 `String`（纯字符串组合，实跑不可达，类型面完整）。
 ///
 /// # Errors
 ///
@@ -269,8 +277,13 @@ pub fn reminder_json(rec: &GoalRecord) -> Result<String, String> {
         rec.rounds,
         flatten_inline(&rec.text)
     );
-    serde_json::to_string(&json!({ "decision": "block", "reason": reason }))
-        .map_err(|e| e.to_string())
+    serde_json::to_string(&json!({
+        "hookSpecificOutput": {
+            "hookEventName": "Stop",
+            "additionalContext": reason,
+        }
+    }))
+    .map_err(|e| e.to_string())
 }
 
 /// 就近上溯解析（goal-01 根因 B 修）：hook payload 常只带 cwd 而 agent
@@ -307,8 +320,10 @@ pub fn is_stop_event(payload: Option<&Json>, event_arg: Option<&str>) -> bool {
 
 /// Stop 腿入口（`hst hook goal`）：非 Stop 事件或本项目无 goal 返回
 /// None（静默放行）；有 goal 则 rounds 递增落盘后，自然停（payload 无
-/// stop_hook_active）返回提醒 JSON、续跑再停（stop_hook_active=true）返回
-/// None。计数落盘恒执行（防环放行轮也计），状态栏 goal 段数据随之刷新。
+/// stop_hook_active）返回 additionalContext 提醒 JSON（续跑同 decision
+/// block 语义，goal-02 干净显示形）、续跑再停（stop_hook_active=true）
+/// 返回 None。计数落盘恒执行（防环放行轮也计），状态栏 goal 段数据随之
+/// 刷新。
 /// goal-01 起 goal_file_for 就近上溯解析（子目录 cwd 容形）。
 ///
 /// # Errors
@@ -823,7 +838,12 @@ mod tests {
         // 自然停：计数加一加提醒注入（文本换行压平）。
         let stop = json!({ "hook_event_name": "Stop", "cwd": "/w/p", "session_id": "s1" });
         let out = stop_hook(&home, Some(&stop), None).unwrap().unwrap();
-        assert!(out.contains("\"decision\":\"block\""), "{out}");
+        assert!(
+            out.contains("\"hookSpecificOutput\"") && out.contains("\"additionalContext\""),
+            "goal-02 干净形: {out}"
+        );
+        assert!(out.contains("\"hookEventName\":\"Stop\""), "{out}");
+        assert!(!out.contains("\"decision\""), "{out}");
         assert!(out.contains("闭环 REQ 收尾"), "{out}");
         assert!(out.contains("hst goal clear"), "{out}");
         // goal-01 件 3：提醒附用法（agent 自行操作面）；插队件：受阻分支

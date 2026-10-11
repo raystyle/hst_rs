@@ -350,7 +350,7 @@
     {
       "path": "hst_cli::goal",
       "kind": "module",
-      "docs": "`hst goal` 自治面（REQ-045，REQ-019 演进）：自有存储、Stop 事件提醒\n腿与状态栏自源显示（用户令 2026-10-11「hst 不再关联 goal 和 loop」）。\nhst goal 自治面（REQ-045，REQ-019 演进；用户令 2026-10-11「hst 不再\n关联 goal 和 loop」「hst 自己用 hook 实现 goal」）：goal 文本由 hst\n自有存储承载（`~/.hst/state/goal/<slug>.json`，slug 规则同 trace 与\nprojyolo：路径非字母数字一律 `-`），与项目 `.claude/scheduled_tasks.json`\n的一切读写解除（该文件回归 Claude Code 原生 CronCreate 域，loop 面\nv2.10.0 退役）。Stop 事件腿（`hst hook goal`，注册面 Claude Stop 事件\n与 state 腿双挂，仅 claude）：每轮 agent 停止 rounds 计数落盘（状态栏\ngoal 段的事件驱动数据源），自然停（payload 无 stop_hook_active）出\n`decision: block` 加 reason 提醒注入一轮、续跑引发的再停放行（Claude\nCode Stop 契约，[实证: code.claude.com/docs/en/hooks 2026-10-11 查：\nstop_hook_active 在场须 exit 0 防死环；block 加 reason 续跑]），\n恒无死环。CLI 面 set/show/clear 语义承接 REQ-019 管理命令面（项目级，\n--project 缺省当前目录；项目键 = CLI 侧项目根与 payload 侧\nworkspace.project_dir 同一 slug，子目录调用键不中，须在项目根跑或显式\n给 --project）。goal-01（2026-10-11）两修：其一子目录键漂——hook\npayload 常只带 cwd 而 agent 多在项目子目录工作，精确 slug 键不中，\n解析改就近上溯（goal_file_for）取最近在册 goal；其二自愈面\n（run_heal，用户令「如果没用唤醒操作 herdr api 自愈唤醒一下」）\n——goal 在册而停摆未被唤醒过静默窗时经 herdr agent prompt 唤醒，\nblocked 等人裁与频控风暴闸豁免，提醒与唤醒文本均附 hst goal 用法\n（用户令「让 agent 自行操作」）。"
+      "docs": "`hst goal` 自治面（REQ-045，REQ-019 演进）：自有存储、Stop 事件提醒\n腿与状态栏自源显示（用户令 2026-10-11「hst 不再关联 goal 和 loop」）。\nhst goal 自治面（REQ-045，REQ-019 演进；用户令 2026-10-11「hst 不再\n关联 goal 和 loop」「hst 自己用 hook 实现 goal」）：goal 文本由 hst\n自有存储承载（`~/.hst/state/goal/<slug>.json`，slug 规则同 trace 与\nprojyolo：路径非字母数字一律 `-`），与项目 `.claude/scheduled_tasks.json`\n的一切读写解除（该文件回归 Claude Code 原生 CronCreate 域，loop 面\nv2.10.0 退役）。Stop 事件腿（`hst hook goal`，注册面 Claude Stop 事件\n与 state 腿双挂，仅 claude）：每轮 agent 停止 rounds 计数落盘（状态栏\ngoal 段的事件驱动数据源），自然停（payload 无 stop_hook_active）出\nadditionalContext 提醒注入一轮（goal-02 干净显示形，续跑同 decision\nblock 语义）、续跑引发的再停放行（Claude\nCode Stop 契约，[实证: code.claude.com/docs/en/hooks 2026-10-11 查：\nstop_hook_active 在场须 exit 0 防死环；block 加 reason 续跑]），\n恒无死环。CLI 面 set/show/clear 语义承接 REQ-019 管理命令面（项目级，\n--project 缺省当前目录；项目键 = CLI 侧项目根与 payload 侧\nworkspace.project_dir 同一 slug，子目录调用键不中，须在项目根跑或显式\n给 --project）。goal-01（2026-10-11）两修：其一子目录键漂——hook\npayload 常只带 cwd 而 agent 多在项目子目录工作，精确 slug 键不中，\n解析改就近上溯（goal_file_for）取最近在册 goal；其二自愈面\n（run_heal，用户令「如果没用唤醒操作 herdr api 自愈唤醒一下」）\n——goal 在册而停摆未被唤醒过静默窗时经 herdr agent prompt 唤醒，\nblocked 等人裁与频控风暴闸豁免，提醒与唤醒文本均附 hst goal 用法\n（用户令「让 agent 自行操作」）。"
     },
     {
       "path": "hst_cli::goal::GoalError",
@@ -440,7 +440,7 @@
     {
       "path": "hst_cli::goal::reminder_json",
       "kind": "function",
-      "docs": "Stop 提醒 JSON（Claude Code Stop 契约：`decision: block` 加 `reason`\n续跑一轮，reason 即注入下轮的提醒文本）。\n\n# Errors\n\n序列化失败时返回 `String`（纯字符串组合，实跑不可达，类型面完整）。"
+      "docs": "Stop 提醒 JSON（goal-02 输出面调优）：`hookSpecificOutput.additionalContext`\n形（Claude Code Stop 契约，2.1.163 起），续跑语义与 `decision: block`\n同（同 `stop_hook_active` 防环加 8 连续续跑帽），但 transcript 标注\n`Stop hook feedback` 且不发 hook error 通知——消除「Stop hook error:」\n观感（用户报 2026-10-11，文档引文在 REQ-046 goal-02 注记）。\n\n# Errors\n\n序列化失败时返回 `String`（纯字符串组合，实跑不可达，类型面完整）。\n\n# Errors\n\n序列化失败时返回 `String`（纯字符串组合，实跑不可达，类型面完整）。"
     },
     {
       "path": "hst_cli::goal::run_heal",
@@ -465,7 +465,7 @@
     {
       "path": "hst_cli::goal::stop_hook",
       "kind": "function",
-      "docs": "Stop 腿入口（`hst hook goal`）：非 Stop 事件或本项目无 goal 返回\nNone（静默放行）；有 goal 则 rounds 递增落盘后，自然停（payload 无\nstop_hook_active）返回提醒 JSON、续跑再停（stop_hook_active=true）返回\nNone。计数落盘恒执行（防环放行轮也计），状态栏 goal 段数据随之刷新。\ngoal-01 起 goal_file_for 就近上溯解析（子目录 cwd 容形）。\n\n# Errors\n\n存储坏损或 IO 失败时返回 `String`（调用方 fail-open，不挡 agent 停止）。"
+      "docs": "Stop 腿入口（`hst hook goal`）：非 Stop 事件或本项目无 goal 返回\nNone（静默放行）；有 goal 则 rounds 递增落盘后，自然停（payload 无\nstop_hook_active）返回 additionalContext 提醒 JSON（续跑同 decision\nblock 语义，goal-02 干净显示形）、续跑再停（stop_hook_active=true）\n返回 None。计数落盘恒执行（防环放行轮也计），状态栏 goal 段数据随之\n刷新。\ngoal-01 起 goal_file_for 就近上溯解析（子目录 cwd 容形）。\n\n# Errors\n\n存储坏损或 IO 失败时返回 `String`（调用方 fail-open，不挡 agent 停止）。"
     },
     {
       "path": "hst_cli::goal::wake_text",

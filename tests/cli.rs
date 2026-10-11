@@ -1255,7 +1255,10 @@ fn goal_stop_hook_leg_reminds_on_natural_stop_only() {
         .unwrap();
     assert!(out.status.success());
     let s = String::from_utf8_lossy(&out.stdout);
-    assert!(s.contains("\"decision\":\"block\""), "block JSON: {s}");
+    assert!(
+        s.contains("\"hookSpecificOutput\":{\"hookEventName\":\"Stop\",\"additionalContext\""),
+        "goal-02 additionalContext 形: {s}"
+    );
     assert!(s.contains("闭环 REQ 收尾"), "reason carries goal: {s}");
     assert!(
         s.contains("hst goal clear"),

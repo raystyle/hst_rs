@@ -10,7 +10,8 @@ projyolo：路径非字母数字一律 `-`），与项目 `.claude/scheduled_tas
 v2.10.0 退役）。Stop 事件腿（`hst hook goal`，注册面 Claude Stop 事件
 与 state 腿双挂，仅 claude）：每轮 agent 停止 rounds 计数落盘（状态栏
 goal 段的事件驱动数据源），自然停（payload 无 stop_hook_active）出
-`decision: block` 加 reason 提醒注入一轮、续跑引发的再停放行（Claude
+additionalContext 提醒注入一轮（goal-02 干净显示形，续跑同 decision
+block 语义）、续跑引发的再停放行（Claude
 Code Stop 契约，[实证: code.claude.com/docs/en/hooks 2026-10-11 查：
 stop_hook_active 在场须 exit 0 防死环；block 加 reason 续跑]），
 恒无死环。CLI 面 set/show/clear 语义承接 REQ-019 管理命令面（项目级，
@@ -35,7 +36,7 @@ blocked 等人裁与频控风暴闸豁免，提醒与唤醒文本均附 hst goal
 - `is_stop_event` — 事件是否 Stop（事件参数形或 payload hook_event_name 形；heal_sweep 的
 - `parse_agent_list` — `herdr agent list` stdout 解析（纯函数面，测试注入 JSON 串）。
 - `read_record` — 读指定 goal 文件（缺失 = None；坏损 = Err 响亮）。
-- `reminder_json` — Stop 提醒 JSON（Claude Code Stop 契约：`decision: block` 加 `reason`
+- `reminder_json` — Stop 提醒 JSON（goal-02 输出面调优）：`hookSpecificOutput.additionalContext`
 - `run_heal` — 自愈扫描入口（`hst goal heal`）：扫在册 goal（`only` 给定则单项目），
 - `set_goal` — 设置本项目 goal（覆盖旧 goal，rounds 归零重计）。
 - `show_goal` — 查看本项目 goal（无 goal 返回 None，查看面不受阻）。

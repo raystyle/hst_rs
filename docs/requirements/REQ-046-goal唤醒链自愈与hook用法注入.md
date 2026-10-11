@@ -40,3 +40,12 @@ pi-rs 工位（长跑解题会话）屏显 `Goal paused · the goal check timed 
 - 本批发布面不动（装机位 2.10.0 无 goal-01 面），推远端加发版候总台转用户裁；pi-rs 工位为现成验证场（检测面已实弹核，唤醒面全链候装机端换装后自证或总台手动 heal）。
 
 实现后回填 frontmatter 的 trace(测试路径或验收命令),状态改 implemented。
+
+## goal-02 注记 2026-10-11 Stop 提醒输出面调优
+
+用户报观感：goal 在役的 Stop 提醒屏显为「Stop hook error: hst goal 在役…」，功能正确（block 加 reason 注入、rounds 计数、防环在）但 error 字样观感脏。调研（官方文档 code.claude.com/docs/en/hooks）结论：Stop 的 `hookSpecificOutput.additionalContext` 即为该病灶的官方出口，引文两则：
+
+- 「Non-error feedback for Claude. The conversation continues so Claude can act on it, but unlike `decision: "block"` it is shown in the transcript as hook feedback rather than a hook error」
+- 「It keeps the conversation going through the same loop protections as `decision: "block"`, namely the `stop_hook_active` input and the 8-consecutive-continuation cap, but the transcript labels it `Stop hook feedback` and no hook error notification is shown」
+
+落地：reminder_json 换 additionalContext 形（hookEventName Stop 加全文提醒），续跑语义与防环（stop_hook_active 加 8 连续续跑帽）与 decision block 全同，shim 透传不动，exit 0 单 JSON 通道不变（文档明示 exit 2 与 JSON 混用时 block 优先，维持单形纪律）。版本面：该字段 Claude Code 2.1.163 引入（anthropics/claude-code CHANGELOG 在证），舰队 2.1.296 在段 133 版余量。考量弃用两件：systemMessage（给用户的 warning 面，feedback 标注已足，避免双显示）与 suppressOutput（文档明示「Has no effect」）。
