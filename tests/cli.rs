@@ -1308,6 +1308,145 @@ fn goal_stop_hook_leg_reminds_on_natural_stop_only() {
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
+#[cfg(unix)]
+#[test]
+fn goal_heal_scans_wakes_and_throttles_via_herdr() {
+    // goal-01 自愈面 e2e（假 herdr 消费面）：停摆过窗唤醒（prompt 落用法
+    // 文本）、紧跟第二趟频控跳过、blocked 豁免、dry-run 零副作用。
+    use std::io::Write as _;
+    let tmp = std::env::temp_dir().join(format!(
+        "hst-cli-goalheal-{}-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis(),
+        NEXT_TEST_DIR.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    let root = tmp.join("proj");
+    let bin = tmp.join("bin");
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::create_dir_all(&bin).unwrap();
+    let list = tmp.join("list.json");
+    let log = tmp.join("prompt.log");
+    let script = bin.join("herdr");
+    std::fs::write(
+        &script,
+        concat!(
+            "#!/bin/sh\n",
+            "if [ \"$1 $2\" = \"agent list\" ]; then cat \"$HERDR_FAKE_LIST\"; exit 0; fi\n",
+            "if [ \"$1 $2\" = \"agent prompt\" ]; then printf '%s\\n' \"$4\" >> \"$HERDR_FAKE_LOG\"; fi\n",
+        ),
+    )
+    .unwrap();
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    let path = format!(
+        "{}:{}",
+        bin.display(),
+        std::env::var("PATH").unwrap_or_default()
+    );
+    let mk_list = |status: &str| {
+        std::fs::write(
+            &list,
+            format!(
+                r#"{{"result":{{"agents":[{{"agent":"claude","agent_status":"{status}","cwd":"{}","pane_id":"w1:p9"}}]}}}}"#,
+                root.display()
+            ),
+        )
+        .unwrap();
+    };
+    mk_list("idle");
+    // 在册 goal 拨到停摆态（set_at 拨老，静默窗外）。
+    hst()
+        .env("HST_ROOT", &tmp)
+        .args(["goal", "set", "解完 eval 余题", "--project"])
+        .arg(&root)
+        .assert()
+        .success();
+    let slug: String = root
+        .display()
+        .to_string()
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect();
+    let goal_file = tmp.join("state").join("goal").join(format!("{slug}.json"));
+    let aged = r#"{"text":"解完 eval 余题","set_at":1,"rounds":0,"last_stop_at":1,"last_heal_at":0,"heal_streak":0,"heal_rounds":0}"#;
+    std::fs::write(&goal_file, aged).unwrap();
+    // dry-run：would-wake、零 prompt、记录不动。
+    hst()
+        .env("HST_ROOT", &tmp)
+        .env("HERDR_FAKE_LIST", &list)
+        .env("HERDR_FAKE_LOG", &log)
+        .env("PATH", &path)
+        .args(["goal", "heal", "--dry-run", "--project"])
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(contains("goal.heal.count=1"))
+        .stdout(contains("action=would-wake"));
+    assert!(!log.exists());
+    assert_eq!(std::fs::read_to_string(&goal_file).unwrap(), aged);
+    // 实跑：woke，prompt 载 goal 文本与用法。
+    hst()
+        .env("HST_ROOT", &tmp)
+        .env("HERDR_FAKE_LIST", &list)
+        .env("HERDR_FAKE_LOG", &log)
+        .env("PATH", &path)
+        .args(["goal", "heal", "--project"])
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(contains("action=woke"))
+        .stdout(contains("pane=w1:p9"));
+    let woke = std::fs::read_to_string(&log).unwrap();
+    assert!(woke.contains("解完 eval 余题"), "{woke}");
+    assert!(
+        woke.contains("hst goal clear") && woke.contains("hst goal 用法"),
+        "{woke}"
+    );
+    // 可观测（澄清令件 3）：自愈留痕经 goal show 可查。
+    hst()
+        .env("HST_ROOT", &tmp)
+        .args(["goal", "show", "--project"])
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(contains("goal.present=true"))
+        .stdout(contains("goal.last_heal_at="))
+        .stdout(contains("goal.heal_streak=1"));
+    // 紧跟第二趟：静默窗频控。
+    hst()
+        .env("HST_ROOT", &tmp)
+        .env("HERDR_FAKE_LIST", &list)
+        .env("HERDR_FAKE_LOG", &log)
+        .env("PATH", &path)
+        .args(["goal", "heal", "--project"])
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(contains("action=skip-throttled"));
+    // blocked 等人裁：豁免不唤。
+    mk_list("blocked");
+    let mut rec: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&goal_file).unwrap()).unwrap();
+    rec["last_heal_at"] = serde_json::json!(1);
+    std::fs::write(&goal_file, serde_json::to_string(&rec).unwrap()).unwrap();
+    hst()
+        .env("HST_ROOT", &tmp)
+        .env("HERDR_FAKE_LIST", &list)
+        .env("HERDR_FAKE_LOG", &log)
+        .env("PATH", &path)
+        .args(["goal", "heal", "--project"])
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(contains("action=skip-blocked"));
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
 #[test]
 fn loop_commands_retired() {
     // REQ-045（用户令 2026-10-11「hst 不再关联 goal 和 loop」）：loop 面

@@ -350,7 +350,7 @@
     {
       "path": "hst_cli::goal",
       "kind": "module",
-      "docs": "`hst goal` 自治面（REQ-045，REQ-019 演进）：自有存储、Stop 事件提醒\n腿与状态栏自源显示（用户令 2026-10-11「hst 不再关联 goal 和 loop」）。\nhst goal 自治面（REQ-045，REQ-019 演进；用户令 2026-10-11「hst 不再\n关联 goal 和 loop」「hst 自己用 hook 实现 goal」）：goal 文本由 hst\n自有存储承载（`~/.hst/state/goal/<slug>.json`，slug 规则同 trace 与\nprojyolo：路径非字母数字一律 `-`），与项目 `.claude/scheduled_tasks.json`\n的一切读写解除（该文件回归 Claude Code 原生 CronCreate 域，loop 面\nv2.10.0 退役）。Stop 事件腿（`hst hook goal`，注册面 Claude Stop 事件\n与 state 腿双挂，仅 claude）：每轮 agent 停止 rounds 计数落盘（状态栏\ngoal 段的事件驱动数据源），自然停（payload 无 stop_hook_active）出\n`decision: block` 加 reason 提醒注入一轮、续跑引发的再停放行（Claude\nCode Stop 契约，[实证: code.claude.com/docs/en/hooks 2026-10-11 查：\nstop_hook_active 在场须 exit 0 防死环；block 加 reason 续跑]），\n恒无死环。CLI 面 set/show/clear 语义承接 REQ-019 管理命令面（项目级，\n--project 缺省当前目录；项目键 = CLI 侧项目根与 payload 侧\nworkspace.project_dir 同一 slug，子目录调用键不中，须在项目根跑或显式\n给 --project，边界同 projyolo marker 先例）。"
+      "docs": "`hst goal` 自治面（REQ-045，REQ-019 演进）：自有存储、Stop 事件提醒\n腿与状态栏自源显示（用户令 2026-10-11「hst 不再关联 goal 和 loop」）。\nhst goal 自治面（REQ-045，REQ-019 演进；用户令 2026-10-11「hst 不再\n关联 goal 和 loop」「hst 自己用 hook 实现 goal」）：goal 文本由 hst\n自有存储承载（`~/.hst/state/goal/<slug>.json`，slug 规则同 trace 与\nprojyolo：路径非字母数字一律 `-`），与项目 `.claude/scheduled_tasks.json`\n的一切读写解除（该文件回归 Claude Code 原生 CronCreate 域，loop 面\nv2.10.0 退役）。Stop 事件腿（`hst hook goal`，注册面 Claude Stop 事件\n与 state 腿双挂，仅 claude）：每轮 agent 停止 rounds 计数落盘（状态栏\ngoal 段的事件驱动数据源），自然停（payload 无 stop_hook_active）出\n`decision: block` 加 reason 提醒注入一轮、续跑引发的再停放行（Claude\nCode Stop 契约，[实证: code.claude.com/docs/en/hooks 2026-10-11 查：\nstop_hook_active 在场须 exit 0 防死环；block 加 reason 续跑]），\n恒无死环。CLI 面 set/show/clear 语义承接 REQ-019 管理命令面（项目级，\n--project 缺省当前目录；项目键 = CLI 侧项目根与 payload 侧\nworkspace.project_dir 同一 slug，子目录调用键不中，须在项目根跑或显式\n给 --project）。goal-01（2026-10-11）两修：其一子目录键漂——hook\npayload 常只带 cwd 而 agent 多在项目子目录工作，精确 slug 键不中，\n解析改就近上溯（goal_file_for）取最近在册 goal；其二自愈面\n（run_heal，用户令「如果没用唤醒操作 herdr api 自愈唤醒一下」）\n——goal 在册而停摆未被唤醒过静默窗时经 herdr agent prompt 唤醒，\nblocked 等人裁与频控风暴闸豁免，提醒与唤醒文本均附 hst goal 用法\n（用户令「让 agent 自行操作」）。"
     },
     {
       "path": "hst_cli::goal::GoalError",
@@ -363,6 +363,36 @@
       "docs": "goal 记录（自有存储单文件形，项目一键一文件）。"
     },
     {
+      "path": "hst_cli::goal::HEAL_IDLE_SECS",
+      "kind": "constant",
+      "docs": "自愈静默窗（goal-01 频控即此一闸）：goal 在役而 max(last_stop_at,\nlast_heal_at, set_at) 距今不足此值不判停摆——Stop 提醒链的正常节拍\n余量，也是两次自愈唤醒的最小间隔（防风暴）。"
+    },
+    {
+      "path": "hst_cli::goal::HEAL_STORM_CAP",
+      "kind": "constant",
+      "docs": "风暴闸：连续无 rounds 增长的自愈唤醒次数上限（Stop 事件回场即归零），\n超过即停手转 report（疑驱动链坏死，须人工重开会话或核 doctor）。"
+    },
+    {
+      "path": "hst_cli::goal::HealReport",
+      "kind": "struct",
+      "docs": "单 goal 的自愈回执行（kv 面）。"
+    },
+    {
+      "path": "hst_cli::goal::HealVerdict",
+      "kind": "enum",
+      "docs": "自愈判定两态族（纯函数面；输入 = goal 在册态加 herdr 格状态加当下时\n刻）。豁免口径（用户令「agent 自己用 hst 停止的不用自愈」与防风暴）：\ngoal 已清即无文件不入本判；blocked 等人裁态不唤醒；静默窗内不唤醒；\n风暴闸到顶不唤醒。"
+    },
+    {
+      "path": "hst_cli::goal::PaneFace",
+      "kind": "struct",
+      "docs": "herdr 格状态面（`herdr agent list` 的 result.agents 投影，消费面只读\n三字段）。"
+    },
+    {
+      "path": "hst_cli::goal::SWEEP_MIN_GAP_SECS",
+      "kind": "constant",
+      "docs": "扫描盖章限频（goal-01 澄清令「事件驱动、零轮询」面的频控外闸）：\nheal_sweep 挂在每轮 Stop 事件流上，任一 Stop 至多触发一次全量扫描\n每 [`SWEEP_MIN_GAP_SECS`]（盖章文件 `.heal-sweep` 存上次扫描时刻；非\n轮询 daemon，纯事件到点判）。"
+    },
+    {
       "path": "hst_cli::goal::clear_goal",
       "kind": "function",
       "docs": "清空本项目 goal（删文件；返回是否真删，无 goal 零改动合法）。\n\n# Errors\n\nIO 失败时返回 [`GoalError`]。"
@@ -373,14 +403,49 @@
       "docs": "goal 存储目录（`<hst 自管根>/state/goal/`；测试经 HST_ROOT 缝注入）。"
     },
     {
+      "path": "hst_cli::goal::goal_file_for",
+      "kind": "function",
+      "docs": " 就近上溯解析（goal-01 根因 B 修）：hook payload 常只带 cwd 而 agent\n 多在项目子目录工作（pi-rs 实证 cwd = 项目/practice/eval），精确 slug\n 键不中致 Stop 提醒静默漏发；从 root 逐级上溯取最近一层在册 goal 文件\n（深者胜：子目录自有 goal 优先于项目根 goal）。CLI set/clear 仍按给定\n 根精确键（管理面不动）。"
+    },
+    {
       "path": "hst_cli::goal::goal_path",
       "kind": "function",
       "docs": "项目 goal 文件路径（`<dir>/<slug>.json`）。"
     },
     {
+      "path": "hst_cli::goal::heal_sweep",
+      "kind": "function",
+      "docs": "hook 事件流挂载的自愈扫描入口（goal-01 澄清令：自愈须事件驱动实时，\n挂 Stop 事件流当场判定，零 cron 零落盘轮询零外部定时）：goal 腿处理完\n本会话提醒并已输出后调用；盖章限频内直接让位（零子进程开销），\n过章才扫（herdr list 有界 4s，唤醒 prompt 有界 8s，全 fail-open 不影\n响主链）。`HST_GOAL_HEAL=off` 为逃生闸（诊断/测试面）。返回 Some(回执\n行数) = 本轮实扫，None = 未到点或关闸。\n\n# Errors\n\nherdr 不可达或扫描内部失败时返回 `String`（调用方仅 verbose 打点）。"
+    },
+    {
+      "path": "hst_cli::goal::heal_verdict",
+      "kind": "function",
+      "docs": "自愈判定（纯函数；检测形态 = goal-01 裁量口径：rounds 无增长加 Stop 后\nidle 时限，idle/blocked 态取自 herdr 格状态而非墙钟推断）。"
+    },
+    {
+      "path": "hst_cli::goal::is_stop_event",
+      "kind": "function",
+      "docs": "事件是否 Stop（事件参数形或 payload hook_event_name 形；heal_sweep 的\n挂载判据同源）。"
+    },
+    {
+      "path": "hst_cli::goal::parse_agent_list",
+      "kind": "function",
+      "docs": "`herdr agent list` stdout 解析（纯函数面，测试注入 JSON 串）。\n\n# Errors\n\n输出非 JSON 或形不符（无 result.agents 数组）时返回 `String`。"
+    },
+    {
+      "path": "hst_cli::goal::read_record",
+      "kind": "function",
+      "docs": "读指定 goal 文件（缺失 = None；坏损 = Err 响亮）。\n\n# Errors\n\n文件在场但不可解析时返回 [`GoalError::Corrupt`]。"
+    },
+    {
       "path": "hst_cli::goal::reminder_json",
       "kind": "function",
       "docs": "Stop 提醒 JSON（Claude Code Stop 契约：`decision: block` 加 `reason`\n续跑一轮，reason 即注入下轮的提醒文本）。\n\n# Errors\n\n序列化失败时返回 `String`（纯字符串组合，实跑不可达，类型面完整）。"
+    },
+    {
+      "path": "hst_cli::goal::run_heal",
+      "kind": "function",
+      "docs": "自愈扫描入口（`hst goal heal`）：扫在册 goal（`only` 给定则单项目），\n逐条判定后对 Wake 形经 `herdr agent prompt` 唤醒（无 --wait，提交即\n回；下一轮扫描自会复核），并落 last_heal_at 加风暴闸计数；dry_run 只\n报判定不唤醒不落盘。herdr 消费面只读 agent list 加单发 prompt，不改\nherdr 仓（goal-01 边界）。\n\n# Errors\n\nherdr 不可达或输出形不符时返回 `String`（整趟拒跑，不做半吊子自愈）。"
     },
     {
       "path": "hst_cli::goal::set_goal",
@@ -400,7 +465,12 @@
     {
       "path": "hst_cli::goal::stop_hook",
       "kind": "function",
-      "docs": "Stop 腿入口（`hst hook goal`）：非 Stop 事件或本项目无 goal 返回\nNone（静默放行）；有 goal 则 rounds 递增落盘后，自然停（payload 无\nstop_hook_active）返回提醒 JSON、续跑再停（stop_hook_active=true）返回\nNone。计数落盘恒执行（防环放行轮也计），状态栏 goal 段数据随之刷新。\n\n# Errors\n\n存储坏损或 IO 失败时返回 `String`（调用方 fail-open，不挡 agent 停止）。"
+      "docs": "Stop 腿入口（`hst hook goal`）：非 Stop 事件或本项目无 goal 返回\nNone（静默放行）；有 goal 则 rounds 递增落盘后，自然停（payload 无\nstop_hook_active）返回提醒 JSON、续跑再停（stop_hook_active=true）返回\nNone。计数落盘恒执行（防环放行轮也计），状态栏 goal 段数据随之刷新。\ngoal-01 起 goal_file_for 就近上溯解析（子目录 cwd 容形）。\n\n# Errors\n\n存储坏损或 IO 失败时返回 `String`（调用方 fail-open，不挡 agent 停止）。"
+    },
+    {
+      "path": "hst_cli::goal::wake_text",
+      "kind": "function",
+      "docs": "自愈唤醒文本（herdr agent prompt 载体；附 hst goal 用法，用户令「让\nagent 自行操作」）。"
     },
     {
       "path": "hst_cli::hook",

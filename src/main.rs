@@ -197,6 +197,15 @@ enum GoalCmd {
         #[arg(long)]
         project: Option<PathBuf>,
     },
+    /// 自愈唤醒扫描（goal-01）：goal 在册而格位停摆未被 Stop 提醒唤醒过静默窗（15 分钟）时，经 herdr agent prompt 唤醒并附 hst goal 用法；working 与 blocked 等人裁态豁免，连续 3 次唤醒无 rounds 增长即风暴闸转人工；须在 herdr 会话格内跑
+    Heal {
+        /// 项目根；缺省扫全部在册 goal
+        #[arg(long)]
+        project: Option<PathBuf>,
+        /// 预演：只报判定不唤醒不落盘
+        #[arg(long = "dry-run")]
+        dry_run: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -664,6 +673,7 @@ fn run() -> Result<(), String> {
             GoalCmd::Set { text, project } => cmd_goal_set(&text, project),
             GoalCmd::Show { project } => cmd_goal_show(project),
             GoalCmd::Clear { project } => cmd_goal_clear(project),
+            GoalCmd::Heal { project, dry_run } => cmd_goal_heal(project, dry_run),
         },
         Commands::Issue { cmd } => cmd_issue(cmd),
     }
@@ -1681,6 +1691,10 @@ fn cmd_goal_show(project: Option<PathBuf>) -> Result<(), String> {
             if r.last_stop_at > 0 {
                 println!("goal.last_stop_at={}", r.last_stop_at);
             }
+            if r.last_heal_at > 0 {
+                println!("goal.last_heal_at={}", r.last_heal_at);
+                println!("goal.heal_streak={}", r.heal_streak);
+            }
         }
         None => println!("goal.present=false"),
     }
@@ -1697,6 +1711,25 @@ fn cmd_goal_clear(project: Option<PathBuf>) -> Result<(), String> {
         println!("goal.clear project={}", root.display());
     } else {
         println!("goal.clear present=false");
+    }
+    Ok(())
+}
+
+/// goal-01 自愈扫描分派：逐在册 goal 判定（rounds 无增长加 idle 时限，
+/// 态取 herdr 格状态），Wake 形经 herdr agent prompt 唤醒。
+fn cmd_goal_heal(project: Option<PathBuf>, dry_run: bool) -> Result<(), String> {
+    let only = match project {
+        Some(p) => Some(project_root(Some(p))?),
+        None => None,
+    };
+    let home = hst::install::hst_home()?;
+    let rows = hst::goal::run_heal(&home, only.as_deref(), dry_run)?;
+    println!("goal.heal.count={}", rows.len());
+    for r in &rows {
+        println!("goal.heal slug={} action={} {}", r.slug, r.action, r.detail);
+    }
+    if rows.is_empty() {
+        println!("goal.heal.hint=无在册 goal（~/.hst/state/goal/ 空）；先 hst goal set");
     }
     Ok(())
 }
@@ -1723,11 +1756,24 @@ fn cmd_hook_goal(event: Option<String>, agent: Option<String>) -> Result<(), Str
         }
     };
     match hst::goal::stop_hook(&home, payload.as_ref(), event.as_deref()) {
-        Ok(Some(out)) => println!("{out}"),
+        Ok(Some(out)) => {
+            // 提醒先出后扫（goal-01）：decision JSON 落定 flush 后才跑自愈
+            // 扫描，扫描有界且 fail-open，最坏不拖丢本会话提醒。
+            println!("{out}");
+            use std::io::Write as _;
+            let _ = std::io::stdout().flush();
+        }
         Ok(None) => {}
         Err(e) => {
             if verbose {
                 eprintln!("hst hook goal: {e}");
+            }
+        }
+    }
+    if hst::goal::is_stop_event(payload.as_ref(), event.as_deref()) {
+        if let Err(e) = hst::goal::heal_sweep(&home) {
+            if verbose {
+                eprintln!("hst hook goal heal: {e}");
             }
         }
     }

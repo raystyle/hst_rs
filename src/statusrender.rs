@@ -1556,7 +1556,8 @@ fn seg_goal(ctx: &Ctx) -> Option<String> {
         }
         root
     };
-    let rec = crate::goal::show_goal(ctx.home, Path::new(&root)).ok()??;
+    let rec = crate::goal::goal_file_for(ctx.home, Path::new(&root))
+        .and_then(|p| crate::goal::read_record(&p).ok().flatten())?;
     let mut text = rec.text.replace(['\r', '\n'], " ").trim().to_string();
     if text.is_empty() {
         return None;
@@ -2626,6 +2627,9 @@ mod tests {
         let bare: Json = serde_json::from_str(r#"{"session_id":"s1"}"#).unwrap();
         let row = seg_goal(&mk_ctx!(&bare, "/w/hst-proj")).unwrap();
         assert!(row.contains("盯发布窗口"), "dir fallback: {row}");
+        // goal-01 根因 B 修：dir 为项目子目录时上溯命中项目根 goal。
+        let row = seg_goal(&mk_ctx!(&bare, "/w/hst-proj/sub/deep")).unwrap();
+        assert!(row.contains("盯发布窗口"), "subdir walk: {row}");
         // 轮次随 Stop 腿计数联动。
         let stop = serde_json::json!({ "hook_event_name": "Stop", "cwd": "/w/hst-proj" });
         crate::goal::stop_hook(&home, Some(&stop), None).unwrap();
