@@ -29,6 +29,7 @@ pi-rs 工位（长跑解题会话）屏显 `Goal paused · the goal check timed 
 - [x] 澄清令 3（可控）:频控 = 每 goal 静默窗（15 分钟）加 sweep 盖章（5 分钟）；豁免 = agent 主动 clear 后无文件即无自愈、blocked 等人裁不唤、working 不扰；风暴闸 = 连续 3 次唤醒无 rounds 增长转人工报面；可观测 = `hst goal show` 出 last_heal_at 加 heal_streak 加 `.heal-log` 单行留痕（ts 加 slug 加 action 加 detail）
 - [x] 手动面 `hst goal heal [--project] [--dry-run]`：操作者即时扫描口（非定时形态），dry-run 零副作用零落盘
 - [x] 件 3（用法注入）：Stop 提醒与自愈唤醒文本均附 hst goal 用法一句（set/show/clear），agent 可自行改目标与达成后 clear 收束
+- [x] 插队件（用户令 2026-10-11「也不要死循环 agent 自己控制这个 goal 停止」）：goal 驱动是 agent 的助手不是约束，agent 对 goal 完全自控（设/改/停）；提醒与唤醒文本的受阻分支补自主停机指引：受阻或判断目标不该继续（推不动、无意义或失效）时可自行 hst goal clear 停止并如实说明，自愈唤醒不得变绑架（频控豁免风暴闸之外，文本面再开停机出口）
 - [x] 测试与实弹：单测加集成加假 herdr e2e 全绿；实弹真 herdr 三面（working 三格豁免、no-agent 孤儿、子目录 Stop 注入带用法）加 sweep 内嵌实跑零副作用
 
 ## 边界

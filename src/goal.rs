@@ -263,8 +263,9 @@ fn flatten_inline(s: &str) -> String {
 pub fn reminder_json(rec: &GoalRecord) -> Result<String, String> {
     let reason = format!(
         "hst goal 在役（第 {} 轮）：「{}」。若目标已达成，请运行 hst goal clear 收束并如实简报；\
-         若未达成，继续推进；若受阻，如实说明阻塞后停。hst goal 用法：hst goal set <新目标> 改目标、\
-         hst goal show 查看、hst goal clear 达成后清空收束。",
+         若未达成，继续推进；若受阻或判断目标不该继续（推不动、无意义或失效），可自行 hst goal clear \
+         停止并如实说明——goal 是你的助手不是约束，停机权在你，勿徒劳死循环。hst goal 用法：\
+         hst goal set <新目标> 改目标、hst goal show 查看、hst goal clear 清空收束。",
         rec.rounds,
         flatten_inline(&rec.text)
     );
@@ -481,9 +482,10 @@ pub fn wake_text(rec: &GoalRecord, project: &str) -> String {
     format!(
         "hst goal 自愈唤醒：项目 {} 的 goal 在役（第 {} 轮）而你会话停摆未被 Stop 提醒唤醒\
          （疑会话早于 hst init 注册、子目录键漂或 goal check 超时）。goal 文本：「{}」。\
-         若已达成，请运行 hst goal clear 收束并如实简报；若未达成，继续推进；若受阻，\
-         如实说明阻塞。hst goal 用法：hst goal set <新目标> 改目标、hst goal show 查看、\
-         hst goal clear 达成后清空收束。",
+         若已达成，请运行 hst goal clear 收束并如实简报；若未达成，继续推进；若受阻或判断目标\
+         不该继续（推不动、无意义或失效），可自行 hst goal clear 停止并如实说明——停机权在你，\
+         勿徒劳死循环。hst goal 用法：hst goal set <新目标> 改目标、hst goal show 查看、\
+         hst goal clear 清空收束。",
         project,
         rec.rounds,
         flatten_inline(&rec.text)
@@ -824,9 +826,12 @@ mod tests {
         assert!(out.contains("\"decision\":\"block\""), "{out}");
         assert!(out.contains("闭环 REQ 收尾"), "{out}");
         assert!(out.contains("hst goal clear"), "{out}");
-        // goal-01 件 3：提醒附用法（agent 自行操作面）。
+        // goal-01 件 3：提醒附用法（agent 自行操作面）；插队件：受阻分支
+        // 补自主停机指引（停机权在 agent，勿徒劳死循环）。
         assert!(out.contains("hst goal 用法"), "{out}");
         assert!(out.contains("hst goal set"), "{out}");
+        assert!(out.contains("停机权在你"), "{out}");
+        assert!(out.contains("徒劳死循环"), "{out}");
         let rec = show_goal(&home, root).unwrap().unwrap();
         assert_eq!(rec.rounds, 1);
         assert!(rec.last_stop_at > 0);
@@ -1009,6 +1014,10 @@ mod tests {
         assert!(
             t.contains("hst goal clear") && t.contains("hst goal 用法"),
             "{t}"
+        );
+        assert!(
+            t.contains("停机权在你") && t.contains("徒劳死循环"),
+            "插队件自主停机指引: {t}"
         );
         assert!(!t.contains('\n'), "单行契约: {t}");
     }
