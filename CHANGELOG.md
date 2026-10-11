@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 里程碑 2026-10-12：v2.10.3 hookstate 插件名前缀双拼修复
+
+- **REQ-044 判据补（总台修复单：本机 claude statusline 末段渲染「evo-lint-evo-lint 后缀静检」双拼）**：插件 hook 显示形原为无条件 `{插件名}-{statusMessage}` 前缀拼装，而 statusMessage 在 Claude Code 原生显示面是全文文案、插件作者常把插件名写进首段（evo-lint 0.8.0「evo-lint 后缀静检」实证），双拼由此生。修法 `plugin_display`：文案自带插件名前缀时原样用不双拼，边界三形（全等加空格加连字符）命中即免，无缝前缀照常拼；stem 回落腿同判。纯显示缺陷修复无契约变化，补丁定版 2.10.3，镜像 stable 到货后 lan-ubuntu 装位落差即闭。
+
 ### 里程碑 2026-10-11：v2.10.2 goal Stop 提醒输出面调优 goal-02
 
 - **REQ-046 goal-02 注记（用户报「Stop hook error:」观感脏）**：Stop 提醒输出由 `decision: block` 加 reason 换 `hookSpecificOutput.additionalContext` 形（Claude Code 2.1.163 起，舰队 2.1.296 在段），续跑语义与防环全同（stop_hook_active 加 8 连续续跑帽），transcript 标注 `Stop hook feedback` 且不发 hook error 通知；shim 透传与 exit 0 通道不动；systemMessage 与 suppressOutput 考量弃用（双显示与文档明示无效）。
