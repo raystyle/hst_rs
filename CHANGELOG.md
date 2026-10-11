@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 里程碑 2026-10-11：goal 唤醒链自愈与 hook 用法注入 goal-01 在册未发布
+
+- **REQ-046 goal 唤醒链自愈与 hook 用法注入（pi-rs 停摆现场加用户令三段加澄清令三条设计约束）**：根因排查在册：`Goal paused · the goal check timed out` 是 Claude Code 原生 Goal Mode 的 goal check（API 支撑）超时自停文案（pi-rs 会话 transcript 22 处在证），hst Stop 腿从未被调（goal 实档 rounds=0：根因 A 会话 hook 快照早于 v2.10.0 注册，运行中会话不热载；根因 B 子目录键漂潜伏，hook payload 只带 cwd 而常在项目子目录工作）。修 B：goal 解析改就近上溯（goal_file_for 深者胜，Stop 腿与状态栏同判）。自愈（澄清令：零 cron 零落盘轮询零外部定时，事件驱动挂 Stop 事件流）：heal_sweep 随每轮 Stop 盖章限频（5 分钟外闸）全量扫描，rounds 无增长加静默窗（15 分钟）判停摆，经 herdr agent prompt 唤醒（消费方只读 list 加单发 prompt，子进程有界，不改 herdr 仓）；可控三件即频控（per-goal 静默窗加 sweep 盖章）、豁免（clear 即无文件、blocked 等人裁不唤、working 不扰）、可观测（goal show 出 last_heal_at 加 heal_streak 加 .heal-log 留痕）；风暴闸连续 3 次无 rounds 增长转人工。Stop 提醒与唤醒文本均附 hst goal 用法（set/show/clear，agent 自行管理含达成自行 clear）。手动面 `hst goal heal [--project] [--dry-run]`。ADR-0011 追记 herdr 消费面窄开口。装机端发布候裁。
+
 ### 里程碑 2026-10-11：v2.10.0 loop 与 goal 面退役及 goal 自治
 
 - **REQ-045 goal 自治与 loop 面退役（用户令三段合成单 2026-10-11：「hst 不再关联 goal 和 loop」「hst 自己用 hook 实现 goal」「自己能管理、自己能控制状态栏显示 goal」；ADR-0011，REQ-019 演进）**：hst 与项目 `.claude/scheduled_tasks.json` 的一切读写关联解除（原生 CronCreate 常驻会话实时生效经用户确认，2026-09-26 重启装载阴性实证口径作废）；loop 管理命令组与状态栏 loop 段（含会话级 ScheduleWakeup/CronCreate 探针族，REQ-024/035/036/041/042）撤净不留迁移桩，定时任务归 Claude Code 原生 CronCreate/ScheduleWakeup 域。goal 搬家 hst 自治：自有存储 `~/.hst/state/goal/<slug>.json`（项目键同 trace 与 projyolo），`hst goal set/show/clear` 语义承接（--project 缺省当前目录，rounds 重计，`goal error=<code>` 短码承接）；Claude Code Stop 事件 hook 腿（claude Stop 与 state 腿双挂，单对 hst-goal shim）：rounds 计数落盘加自然停一轮 `decision: block` 提醒注入（stop_hook_active 防环放行，恒无死环），goal 达成由 agent 侧 `hst goal clear` 收束；状态栏 goal 段同源切自有存储（四家同源，默认第四行，`{count}` 轮次占位符）；doctor check=goal 两面（Stop goal 腿注册在场加自有存储可读，替位 REQ-020 的 scheduled_tasks 读检）。herdr 即时通道随 arm 入口出仓（REQ-023，ADR-0009 转 superseded）。破坏面：`hst loop` 命令与状态栏 `loop` 段 id 撤除，用户 toml 显式写 loop 段须手改（unknown segment 响亮报错）；goal 旧 `--session/--via-herdr` 旗标撤。

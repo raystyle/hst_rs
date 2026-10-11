@@ -48,3 +48,4 @@
 | REQ-043 | implemented | must | hook壳烘焙安全序与init同步 | shim 单测四断言加八件告警改件；实弹三场景（debug 回落装位加旗标同步死路径加告警打点） |
 | REQ-044 | implemented | must | 状态栏hookstate插件面与宽感知折行 | statusrender 新件（插件面 enabled 门控三态）加既有件改形；实弹真 payload 插件 hook 单行入列（折行面 v2.9.17 上线即裁撤） |
 | REQ-045 | implemented | must | goal自治与loop面退役 | goal 单测五件加 doctor 三件加 statusrender 一件加 cli 三件加 shim 十二件改件；实弹本机 init 部署 Stop 双挂与 goal/hook goal 回环（用户令 2026-10-11 三段合成单） |
+| REQ-046 | implemented | must | goal唤醒链自愈与hook用法注入 | goal 单测十一件加 statusrender 扩断言加 cli heal 一件（假 herdr e2e）；实弹真 herdr 三面加 sweep 内嵌零副作用（goal-01 单加澄清令三条，pi-rs 现场根因在册） |
