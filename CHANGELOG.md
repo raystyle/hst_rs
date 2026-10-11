@@ -4,9 +4,9 @@
 
 ## [Unreleased]
 
-### 里程碑 2026-10-11：goal 唤醒链自愈与 hook 用法注入 goal-01 在册未发布
+### 里程碑 2026-10-11：v2.10.1 goal 唤醒链自愈与 hook 用法注入（goal-01）
 
-- **REQ-046 goal 唤醒链自愈与 hook 用法注入（pi-rs 停摆现场加用户令三段加澄清令三条设计约束）**：根因排查在册：`Goal paused · the goal check timed out` 是 Claude Code 原生 Goal Mode 的 goal check（API 支撑）超时自停文案（pi-rs 会话 transcript 22 处在证），hst Stop 腿从未被调（goal 实档 rounds=0：根因 A 会话 hook 快照早于 v2.10.0 注册，运行中会话不热载；根因 B 子目录键漂潜伏，hook payload 只带 cwd 而常在项目子目录工作）。修 B：goal 解析改就近上溯（goal_file_for 深者胜，Stop 腿与状态栏同判）。自愈（澄清令：零 cron 零落盘轮询零外部定时，事件驱动挂 Stop 事件流）：heal_sweep 随每轮 Stop 盖章限频（5 分钟外闸）全量扫描，rounds 无增长加静默窗（15 分钟）判停摆，经 herdr agent prompt 唤醒（消费方只读 list 加单发 prompt，子进程有界，不改 herdr 仓）；可控三件即频控（per-goal 静默窗加 sweep 盖章）、豁免（clear 即无文件、blocked 等人裁不唤、working 不扰）、可观测（goal show 出 last_heal_at 加 heal_streak 加 .heal-log 留痕）；风暴闸连续 3 次无 rounds 增长转人工。Stop 提醒与唤醒文本均附 hst goal 用法（set/show/clear，agent 自行管理含达成自行 clear）。手动面 `hst goal heal [--project] [--dry-run]`。ADR-0011 追记 herdr 消费面窄开口。装机端发布候裁。
+- **REQ-046 goal 唤醒链自愈与 hook 用法注入（pi-rs 停摆现场加用户令三段加澄清令三条设计约束）**：根因排查在册：`Goal paused · the goal check timed out` 是 Claude Code 原生 Goal Mode 的 goal check（API 支撑）超时自停文案（pi-rs 会话 transcript 22 处在证），hst Stop 腿从未被调（goal 实档 rounds=0：根因 A 会话 hook 快照早于 v2.10.0 注册，运行中会话不热载；根因 B 子目录键漂潜伏，hook payload 只带 cwd 而常在项目子目录工作）。修 B：goal 解析改就近上溯（goal_file_for 深者胜，Stop 腿与状态栏同判）。自愈（澄清令：零 cron 零落盘轮询零外部定时，事件驱动挂 Stop 事件流）：heal_sweep 随每轮 Stop 盖章限频（5 分钟外闸）全量扫描，rounds 无增长加静默窗（15 分钟）判停摆，经 herdr agent prompt 唤醒（消费方只读 list 加单发 prompt，子进程有界，不改 herdr 仓）；可控三件即频控（per-goal 静默窗加 sweep 盖章）、豁免（clear 即无文件、blocked 等人裁不唤、working 不扰）、可观测（goal show 出 last_heal_at 加 heal_streak 加 .heal-log 留痕）；风暴闸连续 3 次无 rounds 增长转人工。Stop 提醒与唤醒文本均附 hst goal 用法（set/show/clear，agent 自行管理含达成自行 clear）。手动面 `hst goal heal [--project] [--dry-run]`。ADR-0011 追记 herdr 消费面窄开口。
 
 ### 里程碑 2026-10-11：v2.10.0 loop 与 goal 面退役及 goal 自治
 
