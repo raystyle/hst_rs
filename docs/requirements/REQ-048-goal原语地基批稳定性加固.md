@@ -3,7 +3,7 @@ id: REQ-048
 title: goal原语地基批稳定性加固
 status: implemented
 priority: must
-trace: goal 单测新增十件(goal_files_filter_and_stale_tmp_swept 加 heal_and_goal_audit_logs_rotate_at_cap 加 list_goals_reports_rows_with_repair_notes 加 race_guard_full_record_cas_same_second_set_detected 加 write_verify_bak_promote_and_drop_repair_paths 加 stop_hook_and_fastpath_repair_corrupt_store 加 concurrent_writers_lww_never_corrupt_never_spurious_error 加 wake_throttle_durable_before_prompt 加 yolo_heal_cooldown_durable_before_sequence 加 sweeper_heavy_cap_one_action_per_pass)加改件两件(corrupt_store_is_loud_not_silent 随读面自愈契约改形加 run_heal_end_to_end_with_fake_herdr 随 run_heal 签名改形;blocked_fastpath_alarms_and_debounces 未改,rev-codex F-3 勘误)加集成新增四件(goal_show_json_envelope_and_filter_output 加 goal_list_kv_json_jsonl_and_repair_rows 加 goal_crash_injection_kill9_store_stays_consistent 加 goal_concurrent_process_sets_both_succeed_lww);单测 226 升 236 集成 53 升 57 绿
+trace: goal 单测新增十件(goal_files_filter_and_stale_tmp_swept 加 heal_and_goal_audit_logs_rotate_at_cap 加 list_goals_reports_rows_with_repair_notes 加 race_guard_full_record_cas_same_second_set_detected 加 write_verify_bak_promote_and_drop_repair_paths 加 stop_hook_and_fastpath_repair_corrupt_store 加 concurrent_writers_lww_never_corrupt_never_spurious_error 加 wake_throttle_durable_before_prompt 加 yolo_heal_cooldown_durable_before_sequence 加 sweeper_heavy_cap_one_action_per_pass)加改件两件(corrupt_store_is_loud_not_silent 随读面自愈契约改形加 run_heal_end_to_end_with_fake_herdr 随 run_heal 签名改形;blocked_fastpath_alarms_and_debounces 未改,rev-codex F-3 勘误)加集成新增四件(goal_show_json_envelope_and_filter_output 加 goal_list_kv_json_jsonl_and_repair_rows 加 goal_crash_injection_kill9_store_stays_consistent 加 goal_concurrent_process_sets_both_succeed_lww);单测 226 升 236 集成 53 升 57 绿;rev-codex 三轮评审放行前收口(首修批 8b9d857 加二修批 bc25337,F 全清 G 采纳五裁定三,终轮 F-6 文档同步)
 ---
 
 # REQ-048:goal原语地基批稳定性加固
@@ -47,7 +47,7 @@ trace: goal 单测新增十件(goal_files_filter_and_stale_tmp_swept 加 heal_an
 
 ### 机读面
 
-- `hst goal show --json`:fmtio 信封(data = present/project/slug/file/goal 全字段/yolo_heal_armed/修复注记),kv 面补 goal.repair 行;jsonl 单实体视同信封。
+- `hst goal show --json`:fmtio 信封(data = present/project/slug/file/goal 全字段/yolo_heal_armed/修复注记),kv 面补 goal.repair 行;jsonl 裸实体(无信封层,家族先例 issue show 与 artifact attest 同形;rev-codex G-4)。
 - `hst goal list`(新面):全机在册清单(kv 逐档行加 json 信封 count/goals 加 jsonl 逐档对象),字典序稳定,坏档修复注记入行,goal 插件 list --all 逐机消费。
 
 ## Criteria
