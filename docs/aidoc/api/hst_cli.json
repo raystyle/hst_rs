@@ -350,7 +350,7 @@
     {
       "path": "hst_cli::goal",
       "kind": "module",
-      "docs": "`hst goal` 自治面（REQ-045，REQ-019 演进）：自有存储、Stop 事件提醒\n腿与状态栏自源显示（用户令 2026-10-11「hst 不再关联 goal 和 loop」）。\nhst goal 自治面（REQ-045，REQ-019 演进；用户令 2026-10-11「hst 不再\n关联 goal 和 loop」「hst 自己用 hook 实现 goal」）：goal 文本由 hst\n自有存储承载（`~/.hst/state/goal/<slug>.json`，slug 规则同 trace 与\nprojyolo：路径非字母数字一律 `-`），与项目 `.claude/scheduled_tasks.json`\n的一切读写解除（该文件回归 Claude Code 原生 CronCreate 域，loop 面\nv2.10.0 退役）。Stop 事件腿（`hst hook goal`，注册面 Claude Stop 事件\n与 state 腿双挂，仅 claude）：每轮 agent 停止 rounds 计数落盘（状态栏\ngoal 段的事件驱动数据源），自然停（payload 无 stop_hook_active）出\nadditionalContext 提醒注入一轮（goal-02 干净显示形，续跑同 decision\nblock 语义）、续跑引发的再停放行（Claude\nCode Stop 契约，[实证: code.claude.com/docs/en/hooks 2026-10-11 查：\nstop_hook_active 在场须 exit 0 防死环；block 加 reason 续跑]），\n恒无死环。CLI 面 set/show/clear 语义承接 REQ-019 管理命令面（项目级，\n--project 缺省当前目录；项目键 = CLI 侧项目根与 payload 侧\nworkspace.project_dir 同一 slug，子目录调用键不中，须在项目根跑或显式\n给 --project）。goal-01（2026-10-11）两修：其一子目录键漂——hook\npayload 常只带 cwd 而 agent 多在项目子目录工作，精确 slug 键不中，\n解析改就近上溯（goal_file_for）取最近在册 goal；其二自愈面\n（run_heal，用户令「如果没用唤醒操作 herdr api 自愈唤醒一下」）\n——goal 在册而停摆未被唤醒过静默窗时经 herdr agent prompt 唤醒，\nblocked 等人裁与频控风暴闸豁免，提醒与唤醒文本均附 hst goal 用法\n（用户令「让 agent 自行操作」）。\n\nREQ-047（2026-10-12 架构批）：自驱机制升两维态。检测三路（Stop 事件\n流加 herdr 格态加 Notification/PermissionRequest 带内快道）；判定矩阵\n六序（no-agent、working 不扰、blocked 分型、idle 唤醒、频控、风暴）；\nblocked 不再静默豁免，alarm 报警留痕（`.heal-log` 加 show 面），预授权\n（`hst goal yolo-heal on`）下反复 blocked 触发 yolo 治（落键加重启格加\n续 goal）；间隔自驱 = hook 起 sweeper 有界子进程（60 秒 tick、2 小时\n寿命、`.sweeper-lock` 单实例、90 秒陈旧接管），`HST_GOAL_SWEEPER=off`\n逃生闸。wake 文本 v2 自包含五件（goal 文本加上轮收束态加即刻推进加\n防卡死防空转边界加用法）。"
+      "docs": "`hst goal` 自治面（REQ-045，REQ-019 演进）：自有存储、Stop 事件提醒\n腿与状态栏自源显示（用户令 2026-10-11「hst 不再关联 goal 和 loop」）。\nhst goal 自治面（REQ-045，REQ-019 演进；用户令 2026-10-11「hst 不再\n关联 goal 和 loop」「hst 自己用 hook 实现 goal」）：goal 文本由 hst\n自有存储承载（`~/.hst/state/goal/<slug>.json`，slug 规则同 trace 与\nprojyolo：路径非字母数字一律 `-`），与项目 `.claude/scheduled_tasks.json`\n的一切读写解除（该文件回归 Claude Code 原生 CronCreate 域，loop 面\nv2.10.0 退役）。Stop 事件腿（`hst hook goal`，注册面 Claude Stop 事件\n与 state 腿双挂，仅 claude）：每轮 agent 停止 rounds 计数落盘（状态栏\ngoal 段的事件驱动数据源），自然停（payload 无 stop_hook_active）出\nadditionalContext 提醒注入一轮（goal-02 干净显示形，续跑同 decision\nblock 语义）、续跑引发的再停放行（Claude\nCode Stop 契约，[实证: code.claude.com/docs/en/hooks 2026-10-11 查：\nstop_hook_active 在场须 exit 0 防死环；block 加 reason 续跑]），\n恒无死环。CLI 面 set/show/clear 语义承接 REQ-019 管理命令面（项目级，\n--project 缺省当前目录；项目键 = CLI 侧项目根与 payload 侧\nworkspace.project_dir 同一 slug，子目录调用键不中，须在项目根跑或显式\n给 --project）。goal-01（2026-10-11）两修：其一子目录键漂——hook\npayload 常只带 cwd 而 agent 多在项目子目录工作，精确 slug 键不中，\n解析改就近上溯（goal_file_for）取最近在册 goal；其二自愈面\n（run_heal，用户令「如果没用唤醒操作 herdr api 自愈唤醒一下」）\n——goal 在册而停摆未被唤醒过静默窗时经 herdr agent prompt 唤醒，\nblocked 等人裁与频控风暴闸豁免，提醒与唤醒文本均附 hst goal 用法\n（用户令「让 agent 自行操作」）。\n\nREQ-047（2026-10-12 架构批）：自驱机制升两维态。检测三路（Stop 事件\n流加 herdr 格态加 Notification/PermissionRequest 带内快道）；判定矩阵\n六序（no-agent、working 不扰、blocked 分型、idle 唤醒、频控、风暴）；\nblocked 不再静默豁免，alarm 报警留痕（`.heal-log` 加 show 面），预授权\n（`hst goal yolo-heal on`）下反复 blocked 触发 yolo 治（落键加重启格加\n续 goal）；间隔自驱 = hook 起 sweeper 有界子进程（60 秒 tick、2 小时\n寿命、`.sweeper-lock` 单实例锁 pid 加 token 身份验主、tick 加最坏\nheavy 两倍陈旧接管），`HST_GOAL_SWEEPER=off`\n逃生闸。wake 文本 v2 自包含五件（goal 文本加上轮收束态加即刻推进加\n防卡死防空转边界加用法）。"
     },
     {
       "path": "hst_cli::goal::BLOCKED_ALARM_SECS",
@@ -405,7 +405,7 @@
     {
       "path": "hst_cli::goal::SWEEPER_STALE_SECS",
       "kind": "constant",
-      "docs": "sweeper 锁陈旧阈（REQ-047 单实例）：心跳重写超此时长即判死锁接管。"
+      "docs": "sweeper 锁陈旧阈（REQ-047 单实例）：心跳重写超此时长即判死锁接管。\nrev-codex G-1 自 90 抬位 = tick 加最坏 heavy 两倍：heavy 跑程锁不\n心跳，鲜活窗须罩住「上一跳后整 tick 等待加整趟 heavy」再留一倍余量。"
     },
     {
       "path": "hst_cli::goal::SWEEPER_TICK_SECS",
@@ -515,7 +515,7 @@
     {
       "path": "hst_cli::goal::sweeper_loop",
       "kind": "function",
-      "docs": "sweeper 有界主循环（`hst goal heal --interval` 子进程体）：抢锁让位即\n退;tick 心跳,寿命到点或 goal 清空即退;到点实扫（heavy=true,治序列\n在此路执行）。非 daemon:单次寿命 [`SWEEPER_LIFE_SECS`],续命须新 hook\n事件 ensure。\n\n# Errors\n\n扫描内部失败时返回 `String`（子进程 stderr 落幕,锁仍释放）。"
+      "docs": "sweeper 有界主循环（`hst goal heal --interval` 子进程体）：抢锁让位即\n退;tick 心跳,寿命到点或 goal 清空即退;到点实扫（heavy=true,治序列\n在此路执行）。非 daemon:单次寿命 [`SWEEPER_LIFE_SECS`],续命须新 hook\n事件 ensure。\n\n# Errors\n\n扫描内部失败时返回 `String`（子进程 stderr 落幕）。rev-codex F-2：\n扫描报错不走 `?` 提前返回（会跳过收尾），统一收尾释放自持锁后传播。"
     },
     {
       "path": "hst_cli::goal::wake_text",
@@ -1195,7 +1195,7 @@
     {
       "path": "hst_cli::yolo::apply_user_yolo_level_with",
       "kind": "function",
-      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n用户级分级落键（full / partial；off 调 retire_user_yolo_with）。"
+      "docs": "用户级分级落键（full / partial；off 调 retire_user_yolo_with）。\n\n# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n\n# Panics\n\n正常路径不 panic；内部 unwrap 仅出现在构造不变量上。"
     },
     {
       "path": "hst_cli::yolo::apply_user_yolo_with",
@@ -1235,7 +1235,7 @@
     {
       "path": "hst_cli::yolo::user_yolo_active_with",
       "kind": "function",
-      "docs": " # Panics\n\n 正常路径不 panic；内部 unwrap 仅出现在构造不变量上。\n 用户级 yolo 活性读侧判（REQ-047 goal 治面前置）：按 agent 名判各自\n 配置键是否等于 full 级值（claude `permissions.defaultMode` 加 codex\n `approval_policy` 加 kimi `default_permission_mode` 加 grok\n `[ui] permission_mode`）。读侧零改动；文件缺失或键不在场判 false\n（非 yolo，可治）；未知 agent 名保守判 true（不治）。"
+      "docs": "用户级 yolo 活性读侧判（REQ-047 goal 治面前置；rev-codex F-1 契约\n段归位重写）：按 agent 名判各自配置键是否等于 full 级值（claude\n`permissions.defaultMode` 加 codex `approval_policy` 加 kimi\n`default_permission_mode` 加 grok `[ui] permission_mode`）。读侧契约\n三零：零改动、零报错、零 panic（读失败一律并入判 false）；文件缺失\n或键不在场判 false（非 yolo，可治）；未知 agent 名保守判 true（不治）。"
     }
   ]
 }

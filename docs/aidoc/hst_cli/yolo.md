@@ -9,7 +9,7 @@
 - `apply_project_yolo_level` — # Panics
 - `apply_user_yolo` — # Errors
 - `apply_user_yolo_level` — # Errors
-- `apply_user_yolo_level_with` — # Errors
+- `apply_user_yolo_level_with` — 用户级分级落键（full / partial；off 调 retire_user_yolo_with）。
 - `apply_user_yolo_with` — # Errors
 - `clear_project_yolo_interference` — # Panics
 - `kimi_workspace_key` — yolo 键的kimi_workspace_key面（细则见模块文档与集成测试）。
@@ -17,7 +17,7 @@
 - `retire_project_yolo` — # Panics
 - `retire_user_yolo` — # Errors
 - `retire_user_yolo_with` — # Panics
-- `user_yolo_active_with` — # Panics
+- `user_yolo_active_with` — 用户级 yolo 活性读侧判（REQ-047 goal 治面前置；rev-codex F-1 契约
 
 ## Types
 

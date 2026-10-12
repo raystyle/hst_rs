@@ -27,7 +27,8 @@
 //! blocked 不再静默豁免，alarm 报警留痕（`.heal-log` 加 show 面），预授权
 //! （`hst goal yolo-heal on`）下反复 blocked 触发 yolo 治（落键加重启格加
 //! 续 goal）；间隔自驱 = hook 起 sweeper 有界子进程（60 秒 tick、2 小时
-//! 寿命、`.sweeper-lock` 单实例、90 秒陈旧接管），`HST_GOAL_SWEEPER=off`
+//! 寿命、`.sweeper-lock` 单实例锁 pid 加 token 身份验主、tick 加最坏
+//! heavy 两倍陈旧接管），`HST_GOAL_SWEEPER=off`
 //! 逃生闸。wake 文本 v2 自包含五件（goal 文本加上轮收束态加即刻推进加
 //! 防卡死防空转边界加用法）。
 
@@ -411,8 +412,17 @@ pub const SWEEPER_TICK_SECS: u64 = 60;
 /// ensure（非 daemon）。
 pub const SWEEPER_LIFE_SECS: u64 = 2 * 3600;
 
+/// sweeper 单趟 heavy 最坏时长（rev-codex G-1 判据锚）：herdr 预算和
+/// 取整 = agent list 4s 加治序列（send-keys 三发各 8s 加回 shell 轮询
+/// 15s 加 start 35s 加续发 8s，约 86s）。blocked 治另受风暴阈加 6h 冷却
+/// 双闸；单趟多目标按此时长线性叠，叠超陈旧阈即被接管让位（锁验主保
+/// 后继锁不误删）。
+const SWEEP_HEAVY_WORST_SECS: u64 = 90;
+
 /// sweeper 锁陈旧阈（REQ-047 单实例）：心跳重写超此时长即判死锁接管。
-pub const SWEEPER_STALE_SECS: u64 = 90;
+/// rev-codex G-1 自 90 抬位 = tick 加最坏 heavy 两倍：heavy 跑程锁不
+/// 心跳，鲜活窗须罩住「上一跳后整 tick 等待加整趟 heavy」再留一倍余量。
+pub const SWEEPER_STALE_SECS: u64 = SWEEPER_TICK_SECS + 2 * SWEEP_HEAVY_WORST_SECS;
 
 /// herdr 格状态面（`herdr agent list` 的 result.agents 投影，消费面只读
 /// 四字段）。
@@ -702,7 +712,8 @@ pub fn set_yolo_heal_armed(home: &Path, on: bool) -> Result<bool, String> {
 /// yolo 治序列（REQ-047,参考 actl 面 herdr yolo 原语）:落键加重启格加
 /// fresh 起加续 goal。blocked 格 prompt 被 herdr 拒（agent_blocked），重启
 /// 走原始键序 esc 加 /exit 加 enter;有界轮询 agent get 至格态消失（回
-/// shell）,fresh 起复用格名（无名格按 slug 造 goal-heal 前缀名）,新会话
+/// shell;rev-codex G-2:herdr 报错不算回 shell,故障续轮询到超时）,fresh
+/// 起复用格名（无名格按 slug 造 goal-heal 前缀名）,新会话
 /// prompt 注入 wake v2 续跑 goal。
 ///
 /// # Errors
@@ -725,13 +736,14 @@ fn yolo_heal_sequence(
     std::thread::sleep(std::time::Duration::from_millis(300));
     herdr_output(&["agent", "send-keys", pane, "/exit"])?;
     herdr_output(&["agent", "send-keys", pane, "enter"])?;
-    // 有界轮询等格回 shell(格态消失即回)。
+    // 有界轮询等格回 shell(格态消失即回;rev-codex G-2:herdr 报错与
+    // 无状态区分,报错不算回 shell,续轮询到超时由冷却防锤兜底)。
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
     loop {
-        let gone = herdr_output(&["agent", "get", pane])
-            .ok()
-            .and_then(|t| agent_status_of(&t))
-            .is_none();
+        let gone = match herdr_output(&["agent", "get", pane]) {
+            Ok(t) => agent_status_of(&t).is_none(),
+            Err(_) => false,
+        };
         if gone {
             break;
         }
@@ -1056,52 +1068,81 @@ fn goal_dir_has_goals(home: &Path) -> bool {
         .unwrap_or(false)
 }
 
-/// sweeper 单实例锁（`.sweeper-lock`，内容 = 心跳 epoch 秒）。
+/// sweeper 单实例锁（`.sweeper-lock`，内容 = `pid token 心跳epoch秒`
+/// 三段：pid 加随机 token 双身份，心跳重写时保身不变，接管与释放均验主
+/// （内容非我即他人所持，不动））。
 fn sweeper_lock_path(home: &Path) -> PathBuf {
     goal_dir(home).join(".sweeper-lock")
 }
 
-/// 锁心跳时刻（无锁或坏形 = None）。
-fn sweeper_lock_ts(home: &Path) -> Option<u64> {
-    std::fs::read_to_string(sweeper_lock_path(home))
-        .ok()
-        .and_then(|t| t.trim().parse::<u64>().ok())
+/// 本 sweeper 自身份（进程 pid 加 getrandom token，一次生成全程用）。
+fn sweeper_identity() -> String {
+    let mut b = [0u8; 8];
+    let _ = getrandom::fill(&mut b);
+    format!("{} {:016x}", std::process::id(), u64::from_be_bytes(b))
+}
+
+/// 锁身份与心跳（无锁或坏形 = None）。
+fn sweeper_lock_parse(home: &Path) -> Option<(String, u64)> {
+    let text = std::fs::read_to_string(sweeper_lock_path(home)).ok()?;
+    let mut it = text.split_whitespace();
+    let pid = it.next()?.to_string();
+    let token = it.next()?.to_string();
+    let ts = it.next()?.parse::<u64>().ok()?;
+    Some((format!("{pid} {token}"), ts))
 }
 
 /// 锁是否鲜活（心跳在陈旧阈内 = 有活 sweeper 在场）。
 fn sweeper_lock_fresh(home: &Path, now: u64) -> bool {
-    sweeper_lock_ts(home).is_some_and(|ts| now.saturating_sub(ts) < SWEEPER_STALE_SECS)
+    sweeper_lock_parse(home).is_some_and(|(_, ts)| now.saturating_sub(ts) < SWEEPER_STALE_SECS)
 }
 
-/// 抢锁（单实例防重入）：create_new 原子建；已在场且鲜活即让位，陈旧即
-/// 接管（删后重试一次）。
-fn sweeper_lock_acquire(home: &Path, now: u64) -> bool {
+/// 抢锁（单实例防重入）：create_new 原子建（落自身份）；已在场且鲜活即
+/// 让位（None），陈旧即接管（删后重试一次）。成功返回自身份（心跳与
+/// 释放验主用）。
+fn sweeper_lock_acquire(home: &Path, now: u64) -> Option<String> {
     let p = sweeper_lock_path(home);
     if let Some(d) = p.parent() {
         let _ = std::fs::create_dir_all(d);
     }
+    let me = sweeper_identity();
     use std::io::Write as _;
     let try_once = || -> std::io::Result<()> {
         let mut f = std::fs::OpenOptions::new()
             .write(true)
             .create_new(true)
             .open(&p)?;
-        writeln!(f, "{now}")
+        writeln!(f, "{me} {now}")
     };
     if try_once().is_ok() {
-        return true;
+        return Some(me);
     }
     if sweeper_lock_fresh(home, now) {
-        return false;
+        return None;
     }
     // 陈旧接管：删旧重试（竞态下两家同删，create_new 只成一家）。
     let _ = std::fs::remove_file(&p);
-    try_once().is_ok()
+    try_once().is_ok().then_some(me)
 }
 
-/// 锁心跳重写（每 tick 落一次，续鲜）。
-fn sweeper_heartbeat(home: &Path, now: u64) {
-    let _ = std::fs::write(sweeper_lock_path(home), now.to_string());
+/// 锁心跳重写（每 tick 落一次，续鲜）。rev-codex G-1 验主：只重写自持
+/// 锁；锁不在场或非我身份（已被接管）即返 false，主循环让位退（不续写
+/// 不误抹接管者锁，退出路径也不走释放）。
+fn sweeper_heartbeat(home: &Path, me: &str, now: u64) -> bool {
+    let p = sweeper_lock_path(home);
+    if !sweeper_lock_parse(home).is_some_and(|(id, _)| id == me) {
+        return false;
+    }
+    let _ = std::fs::write(&p, format!("{me} {now}"));
+    true
+}
+
+/// 锁释放（收尾统一走此口，rev-codex F-2）：只删自持锁（验主），非我
+/// 身份即他人接管中，不动。
+fn sweeper_lock_release(home: &Path, me: &str) {
+    if sweeper_lock_parse(home).is_some_and(|(id, _)| id == me) {
+        let _ = std::fs::remove_file(sweeper_lock_path(home));
+    }
 }
 
 /// sweeper 自有盖章（`.sweeper-sweep`，与事件路 `.heal-sweep` 分钟各表：
@@ -1155,20 +1196,31 @@ pub fn ensure_sweeper(home: &Path) {
 ///
 /// # Errors
 ///
-/// 扫描内部失败时返回 `String`（子进程 stderr 落幕,锁仍释放）。
+/// 扫描内部失败时返回 `String`（子进程 stderr 落幕）。rev-codex F-2：
+/// 扫描报错不走 `?` 提前返回（会跳过收尾），统一收尾释放自持锁后传播。
 pub fn sweeper_loop(home: &Path, user_home: &Path) -> Result<(), String> {
+    sweeper_loop_impl(home, user_home, SWEEPER_TICK_SECS)
+}
+
+/// 循环实现体（tick 秒数可注入，生面孔恒 [`SWEEPER_TICK_SECS`]，测试
+/// 传小值快进；G-1 验主：心跳见非我身份即被接管，让位退不删他人锁）。
+fn sweeper_loop_impl(home: &Path, user_home: &Path, tick: u64) -> Result<(), String> {
     if sweeper_off() {
         return Ok(());
     }
     let now = unix_secs();
-    if !sweeper_lock_acquire(home, now) {
+    let Some(me) = sweeper_lock_acquire(home, now) else {
         return Ok(());
-    }
+    };
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(SWEEPER_LIFE_SECS);
+    let mut sweep_err: Option<String> = None;
     loop {
-        std::thread::sleep(std::time::Duration::from_secs(SWEEPER_TICK_SECS));
+        std::thread::sleep(std::time::Duration::from_secs(tick));
         let now = unix_secs();
-        sweeper_heartbeat(home, now);
+        if !sweeper_heartbeat(home, &me, now) {
+            // 锁已被接管或不在场：让位退（他人持锁，不走释放）。
+            return Ok(());
+        }
         if !goal_dir_has_goals(home) || std::time::Instant::now() >= deadline {
             break;
         }
@@ -1177,19 +1229,29 @@ pub fn sweeper_loop(home: &Path, user_home: &Path) -> Result<(), String> {
                 let _ = std::fs::create_dir_all(d);
             }
             let _ = std::fs::write(sweeper_stamp_path(home), now.to_string());
-            let rows = run_heal(home, user_home, None, false, true)?;
-            for r in &rows {
-                if matches!(
-                    r.action.as_str(),
-                    "woke" | "skip-storm-capped" | "no-agent" | "skip-corrupt"
-                ) {
-                    heal_log_append(home, &r.slug, &r.action, &r.detail);
+            // rev-codex F-2：结果先存不 `?`，报错也要走到收尾释放锁。
+            let res = run_heal(home, user_home, None, false, true);
+            if let Ok(rows) = &res {
+                for r in rows {
+                    if matches!(
+                        r.action.as_str(),
+                        "woke" | "skip-storm-capped" | "no-agent" | "skip-corrupt"
+                    ) {
+                        heal_log_append(home, &r.slug, &r.action, &r.detail);
+                    }
                 }
+            }
+            if let Err(e) = res {
+                sweep_err = Some(e);
+                break;
             }
         }
     }
-    let _ = std::fs::remove_file(sweeper_lock_path(home));
-    Ok(())
+    sweeper_lock_release(home, &me);
+    match sweep_err {
+        Some(e) => Err(e),
+        None => Ok(()),
+    }
 }
 
 /// blocked 带内快道（REQ-047 两维态的实时腿）：goal 腿挂上 Notification 与
@@ -1711,22 +1773,67 @@ mod tests {
     fn sweeper_lock_acquire_fresh_and_stale_takeover() {
         let home = fresh_home("lk");
         let now = 10_000u64;
-        assert!(sweeper_lock_acquire(&home, now), "无锁首抢成功");
-        assert!(!sweeper_lock_acquire(&home, now), "鲜活锁第二家让位");
+        assert!(sweeper_lock_acquire(&home, now).is_some(), "无锁首抢成功");
+        assert!(
+            sweeper_lock_acquire(&home, now).is_none(),
+            "鲜活锁第二家让位"
+        );
         assert!(sweeper_lock_fresh(&home, now));
         // 心跳陈旧：接管成功。
         let stale = now + SWEEPER_STALE_SECS + 10;
         assert!(!sweeper_lock_fresh(&home, stale));
-        assert!(sweeper_lock_acquire(&home, stale), "陈旧锁接管");
+        assert!(sweeper_lock_acquire(&home, stale).is_some(), "陈旧锁接管");
         assert!(sweeper_lock_fresh(&home, stale));
-        // 坏形锁（非数字）：判陈旧可接管。
+        // 坏形锁（非三段身份形）：判陈旧可接管。
         std::fs::write(sweeper_lock_path(&home), "junk").unwrap();
         assert!(!sweeper_lock_fresh(&home, stale));
-        assert!(sweeper_lock_acquire(&home, stale));
+        assert!(sweeper_lock_acquire(&home, stale).is_some());
         // 空目录判无 goal：sweeper 不续命。
         assert!(!goal_dir_has_goals(&home));
         set_goal(&home, Path::new("/w/p"), "t").unwrap();
         assert!(goal_dir_has_goals(&home));
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn sweeper_lock_heartbeat_and_release_verify_owner() {
+        let home = fresh_home("lk2");
+        let now = 10_000u64;
+        let me = sweeper_lock_acquire(&home, now).unwrap();
+        // 他家身份：心跳不写（ts 不动）加释放不删（rev-codex G-1 验主）。
+        let other = "99999 deadbeefdeadbeef";
+        assert!(!sweeper_heartbeat(&home, other, now + 10));
+        assert_eq!(
+            sweeper_lock_parse(&home).map(|(_, ts)| ts),
+            Some(now),
+            "他家心跳不得改写锁"
+        );
+        sweeper_lock_release(&home, other);
+        assert!(sweeper_lock_path(&home).exists(), "他家释放不得删锁");
+        // 自家身份：心跳续鲜加释放删锁。
+        assert!(sweeper_heartbeat(&home, &me, now + 60));
+        assert_eq!(sweeper_lock_parse(&home).map(|(_, ts)| ts), Some(now + 60));
+        sweeper_lock_release(&home, &me);
+        assert!(!sweeper_lock_path(&home).exists(), "自家释放删锁");
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn sweeper_loop_releases_lock_on_heal_error() {
+        let home = fresh_home("lk3");
+        set_goal(&home, Path::new("/w/p"), "t").unwrap();
+        let _g = crate::pathutil::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        // PATH 清空 → herdr spawn 即败 → run_heal 首步报错；锁仍须释放
+        //（rev-codex F-2：不走 ? 提前返回，收尾统一释放）。
+        let saved = std::env::var("PATH").unwrap_or_default();
+        std::env::set_var("PATH", "");
+        let res = sweeper_loop_impl(&home, Path::new("/nonexistent-user"), 0);
+        std::env::set_var("PATH", &saved);
+        let err = res.unwrap_err();
+        assert!(err.contains("herdr"), "{err}");
+        assert!(!sweeper_lock_path(&home).exists(), "报错路径收尾仍释放锁");
         let _ = std::fs::remove_dir_all(&home);
     }
 

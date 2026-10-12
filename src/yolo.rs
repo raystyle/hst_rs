@@ -173,14 +173,12 @@ pub fn apply_user_yolo_with(user_home: &Path) -> Result<ApplyReport, String> {
     apply_user_yolo_level_with(user_home, YoloLevel::Full)
 }
 
-/// # Panics
-///
-/// 正常路径不 panic；内部 unwrap 仅出现在构造不变量上。
-/// 用户级 yolo 活性读侧判（REQ-047 goal 治面前置）：按 agent 名判各自
-/// 配置键是否等于 full 级值（claude `permissions.defaultMode` 加 codex
-/// `approval_policy` 加 kimi `default_permission_mode` 加 grok
-/// `[ui] permission_mode`）。读侧零改动；文件缺失或键不在场判 false
-///（非 yolo，可治）；未知 agent 名保守判 true（不治）。
+/// 用户级 yolo 活性读侧判（REQ-047 goal 治面前置；rev-codex F-1 契约
+/// 段归位重写）：按 agent 名判各自配置键是否等于 full 级值（claude
+/// `permissions.defaultMode` 加 codex `approval_policy` 加 kimi
+/// `default_permission_mode` 加 grok `[ui] permission_mode`）。读侧契约
+/// 三零：零改动、零报错、零 panic（读失败一律并入判 false）；文件缺失
+/// 或键不在场判 false（非 yolo，可治）；未知 agent 名保守判 true（不治）。
 pub fn user_yolo_active_with(user_home: &Path, agent: &str) -> bool {
     let keys = level_keys(YoloLevel::Full);
     match agent {
@@ -218,10 +216,15 @@ pub fn user_yolo_active_with(user_home: &Path, agent: &str) -> bool {
     }
 }
 
+/// 用户级分级落键（full / partial；off 调 retire_user_yolo_with）。
+///
 /// # Errors
 ///
 /// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
-/// 用户级分级落键（full / partial；off 调 retire_user_yolo_with）。
+///
+/// # Panics
+///
+/// 正常路径不 panic；内部 unwrap 仅出现在构造不变量上。
 pub fn apply_user_yolo_level_with(
     user_home: &Path,
     level: YoloLevel,

@@ -31,7 +31,8 @@ REQ-047（2026-10-12 架构批）：自驱机制升两维态。检测三路（St
 blocked 不再静默豁免，alarm 报警留痕（`.heal-log` 加 show 面），预授权
 （`hst goal yolo-heal on`）下反复 blocked 触发 yolo 治（落键加重启格加
 续 goal）；间隔自驱 = hook 起 sweeper 有界子进程（60 秒 tick、2 小时
-寿命、`.sweeper-lock` 单实例、90 秒陈旧接管），`HST_GOAL_SWEEPER=off`
+寿命、`.sweeper-lock` 单实例锁 pid 加 token 身份验主、tick 加最坏
+heavy 两倍陈旧接管），`HST_GOAL_SWEEPER=off`
 逃生闸。wake 文本 v2 自包含五件（goal 文本加上轮收束态加即刻推进加
 防卡死防空转边界加用法）。
 

@@ -3,7 +3,7 @@ id: REQ-047
 title: goal自驱机制两维态与间隔自驱
 status: implemented
 priority: must
-trace: goal 单测新增五件(bump_blocked_streak 加 wake v2 当量加 arm 开关加锁三态加快道防抖)加 yolo 单测一件(四家读侧)加集成三件(blocked 分型报警加快道 stdout 零输出加 yolo 治假 herdr 全链);活弹双证(blocked 信任屏报警留痕 + idle sweeper 唤醒注入到 agent 自行 clear 闭环,实录在 diary 2026-10-12)
+trace: goal 单测新增五件(bump_blocked_streak 加 wake v2 当量加 arm 开关加锁三态加快道防抖)加 yolo 单测一件(四家读侧)加集成三件(blocked 分型报警加快道 stdout 零输出加 yolo 治假 herdr 全链);活弹双证(blocked 信任屏报警留痕 + idle sweeper 唤醒注入到 agent 自行 clear 闭环,实录在 diary 2026-10-12);rev-codex 回执修复批 2026-10-12(F-1 yolo 契约段归位 + F-2 sweeper 报错路径收尾统一释放锁 + G-1 锁 pid 加 token 验主与陈旧阈抬位 240 秒 + G-2 治轮询报错不算回 shell,新增单测两件:锁验主 + 报错仍释放锁)
 ---
 
 # REQ-047:goal自驱机制两维态与间隔自驱
@@ -51,7 +51,7 @@ blocked 报警不注入提示词(格位卡在选择屏,prompt 会被 herdr 拒 [
 |---|---|
 | Stop 提醒 | stop_hook_active 防环加平台 8 连续续跑帽(既有) |
 | 事件 sweep | 5 分钟盖章 .heal-sweep(既有) |
-| sweeper | 锁文件 .sweeper-lock(create_new 原子建,pid 加 ts,每 tick 心跳重写,90 秒陈旧接管;有界 2 小时生命周期,goal 目录空提前退) |
+| sweeper | 锁文件 .sweeper-lock(create_new 原子建,内容 pid 加随机 token 加心跳 ts 三段;心跳重写加释放加接管均验主,非自家身份不动(rev-codex G-1);陈旧阈 = tick 加最坏 heavy 两倍(240 秒);有界 2 小时生命周期,goal 目录空提前退;扫描报错收尾统一释放锁(rev-codex F-2)) |
 | wake | 每 goal 15 分钟静默窗加风暴闸 3 次(既有) |
 | alarm | blocked_alarm_at 15 分钟防抖窗 |
 | yolo-heal | arm 预授权加 blocked_streak 至少 2 加工位非 yolo(读侧判)加 6 小时冷却;非 yolo 前置即天然幂等(治后工位已 yolo,不再触发) |
@@ -79,7 +79,7 @@ blocked 先于频控与风暴闸(急症优先,自有 alarm 防抖);快道报警�
 armed 时触发,参考 actl 面 herdr yolo 原语:
 
 1. 落键:`yolo::apply_user_yolo_level_with(Full)`,即 `hst init --yolo full` 的落键半体(四家用户级键,不做全量 redeploy)。
-2. 重启格:blocked 格 prompt 被拒,走原始键序 `herdr agent send-keys <pane> esc` 加 `/exit` 加 `enter`,有界轮询 `herdr agent get` 至格回 shell(至多 15 秒)。
+2. 重启格:blocked 格 prompt 被拒,走原始键序 `herdr agent send-keys <pane> esc` 加 `/exit` 加 `enter`,有界轮询 `herdr agent get` 至格回 shell(至多 15 秒;herdr 报错不算回 shell,故障续轮询到超时,rev-codex G-2)。
 3. fresh 起:`herdr agent start <name> --kind <agent> --pane <pane>`(name 缺省按 slug 造 goal-heal 前缀名)。
 4. 续 goal:fresh 格 prompt 注入 wake v2 文本。
 5. 留痕:.heal-log action=yolo-heal(失败 yolo-heal-fail,同记冷却防锤)。
