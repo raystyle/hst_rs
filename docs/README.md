@@ -21,7 +21,7 @@
 ## 骨架合规自检
 
 ```bash
-PEVO_CHECK_ALLOW='^docs/aidoc/;^docs/diary/2026-08-31-;^docs/diary/2026-09-01-;^docs/diary/2026-09-02-;^docs/diary/2026-09-03-;^docs/diary/2026-10-02-;^docs/diary/2026-10-11-' uv run /home/ray/repos/project-evo/.tools/check.py .
+PEVO_CHECK_ALLOW='^docs/aidoc/;^docs/diary/2026-08-31-;^docs/diary/2026-09-01-;^docs/diary/2026-09-02-;^docs/diary/2026-09-03-;^docs/diary/2026-10-02-;^docs/diary/2026-10-11-' uv run /home/ray/repos/project-evo/.tools/check.py .   # check.py 装位随本机实查（wsl 旧克隆在 plugins/evo-adr/skills/code-kit/scripts/）
 ```
 
 豁免语义：aidoc 是生成物渲染格式；diary 六篇为存量禁字债（过程档不改写，PE-11 历史豁免通道；2026-10-02 与 2026-10-11 两篇随 goalhard-01 批登记，本机 project-evo 装位同步改 lan-ubuntu 路径）。

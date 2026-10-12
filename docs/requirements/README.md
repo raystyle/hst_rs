@@ -50,4 +50,4 @@
 | REQ-045 | implemented | must | goal自治与loop面退役 | goal 单测五件加 doctor 三件加 statusrender 一件加 cli 三件加 shim 十二件改件；实弹本机 init 部署 Stop 双挂与 goal/hook goal 回环（用户令 2026-10-11 三段合成单） |
 | REQ-046 | implemented | must | goal唤醒链自愈与hook用法注入 | goal 单测十一件加 statusrender 扩断言加 cli heal 一件（假 herdr e2e）；实弹真 herdr 三面加 sweep 内嵌零副作用（goal-01 单加澄清令三条，pi-rs 现场根因在册） |
 | REQ-047 | implemented | must | goal自驱机制两维态与间隔自驱 | goal 单测新增五件加 yolo 单测一件加集成三件；活弹双证；rev-codex 回执修复批四条（索引行回填 goalhard-01 批，前批漏登在案） |
-| REQ-048 | implemented | must | goal原语地基批稳定性加固 | goal 单测新增十件加改件三件加集成新增四件（并发锤加崩溃注入 kill-9 实弹加风暴耐久序加机读面）；单测 226 升 236 集成 53 升 57 绿 |
+| REQ-048 | implemented | must | goal原语地基批稳定性加固 | goal 单测新增十件加改件两件加集成新增四件（并发锤加崩溃注入 kill-9 实弹加风暴耐久序加机读面）；单测 226 升 236 集成 53 升 57 绿；rev-codex 首轮 F 三条 G 五条采纳改形（追记在单） |

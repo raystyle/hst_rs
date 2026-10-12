@@ -1772,6 +1772,32 @@ fn cmd_goal_show(project: Option<PathBuf>) -> Result<(), String> {
     }
 }
 
+/// show 面 data 组装（json 信封与 jsonl 裸实体同源；rev-codex G-4：repaired
+/// 恒在键，无修复为 null）。
+fn goal_show_data(
+    root: &std::path::Path,
+    path: &std::path::Path,
+    found: &Option<hst::goal::GoalRecord>,
+    repaired: &Option<hst::goal::RepairNote>,
+    armed: bool,
+) -> Result<serde_json::Value, String> {
+    Ok(serde_json::json!({
+        "present": found.is_some(),
+        "project": root.display().to_string(),
+        "slug": path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default(),
+        "file": path.display().to_string(),
+        "goal": match found {
+            Some(g) => Some(serde_json::to_value(g).map_err(|e| e.to_string())?),
+            None => None,
+        },
+        "yolo_heal_armed": armed,
+        "repaired": match repaired {
+            Some(n) => serde_json::json!({ "action": n.action, "quarantined": n.quarantined }),
+            None => serde_json::Value::Null,
+        },
+    }))
+}
+
 /// goalhard-01 全机在册清单面：goal 插件 list --all 逐机消费的聚合原语。
 /// kv 逐档 marker 行；json 信封（data.count 加 goals 数组）；jsonl 逐档
 /// 对象（列表形，无信封）。坏档修复后出 repaired 注记，不卡清单。
@@ -1787,7 +1813,10 @@ fn cmd_goal_list() -> Result<(), String> {
                 Some(g) => Some(serde_json::to_value(g).map_err(|e| e.to_string())?),
                 None => None,
             },
-            "repaired": r.repaired,
+            "repaired": match &r.repaired {
+                Some(n) => serde_json::json!({ "action": n.action, "quarantined": n.quarantined }),
+                None => serde_json::Value::Null,
+            },
         }))
     };
     match hst::fmtio::mode() {
@@ -1797,7 +1826,9 @@ fn cmd_goal_list() -> Result<(), String> {
                 .map(&row_json)
                 .collect::<Result<Vec<_>, String>>()?;
             let data = serde_json::json!({ "count": goals.len(), "goals": goals });
-            print_json("goal-list", Path::new("."), Ok(data))
+            // meta.project 传 goal 存储目录（rev-codex G-4：机器面读到有语义，
+            // 不传无义字面 "."）。
+            print_json("goal-list", &hst::goal::goal_dir(&home), Ok(data))
         }
         hst::fmtio::Format::Jsonl => {
             for r in &rows {
@@ -1816,7 +1847,10 @@ fn cmd_goal_list() -> Result<(), String> {
                     None => println!("goal.list slug={} present=false", r.slug),
                 }
                 if let Some(note) = &r.repaired {
-                    println!("goal.list slug={} repaired={}", r.slug, note);
+                    println!(
+                        "goal.list slug={} repaired={} quarantined={}",
+                        r.slug, note.action, note.quarantined
+                    );
                 }
             }
             if rows.is_empty() {

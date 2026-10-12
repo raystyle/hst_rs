@@ -39,9 +39,9 @@
 //! 管理动作留痕，host 加 user 加 pid 归属）；坏档自愈 = 隔离留证加
 //! bak 晋升或判缺省（doctor 体检面保持只读纯读）；风暴耐久序 = 唤醒
 //! 节流先落盘后发 prompt、yolo 治冷却先落盘后跑治序列（写盘故障不再
-//! 引发每趟重试风暴）、sweeper 每趟至多一个治动作；增量路写前验
-//! set_at 乐观守卫（并发 set 不被增量旧档吞）；机读面 `goal show`
-//! json 信封加 `goal list` 全机清单（插件 list --all 聚合消费）。
+//! 引发每趟重试风暴）、sweeper 每趟至多一个治动作；增量路写前整档
+//! 快照乐观守卫（并发 set 不被增量旧档吞，同秒只换文本亦判变）；机读面
+//! `goal show` json 信封加 `goal list` 全机清单（插件 list --all 聚合消费）。
 
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -351,8 +351,9 @@ pub struct GoalListRow {
     pub file: PathBuf,
     /// goal 记录（None = 修复后判缺省或本无档）。
     pub rec: Option<GoalRecord>,
-    /// 修复注记（本趟触发过坏档修复时在）。
-    pub repaired: Option<String>,
+    /// 修复注记（本趟触发过坏档修复时在；对象形与 show 面同构，rev-codex
+    /// G-4：action 加 quarantined 取证指针不丢）。
+    pub repaired: Option<RepairNote>,
 }
 
 /// 列本机全部在册 goal（goalhard-01）：按统一收集器 goal_files 字典
@@ -378,7 +379,7 @@ pub fn list_goals(home: &Path) -> Result<Vec<GoalListRow>, String> {
                 slug,
                 file: path,
                 rec,
-                repaired: note.map(|n| n.action),
+                repaired: note,
             }),
             Err(e) => {
                 return Err(format!("{}: {e}", path.display()));
@@ -389,7 +390,9 @@ pub fn list_goals(home: &Path) -> Result<Vec<GoalListRow>, String> {
 }
 
 /// 清空本项目 goal（删文件；返回是否真删，无 goal 零改动合法）。`.bak`
-/// 上次好档保留（误清恢复源）。真删落审计道。
+/// 同删（rev-codex G-3：clear 后再 set 不刷 bak，留着旧 bak 只会在新档
+/// 坏损时复活已清目标；误清恢复由审计道 clear 行 text= 快照承载）。并发
+/// clear 竞态（读档后文件被别家收走）按已清收。真删落审计道。
 ///
 /// # Errors
 ///
@@ -401,10 +404,18 @@ pub fn clear_goal(home: &Path, root: &Path) -> Result<bool, GoalError> {
     }
     let key = slug(&root.display().to_string());
     let prior = read_record(&path).ok().flatten();
-    std::fs::remove_file(&path).map_err(|e| GoalError::Io {
-        path: path.display().to_string(),
-        cause: e.to_string(),
-    })?;
+    match std::fs::remove_file(&path) {
+        Ok(()) => {}
+        // 读档后已被并发 clear 收走：按已清收（两机同清不假错）。
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(e) => {
+            return Err(GoalError::Io {
+                path: path.display().to_string(),
+                cause: e.to_string(),
+            })
+        }
+    }
+    let _ = std::fs::remove_file(bak_path(&path));
     goal_audit_append(
         home,
         &key,
@@ -1118,7 +1129,9 @@ fn yolo_heal_sequence(
 ///（streak 递增加 `.heal-log` alarm-blocked 行），预授权（arm 标记）且
 /// streak 到阈值且工位非 yolo 且过冷却时走 yolo 治序列——冷却先落盘再跑
 /// 治序列（goalhard-01：治序列失败也持有冷却，防每趟 sweep 重启格风暴；
-/// 写盘失败即不治）。`heavy` 为真才可治（hook 事件路径传 false 只报警
+/// 写盘失败即不治）。wake-fail（prompt 发出失败）同吃 heal_streak 预算
+///（rev-codex G-7 裁定保持：传输层连坏即驱动链坏死，连续 3 次转人工等
+/// 人裁，恢复面 = agent 真活动（rounds 增长））。`heavy` 为真才可治（hook 事件路径传 false 只报警
 /// 让位 sweeper 或手动面执行）；`heavy_cap` 限单趟治动作数（sweeper 路传
 /// `Some(1)`：单趟 heavy 有界，多 goal 同 blocked 不叠破锁陈旧阈；手动
 /// 面传 `None` 不帽）。并发 set 撞增量写即 `skip-raced` 让位（乐观守卫）；
@@ -1267,7 +1280,12 @@ pub fn run_heal(
                     heal_log_append(home, &stem, "alarm-blocked", &detail);
                 }
                 if eligible && !cap_open {
-                    // 单趟治名额已用（dry 与实跑同判）：让位下趟 tick。
+                    // 单趟治名额已用（dry 与实跑同判）：让位下趟 tick。streak
+                    // 与报警态先落盘（rev-codex G-2：不让位丢持久化，防抖与
+                    // 计数窗口连续），dry 零副作用不写。
+                    if !dry_run {
+                        let _ = write_record_guarded(&path, &expected, &rec);
+                    }
                     out.push(HealReport {
                         slug: stem,
                         action: "heavy-deferred".into(),
@@ -1828,9 +1846,14 @@ mod tests {
         let r2 = set_goal(&home, root, "换目标").unwrap();
         assert_eq!(r2.rounds, 0);
         assert_eq!(show_goal(&home, root).unwrap().unwrap().text, "换目标");
-        // clear：删文件、再 clear 零改动合法。
+        // clear：删文件、再 clear 零改动合法；.bak 同删（rev-codex G-3：旧
+        // bak 复活已清目标是真风险）。
         assert!(clear_goal(&home, root).unwrap());
         assert!(show_goal(&home, root).unwrap().is_none());
+        assert!(
+            !bak_path(&goal_path(&home, root)).exists(),
+            "clear 同删 bak"
+        );
         assert!(!clear_goal(&home, root).unwrap());
         // 空文本短码承接。
         assert_eq!(
@@ -2611,6 +2634,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&home);
     }
 
+    #[cfg(unix)]
     #[test]
     fn wake_throttle_durable_before_prompt() {
         // goalhard-01 风暴闸族:prompt 失败时节流先落盘(旧形 prompt 先发
@@ -2679,6 +2703,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&user);
     }
 
+    #[cfg(unix)]
     #[test]
     fn yolo_heal_cooldown_durable_before_sequence() {
         // goalhard-01 风暴闸族:治序列失败时冷却已先落盘(旧形治后落,写
@@ -2756,6 +2781,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&user);
     }
 
+    #[cfg(unix)]
     #[test]
     fn sweeper_heavy_cap_one_action_per_pass() {
         // goalhard-01 风暴闸族:两档同 Eligibility,sweeper 形(cap=Some(1))
@@ -2926,7 +2952,14 @@ mod tests {
         std::fs::write(&pa, "bad").unwrap();
         let rows2 = list_goals(&home).unwrap();
         let row_a = rows2.iter().find(|r| r.slug == "-w-a").unwrap();
-        assert_eq!(row_a.repaired.as_deref(), Some("promote"));
+        assert!(
+            row_a
+                .repaired
+                .as_ref()
+                .is_some_and(|n| n.action == "promote" && !n.quarantined.is_empty()),
+            "修复注记对象形: {:?}",
+            row_a.repaired
+        );
         assert!(row_a.rec.is_some(), "晋升后照常在册");
         let _ = std::fs::remove_dir_all(&home);
     }

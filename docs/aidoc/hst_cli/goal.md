@@ -43,9 +43,9 @@ goalhard-01（2026-10-12 goal 原语地基批）：舰队互视互改地基加�
 管理动作留痕，host 加 user 加 pid 归属）；坏档自愈 = 隔离留证加
 bak 晋升或判缺省（doctor 体检面保持只读纯读）；风暴耐久序 = 唤醒
 节流先落盘后发 prompt、yolo 治冷却先落盘后跑治序列（写盘故障不再
-引发每趟重试风暴）、sweeper 每趟至多一个治动作；增量路写前验
-set_at 乐观守卫（并发 set 不被增量旧档吞）；机读面 `goal show`
-json 信封加 `goal list` 全机清单（插件 list --all 聚合消费）。
+引发每趟重试风暴）、sweeper 每趟至多一个治动作；增量路写前整档
+快照乐观守卫（并发 set 不被增量旧档吞，同秒只换文本亦判变）；机读面
+`goal show` json 信封加 `goal list` 全机清单（插件 list --all 聚合消费）。
 
 ## Functions
 

@@ -3,7 +3,7 @@ id: REQ-048
 title: goal原语地基批稳定性加固
 status: implemented
 priority: must
-trace: goal 单测新增十件(goal_files_filter_and_stale_tmp_swept 加 heal_and_goal_audit_logs_rotate_at_cap 加 list_goals_reports_rows_with_repair_notes 加 race_guard_full_record_cas_same_second_set_detected 加 write_verify_bak_promote_and_drop_repair_paths 加 stop_hook_and_fastpath_repair_corrupt_store 加 concurrent_writers_lww_never_corrupt_never_spurious_error 加 wake_throttle_durable_before_prompt 加 yolo_heal_cooldown_durable_before_sequence 加 sweeper_heavy_cap_one_action_per_pass)加改件三件(corrupt_store_is_loud_not_silent 随读面自愈契约改形加 blocked_fastpath_alarms_and_debounces 随耐久序改形加 run_heal_end_to_end 随签名改形)加集成新增四件(goal_show_json_envelope_and_filter_output 加 goal_list_kv_json_jsonl_and_repair_rows 加 goal_crash_injection_kill9_store_stays_consistent 加 goal_concurrent_process_sets_both_succeed_lww);单测 226 升 236 集成 53 升 57 绿
+trace: goal 单测新增十件(goal_files_filter_and_stale_tmp_swept 加 heal_and_goal_audit_logs_rotate_at_cap 加 list_goals_reports_rows_with_repair_notes 加 race_guard_full_record_cas_same_second_set_detected 加 write_verify_bak_promote_and_drop_repair_paths 加 stop_hook_and_fastpath_repair_corrupt_store 加 concurrent_writers_lww_never_corrupt_never_spurious_error 加 wake_throttle_durable_before_prompt 加 yolo_heal_cooldown_durable_before_sequence 加 sweeper_heavy_cap_one_action_per_pass)加改件两件(corrupt_store_is_loud_not_silent 随读面自愈契约改形加 run_heal_end_to_end_with_fake_herdr 随 run_heal 签名改形;blocked_fastpath_alarms_and_debounces 未改,rev-codex F-3 勘误)加集成新增四件(goal_show_json_envelope_and_filter_output 加 goal_list_kv_json_jsonl_and_repair_rows 加 goal_crash_injection_kill9_store_stays_consistent 加 goal_concurrent_process_sets_both_succeed_lww);单测 226 升 236 集成 53 升 57 绿
 ---
 
 # REQ-048:goal原语地基批稳定性加固
@@ -62,5 +62,7 @@ trace: goal 单测新增十件(goal_files_filter_and_stale_tmp_swept 加 heal_an
 
 ## 追记
 
-- 判断项 J1(新增 goal list 子命令):任务字面只要 show --json,但「查看所有 agent 的 goal」需要机器级清单面,否则插件 list --all 须自带项目发现;评审轮核。
+- 判断项 J1(新增 goal list 子命令):任务字面只要 show --json,但「查看所有 agent 的 goal」需要机器级清单面,否则插件 list --all 须自带项目发现;rev-codex 评审轮 CONFIRM。
+- rev-codex 首轮回执(2026-10-12,A 至 G 主项全 CONFIRM):F-1 三件新单测补 cfg(unix) 门(Windows 宿主编译红,CI 不红低危)、F-2 AGENTS.md check.py 装位第二真相同步、F-3 trace 改件数勘误(blocked_fastpath 测试未改,实改件两件);G 级采纳:G-1 模块档措辞改整档快照守卫、G-2 heavy-deferred 让位补 best-effort 守卫写(dry 零副作用保持)、G-3 clear 同删 .bak(旧 bak 复活已清目标是真风险,误清恢复由审计道 clear 行 text 快照承载)、G-4 机读面四处形对齐(show jsonl 裸实体随家族先例、repaired 恒在键对象形、list meta.project 传 goal 存储目录)、G-5 崩溃件补文件级断言(零隔离件加主档裸字节可解析)。
+- rev-codex 裁定保持项:G-6 手动 heal 不加 --force(治序列是重锤,人工强推可等窗或手改档,后续需求单另立);G-7 wake-fail 吃 heal_streak 预算(驱动链坏死即转人工,恢复面 = rounds 增长,语义入 run_heal 契约注);clear 并发收走按已清收(两机同清不假错);修复面 stop_hook/fastpath 读路上的窄窗风险(隔离 rename 搬走他方刚写好的新档)判可接受(自愈优先于窄窗停滞,隔离档留证可查)。
 - 测试面三坑实录:std::env 全局可变面在并行测试串扰(fake herdr 路径烤进脚本免 env 依赖;PATH 存取用原值快照,replace 回写会清空 PATH 致下一测试的 cat 找不到);writeln! 两笔写在 O_APPEND 下行交错(单 write_all);panic 持锁毒化连带他测(PoisonError 连锁)。

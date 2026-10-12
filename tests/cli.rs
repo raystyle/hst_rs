@@ -2911,7 +2911,7 @@ fn goal_crash_injection_kill9_store_stays_consistent() {
         std::thread::sleep(std::time::Duration::from_millis(i % 12));
         let _ = child.kill();
         child.wait().unwrap();
-        // 不变量:show 退 0 且 present 合法(绝不 corrupt 崩)。
+        // 不变量一:show 退 0 且 present 合法(绝不 corrupt 崩)。
         let out = std::process::Command::new(exe)
             .env("HST_ROOT", &tmp)
             .args(["goal", "show", "--project"])
@@ -2924,6 +2924,36 @@ fn goal_crash_injection_kill9_store_stays_consistent() {
             s.contains("goal.present=true") || s.contains("goal.present=false"),
             "present 合法态: {s}"
         );
+        // 不变量二(rev-codex G-5,文件级直锁原子写):零坏档隔离件(修复面
+        // 从未触发 = rename 原子性成立),主档在场时裸字节可解析。早期杀
+        // 点可落在 goal 目录创建前,目录缺失按空收。
+        let gdir = tmp.join("state").join("goal");
+        let entry_paths: Vec<_> = std::fs::read_dir(&gdir)
+            .map(|rd| rd.flatten().map(|e| e.path()).collect())
+            .unwrap_or_default();
+        let corrupts: Vec<_> = entry_paths
+            .iter()
+            .filter(|f| {
+                f.file_name()
+                    .is_some_and(|n| n.to_string_lossy().contains(".corrupt-"))
+            })
+            .cloned()
+            .collect();
+        assert!(
+            corrupts.is_empty(),
+            "kill 不得留坏档(隔离件零): {corrupts:?}"
+        );
+        let main = entry_paths.into_iter().find(|f| {
+            f.extension().is_some_and(|x| x == "json")
+                && f.file_stem()
+                    .is_some_and(|n| !n.to_string_lossy().starts_with('.'))
+        });
+        if let Some(main) = main {
+            let raw = std::fs::read_to_string(&main).unwrap();
+            let v: serde_json::Value = serde_json::from_str(&raw)
+                .unwrap_or_else(|e| panic!("主档裸字节须可解析 {}: {e}", main.display()));
+            assert!(v["text"].as_str().is_some_and(|t| !t.is_empty()), "{raw}");
+        }
     }
     // 终态:一发完整 set 成功(残件 tmp 不阻塞写路),show 可见。
     hst()

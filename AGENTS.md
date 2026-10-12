@@ -9,7 +9,7 @@
 - `cargo aidoc` 后提交 `docs/aidoc/`（改 pub 项或 /// 后先重生成再提交；`cargo aidoc --check --strict` 漂移门禁）
 - `uv run --script .tools/md-ref-scan.py` 加 `.tools/md-heading-scan.py` 加 `.tools/mdcharlint.py` 加 `rumdl check .` md 四门禁
 - `cargo build --release --locked --target x86_64-pc-windows-gnu --bins` Windows 交叉构建
-- `PEVO_CHECK_ALLOW` 加 `uv run /mnt/wsl/repos/project-evo/plugins/evo-adr/skills/code-kit/scripts/check.py .` 骨架合规自检（标准命令见 docs/README 末节）
+- `PEVO_CHECK_ALLOW` 加 `uv run <check.py 绝对路径> .` 骨架合规自检（标准命令见 docs/README 末节；check.py 与 project-evo 装位随本机实查：lan-ubuntu 为 /home/ray/repos/project-evo/.tools/check.py，wsl 旧克隆为 /mnt/wsl/repos/project-evo/plugins/evo-adr/skills/code-kit/scripts/check.py）
 - `./target/debug/hst doctor` 本机体检；`./target/debug/hst init` dogfood 部署
 - `bash .tools/cross-test.sh` 全平台实弹矩阵（5端4机，细则见 guides/环境事实）
 - `pwsh -NoProfile -File .tools/release.ps1 [-DryRun]` 本地发布链（ADR-0007 三段式：版本闸加测试闸加本地交叉与 mac 实机构建加打包冒烟加 gh 直发 --latest）
