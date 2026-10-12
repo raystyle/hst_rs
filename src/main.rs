@@ -1706,8 +1706,8 @@ fn cmd_goal_set(text: &str, project: Option<PathBuf>) -> Result<(), String> {
 }
 
 /// REQ-047 两维态 show 面：blocked 维与 yolo 治新字段同源出。goalhard-01：
-/// json/jsonl 出 fmtio 信封（机读聚合面，jsonl 单实体视同信封），坏档经
-/// 修复面出 `repaired` 注记行。
+/// json 出 fmtio 信封、jsonl 出裸实体（rev-codex G-4，家族先例同形），机读
+/// 聚合面；坏档经修复面出 `repaired` 注记行。
 fn cmd_goal_show(project: Option<PathBuf>) -> Result<(), String> {
     let root = project_root(project)?;
     let home = hst::install::hst_home()?;
@@ -1716,23 +1716,16 @@ fn cmd_goal_show(project: Option<PathBuf>) -> Result<(), String> {
     let (found, repaired) = goal::read_record_repairing(&home, &path)
         .map_err(|e| format!("goal error={}: {e}", e.code()))?;
     match hst::fmtio::mode() {
-        hst::fmtio::Format::Json | hst::fmtio::Format::Jsonl => {
-            let mut data = serde_json::json!({
-                "present": found.is_some(),
-                "project": root.display().to_string(),
-                "slug": path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default(),
-                "file": path.display().to_string(),
-                "goal": match found.as_ref() {
-                    Some(g) => Some(serde_json::to_value(g).map_err(|e| e.to_string())?),
-                    None => None,
-                },
-                "yolo_heal_armed": armed,
-            });
-            if let Some(n) = &repaired {
-                data["repaired"] =
-                    serde_json::json!({ "action": n.action, "quarantined": n.quarantined });
-            }
+        hst::fmtio::Format::Json => {
+            let data = goal_show_data(&root, &path, &found, &repaired, armed)?;
             print_json("goal-show", &root, Ok(data))
+        }
+        // jsonl 裸实体逐行（rev-codex G-4：家族先例 issue show 与 artifact
+        // attest 均裸实体，插件按家族形消费；repaired 恒在键，无修复为 null）。
+        hst::fmtio::Format::Jsonl => {
+            let data = goal_show_data(&root, &path, &found, &repaired, armed)?;
+            println!("{data}");
+            Ok(())
         }
         hst::fmtio::Format::Kv => {
             match &found {

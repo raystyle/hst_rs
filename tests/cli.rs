@@ -1551,6 +1551,7 @@ fn goal_hook_blocked_fastpath_alarms_without_output() {
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
+#[cfg(unix)]
 #[test]
 fn goal_yolo_heal_arm_and_sequence_via_fake_herdr() {
     // REQ-047 yolo 治全链（假 herdr）：arm 开关 CLI、反复 blocked（streak
@@ -2736,6 +2737,24 @@ fn goal_show_json_envelope_and_filter_output() {
     assert!(v["data"]["file"]
         .as_str()
         .is_some_and(|s| s.ends_with(".json")));
+    // repaired 恒在键(rev-codex G-4:健康档 null 形,非缺键)。
+    assert_eq!(v["data"]["repaired"], serde_json::Value::Null);
+    // jsonl 裸实体(rev-codex G-4:家族先例同形,无信封层)。
+    let out = hst()
+        .env("HST_ROOT", &tmp)
+        .args(["--format", "jsonl", "goal", "show", "--project"])
+        .arg(&root)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&out)).unwrap();
+    assert!(v.get("ok").is_none(), "jsonl 无信封层: {v}");
+    assert!(v.get("meta").is_none(), "jsonl 无信封层: {v}");
+    assert_eq!(v["present"], serde_json::json!(true));
+    assert_eq!(v["goal"]["text"], serde_json::json!("舰队升级协调"));
+    assert_eq!(v["repaired"], serde_json::Value::Null);
     // present=false 稳态(无 goal 合法)。
     let out = hst()
         .env("HST_ROOT", &tmp)

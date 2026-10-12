@@ -335,6 +335,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn thin_sh_passes_stdin_and_exit_semantics() {
         // REQ-032 行为面：thin sh 透传 stdin 与退出码（hst 本体 exit 0 与
         // 2 直通；非 2 的故障码也直传——agent 侧按非阻塞错误处理）。
