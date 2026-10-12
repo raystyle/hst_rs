@@ -33,8 +33,7 @@ trace: task 单测新增两件(legacy_goal_dir_migrates_to_task_dir_on_access �
 
 ## 追记
 
-- hst-rev r1 回执(2026-10-13):F-1 一条四点同根(is_ours 加 doctor 名族加 Stop 判据加 sentinel 的旧腿兼认位被全局替换误重名,Windows 包裹形旧 hst-goal 注册升级后残留成死调)→ 四处重行第二个 hst-task 恢复 hst-goal,混种种子回归件 legacy_hst_task_registrations_swept_to_current_leg 在测;G 收养:G-1 错误前缀与信封身份键 task 化(task error= 加 task-show/task-list),G-2 契约注释残留清(lib.rs 模块档加 task.rs 兼认注),G-3 迁移面三笔(merge 路径审计行 migrate-merge 加冲突件浮出计数加并发同迁回放件;途中捉审计回环栈溢出,审计改直写防 task_dir 重入),G-4 兼容别名 sunset 登记(CHANGELOG:goal alias 与 hook goal 预定 2.13 摘除),G-5 消费面破坏窗注记(json data 键 goal→task,插件消费者随 2.12.0 更新,发布链知会)。
+- hst-rev r1 回执(2026-10-13):F-1 一条四点同根(is_ours 加 doctor 名族加 Stop 判据加 sentinel 的旧腿兼认位被全局替换误重名,Windows 包裹形旧 hst-goal 注册升级后残留成死调)至 四处重行第二个 hst-task 恢复 hst-goal(修向落地),混种种子回归件 legacy_hst_task_registrations_swept_to_current_leg 在测;G 收养:G-1 错误前缀与信封身份键 task 化(task error= 加 task-show/task-list),G-2 契约注释残留清(lib.rs 模块档加 task.rs 兼认注),G-3 迁移面三笔(merge 路径审计行 migrate-merge 加冲突件浮出计数加并发同迁回放件;途中捉审计回环栈溢出,审计改直写防 task_dir 重入),G-4 兼容别名 sunset 登记(CHANGELOG:goal alias 与 hook goal 预定 2.13 摘除),G-5 消费面破坏窗注记(json data 键 goal 改 task,插件消费者随 2.12.0 更新,发布链知会)。
 - 装机落差门与全局替换同词异义坑承前批在册。
-
 - 装机落差门:verify 的活弹判据经 shim 烘焙回落装机位 hst,装机位版本不支持 hook task(2.11.0 前)时端到端必红,属环境事实;verify_live 集成件加装机位探针,旧版即 skip 带注,装机升级 2.12.0 后自活。
 - 全局替换教训一笔:src 面 hst-goal 批量替换误伤退役清扫表(旧 hst-goal 四件被换成 hst-task = 部署自删新腿,测试当场捉出);替换后必须 grep 语义冲突位(同词异义:现行腿名 vs 退役腿名)。
