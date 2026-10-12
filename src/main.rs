@@ -1620,7 +1620,7 @@ fn cmd_task_set(text: &str, project: Option<PathBuf>) -> Result<(), String> {
     let root = project_root(project)?;
     let home = hst::install::hst_home()?;
     let r =
-        task::set_task(&home, &root, text).map_err(|e| format!("goal error={}: {e}", e.code()))?;
+        task::set_task(&home, &root, text).map_err(|e| format!("task error={}: {e}", e.code()))?;
     println!("task.set text={}", r.text);
     println!("task.set project={}", root.display());
     println!("task.set file={}", task::task_path(&home, &root).display());
@@ -1639,11 +1639,11 @@ fn cmd_task_show(project: Option<PathBuf>) -> Result<(), String> {
     let armed = task::yolo_heal_armed(&home);
     let path = task::task_path(&home, &root);
     let (found, repaired) = task::read_record_repairing(&home, &path)
-        .map_err(|e| format!("goal error={}: {e}", e.code()))?;
+        .map_err(|e| format!("task error={}: {e}", e.code()))?;
     match hst::fmtio::mode() {
         hst::fmtio::Format::Json => {
             let data = goal_show_data(&root, &path, &found, &repaired, armed)?;
-            print_json("goal-show", &root, Ok(data))
+            print_json("task-show", &root, Ok(data))
         }
         // jsonl 裸实体逐行（rev-codex G-4：家族先例 issue show 与 artifact
         // attest 均裸实体，插件按家族形消费；repaired 恒在键，无修复为 null）。
@@ -1746,7 +1746,7 @@ fn cmd_task_list() -> Result<(), String> {
             let data = serde_json::json!({ "count": goals.len(), "goals": goals });
             // meta.project 传 goal 存储目录（rev-codex G-4：机器面读到有语义，
             // 不传无义字面 "."）。
-            print_json("goal-list", &hst::task::task_dir(&home), Ok(data))
+            print_json("task-list", &hst::task::task_dir(&home), Ok(data))
         }
         hst::fmtio::Format::Jsonl => {
             for r in &rows {
@@ -1783,7 +1783,7 @@ fn cmd_task_clear(project: Option<PathBuf>) -> Result<(), String> {
     let root = project_root(project)?;
     let home = hst::install::hst_home()?;
     let removed =
-        task::clear_task(&home, &root).map_err(|e| format!("goal error={}: {e}", e.code()))?;
+        task::clear_task(&home, &root).map_err(|e| format!("task error={}: {e}", e.code()))?;
     if removed {
         println!("task.clear present=true");
         println!("task.clear project={}", root.display());

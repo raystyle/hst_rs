@@ -582,7 +582,7 @@ const OURS_SHIM_STEMS: &[&str] = &[
     "hst-state",
     "hst-token",
     "hst-task",
-    "hst-task",
+    "hst-goal",
     "hst-pentest",
     "oma-state",
 ];
@@ -952,7 +952,7 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
                         .is_some_and(|hs| {
                             hs.iter().any(|h| {
                                 h.get("command").and_then(|c| c.as_str()).is_some_and(|c| {
-                                    c.contains("hst-task") || c.contains("hst-task")
+                                    c.contains("hst-task") || c.contains("hst-goal")
                                 })
                             })
                         })

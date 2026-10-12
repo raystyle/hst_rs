@@ -35,7 +35,7 @@
 //! taskmigrate-01（2026-10-13 用户令「不叫 goal 了就是 task 任务」）：
 //! goal 全面正名 task——命令族 `hst task`（`hst goal` 兼容别名一版）、
 //! 状态档 `state/task`（旧 `state/goal` 访问时整目录平移，读旧写新）、
-//! 钩子腿 `hst-task`（旧 `hst-task` 注册与 shim 经 init 清出）、留痕
+//! 钩子腿 `hst-task`（旧 `hst-goal` 注册与 shim 经 init 清出）、留痕
 //! `.task-audit`（旧 `.goal-audit` 随档迁移留档）、逃生闸 `HST_TASK_*`
 //! （旧 `HST_GOAL_*` 双名兼容一版）。
 //!
@@ -119,7 +119,7 @@ impl TaskError {
     /// agent 面稳定短码（CLI 错误输出 `error=<code>` 的取值源）。
     pub fn code(&self) -> &'static str {
         match self {
-            TaskError::EmptyText => "empty_goal",
+            TaskError::EmptyText => "empty_task",
             TaskError::Corrupt { .. } => "corrupt",
             TaskError::Io { .. } => "io",
         }
@@ -129,7 +129,7 @@ impl TaskError {
 impl std::fmt::Display for TaskError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TaskError::EmptyText => write!(f, "goal text is empty"),
+            TaskError::EmptyText => write!(f, "task text is empty"),
             TaskError::Corrupt { path, cause } => write!(f, "{path}: {cause}"),
             TaskError::Io { path, cause } => write!(f, "{path}: {cause}"),
         }
@@ -168,22 +168,45 @@ fn migrate_legacy_goal_dir(home: &Path, new_dir: &Path) {
     }
     if !new_dir.exists() {
         if std::fs::rename(&old, new_dir).is_ok() {
-            task_audit_append(home, "-", "migrate", "state/goal 整目录平移至 state/task");
+            // 审计直写(不走 task_audit_append → task_dir → 本函数的死环)。
+            append_capped(
+                &new_dir.join(".task-audit"),
+                &format!(
+                    "{} - migrate state/goal 整目录平移至 state/task",
+                    unix_secs()
+                ),
+            );
         }
         return;
     }
     let Ok(rd) = std::fs::read_dir(&old) else {
         return;
     };
+    let mut moved = 0usize;
+    let mut conflicts = 0usize;
     for e in rd.flatten() {
         let src = e.path();
         let Some(name) = src.file_name() else {
             continue;
         };
         let dst = new_dir.join(name);
-        if !dst.exists() {
-            let _ = std::fs::rename(&src, &dst);
+        if dst.exists() {
+            conflicts += 1; // 冲突件留旧位(新位不动),浮出审计供人裁
+            continue;
         }
+        if std::fs::rename(&src, &dst).is_ok() {
+            moved += 1;
+        }
+    }
+    if moved > 0 || conflicts > 0 {
+        // 审计直写,同上防回环。
+        append_capped(
+            &new_dir.join(".task-audit"),
+            &format!(
+                "{} - migrate-merge 双在场合并 moved={moved} conflicts={conflicts}(冲突件留 state/goal 待人裁)",
+                unix_secs()
+            ),
+        );
     }
 }
 
@@ -1901,7 +1924,7 @@ mod tests {
         // 空文本短码承接。
         assert_eq!(
             set_task(&home, root, "  ").unwrap_err().code(),
-            "empty_goal"
+            "empty_task"
         );
         let _ = std::fs::remove_dir_all(&home);
     }
@@ -3035,6 +3058,37 @@ mod tests {
         );
         assert!(old.join("-w-p.json").exists(), "冲突件留旧位");
         let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn concurrent_first_access_migration_is_safe() {
+        // taskmigrate-01 并发同迁回放(hst-rev G-3):多线程同访 task_dir,
+        // 整目录 rename 只成一家,其余走 merge 路径或空转,不炸不重复。
+        let home = std::sync::Arc::new(fresh_home("cmig"));
+        let old = home.join("state").join("goal");
+        std::fs::create_dir_all(&old).unwrap();
+        std::fs::write(
+            old.join("-w-p.json"),
+            r#"{"text":"并发档","set_at":100,"rounds":1,"last_stop_at":0}"#,
+        )
+        .unwrap();
+        let mut handles = Vec::new();
+        for _ in 0..8 {
+            let h = home.clone();
+            handles.push(std::thread::spawn(move || {
+                task_dir(&h);
+            }));
+        }
+        for t in handles {
+            t.join().unwrap();
+        }
+        let new = home.join("state").join("task");
+        assert_eq!(
+            show_task(&home, Path::new("/w/p")).unwrap().unwrap().text,
+            "并发档"
+        );
+        assert!(new.join("-w-p.json").is_file());
+        let _ = std::fs::remove_dir_all(&*home);
     }
 
     #[test]

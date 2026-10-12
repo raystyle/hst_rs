@@ -1214,14 +1214,14 @@ fn goal_set_show_clear_roundtrip_own_store() {
         .assert()
         .success()
         .stdout(contains("task.clear present=false"));
-    // 空文本短码承接（goal error=empty_goal）。
+    // 空文本短码承接（task error=empty_task）。
     hst()
         .env("HST_ROOT", &tmp)
         .args(["task", "set", "  ", "--project"])
         .arg(&proj)
         .assert()
         .failure()
-        .stderr(contains("goal error=empty_goal"));
+        .stderr(contains("task error=empty_task"));
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -2729,7 +2729,7 @@ fn goal_show_json_envelope_and_filter_output() {
         .clone();
     let v: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&out)).unwrap();
     assert_eq!(v["ok"], serde_json::json!(true), "{v}");
-    assert_eq!(v["meta"]["command"], serde_json::json!("goal-show"));
+    assert_eq!(v["meta"]["command"], serde_json::json!("task-show"));
     assert_eq!(v["data"]["present"], serde_json::json!(true));
     assert_eq!(v["data"]["task"]["text"], serde_json::json!("舰队升级协调"));
     assert_eq!(v["data"]["task"]["rounds"], serde_json::json!(0));
@@ -2877,7 +2877,7 @@ fn goal_list_kv_json_jsonl_and_repair_rows() {
         .stdout
         .clone();
     let v: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&out)).unwrap();
-    assert_eq!(v["meta"]["command"], serde_json::json!("goal-list"));
+    assert_eq!(v["meta"]["command"], serde_json::json!("task-list"));
     assert_eq!(v["data"]["count"], serde_json::json!(2));
     assert_eq!(v["data"]["goals"].as_array().map(Vec::len), Some(2));
     // 坏档:list 触修复(kv 行注 promote),聚合面不卡死。

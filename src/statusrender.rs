@@ -1320,7 +1320,7 @@ fn sentinel_no_hook(ctx: &Ctx, state: &str) -> Option<String> {
     // state-only 注册不认 = no-hook! 升格触发自愈 hst hook init,即存量
     // 升级向量(codex/grok/kimi 只有 token 腿,两腿任一即在场)。
     let reg_ok = std::fs::read_to_string(&reg)
-        .map(|t| t.contains("hst-token") || t.contains("hst-task") || t.contains("hst-task"))
+        .map(|t| t.contains("hst-token") || t.contains("hst-task") || t.contains("hst-goal"))
         .unwrap_or(false);
     if reg_ok {
         return None;

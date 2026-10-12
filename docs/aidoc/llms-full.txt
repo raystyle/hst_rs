@@ -26,7 +26,7 @@ docs/research 与 docs/adr；输出信封契约见 fmtio 模块文档。
 - [`shim`](shim.md): shim 三形态自包含状态写入器：cmd/ps1/sh 加 grok 包装（D27/D28/D39）。
 - [`statusline`](statusline.md): `hst statusline`：四家状态栏写入面幂等合并与拆段拼装（S025/D18/D42 至 D51）。
 - [`statusrender`](statusrender.md): 状态栏原生渲染引擎（ADR-0010、REQ-026）：hst statusline render 子命令
-- [`task`](task.md): `hst goal` 自治面（REQ-045，REQ-019 演进）：自有存储、Stop 事件提醒
+- [`task`](task.md): `hst task` 自治面（REQ-045 演进，REQ-050 正名 task）：自有存储、Stop 事件提醒
 - [`trace`](trace.md): trace 六视图：联邦读四家原生会话库归一检索（P0013/P0014，D19）。
 - [`update`](update.md): `hst self update`：dev 滚动与 stable 正式版自更新、镜像腿与缺省回退（S028/D16/D48）。
 - [`verify`](verify.md): `hst agents verify`：四家无头验收两层判据（D17/S033）。
@@ -463,8 +463,8 @@ agent 名 + 实时四态（hook 状态通道 + 会话闸，机读标记见 S025�
 <!-- hst_cli/task.md -->
 # hst-cli::task
 
-`hst goal` 自治面（REQ-045，REQ-019 演进）：自有存储、Stop 事件提醒
-腿与状态栏自源显示（用户令 2026-10-11「hst 不再关联 goal 和 loop」）。
+`hst task` 自治面（REQ-045 演进，REQ-050 正名 task）：自有存储、Stop 事件提醒
+腿与状态栏自源显示。
 hst task 自治面（REQ-045，REQ-019 演进；用户令 2026-10-11「hst 不再
 关联 goal 和 loop」「hst 自己用 hook 实现 goal」）：task 文本由 hst
 自有存储承载（`~/.hst/state/goal/<slug>.json`，slug 规则同 trace 与
@@ -502,7 +502,7 @@ heavy 两倍陈旧接管），`HST_GOAL_SWEEPER=off`
 taskmigrate-01（2026-10-13 用户令「不叫 goal 了就是 task 任务」）：
 goal 全面正名 task——命令族 `hst task`（`hst goal` 兼容别名一版）、
 状态档 `state/task`（旧 `state/goal` 访问时整目录平移，读旧写新）、
-钩子腿 `hst-task`（旧 `hst-task` 注册与 shim 经 init 清出）、留痕
+钩子腿 `hst-task`（旧 `hst-goal` 注册与 shim 经 init 清出）、留痕
 `.task-audit`（旧 `.goal-audit` 随档迁移留档）、逃生闸 `HST_TASK_*`
 （旧 `HST_GOAL_*` 双名兼容一版）。
 

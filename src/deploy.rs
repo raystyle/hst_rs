@@ -139,7 +139,8 @@ pub(crate) fn is_ours(command: &str) -> bool {
         return stem.starts_with("hst-state")
             || stem.starts_with("hst-token")
             || stem.starts_with("hst-task")
-            || stem.starts_with("hst-task")
+            // hst-goal 旧腿名兼认(仅清出面:存量注册与 shim 退役清扫)。
+            || stem.starts_with("hst-goal")
             || stem.starts_with("hst-pentest")
             || stem.starts_with("oma-state")
             || stem == "hst"
@@ -2234,6 +2235,41 @@ mod tests {
         let mut second = DeployReport::default();
         deploy_user_hooks_with(&user, &oma, host_side(), &mut second).unwrap();
         assert!(second.wrote.is_empty(), "idempotent after healing");
+        let _ = fs::remove_dir_all(&user);
+        let _ = fs::remove_dir_all(&oma);
+    }
+
+    #[test]
+    fn legacy_hst_task_registrations_swept_to_current_leg() {
+        // taskmigrate-01(hst-rev F-1)回归:旧 hst-goal 注册(Windows 包裹
+        // 形加 Unix 直引形)经 is_ours 兼认清出,一趟 init 换 hst-task 现行
+        // 形,不留死注册指向已删 shim;外来保留;幂等。
+        let user = fresh_dir("goalheal");
+        let oma = fresh_dir("goalheal-oma");
+        let claude = user.join(".claude").join("settings.json");
+        ensure_parent(&claude).unwrap();
+        let fwd = crate::pathutil::forward_slash(&oma);
+        write_text(
+            &claude,
+            &format!(
+                r#"{{"hooks": {{"Stop": [{{"matcher": "*", "hooks": [
+                    {{"type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File {fwd}/hooks/hst-goal.ps1 claude"}},
+                    {{"type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File {fwd}/hooks/hst-task.ps1 claude"}},
+                    {{"type": "command", "command": "C:\\tools\\keep.sh"}}]}}]}}}}"#
+            ),
+        )
+        .unwrap();
+        let mut r = DeployReport::default();
+        deploy_user_hooks_with(&user, &oma, OsSide::Windows, &mut r).unwrap();
+        let text = fs::read_to_string(&claude).unwrap();
+        assert!(!text.contains("hst-goal"), "旧腿注册清出: {text}");
+        let ours = ours_in_event(&claude, "Stop");
+        assert_eq!(ours.len(), 1, "hst-task 单条现行: {ours:?}");
+        assert!(ours[0].contains("hst-task"));
+        assert!(text.contains("keep.sh"), "外来保留: {text}");
+        let mut r2 = DeployReport::default();
+        deploy_user_hooks_with(&user, &oma, OsSide::Windows, &mut r2).unwrap();
+        assert!(r2.wrote.is_empty(), "幂等: {:?}", r2.wrote);
         let _ = fs::remove_dir_all(&user);
         let _ = fs::remove_dir_all(&oma);
     }

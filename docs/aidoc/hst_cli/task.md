@@ -1,7 +1,7 @@
 # hst-cli::task
 
-`hst goal` 自治面（REQ-045，REQ-019 演进）：自有存储、Stop 事件提醒
-腿与状态栏自源显示（用户令 2026-10-11「hst 不再关联 goal 和 loop」）。
+`hst task` 自治面（REQ-045 演进，REQ-050 正名 task）：自有存储、Stop 事件提醒
+腿与状态栏自源显示。
 hst task 自治面（REQ-045，REQ-019 演进；用户令 2026-10-11「hst 不再
 关联 goal 和 loop」「hst 自己用 hook 实现 goal」）：task 文本由 hst
 自有存储承载（`~/.hst/state/goal/<slug>.json`，slug 规则同 trace 与
@@ -39,7 +39,7 @@ heavy 两倍陈旧接管），`HST_GOAL_SWEEPER=off`
 taskmigrate-01（2026-10-13 用户令「不叫 goal 了就是 task 任务」）：
 goal 全面正名 task——命令族 `hst task`（`hst goal` 兼容别名一版）、
 状态档 `state/task`（旧 `state/goal` 访问时整目录平移，读旧写新）、
-钩子腿 `hst-task`（旧 `hst-task` 注册与 shim 经 init 清出）、留痕
+钩子腿 `hst-task`（旧 `hst-goal` 注册与 shim 经 init 清出）、留痕
 `.task-audit`（旧 `.goal-audit` 随档迁移留档）、逃生闸 `HST_TASK_*`
 （旧 `HST_GOAL_*` 双名兼容一版）。
 

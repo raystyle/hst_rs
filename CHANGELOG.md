@@ -6,7 +6,7 @@
 
 ### 里程碑 2026-10-13：v2.12.0 goal 全面正名 task
 
-- **命令族更名**：`hst task`（set/show/list/clear/heal/yolo-heal）为正名主面；`hst goal` 兼容别名保留一版（同档同语义）；`hst hook task` 为腿正名（`hook goal` 静默别名）；钩子腿 shim `hst-goal.*` 更名 `hst-task.*`，存量注册与旧 shim 经 `hst init` 一趟清出。
+- **命令族更名**：`hst task`（set/show/list/clear/heal/yolo-heal）为正名主面；`hst goal` 兼容别名保留一版（同档同语义，**预定 2.13 摘除**）；`hst hook task` 为腿正名（`hook goal` 静默别名，同随 2.13 摘除）；钩子腿 shim `hst-goal.*` 更名 `hst-task.*`，存量注册与旧 shim 经 `hst init` 一趟清出。**消费面破坏窗**：`--json` 信封 data 键 `goal` 改 `task`（goal 插件 list --all 等消费者须随 2.12.0 更新读键）。
 - **状态档迁移**：`~/.hst/state/goal/` 迁 `~/.hst/state/task/`（访问时整目录平移，读旧写新；双在场逐档合并，冲突留旧位）；留痕 `.goal-audit` 随档迁移留档，新写 `.task-audit`；逃生闸 `HST_TASK_HEAL`/`HST_TASK_SWEEPER`（旧 `HST_GOAL_*` 双名兼容一版）。
 - **本版同车**：hst-state 腿退役（REQ-049，herdr-agent-state 覆盖会话态）与 statusbar 段名纯英文、帮助面去考古；goal 地基加固（REQ-048：并发原子性、坏档自愈、风暴闸耐久序、机读面）。
 - 机读面：`hst task show --json` 与 `hst task list` 三态（json 信封 data 键 `task`）；statusline 段 id `task`（`goal` 兼容映射）。

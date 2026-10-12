@@ -38,8 +38,8 @@ pub mod statusline;
 /// 状态栏原生渲染引擎（ADR-0010、REQ-026）：hst statusline render 子命令
 /// 的 Rust 实现，退役 pwsh 脚本载体。
 pub mod statusrender;
-/// `hst goal` 自治面（REQ-045，REQ-019 演进）：自有存储、Stop 事件提醒
-/// 腿与状态栏自源显示（用户令 2026-10-11「hst 不再关联 goal 和 loop」）。
+/// `hst task` 自治面（REQ-045 演进，REQ-050 正名 task）：自有存储、Stop 事件提醒
+/// 腿与状态栏自源显示。
 pub mod task;
 /// trace 六视图：联邦读四家原生会话库归一检索（P0013/P0014，D19）。
 pub mod trace;
