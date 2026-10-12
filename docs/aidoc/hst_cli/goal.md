@@ -25,9 +25,21 @@ payload 常只带 cwd 而 agent 多在项目子目录工作，精确 slug 键不
 blocked 等人裁与频控风暴闸豁免，提醒与唤醒文本均附 hst goal 用法
 （用户令「让 agent 自行操作」）。
 
+REQ-047（2026-10-12 架构批）：自驱机制升两维态。检测三路（Stop 事件
+流加 herdr 格态加 Notification/PermissionRequest 带内快道）；判定矩阵
+六序（no-agent、working 不扰、blocked 分型、idle 唤醒、频控、风暴）；
+blocked 不再静默豁免，alarm 报警留痕（`.heal-log` 加 show 面），预授权
+（`hst goal yolo-heal on`）下反复 blocked 触发 yolo 治（落键加重启格加
+续 goal）；间隔自驱 = hook 起 sweeper 有界子进程（60 秒 tick、2 小时
+寿命、`.sweeper-lock` 单实例、90 秒陈旧接管），`HST_GOAL_SWEEPER=off`
+逃生闸。wake 文本 v2 自包含五件（goal 文本加上轮收束态加即刻推进加
+防卡死防空转边界加用法）。
+
 ## Functions
 
+- `blocked_fastpath` — blocked 带内快道（REQ-047 两维态的实时腿）：goal 腿挂上 Notification 与
 - `clear_goal` — 清空本项目 goal（删文件；返回是否真删，无 goal 零改动合法）。
+- `ensure_sweeper` — hook 起 sweeper（REQ-047 间隔自驱的起动面）：goal 在册且无鲜活锁即
 - `goal_dir` — goal 存储目录（`<hst 自管根>/state/goal/`；测试经 HST_ROOT 缝注入）。
 - `goal_file_for` — 就近上溯解析（goal-01 根因 B 修）：hook payload 常只带 cwd 而 agent
 - `goal_path` — 项目 goal 文件路径（`<dir>/<slug>.json`）。
@@ -39,10 +51,13 @@ blocked 等人裁与频控风暴闸豁免，提醒与唤醒文本均附 hst goal
 - `reminder_json` — Stop 提醒 JSON（goal-02 输出面调优）：`hookSpecificOutput.additionalContext`
 - `run_heal` — 自愈扫描入口（`hst goal heal`）：扫在册 goal（`only` 给定则单项目），
 - `set_goal` — 设置本项目 goal（覆盖旧 goal，rounds 归零重计）。
+- `set_yolo_heal_armed` — yolo 治预授权写侧（`hst goal yolo-heal on|off`）。返回是否真改动
 - `show_goal` — 查看本项目 goal（无 goal 返回 None，查看面不受阻）。
 - `slug` — 项目键 slug（规则同 trace 与 projyolo marker：路径非字母数字一律 `-`）。
 - `stop_hook` — Stop 腿入口（`hst hook goal`）：非 Stop 事件或本项目无 goal 返回
-- `wake_text` — 自愈唤醒文本（herdr agent prompt 载体；附 hst goal 用法，用户令「让
+- `sweeper_loop` — sweeper 有界主循环（`hst goal heal --interval` 子进程体）：抢锁让位即
+- `wake_text` — 自愈唤醒文本 v2（REQ-047 自包含五件：goal 文本加上轮收束态加即刻推进
+- `yolo_heal_armed` — yolo 治预授权读侧（REQ-047）：标记文件在场即 armed。
 
 ## Types
 
@@ -54,7 +69,13 @@ blocked 等人裁与频控风暴闸豁免，提醒与唤醒文本均附 hst goal
 
 ## Constants
 
+- `BLOCKED_ALARM_SECS` — blocked 报警防抖窗（REQ-047）：同 goal 两次报警的最小间隔（streak 仍
+- `BLOCKED_STORM_THRESHOLD` — yolo 治阈值（REQ-047）：blocked_streak 到此值即「反复 blocked」，预授权
 - `HEAL_IDLE_SECS` — 自愈静默窗（goal-01 频控即此一闸）：goal 在役而 max(last_stop_at,
 - `HEAL_STORM_CAP` — 风暴闸：连续无 rounds 增长的自愈唤醒次数上限（Stop 事件回场即归零），
+- `SWEEPER_LIFE_SECS` — sweeper 单次寿命（REQ-047 有界性）：到点即退，续命须新 hook 事件
+- `SWEEPER_STALE_SECS` — sweeper 锁陈旧阈（REQ-047 单实例）：心跳重写超此时长即判死锁接管。
+- `SWEEPER_TICK_SECS` — sweeper tick 间隔（REQ-047 间隔自驱）：有界子进程的检查节拍。
 - `SWEEP_MIN_GAP_SECS` — 扫描盖章限频（goal-01 澄清令「事件驱动、零轮询」面的频控外闸）：
+- `YOLO_HEAL_COOLDOWN_SECS` — yolo 治冷却窗（REQ-047）：两次治动作的最小间隔（成败同计，防锤）。
 

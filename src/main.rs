@@ -197,15 +197,33 @@ enum GoalCmd {
         #[arg(long)]
         project: Option<PathBuf>,
     },
-    /// 自愈唤醒扫描（goal-01）：goal 在册而格位停摆未被 Stop 提醒唤醒过静默窗（15 分钟）时，经 herdr agent prompt 唤醒并附 hst goal 用法；working 与 blocked 等人裁态豁免，连续 3 次唤醒无 rounds 增长即风暴闸转人工；须在 herdr 会话格内跑
+    /// 自愈唤醒扫描（goal-01，REQ-047 两维态矩阵）：goal 在册而格位停摆未被 Stop 提醒唤醒过静默窗（15 分钟）时经 herdr agent prompt 唤醒（wake v2 自包含文本）；blocked 维报警留痕（.heal-log 加 show 面），预授权且反复 blocked 触发 yolo 治（落键加重启格加续 goal）；working 不扰；连续 3 次唤醒无 rounds 增长即风暴闸转人工；须在 herdr 会话格内跑
     Heal {
         /// 项目根；缺省扫全部在册 goal
         #[arg(long)]
         project: Option<PathBuf>,
         /// 预演：只报判定不唤醒不落盘
-        #[arg(long = "dry-run")]
+        #[arg(long = "dry-run", conflicts_with = "interval")]
         dry_run: bool,
+        /// 有界间隔自驱（sweeper 子进程体，REQ-047）：60 秒 tick 至多 2 小时，单实例锁，goal 清空即退；全量扫描（--project 与本旗标互斥）
+        #[arg(long, conflicts_with_all = ["project", "dry_run"])]
+        interval: bool,
     },
+    /// yolo 治预授权开关（REQ-047）：on 落 arm 标记（blocked 反复即自动 yolo 治：hst init --yolo full 落键面加重启格加续 goal），off 撤（只报警留痕不治）
+    YoloHeal {
+        /// 预授权态（on 或 off）
+        #[arg(value_enum)]
+        state: ArmState,
+    },
+}
+
+/// yolo 治预授权态（`hst goal yolo-heal` 参数面）。
+#[derive(clap::ValueEnum, Clone, Copy)]
+enum ArmState {
+    /// 预授权开：blocked_streak 到 2 且工位非 yolo 即触发治序列
+    On,
+    /// 预授权撤：blocked 只报警留痕
+    Off,
 }
 
 #[derive(Subcommand)]
@@ -673,7 +691,12 @@ fn run() -> Result<(), String> {
             GoalCmd::Set { text, project } => cmd_goal_set(&text, project),
             GoalCmd::Show { project } => cmd_goal_show(project),
             GoalCmd::Clear { project } => cmd_goal_clear(project),
-            GoalCmd::Heal { project, dry_run } => cmd_goal_heal(project, dry_run),
+            GoalCmd::Heal {
+                project,
+                dry_run,
+                interval,
+            } => cmd_goal_heal(project, dry_run, interval),
+            GoalCmd::YoloHeal { state } => cmd_goal_yoloheal(state),
         },
         Commands::Issue { cmd } => cmd_issue(cmd),
     }
@@ -1679,9 +1702,11 @@ fn cmd_goal_set(text: &str, project: Option<PathBuf>) -> Result<(), String> {
     Ok(())
 }
 
+/// REQ-047 两维态 show 面：blocked 维与 yolo 治新字段同源出。
 fn cmd_goal_show(project: Option<PathBuf>) -> Result<(), String> {
     let root = project_root(project)?;
     let home = hst::install::hst_home()?;
+    let armed = goal::yolo_heal_armed(&home);
     match goal::show_goal(&home, &root).map_err(|e| format!("goal error={}: {e}", e.code()))? {
         Some(r) => {
             println!("goal.present=true");
@@ -1695,9 +1720,19 @@ fn cmd_goal_show(project: Option<PathBuf>) -> Result<(), String> {
                 println!("goal.last_heal_at={}", r.last_heal_at);
                 println!("goal.heal_streak={}", r.heal_streak);
             }
+            if r.blocked_streak > 0 {
+                println!("goal.blocked_streak={}", r.blocked_streak);
+            }
+            if r.blocked_alarm_at > 0 {
+                println!("goal.blocked_alarm_at={}", r.blocked_alarm_at);
+            }
+            if r.yolo_heal_at > 0 {
+                println!("goal.yolo_heal_at={}", r.yolo_heal_at);
+            }
         }
         None => println!("goal.present=false"),
     }
+    println!("goal.yolo_heal.armed={}", if armed { "on" } else { "off" });
     Ok(())
 }
 
@@ -1715,15 +1750,21 @@ fn cmd_goal_clear(project: Option<PathBuf>) -> Result<(), String> {
     Ok(())
 }
 
-/// goal-01 自愈扫描分派：逐在册 goal 判定（rounds 无增长加 idle 时限，
-/// 态取 herdr 格状态），Wake 形经 herdr agent prompt 唤醒。
-fn cmd_goal_heal(project: Option<PathBuf>, dry_run: bool) -> Result<(), String> {
+/// goal-01 自愈扫描分派（REQ-047 三驱之一的手动面）：逐在册 goal 两维态
+/// 判定，Wake 形唤醒、Blocked 形报警与（预授权时）yolo 治。`--interval`
+/// 为 sweeper 子进程体（有界循环，单实例锁）。
+fn cmd_goal_heal(project: Option<PathBuf>, dry_run: bool, interval: bool) -> Result<(), String> {
+    let home = hst::install::hst_home()?;
+    let user_home = hst::pathutil::user_home()?;
+    if interval {
+        goal::sweeper_loop(&home, &user_home)?;
+        return Ok(());
+    }
     let only = match project {
         Some(p) => Some(project_root(Some(p))?),
         None => None,
     };
-    let home = hst::install::hst_home()?;
-    let rows = hst::goal::run_heal(&home, only.as_deref(), dry_run)?;
+    let rows = goal::run_heal(&home, &user_home, only.as_deref(), dry_run, true)?;
     println!("goal.heal.count={}", rows.len());
     for r in &rows {
         println!("goal.heal slug={} action={} {}", r.slug, r.action, r.detail);
@@ -1734,10 +1775,30 @@ fn cmd_goal_heal(project: Option<PathBuf>, dry_run: bool) -> Result<(), String> 
     Ok(())
 }
 
-/// REQ-045 goal 腿分派：Stop 事件提醒注入（自然停一轮 decision block 加
-/// rounds 计数落盘；stop_hook_active 防环放行）。stdout 出提醒 JSON
-/// （Claude Code Stop 契约：block 加 reason 续跑一轮）；错误面 fail-open
-/// 不挡 agent 停止（同 state 腿纪律，写盘故障只在 HST_HOOK_VERBOSE 打点）。
+/// REQ-047 yolo 治预授权开关面：on 落 arm 标记，off 撤。
+fn cmd_goal_yoloheal(state: ArmState) -> Result<(), String> {
+    let home = hst::install::hst_home()?;
+    let on = matches!(state, ArmState::On);
+    let changed = goal::set_yolo_heal_armed(&home, on)?;
+    println!("goal.yolo_heal.armed={}", if on { "on" } else { "off" });
+    println!("goal.yolo_heal.changed={changed}");
+    if on {
+        println!(
+            "goal.yolo_heal.hint=blocked_streak 到 {} 且工位非 yolo 时自动治（用户级 full 落键加重启格加续 goal，留痕 .heal-log）；off 可撤",
+            hst::goal::BLOCKED_STORM_THRESHOLD
+        );
+    } else {
+        println!("goal.yolo_heal.hint=已撤预授权，blocked 只报警留痕不治");
+    }
+    Ok(())
+}
+
+/// REQ-045 goal 腿分派（REQ-047 四事件面）：Stop 事件提醒注入（自然停一轮
+/// additionalContext 加 rounds 计数落盘；stop_hook_active 防环放行），
+/// SessionEnd 收束触发 sweep，Notification 与 PermissionRequest 权限形走
+/// blocked 带内快道（报警留痕，stdout 零输出不扰权限决策面）。收束与
+/// blocked 事件均 ensure sweeper（有界间隔自驱子进程）。stdout 只出提醒
+/// JSON；错误面 fail-open 不挡 agent（写盘故障只在 HST_HOOK_VERBOSE 打点）。
 fn cmd_hook_goal(event: Option<String>, agent: Option<String>) -> Result<(), String> {
     let _ = agent;
     let payload = if event.is_some() {
@@ -1770,10 +1831,36 @@ fn cmd_hook_goal(event: Option<String>, agent: Option<String>) -> Result<(), Str
             }
         }
     }
-    if hst::goal::is_stop_event(payload.as_ref(), event.as_deref()) {
-        if let Err(e) = hst::goal::heal_sweep(&home) {
+    // REQ-047 驱动面分类：收束事件（Stop 加 SessionEnd）跑事件 sweep；
+    // blocked 形（Notification 权限形加 PermissionRequest）走带内快道；
+    // 两者都先 ensure sweeper（独立进程组，本腿超时不连坐）。
+    let ev = hst::hook::event_label(event.as_deref(), payload.as_ref());
+    let is_stop = hst::goal::is_stop_event(payload.as_ref(), event.as_deref());
+    let is_end = is_stop || ev == "sessionend";
+    let blocked = hst::hook::state_for_payload(&ev, payload.as_ref()) == "blocked";
+    if is_end || blocked {
+        hst::goal::ensure_sweeper(&home);
+    }
+    if is_end {
+        let user_home = hst::pathutil::user_home().unwrap_or_default();
+        if let Err(e) = hst::goal::heal_sweep(&home, &user_home) {
             if verbose {
                 eprintln!("hst hook goal heal: {e}");
+            }
+        }
+    }
+    if blocked {
+        match hst::goal::blocked_fastpath(&home, payload.as_ref(), event.as_deref()) {
+            Ok(Some(line)) => {
+                if verbose {
+                    eprintln!("hst hook goal: {line}");
+                }
+            }
+            Ok(None) => {}
+            Err(e) => {
+                if verbose {
+                    eprintln!("hst hook goal fastpath: {e}");
+                }
             }
         }
     }

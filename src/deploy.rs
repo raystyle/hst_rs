@@ -969,18 +969,19 @@ fn deploy_claude_user(
         // REQ-028：PreToolUse 与 UserPromptSubmit 双挂（state 加 token 腿，
         // 单对各自 shim；state shim 已剥 guard 透传腿），其余单挂 state；
         // REQ-045：Stop 再加 goal 腿（提醒注入，仅 claude）三挂。
-        let handlers: Vec<Json> = if event == "PreToolUse" {
+        // REQ-047：goal 腿扩挂 SessionEnd（收束扫描）、Notification 与
+        // PermissionRequest（blocked 带内快道），四事件与 state 腿双挂。
+        let handlers: Vec<Json> = if event == "PreToolUse" || event == "UserPromptSubmit" {
             // REQ-031 退役后 PreToolUse 双挂（state 加 token）。
             vec![
                 claude_handler(oma, side),
                 token_handler("claude", oma, side),
             ]
-        } else if event == "UserPromptSubmit" {
-            vec![
-                claude_handler(oma, side),
-                token_handler("claude", oma, side),
-            ]
-        } else if event == "Stop" {
+        } else if event == "Stop"
+            || event == "SessionEnd"
+            || event == "Notification"
+            || event == "PermissionRequest"
+        {
             vec![claude_handler(oma, side), goal_handler("claude", oma, side)]
         } else {
             vec![claude_handler(oma, side)]

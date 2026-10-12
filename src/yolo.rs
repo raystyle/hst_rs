@@ -176,6 +176,48 @@ pub fn apply_user_yolo_with(user_home: &Path) -> Result<ApplyReport, String> {
 /// # Panics
 ///
 /// 正常路径不 panic；内部 unwrap 仅出现在构造不变量上。
+/// 用户级 yolo 活性读侧判（REQ-047 goal 治面前置）：按 agent 名判各自
+/// 配置键是否等于 full 级值（claude `permissions.defaultMode` 加 codex
+/// `approval_policy` 加 kimi `default_permission_mode` 加 grok
+/// `[ui] permission_mode`）。读侧零改动；文件缺失或键不在场判 false
+///（非 yolo，可治）；未知 agent 名保守判 true（不治）。
+pub fn user_yolo_active_with(user_home: &Path, agent: &str) -> bool {
+    let keys = level_keys(YoloLevel::Full);
+    match agent {
+        "claude" => read_json(&user_home.join(".claude").join("settings.json"))
+            .ok()
+            .is_some_and(|v| {
+                v.get("permissions")
+                    .and_then(|p| p.get("defaultMode"))
+                    .and_then(|x| x.as_str())
+                    .is_some_and(|m| m == keys.claude_mode)
+            }),
+        "codex" => read_toml(&user_home.join(".codex").join("config.toml"))
+            .ok()
+            .is_some_and(|t| {
+                t.get("approval_policy")
+                    .and_then(|x| x.as_str())
+                    .is_some_and(|m| m == keys.codex_approval)
+            }),
+        "kimi" => read_toml(&user_home.join(".kimi-code").join("config.toml"))
+            .ok()
+            .is_some_and(|t| {
+                t.get("default_permission_mode")
+                    .and_then(|x| x.as_str())
+                    .is_some_and(|m| m == keys.kimi_mode)
+            }),
+        "grok" => read_toml(&user_home.join(".grok").join("config.toml"))
+            .ok()
+            .is_some_and(|t| {
+                t.get("ui")
+                    .and_then(|u| u.get("permission_mode"))
+                    .and_then(|x| x.as_str())
+                    .is_some_and(|m| m == keys.grok_mode)
+            }),
+        _ => true,
+    }
+}
+
 /// # Errors
 ///
 /// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
@@ -1113,6 +1155,56 @@ mod tests {
     /// Unique per-call suffix: same-millisecond parallel tests must not
     /// share (and mutually delete) a temp dir.
     static NEXT_TEST_DIR: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+    #[test]
+    fn user_yolo_active_reads_four_kinds() {
+        // REQ-047 goal 治前置读侧：四家各判自键等于 full 级值；缺失或他值
+        // 判 false（非 yolo 可治）；未知 agent 保守判 true（不治）。
+        let home = fresh_dir();
+        std::fs::create_dir_all(home.join(".claude")).unwrap();
+        std::fs::create_dir_all(home.join(".codex")).unwrap();
+        std::fs::create_dir_all(home.join(".kimi-code")).unwrap();
+        std::fs::create_dir_all(home.join(".grok")).unwrap();
+        std::fs::write(
+            home.join(".claude").join("settings.json"),
+            r#"{"permissions":{"defaultMode":"acceptEdits"}}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            home.join(".codex").join("config.toml"),
+            "approval_policy = \"never\"\n",
+        )
+        .unwrap();
+        std::fs::write(
+            home.join(".kimi-code").join("config.toml"),
+            "default_permission_mode = \"yolo\"\n",
+        )
+        .unwrap();
+        std::fs::write(
+            home.join(".grok").join("config.toml"),
+            "[ui]\npermission_mode = \"always-approve\"\n",
+        )
+        .unwrap();
+        assert!(
+            !user_yolo_active_with(&home, "claude"),
+            "acceptEdits 非 yolo"
+        );
+        assert!(user_yolo_active_with(&home, "codex"));
+        assert!(user_yolo_active_with(&home, "kimi"));
+        assert!(user_yolo_active_with(&home, "grok"));
+        assert!(user_yolo_active_with(&home, "pi"), "未知 agent 保守不治");
+        // claude 翻 full 后判活。
+        std::fs::write(
+            home.join(".claude").join("settings.json"),
+            r#"{"permissions":{"defaultMode":"bypassPermissions"}}"#,
+        )
+        .unwrap();
+        assert!(user_yolo_active_with(&home, "claude"));
+        // 文件缺失（grok 摘除）判 false（可治）。
+        let _ = std::fs::remove_file(home.join(".grok").join("config.toml"));
+        assert!(!user_yolo_active_with(&home, "grok"));
+        let _ = std::fs::remove_dir_all(&home);
+    }
 
     #[test]
     fn bom_settings_roundtrip_and_full_writes_readblock_false() {

@@ -567,12 +567,15 @@ fn init_full_deploys_hooks_yolo_and_sweeps_skills() {
             .filter(|h| h["command"].as_str().is_some_and(|c| c.contains("hst")))
             .collect();
         // REQ-028 双挂（state 加 token）；REQ-031 pentest 腿退役后
-        // PreToolUse 维持双挂；REQ-045 Stop 双挂（state 加 goal）。
-        let want = if event == "PreToolUse" {
-            2
-        } else if event == "UserPromptSubmit" {
-            2
-        } else if event == "Stop" {
+        // PreToolUse 维持双挂；REQ-045 Stop 双挂（state 加 goal）；REQ-047
+        // goal 腿扩挂 SessionEnd 加 Notification 加 PermissionRequest。
+        let want = if event == "PreToolUse"
+            || event == "UserPromptSubmit"
+            || event == "Stop"
+            || event == "SessionEnd"
+            || event == "Notification"
+            || event == "PermissionRequest"
+        {
             2
         } else {
             1
@@ -1249,6 +1252,7 @@ fn goal_stop_hook_leg_reminds_on_natural_stop_only() {
     );
     let out = hst()
         .env("HST_ROOT", &tmp)
+        .env("HST_GOAL_SWEEPER", "off")
         .args(["hook", "goal", "--agent", "claude"])
         .write_stdin(stop_payload.as_str())
         .output()
@@ -1279,6 +1283,7 @@ fn goal_stop_hook_leg_reminds_on_natural_stop_only() {
     );
     let out = hst()
         .env("HST_ROOT", &tmp)
+        .env("HST_GOAL_SWEEPER", "off")
         .args(["hook", "goal", "--agent", "claude"])
         .write_stdin(again.as_str())
         .output()
@@ -1303,6 +1308,7 @@ fn goal_stop_hook_leg_reminds_on_natural_stop_only() {
     );
     let out = hst()
         .env("HST_ROOT", &tmp)
+        .env("HST_GOAL_SWEEPER", "off")
         .args(["hook", "goal", "--agent", "claude"])
         .write_stdin(other.as_str())
         .output()
@@ -1315,8 +1321,7 @@ fn goal_stop_hook_leg_reminds_on_natural_stop_only() {
 #[test]
 fn goal_heal_scans_wakes_and_throttles_via_herdr() {
     // goal-01 自愈面 e2e（假 herdr 消费面）：停摆过窗唤醒（prompt 落用法
-    // 文本）、紧跟第二趟频控跳过、blocked 豁免、dry-run 零副作用。
-    use std::io::Write as _;
+    // 文本）、紧跟第二趟频控跳过、REQ-047 blocked 分型报警；dry-run 零副作用。
     let tmp = std::env::temp_dir().join(format!(
         "hst-cli-goalheal-{}-{}-{}",
         std::process::id(),
@@ -1431,7 +1436,8 @@ fn goal_heal_scans_wakes_and_throttles_via_herdr() {
         .assert()
         .success()
         .stdout(contains("action=skip-throttled"));
-    // blocked 等人裁：豁免不唤。
+    // blocked 分型（REQ-047）：不再静默豁免，报警留痕（首见 alarm-blocked，
+    // streak 落盘；未预授权 yolo 治故只报不治）。
     mk_list("blocked");
     let mut rec: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&goal_file).unwrap()).unwrap();
@@ -1446,7 +1452,264 @@ fn goal_heal_scans_wakes_and_throttles_via_herdr() {
         .arg(&root)
         .assert()
         .success()
-        .stdout(contains("action=skip-blocked"));
+        .stdout(contains("action=alarm-blocked"))
+        .stdout(contains("agent=claude"));
+    let heal_log =
+        std::fs::read_to_string(tmp.join("state").join("goal").join(".heal-log")).unwrap();
+    assert!(heal_log.contains("alarm-blocked"), "{heal_log}");
+    hst()
+        .env("HST_ROOT", &tmp)
+        .args(["goal", "show", "--project"])
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(contains("goal.blocked_streak=1"))
+        .stdout(contains("goal.yolo_heal.armed=off"));
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
+fn goal_hook_blocked_fastpath_alarms_without_output() {
+    // REQ-047 带内快道：Notification 权限形经 goal 腿报警留痕（streak 落
+    // 盘加 .heal-log），stdout 零输出（不扰权限决策面）；非权限形零动作。
+    let tmp = std::env::temp_dir().join(format!(
+        "hst-cli-goalfp-{}-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis(),
+        NEXT_TEST_DIR.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    let proj = tmp.join("proj");
+    std::fs::create_dir_all(&proj).unwrap();
+    hst()
+        .env("HST_ROOT", &tmp)
+        .env("HST_GOAL_SWEEPER", "off")
+        .args(["goal", "set", "盯评审收口", "--project"])
+        .arg(&proj)
+        .assert()
+        .success();
+    let perm_payload = format!(
+        r#"{{"hook_event_name":"Notification","notification_type":"permission_request","session_id":"s9","cwd":"{}"}}"#,
+        proj.display()
+    );
+    let out = hst()
+        .env("HST_ROOT", &tmp)
+        .env("HST_GOAL_SWEEPER", "off")
+        .args(["hook", "goal", "--agent", "claude"])
+        .write_stdin(perm_payload.as_str())
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert!(
+        out.stdout.is_empty(),
+        "快道 stdout 零输出纪律: {:?}",
+        String::from_utf8_lossy(&out.stdout)
+    );
+    hst()
+        .env("HST_ROOT", &tmp)
+        .args(["goal", "show", "--project"])
+        .arg(&proj)
+        .assert()
+        .success()
+        .stdout(contains("goal.blocked_streak=1"));
+    let heal_log =
+        std::fs::read_to_string(tmp.join("state").join("goal").join(".heal-log")).unwrap();
+    assert!(
+        heal_log.contains("alarm-blocked-fast session=s9"),
+        "{heal_log}"
+    );
+    // 防抖窗内二连：streak 递增、不重报。
+    hst()
+        .env("HST_ROOT", &tmp)
+        .env("HST_GOAL_SWEEPER", "off")
+        .args(["hook", "goal", "--agent", "claude"])
+        .write_stdin(perm_payload.as_str())
+        .output()
+        .unwrap();
+    hst()
+        .env("HST_ROOT", &tmp)
+        .args(["goal", "show", "--project"])
+        .arg(&proj)
+        .assert()
+        .success()
+        .stdout(contains("goal.blocked_streak=2"));
+    // 非权限形通知（tip）：零动作。
+    let tip_payload = format!(
+        r#"{{"hook_event_name":"Notification","notification_type":"tip","cwd":"{}"}}"#,
+        proj.display()
+    );
+    let out = hst()
+        .env("HST_ROOT", &tmp)
+        .env("HST_GOAL_SWEEPER", "off")
+        .args(["hook", "goal", "--agent", "claude"])
+        .write_stdin(tip_payload.as_str())
+        .output()
+        .unwrap();
+    assert!(out.status.success() && out.stdout.is_empty());
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
+fn goal_yolo_heal_arm_and_sequence_via_fake_herdr() {
+    // REQ-047 yolo 治全链（假 herdr）：arm 开关 CLI、反复 blocked（streak
+    // 到 2）且工位非 yolo 触发治序列（用户级 full 落键加 esc 加 /exit 加
+    // enter 键序加 fresh 起加 wake v2 续跑）、留痕 .heal-log。
+    let tmp = std::env::temp_dir().join(format!(
+        "hst-cli-goalyolo-{}-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis(),
+        NEXT_TEST_DIR.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    let root = tmp.join("proj");
+    let bin = tmp.join("bin");
+    let user = tmp.join("user");
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::create_dir_all(&bin).unwrap();
+    std::fs::create_dir_all(user.join(".claude")).unwrap();
+    // 工位非 yolo 前置：acceptEdits（full 是 bypassPermissions）。
+    std::fs::write(
+        user.join(".claude").join("settings.json"),
+        r#"{"permissions":{"defaultMode":"acceptEdits"}}"#,
+    )
+    .unwrap();
+    let list = tmp.join("list.json");
+    let prompt_log = tmp.join("prompt.log");
+    let start_log = tmp.join("start.log");
+    std::fs::write(
+        &bin.join("herdr"),
+        concat!(
+            "#!/bin/sh\n",
+            "if [ \"$1 $2\" = \"agent list\" ]; then cat \"$HERDR_FAKE_LIST\"; exit 0; fi\n",
+            // get 无 agent_status 形 = 格已回 shell（治序列轮询判据）。
+            "if [ \"$1 $2\" = \"agent get\" ]; then echo '{\"result\":{\"agent\":{}}}'; exit 0; fi\n",
+            "if [ \"$1 $2\" = \"agent send-keys\" ]; then echo \"keys:$*\" >> \"$HERDR_FAKE_START\"; exit 0; fi\n",
+            "if [ \"$1 $2\" = \"agent start\" ]; then echo \"start:$*\" >> \"$HERDR_FAKE_START\"; exit 0; fi\n",
+            "if [ \"$1 $2\" = \"agent prompt\" ]; then printf '%s\\n' \"$4\" >> \"$HERDR_FAKE_LOG\"; fi\n",
+        ),
+    )
+    .unwrap();
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&bin.join("herdr"), std::fs::Permissions::from_mode(0o755))
+            .unwrap();
+    }
+    let path = format!(
+        "{}:{}",
+        bin.display(),
+        std::env::var("PATH").unwrap_or_default()
+    );
+    std::fs::write(
+        &list,
+        format!(
+            r#"{{"result":{{"agents":[{{"agent":"claude","agent_status":"blocked","cwd":"{}","name":"goal-t1","pane_id":"w1:p7"}}]}}}}"#,
+            root.display()
+        ),
+    )
+    .unwrap();
+    let env = || {
+        let mut cmd = hst();
+        cmd.env("HST_ROOT", &tmp)
+            .env("HST_USER_HOME", &user)
+            .env("HERDR_FAKE_LIST", &list)
+            .env("HERDR_FAKE_LOG", &prompt_log)
+            .env("HERDR_FAKE_START", &start_log)
+            .env("PATH", &path);
+        cmd
+    };
+    // arm 开关面：on 落标记、show 出 armed=on。
+    env()
+        .args(["goal", "yolo-heal", "on"])
+        .assert()
+        .success()
+        .stdout(contains("goal.yolo_heal.armed=on"))
+        .stdout(contains("goal.yolo_heal.changed=true"));
+    assert!(tmp
+        .join("state")
+        .join("goal")
+        .join(".yolo-heal-armed")
+        .is_file());
+    // 重复 on 零改动。
+    env()
+        .args(["goal", "yolo-heal", "on"])
+        .assert()
+        .success()
+        .stdout(contains("goal.yolo_heal.changed=false"));
+    hst()
+        .env("HST_ROOT", &tmp)
+        .args(["goal", "set", "修完阻塞件", "--project"])
+        .arg(&root)
+        .assert()
+        .success();
+    // streak 预置 1（上一轮已目击）：本趟 bump 到 2 即阈值，触发治。
+    let slug: String = root
+        .display()
+        .to_string()
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect();
+    let goal_file = tmp.join("state").join("goal").join(format!("{slug}.json"));
+    let mut rec: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&goal_file).unwrap()).unwrap();
+    rec["blocked_streak"] = serde_json::json!(1);
+    rec["blocked_rounds"] = serde_json::json!(0);
+    std::fs::write(&goal_file, serde_json::to_string(&rec).unwrap()).unwrap();
+    env()
+        .args(["goal", "heal", "--project"])
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(contains("action=yolo-heal"))
+        .stdout(contains("heal=ok:pane=w1:p7 name=goal-t1"));
+    // 落键生效：用户级 claude 键翻 full。
+    let settings: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(user.join(".claude").join("settings.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        settings["permissions"]["defaultMode"], "bypassPermissions",
+        "治序列落键: {settings}"
+    );
+    // 键序加 fresh 起 + wake v2 续跑（prompt 载自包含模板）。
+    let starts = std::fs::read_to_string(&start_log).unwrap();
+    assert!(starts.contains("send-keys w1:p7 esc"), "{starts}");
+    assert!(starts.contains("send-keys w1:p7 /exit"), "{starts}");
+    assert!(starts.contains("send-keys w1:p7 enter"), "{starts}");
+    assert!(
+        starts.contains("agent start goal-t1 --kind claude --pane w1:p7"),
+        "{starts}"
+    );
+    let prompts = std::fs::read_to_string(&prompt_log).unwrap();
+    assert!(prompts.contains("hst goal 自驱唤醒"), "{prompts}");
+    assert!(prompts.contains("即刻推进"), "{prompts}");
+    assert!(prompts.contains("防卡死防空转边界"), "{prompts}");
+    // 留痕：alarm-blocked（先报警）加 yolo-heal 双行。
+    let heal_log =
+        std::fs::read_to_string(tmp.join("state").join("goal").join(".heal-log")).unwrap();
+    assert!(heal_log.contains("alarm-blocked"), "{heal_log}");
+    assert!(heal_log.contains("yolo-heal"), "{heal_log}");
+    // 治后即 yolo：同态再扫不再治（非 yolo 前置天然幂等），走防抖静默。
+    env()
+        .args(["goal", "heal", "--project"])
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(contains("action=blocked-muted"));
+    // off 撤预授权。
+    env()
+        .args(["goal", "yolo-heal", "off"])
+        .assert()
+        .success()
+        .stdout(contains("goal.yolo_heal.armed=off"));
+    assert!(!tmp
+        .join("state")
+        .join("goal")
+        .join(".yolo-heal-armed")
+        .is_file());
     let _ = std::fs::remove_dir_all(&tmp);
 }
 

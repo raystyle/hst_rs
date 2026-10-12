@@ -66,6 +66,18 @@ fn notification_kind(v: &Json) -> String {
     normalize(raw)
 }
 
+/// 事件标签公共解析（REQ-047 goal 快道共用）：事件参数形直 normalize,
+/// 无参数走 payload 形状推断（同 state 腿),两路皆空得空串。
+pub fn event_label(event_arg: Option<&str>, payload: Option<&Json>) -> String {
+    if let Some(arg) = event_arg {
+        normalize(arg)
+    } else if let Some(v) = payload {
+        event_from_payload(v)
+    } else {
+        String::new()
+    }
+}
+
 /// Claude Notification is mixed (tips vs permission). Only permission-shaped
 /// kinds count as blocked; the rest map idle（REQ-030：干完活等人看）.
 pub fn state_for_payload(event: &str, payload: Option<&Json>) -> &'static str {
