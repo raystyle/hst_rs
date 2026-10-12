@@ -64,5 +64,6 @@ trace: goal 单测新增十件(goal_files_filter_and_stale_tmp_swept 加 heal_an
 
 - 判断项 J1(新增 goal list 子命令):任务字面只要 show --json,但「查看所有 agent 的 goal」需要机器级清单面,否则插件 list --all 须自带项目发现;rev-codex 评审轮 CONFIRM。
 - rev-codex 首轮回执(2026-10-12,A 至 G 主项全 CONFIRM):F-1 三件新单测补 cfg(unix) 门(Windows 宿主编译红,CI 不红低危)、F-2 AGENTS.md check.py 装位第二真相同步、F-3 trace 改件数勘误(blocked_fastpath 测试未改,实改件两件);G 级采纳:G-1 模块档措辞改整档快照守卫、G-2 heavy-deferred 让位补 best-effort 守卫写(dry 零副作用保持)、G-3 clear 同删 .bak(旧 bak 复活已清目标是真风险,误清恢复由审计道 clear 行 text 快照承载)、G-4 机读面四处形对齐(show jsonl 裸实体随家族先例、repaired 恒在键对象形、list meta.project 传 goal 存储目录)、G-5 崩溃件补文件级断言(零隔离件加主档裸字节可解析)。
+- rev-codex 终审(第四轮):CONFIRM 放行,无阻塞项(F-6 文档同步实修复核属实,代码零改动成立)。
 - rev-codex 裁定保持项:G-6 手动 heal 不加 --force(治序列是重锤,人工强推可等窗或手改档,后续需求单另立);G-7 wake-fail 吃 heal_streak 预算(驱动链坏死即转人工,恢复面 = rounds 增长,语义入 run_heal 契约注);clear 并发收走按已清收(两机同清不假错);修复面 stop_hook/fastpath 读路上的窄窗风险(隔离 rename 搬走他方刚写好的新档)判可接受(自愈优先于窄窗停滞,隔离档留证可查)。
 - 测试面三坑实录:std::env 全局可变面在并行测试串扰(fake herdr 路径烤进脚本免 env 依赖;PATH 存取用原值快照,replace 回写会清空 PATH 致下一测试的 cat 找不到);writeln! 两笔写在 O_APPEND 下行交错(单 write_all);panic 持锁毒化连带他测(PoisonError 连锁)。
