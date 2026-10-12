@@ -58,10 +58,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// 用户级 yolo 与非阻塞键落盘（默认全套：yolo 键加 hook 注册加状态栏面；skill 面已退役，ours 技能目录幂等清扫）。注意：hooks 与状态栏部署只在裸 init（无任何旗标）的 full 范围跑，任何带旗标范围（仅键面、仅压缩面等）设计性跳过
+    /// 用户级部署（默认全套：yolo 键加 hook 注册加状态栏）。hooks 与状态栏只在裸 init（不带任何旗标）部署，带旗标时只执行该旗标范围
     Init {
-        /// 写用户级无阻塞键（仅 yolo，不落 hook；D28 第 3 轮起两级显式；
-        /// D33 起取值式分级 full|partial|off，缺省 full，裸旗标兼容）
+        /// 写用户级无阻塞键（仅 yolo，不落 hook）；取值式分级 full|partial|off，缺省 full
         #[arg(
             long,
             value_enum,
@@ -70,7 +69,7 @@ enum Commands {
             conflicts_with_all = ["project_yolo", "clear_project_yolo"]
         )]
         yolo: Option<yolo::YoloLevel>,
-        /// 写项目级无阻塞键（仅 yolo，项目覆盖用户级；与 --yolo 互斥；D33 分级同款）
+        /// 写项目级无阻塞键（仅 yolo，项目覆盖用户级；与 --yolo 互斥；分级同款）
         #[arg(
             long = "project-yolo",
             value_enum,
@@ -79,17 +78,17 @@ enum Commands {
             conflicts_with_all = ["yolo", "clear_project_yolo"]
         )]
         project_yolo: Option<yolo::YoloLevel>,
-        /// 一键清除项目级对用户级 yolo 的干扰键（ours 与外来都摘，让用户级生效；REQ-009/D55；与 --yolo/--project-yolo 互斥）
+        /// 一键清除项目级对用户级 yolo 的干扰键（ours 与外来都摘，让用户级生效；与 --yolo/--project-yolo 互斥）
         #[arg(long, conflicts_with_all = ["yolo", "project_yolo"])]
         clear_project_yolo: bool,
-        /// 写 claude 压缩触发阈值（仅 compact 面：env CLAUDE_AUTOCOMPACT_PCT_OVERRIDE，1-100 百分数，off 摘键；与 yolo 族互斥；缺省预览零写，加 --yes 落盘）
+        /// 写 claude 压缩触发阈值（env CLAUDE_AUTOCOMPACT_PCT_OVERRIDE，1-100 百分数，off 摘键；与 yolo 族互斥；缺省预览，加 --yes 落盘）
         #[arg(
             long = "compact-pct",
             value_name = "1-100|off",
             conflicts_with_all = ["yolo", "project_yolo", "clear_project_yolo", "pretrust"]
         )]
         compact_pct: Option<String>,
-        /// 确认（compact 面配 --compact-pct 落盘、不带则预览；其余范围收下当确认，语义不变）
+        /// 确认（compact 面落盘；其余范围收下当确认，语义不变）
         #[arg(long)]
         yes: bool,
         /// 预写用户家目录信任库（claude/codex/kimi/grok）
@@ -99,7 +98,7 @@ enum Commands {
         #[arg(long)]
         project: Option<PathBuf>,
     },
-    /// 只读诊断 yolo / 信任 / 二进制 / state / 登录态 / hook 形态 / 状态栏
+    /// 只读体检（零网络）：yolo / 信任 / 二进制 / 登录态 / hook 形态 / 状态栏 / task
     Doctor {
         /// 项目根；默认当前目录
         #[arg(long)]
@@ -110,12 +109,12 @@ enum Commands {
         #[command(subcommand)]
         cmd: Option<AgentsCmd>,
     },
-    /// hook 面：状态写入入口、注册部署与无头验收（D29 三支）
+    /// hook 面：注册部署、事件入口与无头验收
     Hook {
         #[command(subcommand)]
         cmd: HookCmd,
     },
-    /// 配置四家状态栏（幂等：claude/codex/kimi/grok 各自配置面）；渲染走 hst 二进制原生子命令
+    /// 配置四家状态栏（claude/codex/kimi/grok，幂等）；渲染走原生子命令
     Statusline {
         /// 指定 agent（claude/codex/kimi/grok）；缺省四家都配
         #[arg(value_name = "名")]
@@ -123,7 +122,7 @@ enum Commands {
         /// 原生渲染一次：stdin 喂 agent JSON，stdout 出状态行；供 statusLine 配置指向
         #[arg(long, conflicts_with = "example")]
         render: bool,
-        /// 打印 ~/.hst/statusline.toml 定制示例模板后退出（D18）
+        /// 打印 ~/.hst/statusline.toml 定制示例模板后退出
         #[arg(long)]
         example: bool,
     },
@@ -133,12 +132,12 @@ enum Commands {
         #[command(subcommand)]
         cmd: SelfSub,
     },
-    /// 生成 shell 补全脚本到 stdout（S016 吸收）
+    /// 生成 shell 补全脚本到 stdout
     Completions {
         /// 目标 shell
         shell: clap_complete::Shell,
     },
-    /// 项目内四家 agent 对话历史检索（六视图联邦读，P0013/P0014；D19 恢复）
+    /// 项目内四家 agent 对话历史检索（六视图联邦读）
     Trace {
         #[command(subcommand)]
         cmd: TraceCmd,
@@ -158,17 +157,17 @@ enum Commands {
         #[command(subcommand)]
         cmd: LedgerCmd,
     },
-    /// yolo 面：项目级干扰只读检测（REQ-017；写 marker 驱动状态栏 proj-yolo! 升格，零改动纯可见化）
+    /// yolo 面：项目级干扰只读检测（写 marker 驱动状态栏 proj-yolo! 升格，零改动纯可见化）
     Yolo {
         #[command(subcommand)]
         cmd: YoloCmd,
     },
-    /// 活性诊断（D21，ohmycloud D45 配套）：打真网关烧最小 token，与 doctor 的零网络体检分家
+    /// 活性诊断：打真网关烧最小 token，与 doctor 的零网络体检分家
     Diagnose {
         #[command(subcommand)]
         cmd: DiagnoseCmd,
     },
-    /// goal 自治面（REQ-045，REQ-019 演进）：hst 自有存储的项目级 goal 设置、查看与清空；Stop hook 每轮提醒，状态栏 goal 段同源显示（用户令 2026-10-11「hst 不再关联 goal 和 loop」；loop 面退役，Claude Code 原生 CronCreate/ScheduleWakeup 域）
+    /// task 自治面（现役命令名 hst goal，下版更名 hst task）：项目级 task 设置、查看与清空；Stop hook 每轮提醒，状态栏段同源显示
     Goal {
         #[command(subcommand)]
         cmd: GoalCmd,
@@ -199,7 +198,7 @@ enum GoalCmd {
         #[arg(long)]
         project: Option<PathBuf>,
     },
-    /// 自愈唤醒扫描（goal-01，REQ-047 两维态矩阵）：goal 在册而格位停摆未被 Stop 提醒唤醒过静默窗（15 分钟）时经 herdr agent prompt 唤醒（wake v2 自包含文本）；blocked 维报警留痕（.heal-log 加 show 面），预授权且反复 blocked 触发 yolo 治（落键加重启格加续 goal）；working 不扰；连续 3 次唤醒无 rounds 增长即风暴闸转人工；须在 herdr 会话格内跑
+    /// 自愈唤醒扫描：task 在册而格位停摆过静默窗（15 分钟）时经 herdr agent prompt 唤醒；blocked 维报警留痕，预授权且反复 blocked 触发 yolo 治；working 不扰；连续 3 次唤醒无 rounds 增长即风暴闸转人工；须在 herdr 会话格内跑
     Heal {
         /// 项目根；缺省扫全部在册 goal
         #[arg(long)]
@@ -207,11 +206,11 @@ enum GoalCmd {
         /// 预演：只报判定不唤醒不落盘
         #[arg(long = "dry-run", conflicts_with = "interval")]
         dry_run: bool,
-        /// 有界间隔自驱（sweeper 子进程体，REQ-047）：60 秒 tick 至多 2 小时，单实例锁，goal 清空即退；全量扫描（--project 与本旗标互斥）
+        /// 有界间隔自驱（sweeper 子进程体）：60 秒 tick 至多 2 小时，单实例锁，task 清空即退；全量扫描（--project 与本旗标互斥）
         #[arg(long, conflicts_with_all = ["project", "dry_run"])]
         interval: bool,
     },
-    /// yolo 治预授权开关（REQ-047）：on 落 arm 标记（blocked 反复即自动 yolo 治：hst init --yolo full 落键面加重启格加续 goal），off 撤（只报警留痕不治）
+    /// yolo 治预授权开关：on 落 arm 标记（blocked 反复即自动 yolo 治），off 撤（只报警留痕不治）
     YoloHeal {
         /// 预授权态（on 或 off）
         #[arg(value_enum)]
@@ -466,34 +465,13 @@ enum TraceCmd {
 
 #[derive(Subcommand)]
 enum HookCmd {
-    /// hook 注册部署与 shim 落位（init 的 hook 面，含 ~/.oma 迁 ~/.hst 的 heal 改写）
+    /// hook 注册部署与 shim 落位（init 的 hook 面；存量 ~/.oma 注册改写迁 ~/.hst）
     Init {
         /// 项目根（项目面退役与说明层部署用；hook 注册本身用户级）
         #[arg(long)]
         project: Option<PathBuf>,
     },
-    /// 状态写入入口（事件参数或 stdin JSON，落 ~/.hst/state/）；REQ-028
-    /// 起双职责拆分，本入口弃用期一代（新注册走 state 与 token）
-    Status {
-        /// 事件名或四态（idle/working/blocked/unknown）；省略则读 stdin JSON
-        #[arg(value_name = "事件")]
-        event: Option<String>,
-        /// agent 名（注册参数注入）
-        #[arg(long)]
-        agent: Option<String>,
-    },
-    /// payload 穿透命令族（REQ-028）：四态写盘腿，单对 hst-state 脚本，
-    /// 不扫密钥
-    State {
-        /// 事件名或四态（idle/working/blocked/unknown）；省略则读 stdin JSON
-        #[arg(value_name = "事件")]
-        event: Option<String>,
-        /// agent 名（注册参数注入）
-        #[arg(long)]
-        agent: Option<String>,
-    },
-    /// payload 穿透命令族（REQ-028）：密钥拦截腿（secretguard），单对
-    /// hst-token 脚本，不写盘；block 级 exit 2
+    /// 密钥拦截腿：PreToolUse/UserPromptSubmit/PostToolUse 扫描命令拦密钥（secretguard）；block 级 exit 2
     Token {
         /// 事件名（pretooluse/userpromptsubmit/posttooluse 扫描面）；省略
         /// 则读 stdin JSON
@@ -503,9 +481,7 @@ enum HookCmd {
         #[arg(long)]
         agent: Option<String>,
     },
-    /// goal 腿（REQ-045）：Claude Code Stop 事件提醒注入（rounds 计数落盘
-    /// 加自然停一轮 decision block；stop_hook_active 防环放行），单对
-    /// hst-goal 脚本，claude Stop 事件与 state 腿双挂
+    /// goal 腿：Claude Code Stop 等四事件提醒注入与 goal 自驱（rounds 计数落盘）
     Goal {
         /// 事件名；省略则读 stdin JSON（注册面形）
         #[arg(value_name = "事件")]
@@ -527,7 +503,7 @@ enum HookCmd {
 
 #[derive(Subcommand)]
 enum AgentsCmd {
-    /// 四家 hook 与状态栏全平台无头验收（D17）：状态栏脚本直跑加 hook 无头落盘，任一非跳过项失败退出 1
+    /// 四家 hook 与状态栏无头验收：状态栏直跑加 hook 链端到端，任一非跳过项失败退出 1
     Verify {
         /// 指定 agent（claude/codex/grok/kimi）；缺省四家全验
         #[arg(value_name = "名")]
@@ -639,8 +615,6 @@ fn run() -> Result<(), String> {
         },
         Commands::Hook { cmd } => match cmd {
             HookCmd::Init { project } => cmd_hook_init(project),
-            HookCmd::Status { event, agent } => cmd_hook(event, agent),
-            HookCmd::State { event, agent } => cmd_hook_state(event, agent),
             HookCmd::Token { event, agent } => cmd_hook_token(event, agent),
             HookCmd::Goal { event, agent } => cmd_hook_goal(event, agent),
             HookCmd::Verify { names, timeout } => cmd_agents_verify(names, timeout, true),
@@ -1312,63 +1286,12 @@ fn cmd_hook_init(project: Option<PathBuf>) -> Result<(), String> {
     Ok(())
 }
 
-fn cmd_hook(event: Option<String>, agent: Option<String>) -> Result<(), String> {
-    match hook::run(event.as_deref(), agent.as_deref()) {
-        Ok(outcome) => {
-            if let Some(path) = outcome.state_file {
-                if std::env::var_os("HST_HOOK_VERBOSE").is_some() {
-                    eprintln!("hst.hook.wrote={}", path.display());
-                }
-            }
-            if let Some(g) = outcome.guard {
-                if g.block {
-                    // exit 2 = agent 侧拒工具调用，stderr 原因回给模型（S030）。
-                    eprintln!("hst secretguard: {}", g.reasons.join("; "));
-                    std::process::exit(2);
-                }
-                if std::env::var_os("HST_HOOK_VERBOSE").is_some() && !g.findings.is_empty() {
-                    eprintln!("hst.secretguard.findings={}", g.findings.len());
-                }
-            }
-        }
-        Err(e) => {
-            // Never fail the agent session over a state-file write.
-            if std::env::var_os("HST_HOOK_VERBOSE").is_some() {
-                eprintln!("hst hook: {e}");
-            }
-        }
-    }
-    Ok(())
-}
-
-/// REQ-028 state 腿分派：四态写盘，错误面与 hook status 同判（不因写盘
-/// 失败 fail agent 会话）。
-fn cmd_hook_state(event: Option<String>, agent: Option<String>) -> Result<(), String> {
-    match hook::run_state(event.as_deref(), agent.as_deref()) {
-        Ok(outcome) => {
-            if let Some(path) = outcome.state_file {
-                if std::env::var_os("HST_HOOK_VERBOSE").is_some() {
-                    eprintln!("hst.hook.wrote={}", path.display());
-                }
-            }
-        }
-        Err(e) => {
-            // Never fail the agent session over a state-file write.
-            if std::env::var_os("HST_HOOK_VERBOSE").is_some() {
-                eprintln!("hst hook state: {e}");
-            }
-        }
-    }
-    Ok(())
-}
-
-/// REQ-028 token 腿分派：密钥拦截，exit 硬约束 {0, 2}（M060a 语义内化：
-/// 仅自判 block 出 2，内部故障一律 0 fail-open，注册面裸形直挂时护
-/// 无痛轮换）。
+/// token 腿分派：密钥拦截，exit 硬约束 {0, 2}（仅自判 block 出 2，内部
+/// 故障一律 0 fail-open）。
 fn cmd_hook_token(event: Option<String>, agent: Option<String>) -> Result<(), String> {
     match hook::run_token(event.as_deref(), agent.as_deref()) {
-        Ok(outcome) => {
-            if let Some(g) = outcome.guard {
+        Ok(guard) => {
+            if let Some(g) = guard {
                 if g.block {
                     // exit 2 = agent 侧拒工具调用，stderr 原因回给模型（S030）。
                     eprintln!("hst secretguard: {}", g.reasons.join("; "));

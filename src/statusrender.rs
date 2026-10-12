@@ -917,25 +917,18 @@ fn state_color(state: &str) -> &'static str {
     }
 }
 
-/// hook 功能别名清单（用户令 2026-09-27 多轮收敛，2026-10-03 改连字符
-/// 形）：别名带属主进程前缀（「别名-加上什么进程」，例序 herdr 在先），
-/// 分隔符 ` | ` 与他行段分隔同形；预对齐解耦后命令名 `hst token` 与
-/// `hst state`（REQ-028 候裁）。未收录的回落 stem 本名；清单含外来
-/// hook（herdr 等）。
+/// hook 功能别名清单（entropy-01 2026-10-12 用户令：段名纯英文，中文显
+/// 示名全撤直用英文 id；hst-state 腿已整体退役不收录）。未收录的回落
+/// stem 本名；清单含外来 hook（herdr 等）。
 const HOOK_ALIASES: &[(&str, &str)] = &[
-    // 别名带属主前缀连字符接功能（用户令 2026-10-03 改形，原空格接）；
-    // 分隔符 ` | ` 与他行段分隔同形。REQ-028 拆条后一命令一脚本一别名：
-    // `hst hook token` 单对 hst-token.sh、`hst hook state` 单对
-    // hst-state.sh；未来 `hst hook <x>` 循此式加条即入列。
-    // herdr agent 状态监控 hook：claude/grok 面 SessionStart 会话登记推
+    // herdr agent 状态 hook：claude/grok 面 SessionStart 会话登记推
     // herdr server（pane 与会话绑定），kimi 面每事件推 working/idle 态。
-    ("herdr-agent-state", "herdr-agent状态监控"),
-    // hst token 护栏 hook（REQ-028）：PreToolUse/UserPromptSubmit 跑
-    // secretguard 密钥拦截（S030：API key 命中 exit 2 阻断）。
-    ("hst-token", "hst-token护栏"),
-    // hst 会话状态同步 hook（S025/D28）：事件映射四态写 ~/.hst/state
-    // 会话键。
-    ("hst-state", "hst-会话状态同步"),
+    ("herdr-agent-state", "herdr-agent-state"),
+    // hst token 护栏 hook：PreToolUse/UserPromptSubmit 跑 secretguard
+    // 密钥拦截（API key 命中 exit 2 阻断）。
+    ("hst-token", "hst-token-guard"),
+    // hst goal 腿：Claude Code Stop 等四事件提醒注入与 goal 自驱。
+    ("hst-goal", "hst-goal"),
 ];
 
 /// 新增 hook 收录指引（评审 G3）：只改 HOOK_ALIASES 一处加 stem 判定回
@@ -2060,25 +2053,25 @@ mod tests {
         std::fs::create_dir_all(&claude_dir).unwrap();
         std::fs::write(
             claude_dir.join("settings.json"),
-            r#"{"hooks":{"Stop":[{"matcher":"*","hooks":[{"type":"command","command":"\"/x/.hst/hooks/hst-state.sh\" claude"}]}],"SessionStart":[{"matcher":"*","hooks":[{"type":"command","command":"bash '/other/herdr-agent-state.sh' session"},{"type":"command","command":"\"/x/.hst/hooks/hst-state.sh\" claude"}]}],"Notification":[{"matcher":"*","hooks":[{"type":"command","command":"bash /x/.hst/hooks/hst-token.sh claude"}]}]}}"#,
+            r#"{"hooks":{"Stop":[{"matcher":"*","hooks":[{"type":"command","command":"\"/x/.hst/hooks/hst-goal.sh\" claude"}]}],"SessionStart":[{"matcher":"*","hooks":[{"type":"command","command":"bash '/other/herdr-agent-state.sh' session"}]}],"Notification":[{"matcher":"*","hooks":[{"type":"command","command":"bash /x/.hst/hooks/hst-token.sh claude"}]}]}}"#,
         )
         .unwrap();
         // 别名表序（herdr 在先，用户例序），未收录 metric-bridge 回落本名殿后。
         assert_eq!(
             hooked_aliases_at(&tmp, "claude", ""),
-            "herdr-agent状态监控 | hst-token护栏 | hst-会话状态同步"
+            "herdr-agent-state | hst-token-guard | hst-goal"
         );
         // kimi TOML 面：ours 加外来同列。
         let kimi_dir = tmp.join(".kimi-code");
         std::fs::create_dir_all(&kimi_dir).unwrap();
         std::fs::write(
             kimi_dir.join("config.toml"),
-            "[[hooks]]\nevent = \"PreToolUse\"\ncommand = \"/x/.hst/hooks/hst-state.sh kimi\"\n\n[[hooks]]\nevent = \"Stop\"\ncommand = \"/y/herdr-agent-state.sh\"\n",
+            "[[hooks]]\nevent = \"PreToolUse\"\ncommand = \"/x/.hst/hooks/hst-token.sh kimi\"\n\n[[hooks]]\nevent = \"Stop\"\ncommand = \"/y/herdr-agent-state.sh\"\n",
         )
         .unwrap();
         assert_eq!(
             hooked_aliases_at(&tmp, "kimi", ""),
-            "herdr-agent状态监控 | hst-会话状态同步"
+            "herdr-agent-state | hst-token-guard"
         );
         // grok 多文件注册面（评审 F）：hst 的 ohmyagents-state.json 与
         // herdr 的 herdr.json 双文件合并收集。
@@ -2086,7 +2079,7 @@ mod tests {
         std::fs::create_dir_all(&grok_dir).unwrap();
         std::fs::write(
             grok_dir.join("ohmyagents-state.json"),
-            r#"{"hooks":{"Stop":[{"matcher":"*","hooks":[{"type":"command","command":"/x/hst-state.sh grok"}]}]}}"#,
+            r#"{"hooks":{"Stop":[{"matcher":"*","hooks":[{"type":"command","command":"/x/hst-goal.sh grok"}]}]}}"#,
         )
         .unwrap();
         std::fs::write(
@@ -2096,7 +2089,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             hooked_aliases_at(&tmp, "grok", ""),
-            "herdr-agent状态监控 | hst-会话状态同步"
+            "herdr-agent-state | hst-goal"
         );
         // REQ-039：claude 项目级注册面并入（payload project_dir 下
         // .claude/settings.json 加 settings.local.json），未收录 stem
@@ -2106,7 +2099,7 @@ mod tests {
         std::fs::create_dir_all(&pdot).unwrap();
         std::fs::write(
             pdot.join("settings.json"),
-            r#"{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-tool-guard.sh\""}]}],"Stop":[{"hooks":[{"type":"command","command":"/x/.hst/hooks/hst-state.sh claude"}]}]}}"#,
+            r#"{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-tool-guard.sh\""}]}],"Stop":[{"hooks":[{"type":"command","command":"/x/.hst/hooks/hst-goal.sh claude"}]}]}}"#,
         )
         .unwrap();
         std::fs::write(
@@ -2116,7 +2109,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             hooked_aliases_at(&tmp, "claude", proj.to_str().unwrap()),
-            "herdr-agent状态监控 | hst-token护栏 | hst-会话状态同步 | knowledge-recall | session-tool-guard"
+            "herdr-agent-state | hst-token-guard | hst-goal | knowledge-recall | session-tool-guard"
         );
         // 坏损 JSON 零命中不炸。
         std::fs::write(claude_dir.join("settings.json"), "{ not json").unwrap();
@@ -2197,7 +2190,7 @@ mod tests {
         // 显式 false、c 无显式项缺省关、d 依赖项目根命中、e 显式 true）。
         std::fs::write(
             claude_dir.join("settings.json"),
-            r#"{"hooks":{"Stop":[{"hooks":[{"command":"/x/.hst/hooks/hst-state.sh claude"}]}]},"enabledPlugins":{"plug-a@mk":true,"plug-b@mk":false,"plug-e@mk":true}}"#,
+            r#"{"hooks":{"Stop":[{"hooks":[{"command":"/x/.hst/hooks/hst-goal.sh claude"}]}]},"enabledPlugins":{"plug-a@mk":true,"plug-b@mk":false,"plug-e@mk":true}}"#,
         )
         .unwrap();
         // 无项目根：user 作用域 a 入列（statusMessage 形），e 入列且自带
@@ -2205,7 +2198,7 @@ mod tests {
         // 作用域无根不收。
         assert_eq!(
             hooked_aliases_at(&tmp, "claude", ""),
-            "hst-会话状态同步 | plug-a-md 禁字门禁 | plug-e 前缀静检"
+            "hst-goal | plug-a-md 禁字门禁 | plug-e 前缀静检"
         );
         // 项目根命中：d 入列（projectPath 同根；项目作用域插件由项目级
         // settings 落 enabled，项目档入链）；项目 local 把 b 覆写 true
@@ -2223,7 +2216,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             hooked_aliases_at(&tmp, "claude", proj.to_str().unwrap()),
-            "hst-会话状态同步 | plug-a-md 禁字门禁 | plug-b-plain-guard | plug-e 前缀静检 | plug-d-项目守卫"
+            "hst-goal | plug-a-md 禁字门禁 | plug-b-plain-guard | plug-e 前缀静检 | plug-d-项目守卫"
         );
         // 坏损 installed_plugins.json 零命中不炸（回落 settings 面）。
         std::fs::write(
@@ -2233,7 +2226,7 @@ mod tests {
             "{ not json",
         )
         .unwrap();
-        assert_eq!(hooked_aliases_at(&tmp, "claude", ""), "hst-会话状态同步");
+        assert_eq!(hooked_aliases_at(&tmp, "claude", ""), "hst-goal");
         let _ = std::fs::remove_dir_all(&tmp);
     }
 

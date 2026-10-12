@@ -472,24 +472,8 @@ fn sweep_unmanaged_ours_codex(settings: &mut Json, managed: &[&str], side: OsSid
     changed
 }
 
-/// codex 本侧字段的现行命令串（D39 第 2 轮抽出单一来源：sweep 与
-/// codex_handler_value 共用）。
-fn codex_side_command(oma: &Path, side: OsSide) -> String {
-    match side {
-        OsSide::Unix => format!(
-            "\"{}\" codex",
-            oma.join("hooks").join("hst-state.sh").display()
-        ),
-        // REQ-032 评审 F2 方案③：thin ps1 走 D39 三壳通吃形。
-        OsSide::Windows => format!(
-            "powershell.exe -NoProfile -ExecutionPolicy Bypass -File {} codex",
-            crate::pathutil::forward_slash(&oma.join("hooks").join("hst-state.ps1"))
-        ),
-    }
-}
-
-/// REQ-028 codex token 腿命令（单对 hst-token shim，同 codex_side_command
-/// 的双侧形态）。
+/// codex token 腿命令（单对 hst-token shim 的双侧形态；entropy-01 起
+/// state 腿退役，本函数即 codex 面唯一命令源）。
 fn codex_token_side_command(oma: &Path, side: OsSide) -> String {
     match side {
         OsSide::Unix => format!(
@@ -658,14 +642,6 @@ fn retire_json_file(
     Ok(())
 }
 
-fn claude_handler(oma: &Path, side: OsSide) -> Json {
-    json!({
-        "type": "command",
-        "command": shim_command_ps_or_sh("claude", oma, side),
-        "timeout": 10,
-    })
-}
-
 /// REQ-028 token 腿 handler（密钥拦截单职责，PreToolUse 与
 /// UserPromptSubmit 两事件挂载）：注册指向 hst-token shim（与 state 同
 /// 目录三载体），Windows 用 powershell -File 前缀形（D39 同款）。
@@ -721,34 +697,6 @@ fn goal_handler(agent: &str, oma: &Path, side: OsSide) -> Json {
 }
 
 /// 部署的D27面（细则见模块文档与集成测试）。
-/// 根，跨项目共享、hst 轮换无痛）。Windows 用 **`powershell.exe -NoProfile
-/// -ExecutionPolicy Bypass -File` 前缀加无引号正斜杠 ps1 路径**加参数
-/// （D39，2026-09-13 宿主实弹）：settings.json 是双消费者（claude 本体 hook
-/// 执行 shell 是 POSIX sh 系、grok 经 PowerShell，M047/M059），sh 系对直路
-/// 径 `.cmd` 在 WSL 形不认盘符、`cmd.exe /c` 在 Git Bash 被 MSYS 参数转换
-/// 吃掉 `/c`、`//c` 在 PS 进交互态——唯「按名解析的解释器加参数位 Windows
-/// 路径」三态成立（powershell.exe 恒在、无前导斜杠参数不触发转换，与状态
-/// 栏 pwsh -File 同构）；M047 双消费者约束仍满足：单字符串、无 `&`、无引
-/// 号。边界：路径含空格时该形态在各 shell 都裂，部署侧 warn（doctor 提
-/// 示）。POSIX 一律 sh 路径直引（引号在 sh 合法且必要）。
-fn shim_command_ps_or_sh(agent: &str, oma: &Path, side: OsSide) -> String {
-    match side {
-        // REQ-032 评审 F2 方案③：thin ps1 一行壳（逻辑全在 hst 本体）
-        // 走 D39 三壳通吃形 powershell.exe -File <正斜杠>；.cmd 只留
-        // grok M048 包装与手工面。
-        OsSide::Windows => format!(
-            "powershell.exe -NoProfile -ExecutionPolicy Bypass -File {} {}",
-            crate::pathutil::forward_slash(&oma.join("hooks").join("hst-state.ps1")),
-            agent
-        ),
-        OsSide::Unix => format!(
-            "\"{}\" {}",
-            oma.join("hooks").join("hst-state.sh").display(),
-            agent
-        ),
-    }
-}
-
 /// Which OS consumes a codex registration field: `command` on Unix,
 /// `commandWindows` on Windows (S015). Injected so tests exercise both
 /// sides from one host.
@@ -775,31 +723,13 @@ pub fn host_side() -> OsSide {
 /// so reruns converge byte-identically on both sides. D28：shim 在 hst 自管
 /// 根（用户级注册只写本侧家目录文件，异侧字段保留语义沿用不动）。
 fn codex_handler_value(base: &Json, oma: &Path, session_end: bool, side: OsSide) -> Json {
-    codex_handler_value_for(base, oma, session_end, side, CodexLeg::State)
-}
-
-/// codex_handler_value 的腿参形（REQ-028：token 腿用 hst-token shim 命令；
-/// state 腿维持 hst-state）。bare 兜底同步腿形。
-fn codex_handler_value_for(
-    base: &Json,
-    oma: &Path,
-    session_end: bool,
-    side: OsSide,
-    leg: CodexLeg,
-) -> Json {
-    // 注册指向自包含 shim（零 oma 依赖）。Windows 侧用 powershell -File 前
-    // 缀加无引号正斜杠 ps1 路径（D39 sh 兼容形态，与 claude/kimi 面同款；
-    // M059 直路径形态在 PS/cmd 成立但 sh 系不认盘符路径）。Unix 用 sh 路径
-    // 直引。`command` 为 schema 必填（M055）：无异侧保留值时落 bare 兜底。
-    // 本侧命令串单一来源 codex_side_command（sweep 共用）。
-    let side_command = match leg {
-        CodexLeg::Token => codex_token_side_command(oma, side),
-        CodexLeg::State => codex_side_command(oma, side),
-    };
-    let bare_fallback = match leg {
-        CodexLeg::Token => "hst hook token --agent codex",
-        CodexLeg::State => "hst hook state --agent codex",
-    };
+    // entropy-01：token 单腿（state 腿退役）。注册指向自包含 shim（零 oma
+    // 依赖）。Windows 侧用 powershell -File 前缀加无引号正斜杠 ps1 路径
+    //（D39 sh 兼容形态）。Unix 用 sh 路径直引。`command` 为 schema 必填
+    //（M055）：无异侧保留值时落 bare 兜底。本侧命令串单一来源
+    // codex_token_side_command。
+    let side_command = codex_token_side_command(oma, side);
+    let bare_fallback = "hst hook token --agent codex";
     let foreign = |key: &str| base.get(key).filter(|v| v.is_string()).cloned();
     let mut obj = serde_json::Map::new();
     obj.insert("type".into(), json!("command"));
@@ -824,22 +754,13 @@ fn codex_handler_value_for(
 /// codex merge with per-OS field ownership. Never stale-drops oma entries:
 /// the foreign OS's absolute path inside the foreign field is live on that
 /// OS（D28 用户级注册后此语义主要保护既有异侧残留与人为混写）。
-/// codex 腿枚举（两条：state 加 token；pentest 腿已随 REQ-031 退役）。
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum CodexLeg {
-    /// 该字段承载codex 腿的State数据。
-    State,
-    /// 该字段承载codex 腿的Token数据。
-    Token,
-}
-
+/// merge_codex_hook_event（token 单腿形，entropy-01 起 state 腿退役）。
 fn merge_codex_hook_event(
     settings: &mut Json,
     event: &str,
     session_end: bool,
     side: OsSide,
     oma: &Path,
-    leg: CodexLeg,
 ) -> Result<bool, String> {
     let Some(obj) = settings.as_object_mut() else {
         return Err("settings root is not an object".into());
@@ -859,22 +780,16 @@ fn merge_codex_hook_event(
         .as_array_mut()
         .ok_or_else(|| "event groups is not an array".to_string())?;
     let mut changed = false;
-    // REQ-028 腿分流：本事件归本腿管的 ours 才重写（state 腿遇 hst-token
-    // 条目不动、token 腿遇 state 条目不动；双挂两腿各 merge 一趟互不
-    // 侵蚀）。全量已见集合而非单值（review 复核残余：A,B,A 序列单值判定
-    // 会漏掉尾 A；集合语义按形态全等去重，异形各自保留）。
+    // 本腿（token）ours 判据：归本腿管的 ours 才重写。全量已见集合而非单值
+    //（review 复核残余：A,B,A 序列单值判定会漏掉尾 A；集合语义按形态全等
+    // 去重，异形各自保留）。
     let ours_this_leg = |handler: &Json| -> bool {
         handler_is_ours(handler)
             && ["command", "commandWindows"].iter().any(|k| {
                 handler
                     .get(*k)
                     .and_then(|c| c.as_str())
-                    .is_some_and(|c| match leg {
-                        CodexLeg::Token => c.contains("hst-token"),
-                        // pentest 腿退役（REQ-031）：存量 hst-pentest 条目落进
-                        // state 腿归一（同形去重后并回单条 state），不再外留。
-                        CodexLeg::State => !c.contains("hst-token"),
-                    })
+                    .is_some_and(|c| c.contains("hst-token"))
             })
     };
     let mut seen: HashSet<Json> = HashSet::new();
@@ -891,7 +806,7 @@ fn merge_codex_hook_event(
             if !ours_this_leg(handler) {
                 return true;
             }
-            let next = codex_handler_value_for(handler, oma, session_end, side, leg);
+            let next = codex_handler_value(handler, oma, session_end, side);
             seen.insert(next) // 同形重复：保首条弃余
         });
         if hooks.len() != before {
@@ -901,7 +816,7 @@ fn merge_codex_hook_event(
             if !ours_this_leg(handler) {
                 continue;
             }
-            let next = codex_handler_value_for(handler, oma, session_end, side, leg);
+            let next = codex_handler_value(handler, oma, session_end, side);
             if handler != &next {
                 *handler = next;
                 changed = true;
@@ -912,29 +827,11 @@ fn merge_codex_hook_event(
     if seen.is_empty() {
         arr.push(json!({
             "matcher": "*",
-            "hooks": [codex_handler_value_for(&Json::Null, oma, session_end, side, leg)]
+            "hooks": [codex_handler_value(&Json::Null, oma, session_end, side)]
         }));
         changed = true;
     }
     Ok(changed)
-}
-
-fn grok_handler(oma: &Path, side: OsSide) -> Json {
-    // Windows：grok 只认可整串 spawn 的单路径（M048），指向 baked 包装；
-    // Unix：sh 直带参。
-    let command = match side {
-        OsSide::Windows => oma
-            .join("hooks")
-            .join("hst-state-grok.cmd")
-            .display()
-            .to_string(),
-        OsSide::Unix => shim_command_ps_or_sh("grok", oma, side),
-    };
-    json!({
-        "type": "command",
-        "command": command,
-        "timeout": 10,
-    })
 }
 
 /// 部署的Claude面（细则见模块文档与集成测试）。
@@ -945,15 +842,16 @@ fn deploy_claude_user(
     side: OsSide,
     report: &mut DeployReport,
 ) -> Result<(), String> {
+    // entropy-01（2026-10-12 用户令）：hst-state 腿退役（herdr 的
+    // herdr-agent-state hook 已覆盖会话状态同步），只挂有腿事件；旧 state
+    // 注册经 sweep_unmanaged_ours 与 merge 陈旧替换清出。
     let events = [
-        "SessionStart",
         "UserPromptSubmit",
         "PreToolUse",
-        "PostToolUse",
-        "PermissionRequest",
-        "Notification",
         "Stop",
         "SessionEnd",
+        "Notification",
+        "PermissionRequest",
     ];
     let path = user_home.join(".claude").join("settings.json");
     let mut settings = read_json(&path)?;
@@ -962,29 +860,15 @@ fn deploy_claude_user(
     }
     report.form = Some("user");
     let mut changed = false;
-    // D39 第 2 轮：先清非管理事件里的异形态 ours 残留，再并现行（管理事件
-    // 由 merge 的陈旧替换照旧，is_ours 已认全路径解释器头）。
     changed |= sweep_unmanaged_ours(&mut settings, &events);
     for event in events {
-        // REQ-028：PreToolUse 与 UserPromptSubmit 双挂（state 加 token 腿，
-        // 单对各自 shim；state shim 已剥 guard 透传腿），其余单挂 state；
-        // REQ-045：Stop 再加 goal 腿（提醒注入，仅 claude）三挂。
-        // REQ-047：goal 腿扩挂 SessionEnd（收束扫描）、Notification 与
-        // PermissionRequest（blocked 带内快道），四事件与 state 腿双挂。
+        // token 腿（密钥拦截）挂 PreToolUse 与 UserPromptSubmit；goal 腿
+        // （提醒注入加收束扫描加 blocked 快道，仅 claude）挂 Stop 与
+        // SessionEnd 与 Notification 与 PermissionRequest。
         let handlers: Vec<Json> = if event == "PreToolUse" || event == "UserPromptSubmit" {
-            // REQ-031 退役后 PreToolUse 双挂（state 加 token）。
-            vec![
-                claude_handler(oma, side),
-                token_handler("claude", oma, side),
-            ]
-        } else if event == "Stop"
-            || event == "SessionEnd"
-            || event == "Notification"
-            || event == "PermissionRequest"
-        {
-            vec![claude_handler(oma, side), goal_handler("claude", oma, side)]
+            vec![token_handler("claude", oma, side)]
         } else {
-            vec![claude_handler(oma, side)]
+            vec![goal_handler("claude", oma, side)]
         };
         changed |= merge_hook_event(&mut settings, event, &handlers)?;
     }
@@ -1012,47 +896,19 @@ fn deploy_codex_user(
     side: OsSide,
     report: &mut DeployReport,
 ) -> Result<(), String> {
-    let events = [
-        ("SessionStart", false),
-        ("UserPromptSubmit", false),
-        ("PreToolUse", false),
-        ("PermissionRequest", false),
-        ("PostToolUse", false),
-        ("Stop", false),
-        ("SessionEnd", true),
-    ];
+    // entropy-01：hst-state 腿退役，codex 只剩 token 腿双事件；旧 state 注册
+    // 经 sweep_unmanaged_ours_codex（非管理事件）与 merge 陈旧替换清出。
+    let events = [("UserPromptSubmit", false), ("PreToolUse", false)];
     let path = user_home.join(".codex").join("hooks.json");
     let mut settings = read_json(&path)?;
     if !settings.is_object() {
         settings = json!({});
     }
     let mut changed = false;
-    // D39 第 2 轮：先清非管理事件里的异形态 ours 残留（只看本侧字段），
-    // 再并现行（管理事件由 merge 照旧，异侧字段字节保留语义不动）。
     let managed: Vec<&str> = events.iter().map(|(e, _)| *e).collect();
     changed |= sweep_unmanaged_ours_codex(&mut settings, &managed, side);
     for (event, session_end) in events {
-        changed |= merge_codex_hook_event(
-            &mut settings,
-            event,
-            session_end,
-            side,
-            oma,
-            CodexLeg::State,
-        )?;
-        // REQ-028：双事件双挂（token 腿单对 hst-token shim；state 腿条目由
-        // 上一趟 merge 保持，多趟按腿分流互不侵蚀）。REQ-031 pentest 腿已
-        // 退役，PreToolUse 不再有第三挂。
-        if matches!(event, "PreToolUse" | "UserPromptSubmit") {
-            changed |= merge_codex_hook_event(
-                &mut settings,
-                event,
-                session_end,
-                side,
-                oma,
-                CodexLeg::Token,
-            )?;
-        }
+        changed |= merge_codex_hook_event(&mut settings, event, session_end, side, oma)?;
     }
     if changed {
         write_json(&path, &settings)?;
@@ -1154,15 +1010,9 @@ fn deploy_grok_user(
     side: OsSide,
     report: &mut DeployReport,
 ) -> Result<(), String> {
-    let events = [
-        "SessionStart",
-        "UserPromptSubmit",
-        "PreToolUse",
-        "PostToolUse",
-        "Notification",
-        "Stop",
-        "SessionEnd",
-    ];
+    // entropy-01：hst-state 腿退役，grok 只剩 token 腿双事件；旧 state 注册
+    // 经 sweep 与 merge 陈旧替换清出。
+    let events = ["UserPromptSubmit", "PreToolUse"];
     let path = user_home
         .join(".grok")
         .join("hooks")
@@ -1172,17 +1022,9 @@ fn deploy_grok_user(
         settings = json!({});
     }
     let mut changed = false;
-    // D39 第 2 轮：先清非管理事件里的异形态 ours 残留，再并现行。
     changed |= sweep_unmanaged_ours(&mut settings, &events);
     for event in events {
-        // REQ-028：双事件双挂（同 claude 面式）。
-        let handlers: Vec<Json> = if event == "PreToolUse" {
-            vec![grok_handler(oma, side), token_handler("grok", oma, side)]
-        } else if event == "UserPromptSubmit" {
-            vec![grok_handler(oma, side), token_handler("grok", oma, side)]
-        } else {
-            vec![grok_handler(oma, side)]
-        };
+        let handlers: Vec<Json> = vec![token_handler("grok", oma, side)];
         changed |= merge_hook_event(&mut settings, event, &handlers)?;
     }
     if changed {
@@ -1202,21 +1044,6 @@ fn kimi_hook_entry(event: &str, command: &str) -> toml::Value {
     m.insert("command".into(), toml::Value::String(command.into()));
     m.insert("timeout".into(), toml::Value::Integer(10));
     toml::Value::Table(m)
-}
-
-/// kimi hook 命令串：Windows 用 powershell -File 前缀加无引号正斜杠 ps1
-/// 路径（D39 sh 兼容形态，与 claude/codex 面同款）；POSIX 是正斜杠裸命令
-/// 行（M058 实证：kimi 对整串命令朴素消费，引号形态静默不执行；TOML
-/// basic string 反斜杠是转义符，一律正斜杠）。
-fn kimi_hook_command(oma: &Path, side: OsSide) -> String {
-    match side {
-        // REQ-032 评审 F2 方案③：thin ps1 走 D39 三壳通吃形。
-        OsSide::Windows => format!(
-            "powershell.exe -NoProfile -ExecutionPolicy Bypass -File {} kimi",
-            crate::pathutil::forward_slash(&oma.join("hooks").join("hst-state.ps1"))
-        ),
-        OsSide::Unix => format!("{} kimi", oma.join("hooks").join("hst-state.sh").display()),
-    }
 }
 
 /// 部署的Kimi面（细则见模块文档与集成测试）。
@@ -1322,26 +1149,16 @@ fn deploy_kimi_user(
     side: OsSide,
     report: &mut DeployReport,
 ) -> Result<(), String> {
-    let events = [
-        "SessionStart",
-        "UserPromptSubmit",
-        "PreToolUse",
-        "PostToolUse",
-        "PermissionRequest",
-        "Notification",
-        "Stop",
-        "SessionEnd",
-    ];
     let config = user_home.join(".kimi-code").join("config.toml");
     let mut toml = read_toml(&config)?;
+    // entropy-01：hst-state 腿退役，kimi 只剩 token 腿双事件；retain 认现行
+    // token 形，旧 state 条目按陈旧弃。
     let token_events = ["UserPromptSubmit", "PreToolUse"];
-    // REQ-028：kimi 多段合并（state 全事件加 token 两事件；REQ-031 pentest
-    // 腿退役后不再有单事件辅助段），retain 与补齐认全量段，单次调用保幂等。
     let changed = apply_kimi_hooks(
         &mut toml,
-        &kimi_hook_command(oma, side),
-        &events,
-        &[(&kimi_token_command(oma, side), &token_events)],
+        &kimi_token_command(oma, side),
+        &token_events,
+        &[],
     )?;
     if changed {
         toml_write(&config, &toml)?;
@@ -1971,19 +1788,10 @@ mod tests {
         let mut report = DeployReport::default();
         deploy_user_hooks_with(&user, &oma, OsSide::Windows, &mut report).unwrap();
         let v: Json = serde_json::from_str(&fs::read_to_string(&claude).unwrap()).unwrap();
-        // 管理事件：现行单条加外来保留。
+        // entropy-01：SessionStart 已非管理事件（state 腿退役），ours 存量
+        // 清零；外来保留。
         let ss = ours_in_event(&claude, "SessionStart");
-        assert_eq!(
-            ss.len(),
-            1,
-            "managed event collapses to one current: {ss:?}"
-        );
-        assert!(
-            ss[0].contains("powershell.exe -NoProfile -ExecutionPolicy Bypass -File")
-                && ss[0].ends_with("/hooks/hst-state.ps1 claude"),
-            "{}",
-            ss[0]
-        );
+        assert_eq!(ss.len(), 0, "state-leg leftovers swept: {ss:?}");
         assert!(v["hooks"]["SessionStart"]
             .as_array()
             .unwrap()
@@ -2085,14 +1893,15 @@ mod tests {
     fn windows_direct_path_form_upgrades_to_ps1_wrap() {
         // D39 存量救济回归：M059 直路径形态（WSL 形 sh 不认盘符，宿主实弹
         // not found）重部署后被幂等覆盖为 powershell -File 包裹单条；外来
-        // 条目保留。
+        // 条目保留。entropy-01：改押 token 腿（state 腿退役，SessionStart
+        // 已非管理事件）。
         let user = fresh_dir("wrap");
         let oma = fresh_dir("wrap-oma");
         let claude = user.join(".claude").join("settings.json");
         ensure_parent(&claude).unwrap();
         let legacy = format!(
-            r#"{{"hooks": {{"SessionStart": [{{"matcher": "*", "hooks": [
-                {{"type": "command", "command": "{}/hooks/hst-state.cmd claude"}},
+            r#"{{"hooks": {{"PreToolUse": [{{"matcher": "*", "hooks": [
+                {{"type": "command", "command": "{}/hooks/hst-token.cmd claude"}},
                 {{"type": "command", "command": "C:\\tools\\keep.sh"}}]}}]}}}}"#,
             crate::pathutil::forward_slash(&oma)
         );
@@ -2100,7 +1909,7 @@ mod tests {
 
         let mut report = DeployReport::default();
         deploy_user_hooks_with(&user, &oma, OsSide::Windows, &mut report).unwrap();
-        let ours = ours_in_event(&claude, "SessionStart");
+        let ours = ours_in_event(&claude, "PreToolUse");
         assert_eq!(
             ours.len(),
             1,
@@ -2108,21 +1917,21 @@ mod tests {
         );
         assert!(
             ours[0].starts_with("powershell.exe -NoProfile -ExecutionPolicy Bypass -File ")
-                && ours[0].ends_with("/hooks/hst-state.ps1 claude"),
-            "REQ-032 F2 方案③ thin ps1 form: {}",
+                && ours[0].ends_with("/hooks/hst-token.ps1 claude"),
+            "thin ps1 form: {}",
             ours[0]
         );
         // 再跑一次幂等：包裹形态被 is_ours 认领且不陈旧，不追加重复。
         let mut second = DeployReport::default();
         deploy_user_hooks_with(&user, &oma, OsSide::Windows, &mut second).unwrap();
         assert_eq!(
-            ours_in_event(&claude, "SessionStart").len(),
+            ours_in_event(&claude, "PreToolUse").len(),
             1,
             "wrapped form is not stale on rerun"
         );
         let v: Json = serde_json::from_str(&fs::read_to_string(&claude).unwrap()).unwrap();
         assert!(
-            v["hooks"]["SessionStart"]
+            v["hooks"]["PreToolUse"]
                 .as_array()
                 .unwrap()
                 .iter()
@@ -2166,12 +1975,14 @@ mod tests {
             .collect()
     }
 
-    /// 单事件内的 ours command 数（收敛判据按事件论：八事件各一条）。
+    /// 单事件内的 ours command 数（收敛判据按事件论）。事件键缺(ours 清空
+    /// 后整键摘除,entropy-01 非管理事件常态)按空收。
     fn ours_in_event(p: &Path, event: &str) -> Vec<String> {
         let v: Json = serde_json::from_str(&fs::read_to_string(p).unwrap()).unwrap();
-        v["hooks"][event]
-            .as_array()
-            .unwrap()
+        v["hooks"]
+            .get(event)
+            .and_then(|e| e.as_array())
+            .unwrap_or(&Vec::new())
             .iter()
             .filter_map(|grp| grp.get("hooks").and_then(|h| h.as_array()))
             .flatten()
@@ -2211,8 +2022,8 @@ mod tests {
             "claude user settings written: {:?}",
             first.wrote
         );
-        assert!(oma.join("hooks").join("hst-state.cmd").exists());
-        assert!(oma.join("hooks").join("hst-state.sh").exists());
+        assert!(oma.join("hooks").join("hst-token.sh").exists());
+        assert!(oma.join("hooks").join("hst-goal.sh").exists());
 
         // statusLine 键与外来 hook 保留，ours 注册指向用户级 shim。
         let v: Json = serde_json::from_str(&fs::read_to_string(&claude).unwrap()).unwrap();
@@ -2227,7 +2038,7 @@ mod tests {
                 g["hooks"][0]["command"]
                     .as_str()
                     .unwrap()
-                    .contains("hst-state")
+                    .contains("hst-goal")
             })
             .unwrap();
         let claude_cmd = ours["hooks"][0]["command"].as_str().unwrap();
@@ -2242,47 +2053,45 @@ mod tests {
                 "{claude_cmd}"
             );
             assert!(
-                claude_cmd.ends_with("/hooks/hst-state.ps1 claude"),
+                claude_cmd.ends_with("/hooks/hst-goal.ps1 claude"),
                 "{claude_cmd}"
             );
         } else {
-            assert!(
-                claude_cmd.ends_with("hst-state.sh\" claude"),
-                "{claude_cmd}"
-            );
+            assert!(claude_cmd.ends_with("hst-goal.sh\" claude"), "{claude_cmd}");
         }
         assert!(v["hooks"]["PermissionRequest"].is_array());
 
-        // codex 用户层：hooks.json + config.toml features/trust。
+        // codex 用户层：hooks.json + config.toml features/trust（entropy-01：
+        // 只剩 token 腿双事件）。
         let codex: Json = serde_json::from_str(
             &fs::read_to_string(user.join(".codex").join("hooks.json")).unwrap(),
         )
         .unwrap();
-        let handler = &codex["hooks"]["SessionEnd"][0]["hooks"][0];
+        let handler = &codex["hooks"]["PreToolUse"][0]["hooks"][0];
         if cfg!(windows) {
             let cw = handler["commandWindows"].as_str().unwrap();
             assert!(!cw.contains('"') && !cw.starts_with('&'), "{cw}");
             assert!(
                 cw.starts_with("powershell.exe -NoProfile -ExecutionPolicy Bypass -File ")
-                    && cw.ends_with("/hooks/hst-state.ps1 codex"),
+                    && cw.ends_with("/hooks/hst-token.ps1 codex"),
                 "{cw}"
             );
             assert_eq!(
                 handler["command"].as_str(),
-                Some("hst hook status --agent codex"),
+                Some("hst hook token --agent codex"),
                 "schema-required fallback must be present on Windows"
             );
         } else {
             assert!(handler["command"]
                 .as_str()
                 .unwrap()
-                .ends_with("hst-state.sh\" codex"));
+                .ends_with("hst-token.sh\" codex"));
             assert!(
                 handler.get("commandWindows").is_none(),
                 "Unix fresh deploy must not invent the foreign-OS field"
             );
         }
-        assert_eq!(handler["timeout"], 3);
+        assert_eq!(handler["timeout"], 10);
         let codex_toml = fs::read_to_string(user.join(".codex").join("config.toml")).unwrap();
         assert!(codex_toml.contains("hooks = true"));
         assert!(
@@ -2307,17 +2116,18 @@ mod tests {
                 .join("hooks")
                 .join("ohmyagents-state.json"),
         );
-        assert!(grok_cmds.iter().any(|c| c.contains("hst-state")));
+        assert!(grok_cmds.iter().any(|c| c.contains("hst-token")));
         if cfg!(windows) {
-            let g = grok_cmds.iter().find(|c| c.contains("hst-state")).unwrap();
-            assert!(g.ends_with("hst-state-grok.cmd"), "M048 single path: {g}");
+            let g = grok_cmds.iter().find(|c| c.contains("hst-token")).unwrap();
+            assert!(g.ends_with("hst-token-grok.cmd"), "single path: {g}");
         }
 
-        // kimi [[hooks]]：外来条目存活、ours 八事件补齐、strict 四字段。
+        // kimi [[hooks]]：外来条目存活、ours 双事件补齐、strict 四字段
+        //（entropy-01：只剩 token 腿）。
         let kimi_toml = fs::read_to_string(&kimi).unwrap();
         assert!(kimi_toml.contains("theme"), "foreign key survives");
         assert!(kimi_toml.contains("\"my-tool\""), "foreign hook survives");
-        assert!(kimi_toml.contains("hst-state"));
+        assert!(kimi_toml.contains("hst-token"));
         let kv: toml::Value = toml::from_str(&kimi_toml).unwrap();
         let hooks = kv.get("hooks").and_then(|h| h.as_array()).unwrap();
         let ours: Vec<&toml::Value> = hooks
@@ -2325,10 +2135,10 @@ mod tests {
             .filter(|h| {
                 h.get("command")
                     .and_then(|c| c.as_str())
-                    .is_some_and(|c| c.contains("hst-state"))
+                    .is_some_and(|c| c.contains("hst-token"))
             })
             .collect();
-        assert_eq!(ours.len(), 8, "eight events registered: {ours:?}");
+        assert_eq!(ours.len(), 2, "two events registered: {ours:?}");
         for h in &ours {
             assert!(h.get("event").is_some());
             assert_eq!(h.get("matcher"), None, "matcher omitted = match all");
@@ -2373,16 +2183,15 @@ mod tests {
 
         let mut r = DeployReport::default();
         deploy_user_hooks_with(&user, &oma, host_side(), &mut r).unwrap();
-        // 注入的三条旧形态都在 Stop 事件：收敛为现行两挂（state 加 goal，
-        // REQ-045）；全文件无旧路径残留。
+        // 注入的三条旧形态都在 Stop 事件：entropy-01 起 state 腿退役，
+        // 收敛为现行单挂（goal）；全文件无旧路径残留。
         let ours = ours_in_event(&claude, "Stop");
         assert_eq!(
             ours.len(),
-            2,
-            "legacy forms collapse to current pair: {ours:?}"
+            1,
+            "legacy forms collapse to current single: {ours:?}"
         );
-        assert!(ours.iter().any(|c| c.contains("hst-state")), "{ours:?}");
-        assert!(ours.iter().any(|c| c.contains("hst-goal")), "{ours:?}");
+        assert!(ours.iter().all(|c| c.contains("hst-goal")), "{ours:?}");
         let cmds = collect_commands(&claude);
         assert!(!cmds.iter().any(|c| c.contains("D:\\old")), "old exe gone");
         assert!(
@@ -2394,12 +2203,12 @@ mod tests {
             !cmds.iter().any(|c| c.contains("hst-pentest")),
             "retired pentest registration swept"
         );
-        // 其余事件各一条现行注册（REQ-028：PreToolUse 双挂 state 加 token）。
-        assert_eq!(ours_in_event(&claude, "SessionStart").len(), 1);
+        // entropy-01：SessionStart 非管理事件（存量 state 清零）；
+        // PreToolUse 只剩 token 单挂。
+        assert_eq!(ours_in_event(&claude, "SessionStart").len(), 0);
         let ptu = ours_in_event(&claude, "PreToolUse");
-        assert_eq!(ptu.len(), 2, "state + token only: {ptu:?}");
-        assert!(ptu.iter().any(|c| c.contains("hst-state")));
-        assert!(ptu.iter().any(|c| c.contains("hst-token")));
+        assert_eq!(ptu.len(), 1, "token only: {ptu:?}");
+        assert!(ptu.iter().all(|c| c.contains("hst-token")));
         // 幂等。
         let mut second = DeployReport::default();
         deploy_user_hooks_with(&user, &oma, host_side(), &mut second).unwrap();
@@ -2418,38 +2227,38 @@ mod tests {
         // commandWindows 且 command 字节保留。
         write_text(
             &path,
-            r#"{"hooks": {"Stop": [{"matcher": "*", "hooks": [
-                {"type": "command", "command": "\"/mnt/c/old/oma\" hook --agent codex",
-                 "commandWindows": "& \"D:\\old2\\oma.exe\" hook --agent codex", "timeout": 10}]}]}}"#,
+            r#"{"hooks": {"PreToolUse": [{"matcher": "*", "hooks": [
+                {"type": "command", "command": "\"/mnt/c/old/.hst/hooks/hst-token.sh\" codex",
+                 "commandWindows": "& \"D:\\old2\\hst-token.cmd\" codex", "timeout": 10}]}]}}"#,
         )
         .unwrap();
         let mut r = DeployReport::default();
         deploy_user_hooks_with(&user, &oma, OsSide::Windows, &mut r).unwrap();
         let v: Json = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
-        let h = &v["hooks"]["Stop"][0]["hooks"][0];
+        let h = &v["hooks"]["PreToolUse"][0]["hooks"][0];
         assert_eq!(
             h["command"].as_str(),
-            Some("\"/mnt/c/old/oma\" hook --agent codex"),
+            Some("\"/mnt/c/old/.hst/hooks/hst-token.sh\" codex"),
             "foreign-OS field preserved verbatim"
         );
         let cw = h["commandWindows"].as_str().unwrap();
         assert!(!cw.contains('&'), "{cw}");
         assert!(
             cw.starts_with("powershell.exe -NoProfile -ExecutionPolicy Bypass -File ")
-                && cw.ends_with("/hooks/hst-state.ps1 codex"),
+                && cw.ends_with("/hooks/hst-token.ps1 codex"),
             "{cw}"
         );
         assert!(!cw.contains("old2"), "owned field rewritten: {cw}");
 
         // 同形重复植入后收敛。
         let mut v: Json = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
-        let canonical = v["hooks"]["Stop"][0]["hooks"][0].clone();
-        v["hooks"]["Stop"][0]["hooks"] = Json::Array(vec![canonical.clone(), canonical]);
+        let canonical = v["hooks"]["PreToolUse"][0]["hooks"][0].clone();
+        v["hooks"]["PreToolUse"][0]["hooks"] = Json::Array(vec![canonical.clone(), canonical]);
         fs::write(&path, serde_json::to_string(&v).unwrap()).unwrap();
         let mut r2 = DeployReport::default();
         deploy_user_hooks_with(&user, &oma, OsSide::Windows, &mut r2).unwrap();
         let v: Json = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
-        let n = v["hooks"]["Stop"]
+        let n = v["hooks"]["PreToolUse"]
             .as_array()
             .unwrap()
             .iter()
@@ -2823,12 +2632,11 @@ hooks = [
         let mut r2 = DeployReport::default();
         deploy_user_hooks_with(&user, &oma, host_side(), &mut r2).unwrap();
         let ours = ours_in_event(&claude, "Stop");
-        // REQ-045：Stop 双挂（state 加 goal）；同形重复条目只保首份。
-        assert_eq!(ours.len(), 2, "duplicates must collapse: {ours:?}");
-        assert_eq!(
-            ours.iter().filter(|c| c.contains("hst-state")).count(),
-            1,
-            "state duplicates collapse: {ours:?}"
+        // entropy-01：Stop 单挂 goal；同形重复条目只保首份。
+        assert_eq!(ours.len(), 1, "duplicates must collapse: {ours:?}");
+        assert!(
+            ours.iter().all(|c| c.contains("hst-goal")),
+            "goal single current: {ours:?}"
         );
         let mut r3 = DeployReport::default();
         deploy_user_hooks_with(&user, &oma, host_side(), &mut r3).unwrap();
@@ -2855,23 +2663,16 @@ hooks = [
         )
         .unwrap();
         let mut toml = read_toml(&cfg).unwrap();
-        let cmd = kimi_hook_command(&oma, host_side());
-        let tcmd = "/x/.hst/hooks/hst-token.sh kimi".to_string();
-        assert!(apply_kimi_hooks(
-            &mut toml,
-            &cmd,
-            &["SessionStart", "Stop"],
-            &[(tcmd.as_str(), &["PreToolUse"])]
-        )
-        .unwrap());
+        // entropy-01：state 腿退役，kimi 注册只剩 token 腿（该件测的是
+        // merge 机制：bare 升级、外来保留、幂等）。
+        let cmd = kimi_token_command(&oma, host_side());
+        assert!(
+            apply_kimi_hooks(&mut toml, &cmd, &["UserPromptSubmit", "PreToolUse"], &[]).unwrap()
+        );
         // 再跑不变（幂等判据）。
-        assert!(!apply_kimi_hooks(
-            &mut toml,
-            &cmd,
-            &["SessionStart", "Stop"],
-            &[(tcmd.as_str(), &["PreToolUse"])]
-        )
-        .unwrap());
+        assert!(
+            !apply_kimi_hooks(&mut toml, &cmd, &["UserPromptSubmit", "PreToolUse"], &[]).unwrap()
+        );
         let arr = toml.get("hooks").and_then(|h| h.as_array()).unwrap();
         assert!(arr
             .iter()
@@ -2882,8 +2683,8 @@ hooks = [
             "bare form upgraded away");
         assert_eq!(
             arr.len(),
-            4,
-            "sessionstart + stop ours + token(PreToolUse) ours + foreign my-tool"
+            3,
+            "userpromptsubmit + pretooluse ours + foreign my-tool"
         );
         let _ = fs::remove_dir_all(&user);
         let _ = fs::remove_dir_all(&oma);

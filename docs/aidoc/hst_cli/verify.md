@@ -12,21 +12,19 @@
   （无 `[tui] status_line`）或可选运行时缺位（pwsh 不在 PATH）= skip
   不计败、带 CTA（状态栏是可选面，doctor 另有 warn）；已部署但断链
   （marker 缺、内置项缺 run-state 锚、脚本非零退出）仍 fail。
-- hook：临时目录起无头会话，判据只押 SessionStart / UserPromptSubmit
-  这类先于模型调用的事件——模型应答失败（无 token、网络错）不影响判
-  定，state 文件落盘即 ok。D28 判据隔离：子进程带
-  `HST_STATE_FILE` 指进临时目录（shim 与 hst hook 都认，env 经
-  agent 进程继承给 hook 子进程）；万一某家不透传 env，回落扫用户级
-  `~/.hst/state/` 里本轮窗口内新写的 `<agent>*.json`。注册走
-  **真实用户级面**（四家同一形态，即产品面本身）：byte 备份五件配置、
-  deploy、Drop 还原（kimi M058 实证全局触发面泛化到四家，2026-09-11）。
+- hook：临时目录起无头会话。entropy-01（2026-10-12 用户令）：hst-state
+  腿退役（herdr 的 herdr-agent-state hook 已覆盖会话状态同步），运行时
+  可观测腿只剩 claude 的 goal 面——claude 判据改押 goal rounds（Stop
+  事件端到端：临时 goal 在册，无头会话收束后 rounds 递增即 ok，模型
+  应答失败不影响判定）；codex/grok/kimi 无运行时可观测腿，skip 带注
+  （注册面形态由 hst doctor 的 hooks.form 验）。注册走**真实用户级
+  面**：byte 备份五件配置、deploy、Drop 还原。
 
 ## Functions
 
 - `any_fail` — 任一非跳过项失败即 true（进程退出 1 的判据）。
 - `codex_builtin_statusline_ok` — 无头验收的纯函数面（细则见模块文档与集成测试）。
 - `headless_argv` — 各家的无头命令行（S033 取证）。codex 的 bypass 旗标必须：否则 hook
-- `parse_state` — # Errors
 - `render` — kv marker 行渲染（风格对齐 statusline/install 等现有命令）。
 - `run` — # Errors
 - `statusline_marker_ok` — 无头验收的纯函数面（细则见模块文档与集成测试）。

@@ -836,7 +836,13 @@ fn kimi_hooks_form(toml: Option<&Toml>) -> &'static str {
             continue;
         }
         ours = true;
-        if c.contains("hst-state") || c.contains("oma-state") {
+        // entropy-01:现行 shim 腿 = hst-token 与 hst-goal;hst-state 与 oma
+        // 旧名仍认(存量未重init机的注册面分类)。
+        if c.contains("hst-token")
+            || c.contains("hst-goal")
+            || c.contains("hst-state")
+            || c.contains("oma-state")
+        {
             if command_target(c).is_file() {
                 shim = true;
             } else {

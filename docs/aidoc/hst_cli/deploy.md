@@ -26,5 +26,5 @@ MoonshotAI/kimi-code sources).
 ## Types
 
 - `DeployReport` — 部署报告：写入、跳过、形态与警告清单。
-- `OsSide` — Which OS consumes a codex registration field: `command` on Unix,
+- `OsSide` — 部署的D27面（细则见模块文档与集成测试）。
 

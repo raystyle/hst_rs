@@ -166,11 +166,7 @@ pub fn deploy_shims_with_exe(
     std::fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     let mut wrote: Vec<PathBuf> = Vec::new();
     let mut warns = Vec::new();
-    for (leg, stem) in [
-        ("state", "hst-state"),
-        ("token", "hst-token"),
-        ("goal", "hst-goal"),
-    ] {
+    for (leg, stem) in [("token", "hst-token"), ("goal", "hst-goal")] {
         let sh = dir.join(format!("{stem}.sh"));
         if write_if_changed(&sh, &thin_sh(&exe, leg, shell))? {
             wrote.push(sh.clone());
@@ -201,6 +197,12 @@ pub fn deploy_shims_with_exe(
         "oma-state-grok.cmd",
         "oma-state.sh",
         "oma-state.ps1",
+        // entropy-01（2026-10-12 用户令）：hst-state 腿退役（herdr 的
+        // herdr-agent-state hook 已覆盖会话状态同步）。
+        "hst-state.sh",
+        "hst-state.ps1",
+        "hst-state.cmd",
+        "hst-state-grok.cmd",
         "hst-pentest.sh",
         "hst-pentest.ps1",
         "hst-pentest.cmd",
@@ -291,22 +293,22 @@ mod tests {
     }
 
     #[test]
-    fn deploy_shims_writes_twelve_and_is_idempotent() {
-        // 三腿（sh 加 ps1 加 cmd 加 grok 包装）= 十二件（REQ-045 加 goal
-        // 腿）；幂等。
-        let dir = scratch("twelve");
+    fn deploy_shims_writes_eight_and_is_idempotent() {
+        // 两腿（token 加 goal，sh 加 ps1 加 cmd 加 grok 包装）= 八件
+        //（entropy-01：state 腿退役）；幂等。
+        let dir = scratch("eight");
         let (wrote, warns) = deploy_shims_with(&dir, "bash").unwrap();
         assert_eq!(
             wrote.len(),
-            12,
-            "twelve thin shells (sh/ps1/cmd x3 + grok x3): {wrote:?}"
+            8,
+            "eight thin shells (sh/ps1/cmd x2 + grok x2): {wrote:?}"
         );
         // REQ-043：测试进程即开发构建位，告警恰在（回落装位烘焙）。
         assert!(
             warns.iter().any(|w| w.starts_with("shim exe fallback")),
             "dev-build warn present: {warns:?}"
         );
-        for stem in ["hst-state", "hst-token", "hst-goal"] {
+        for stem in ["hst-token", "hst-goal"] {
             for name in [".sh", ".ps1", ".cmd", "-grok.cmd"] {
                 let f = format!("{stem}{name}");
                 assert!(dir.join("hooks").join(&f).exists(), "missing {f}");

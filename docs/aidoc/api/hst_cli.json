@@ -160,7 +160,7 @@
     {
       "path": "hst_cli::deploy::OsSide",
       "kind": "enum",
-      "docs": "Which OS consumes a codex registration field: `command` on Unix,\n`commandWindows` on Windows (S015). Injected so tests exercise both\nsides from one host."
+      "docs": "部署的D27面（细则见模块文档与集成测试）。\nWhich OS consumes a codex registration field: `command` on Unix,\n`commandWindows` on Windows (S015). Injected so tests exercise both\nsides from one host."
     },
     {
       "path": "hst_cli::deploy::deploy_all",
@@ -563,11 +563,6 @@
       "docs": "`hst hook`：事件到四态映射、用户级 session 分键 state 落盘与密钥拦截分流（D28/S030）。"
     },
     {
-      "path": "hst_cli::hook::HookOutcome",
-      "kind": "struct",
-      "docs": "hook 出口：状态通道 + 密钥 guard（S030 第二职责）。"
-    },
-    {
       "path": "hst_cli::hook::event_label",
       "kind": "function",
       "docs": "事件标签公共解析（REQ-047 goal 快道共用）：事件参数形直 normalize,\n无参数走 payload 形状推断（同 state 腿),两路皆空得空串。"
@@ -583,19 +578,9 @@
       "docs": "读 stdin 全量为 JSON（空串与坏形返回 None；REQ-045 起共用给 goal 腿\n入口）。"
     },
     {
-      "path": "hst_cli::hook::run",
-      "kind": "function",
-      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\nHook entry: always exit-path friendly. `HST_STATE_FILE` 覆盖互斥\n单写（verify 与测试）；缺省走用户级 session 分键通道（D28）：写\n`~/.hst/state/<agent>.json`（agent 最新）加 `<agent>-<session>.json`\n（session 键，状态栏按当前会话直读；session 取 payload session_id /\nsessionId，grok 回退 GROK_SESSION_ID env）。SessionEnd 删本 session 键\n文件（GC），顺带清扫同 agent 超 7 天的陈旧键文件（崩溃残留）。"
-    },
-    {
-      "path": "hst_cli::hook::run_state",
-      "kind": "function",
-      "docs": "REQ-028 state 腿（payload 穿透命令族）：只做四态写盘（D28 读序含会话\n键与 SessionEnd GC），不扫密钥。\n\n# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。"
-    },
-    {
       "path": "hst_cli::hook::run_token",
       "kind": "function",
-      "docs": " REQ-028 token 腿（payload 穿透命令族）：只做 secretguard 密钥扫描\n（block 级由调用方 exit 2），不写盘。\n\n # Errors\n\n 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。"
+      "docs": "token 腿入口（`hst hook token`）：只做 secretguard 密钥扫描（block 级\n由调用方 exit 2），不写盘。entropy-01（2026-10-12 用户令）：hst-state\n腿（四态写盘 `~/.hst/state/`）整体退役——herdr 的 herdr-agent-state\nhook 已覆盖会话状态同步，本模块只保留事件解析公共件与 guard 面。\n\n# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。"
     },
     {
       "path": "hst_cli::hook::state_for_payload",
@@ -1125,7 +1110,7 @@
     {
       "path": "hst_cli::verify",
       "kind": "module",
-      "docs": "`hst agents verify`：四家无头验收两层判据（D17/S033）。\n`hst agents verify`（D17）：四家 agent 的 hook 与状态栏全平台无头验收。\n两层判据（S033 源码实证底座；D28 起注册面全量用户级）：\n- 状态栏：**验收已部署的面**（D37，2026-09-13 wsl 总台验收适配）：脚本\n  本体直跑（mock 空 JSON 喂 stdin，断言 stdout 任一行含 `agent:state`\n  机读标记（D42 三行布局起 agent 态在第二行；D46 起可带连字符版本形\n  `agent-<version>:state`），S025；脚本由 verify 按\n  需释放）；codex 无外部命令面（M045），断\n  `~/.codex/config.toml` 的 `[tui] status_line` 含内置项 ID。面未部署\n  （无 `[tui] status_line`）或可选运行时缺位（pwsh 不在 PATH）= skip\n  不计败、带 CTA（状态栏是可选面，doctor 另有 warn）；已部署但断链\n  （marker 缺、内置项缺 run-state 锚、脚本非零退出）仍 fail。\n- hook：临时目录起无头会话，判据只押 SessionStart / UserPromptSubmit\n  这类先于模型调用的事件——模型应答失败（无 token、网络错）不影响判\n  定，state 文件落盘即 ok。D28 判据隔离：子进程带\n  `HST_STATE_FILE` 指进临时目录（shim 与 hst hook 都认，env 经\n  agent 进程继承给 hook 子进程）；万一某家不透传 env，回落扫用户级\n  `~/.hst/state/` 里本轮窗口内新写的 `<agent>*.json`。注册走\n  **真实用户级面**（四家同一形态，即产品面本身）：byte 备份五件配置、\n  deploy、Drop 还原（kimi M058 实证全局触发面泛化到四家，2026-09-11）。"
+      "docs": "`hst agents verify`：四家无头验收两层判据（D17/S033）。\n`hst agents verify`（D17）：四家 agent 的 hook 与状态栏全平台无头验收。\n两层判据（S033 源码实证底座；D28 起注册面全量用户级）：\n- 状态栏：**验收已部署的面**（D37，2026-09-13 wsl 总台验收适配）：脚本\n  本体直跑（mock 空 JSON 喂 stdin，断言 stdout 任一行含 `agent:state`\n  机读标记（D42 三行布局起 agent 态在第二行；D46 起可带连字符版本形\n  `agent-<version>:state`），S025；脚本由 verify 按\n  需释放）；codex 无外部命令面（M045），断\n  `~/.codex/config.toml` 的 `[tui] status_line` 含内置项 ID。面未部署\n  （无 `[tui] status_line`）或可选运行时缺位（pwsh 不在 PATH）= skip\n  不计败、带 CTA（状态栏是可选面，doctor 另有 warn）；已部署但断链\n  （marker 缺、内置项缺 run-state 锚、脚本非零退出）仍 fail。\n- hook：临时目录起无头会话。entropy-01（2026-10-12 用户令）：hst-state\n  腿退役（herdr 的 herdr-agent-state hook 已覆盖会话状态同步），运行时\n  可观测腿只剩 claude 的 goal 面——claude 判据改押 goal rounds（Stop\n  事件端到端：临时 goal 在册，无头会话收束后 rounds 递增即 ok，模型\n  应答失败不影响判定）；codex/grok/kimi 无运行时可观测腿，skip 带注\n  （注册面形态由 hst doctor 的 hooks.form 验）。注册走**真实用户级\n  面**：byte 备份五件配置、deploy、Drop 还原。"
     },
     {
       "path": "hst_cli::verify::AgentOutcome",
@@ -1161,11 +1146,6 @@
       "path": "hst_cli::verify::headless_argv",
       "kind": "function",
       "docs": "各家的无头命令行（S033 取证）。codex 的 bypass 旗标必须：否则 hook\n信任闸静默跳过无任何提示（假绿）。"
-    },
-    {
-      "path": "hst_cli::verify::parse_state",
-      "kind": "function",
-      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n无头验收的纯函数面（细则见模块文档与集成测试）。\nevent 空 = shim 没解析到 stdin payload（codex review G2：此前的判据\n盲区，读空也落 unknown-state 文件、verify 照样绿）。"
     },
     {
       "path": "hst_cli::verify::render",

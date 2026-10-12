@@ -9,14 +9,13 @@
 //!   （无 `[tui] status_line`）或可选运行时缺位（pwsh 不在 PATH）= skip
 //!   不计败、带 CTA（状态栏是可选面，doctor 另有 warn）；已部署但断链
 //!   （marker 缺、内置项缺 run-state 锚、脚本非零退出）仍 fail。
-//! - hook：临时目录起无头会话，判据只押 SessionStart / UserPromptSubmit
-//!   这类先于模型调用的事件——模型应答失败（无 token、网络错）不影响判
-//!   定，state 文件落盘即 ok。D28 判据隔离：子进程带
-//!   `HST_STATE_FILE` 指进临时目录（shim 与 hst hook 都认，env 经
-//!   agent 进程继承给 hook 子进程）；万一某家不透传 env，回落扫用户级
-//!   `~/.hst/state/` 里本轮窗口内新写的 `<agent>*.json`。注册走
-//!   **真实用户级面**（四家同一形态，即产品面本身）：byte 备份五件配置、
-//!   deploy、Drop 还原（kimi M058 实证全局触发面泛化到四家，2026-09-11）。
+//! - hook：临时目录起无头会话。entropy-01（2026-10-12 用户令）：hst-state
+//!   腿退役（herdr 的 herdr-agent-state hook 已覆盖会话状态同步），运行时
+//!   可观测腿只剩 claude 的 goal 面——claude 判据改押 goal rounds（Stop
+//!   事件端到端：临时 goal 在册，无头会话收束后 rounds 递增即 ok，模型
+//!   应答失败不影响判定）；codex/grok/kimi 无运行时可观测腿，skip 带注
+//!   （注册面形态由 hst doctor 的 hooks.form 验）。注册走**真实用户级
+//!   面**：byte 备份五件配置、deploy、Drop 还原。
 
 use std::fs;
 use std::io::Write;
@@ -394,37 +393,40 @@ fn verify_hook_in(
             None,
         )
     };
+    // entropy-01：hst 运行时可观测腿只剩 claude goal 面；他家 skip 带注
+    //（注册面形态由 doctor hooks.form 验，token 腿无成功可观测副作用）。
+    if agent != "claude" {
+        return (
+            LayerVerdict::Skip(
+                "hst 运行时可观测腿仅 claude goal 面（state 腿已退役，herdr-agent-state 覆盖会话态）；注册面形态由 hst doctor 验".into(),
+            ),
+            None,
+        );
+    }
     if let Err(e) = fs::create_dir_all(tmp) {
         return fail(format!("tmpdir: {e}"));
     }
     if let Err(e) = git_init(tmp) {
         return fail(format!("git-init: {e}"));
     }
-    // D28：注册走真实用户级面（四家同一形态，byte 备份 + deploy + Drop 还原；
-    // 真实家目录直取 dirs::home_dir，不受 HST_USER_HOME 隔离缝影响——agent
-    // 本体读的是真实家）。
+    // 注册走真实用户级面（byte 备份 + deploy + Drop 还原）。
     let _user_guard = match UserHooksGuard::seed() {
         Ok(g) => g,
         Err(e) => return fail(format!("seed-user-hooks: {e}")),
     };
-    // grok 项目源 hooks 受 folder trust 门禁（S033：xai-grok-config loader）：
-    // 验收临时目录先种子 ~/.grok/trusted_folders.toml，Drop 时摘除（已信任不动）。
-    let _grok_guard = if agent == "grok" {
-        match grok_trust_add(tmp) {
-            Ok(g) => Some(g),
-            Err(e) => return fail(format!("grok-trust: {e}")),
-        }
-    } else {
-        None
+    // 判据：临时 goal 在册，无头会话 Stop 后 rounds 递增（goal 腿端到端）。
+    let home = match crate::install::hst_home() {
+        Ok(h) => h,
+        Err(e) => return fail(format!("hst-home: {e}")),
     };
-    // 判据隔离：state 落进临时目录（env 经 agent 进程继承给 hook 子进程）。
-    let state_file = tmp.join("hst-verify-state").join(format!("{agent}.json"));
-    if let Some(dir) = state_file.parent() {
-        if let Err(e) = fs::create_dir_all(dir) {
-            return fail(format!("state-dir: {e}"));
-        }
+    if let Err(e) = crate::goal::set_goal(
+        &home,
+        tmp,
+        "hst 无头验收判据档:请勿 clear 本 goal,直接简答 ok 结束",
+    ) {
+        return fail(format!("goal-set: {e}"));
     }
-    let started = std::time::SystemTime::now();
+    let _goal_guard = scopeguard_clear_goal(&home, tmp);
     let argv = match headless_argv(agent, bin, tmp) {
         Some(a) => a,
         None => return fail(format!("unknown agent {agent}")),
@@ -432,7 +434,6 @@ fn verify_hook_in(
     let mut child = match Command::new(&argv[0])
         .args(&argv[1..])
         .current_dir(tmp)
-        .env("HST_STATE_FILE", &state_file)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -441,51 +442,32 @@ fn verify_hook_in(
         Ok(c) => c,
         Err(e) => return fail(format!("spawn: {e}")),
     };
-    // 超时杀进程不算失败本身：判据只看 state 文件落盘。
+    // 超时杀进程不算失败本身：判据只看 rounds。
     let _exited = wait_with_timeout(&mut child, Duration::from_secs(timeout_secs));
-    match fs::read_to_string(&state_file) {
-        Ok(text) => match parse_state(&text) {
-            Ok(state) => (LayerVerdict::Ok, Some(state)),
-            Err(e) => fail(format!("bad-state: {e}")),
-        },
-        Err(_) => {
-            // 回落：某家不透传 env 时，扫用户级状态目录本轮窗口内的新文件。
-            match freshest_new_user_state(agent, started) {
-                Some(text) => match parse_state(&text) {
-                    Ok(state) => (LayerVerdict::Ok, Some(state)),
-                    Err(e) => fail(format!("bad-state(user): {e}")),
-                },
-                None => fail("no-state-file".into()),
-            }
+    match crate::goal::show_goal(&home, tmp) {
+        Ok(Some(rec)) if rec.rounds >= 1 => {
+            (LayerVerdict::Ok, Some(format!("rounds={}", rec.rounds)))
         }
+        Ok(Some(rec)) => fail(format!("no-stop-event rounds={}", rec.rounds)),
+        Ok(None) => fail("goal-record-vanished".into()),
+        Err(e) => fail(format!("goal-read: {e}")),
     }
 }
 
-/// 用户级状态目录里本轮窗口内新写的 `<agent>*.json`（取最新 mtime）。
-/// 无头验收的只读不删面（细则见模块文档与集成测试）。
-/// 真实家目录直取（shim 写 `%USERPROFILE%\.hst\state` 不看 HST_ROOT）。
-fn freshest_new_user_state(agent: &str, started: std::time::SystemTime) -> Option<String> {
-    let home = verify_real_home().ok()?;
-    let dir = crate::pathutil::data_dir(&home).join("state");
-    let mut best: Option<(std::time::SystemTime, PathBuf)> = None;
-    for ent in fs::read_dir(&dir).ok()?.flatten() {
-        let p = ent.path();
-        let name = p.file_name().and_then(|n| n.to_str())?;
-        if !name.starts_with(agent) || !name.ends_with(".json") {
-            continue;
-        }
-        let Ok(mtime) = ent.metadata().and_then(|m| m.modified()) else {
-            continue;
-        };
-        if mtime < started {
-            continue;
-        }
-        if best.as_ref().is_none_or(|(t, _)| mtime > *t) {
-            best = Some((mtime, p));
-        }
+/// goal 收尾清理（RAII：判据读毕即 clear，不留验收残留）。
+struct ClearGoal<'a> {
+    home: &'a Path,
+    root: &'a Path,
+}
+
+impl Drop for ClearGoal<'_> {
+    fn drop(&mut self) {
+        let _ = crate::goal::clear_goal(self.home, self.root);
     }
-    let (_, p) = best?;
-    fs::read_to_string(p).ok()
+}
+
+fn scopeguard_clear_goal<'a>(home: &'a Path, root: &'a Path) -> ClearGoal<'a> {
+    ClearGoal { home, root }
 }
 
 /// 环境原因失败时的可行动 hint（不只打 fail）。
@@ -572,94 +554,6 @@ impl Drop for UserHooksGuard {
     }
 }
 
-/// grok folder trust 临时条目（S033 项目源 hooks 门禁）。Drop 时摘除：
-/// 文件原本不在则整文件删掉；原本在则只摘我们加的 key。
-struct GrokTrustGuard {
-    file: PathBuf,
-    key: String,
-    file_existed: bool,
-}
-
-impl Drop for GrokTrustGuard {
-    fn drop(&mut self) {
-        if self.file_existed {
-            if let Ok(mut toml) = crate::yolo::read_toml(&self.file) {
-                grok_trust_remove(&mut toml, &self.key);
-                let _ = crate::yolo::toml_write(&self.file, &toml);
-            }
-        } else {
-            let _ = fs::remove_file(&self.file);
-        }
-    }
-}
-
-/// 无头验收的纯函数面（细则见模块文档与集成测试）。
-/// grok 段）。返回是否为新增（已信任则不动，调用方也不该摘除）。
-fn grok_trust_insert(toml: &mut toml::Value, key: &str) -> Result<bool, String> {
-    let table = match toml {
-        toml::Value::Table(t) => t,
-        _ => return Err("grok trusted_folders.toml is not a table".into()),
-    };
-    let folders = table
-        .entry("folders".to_string())
-        .or_insert_with(|| toml::Value::Table(toml::map::Map::new()));
-    let folders = match folders {
-        toml::Value::Table(t) => t,
-        _ => return Err("grok [folders] is not a table".into()),
-    };
-    let already = folders
-        .get(key)
-        .and_then(|v| v.get("trusted"))
-        .and_then(|v| v.as_bool())
-        == Some(true);
-    if already {
-        return Ok(false);
-    }
-    let mut entry = toml::map::Map::new();
-    entry.insert("trusted".into(), toml::Value::Boolean(true));
-    let decided_at = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0);
-    entry.insert("decided_at".into(), toml::Value::Integer(decided_at));
-    folders.insert(key.to_string(), toml::Value::Table(entry));
-    Ok(true)
-}
-
-/// 无头验收的纯函数面（细则见模块文档与集成测试）。
-fn grok_trust_remove(toml: &mut toml::Value, key: &str) {
-    let toml::Value::Table(table) = toml else {
-        return;
-    };
-    let empty = match table.get_mut("folders") {
-        Some(toml::Value::Table(folders)) => {
-            folders.remove(key);
-            folders.is_empty()
-        }
-        _ => false,
-    };
-    if empty {
-        table.remove("folders");
-    }
-}
-
-fn grok_trust_add(root: &Path) -> Result<Option<GrokTrustGuard>, String> {
-    let home = crate::pathutil::user_home()?;
-    let file = home.join(".grok").join("trusted_folders.toml");
-    let file_existed = file.exists();
-    let key = crate::pathutil::native_slash(root);
-    let mut toml = crate::yolo::read_toml(&file)?;
-    if !grok_trust_insert(&mut toml, &key)? {
-        return Ok(None); // 已信任：不守卫、不摘除
-    }
-    crate::yolo::toml_write(&file, &toml)?;
-    Ok(Some(GrokTrustGuard {
-        file,
-        key,
-        file_existed,
-    }))
-}
-
 /// hook 回退写盘的硬前置：cwd 向上 8 层内要有 .git（hook.rs）。
 fn git_init(dir: &Path) -> Result<(), String> {
     match Command::new("git")
@@ -728,35 +622,6 @@ fn wait_with_timeout(child: &mut Child, timeout: Duration) -> bool {
     }
 }
 
-/// # Errors
-///
-/// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
-/// 无头验收的纯函数面（细则见模块文档与集成测试）。
-/// event 空 = shim 没解析到 stdin payload（codex review G2：此前的判据
-/// 盲区，读空也落 unknown-state 文件、verify 照样绿）。
-pub fn parse_state(text: &str) -> Result<String, String> {
-    let v: serde_json::Value =
-        serde_json::from_str(text).map_err(|e| format!("state json: {e}"))?;
-    let state = v
-        .get("state")
-        .and_then(|s| s.as_str())
-        .ok_or_else(|| "state field missing".to_string())?;
-    match state {
-        "idle" | "working" | "blocked" | "unknown" => {}
-        other => return Err(format!("unexpected state {other}")),
-    }
-    let event = v
-        .get("event")
-        .and_then(|e| e.as_str())
-        .unwrap_or("")
-        .trim()
-        .to_string();
-    if event.is_empty() {
-        return Err("empty event (shim failed to parse stdin payload)".into());
-    }
-    Ok(state.to_string())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -808,25 +673,6 @@ mod tests {
         let kimi = headless_argv("kimi", bin, project).unwrap();
         assert_eq!(kimi.len(), 3, "kimi -p 硬编码 auto 批准，无额外线标");
         assert!(headless_argv("bogus", bin, project).is_none());
-    }
-
-    #[test]
-    fn parse_state_accepts_the_four_states() {
-        for s in ["idle", "working", "blocked", "unknown"] {
-            let text = format!("{{\"state\": \"{s}\", \"event\": \"sessionstart\"}}");
-            assert_eq!(parse_state(&text).unwrap(), s);
-        }
-    }
-
-    #[test]
-    fn dies_parse_state_rejects_foreign_state_and_garbage() {
-        // 期望来自 hook.rs 的四态封闭集（独立来源），非被测逻辑镜像。
-        assert!(parse_state("{\"state\": \"running\"}").is_err());
-        assert!(parse_state("{\"event\": \"stop\"}").is_err());
-        assert!(parse_state("not json").is_err());
-        // codex review G2：event 空 = shim 读空 stdin 的空解析产物，不作数。
-        assert!(parse_state("{\"state\": \"unknown\", \"event\": \"\"}").is_err());
-        assert!(parse_state("{\"state\": \"idle\"}").is_err());
     }
 
     #[test]
@@ -917,30 +763,6 @@ mod tests {
         assert!(lines.contains(&"verify.codex.hook=fail reason=no-state-file".to_string()));
         assert!(lines.contains(&"verify.codex.hook.hint=hint-text".to_string()));
         assert_eq!(lines.last().unwrap(), "verify.ok=false");
-    }
-
-    #[test]
-    fn grok_trust_insert_remove_roundtrip() {
-        // 期望对齐 yolo::apply_pretrust 的 grok 段：[folders.<key>] trusted=true。
-        let mut toml = toml::Value::Table(toml::map::Map::new());
-        assert!(grok_trust_insert(&mut toml, "D:\\tmp\\x").unwrap());
-        let folders = toml.get("folders").unwrap().as_table().unwrap();
-        assert_eq!(
-            folders.get("D:\\tmp\\x").unwrap().get("trusted"),
-            Some(&toml::Value::Boolean(true))
-        );
-        // 已信任再插返回 false（调用方不摘除用户既有信任）。
-        assert!(!grok_trust_insert(&mut toml, "D:\\tmp\\x").unwrap());
-        grok_trust_remove(&mut toml, "D:\\tmp\\x");
-        assert!(toml.get("folders").is_none(), "空 folders 表连表摘除");
-        // 既有别的 key 时只摘我们的。
-        let mut t2 = toml::Value::Table(toml::map::Map::new());
-        grok_trust_insert(&mut t2, "D:\\keep").unwrap();
-        grok_trust_insert(&mut t2, "D:\\tmp\\x").unwrap();
-        grok_trust_remove(&mut t2, "D:\\tmp\\x");
-        let folders = t2.get("folders").unwrap().as_table().unwrap();
-        assert!(folders.get("D:\\keep").is_some());
-        assert!(folders.get("D:\\tmp\\x").is_none());
     }
 
     #[test]

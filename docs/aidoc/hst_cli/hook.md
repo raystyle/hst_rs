@@ -7,12 +7,6 @@
 - `event_label` — 事件标签公共解析（REQ-047 goal 快道共用）：事件参数形直 normalize,
 - `map_event` — Map a hook event (already normalized) to a four-state label.
 - `read_stdin_json` — 读 stdin 全量为 JSON（空串与坏形返回 None；REQ-045 起共用给 goal 腿
-- `run` — # Errors
-- `run_state` — REQ-028 state 腿（payload 穿透命令族）：只做四态写盘（D28 读序含会话
-- `run_token` — REQ-028 token 腿（payload 穿透命令族）：只做 secretguard 密钥扫描
+- `run_token` — token 腿入口（`hst hook token`）：只做 secretguard 密钥扫描（block 级
 - `state_for_payload` — Claude Notification is mixed (tips vs permission). Only permission-shaped
-
-## Types
-
-- `HookOutcome` — hook 出口：状态通道 + 密钥 guard（S030 第二职责）。
 
