@@ -1743,7 +1743,7 @@ fn cmd_task_list() -> Result<(), String> {
                 .iter()
                 .map(&row_json)
                 .collect::<Result<Vec<_>, String>>()?;
-            let data = serde_json::json!({ "count": goals.len(), "goals": goals });
+            let data = serde_json::json!({ "count": goals.len(), "tasks": goals });
             // meta.project 传 goal 存储目录（rev-codex G-4：机器面读到有语义，
             // 不传无义字面 "."）。
             print_json("task-list", &hst::task::task_dir(&home), Ok(data))
@@ -1766,7 +1766,7 @@ fn cmd_task_list() -> Result<(), String> {
                 }
                 if let Some(note) = &r.repaired {
                     println!(
-                        "goal.list slug={} repaired={} quarantined={}",
+                        "task.list slug={} repaired={} quarantined={}",
                         r.slug, note.action, note.quarantined
                     );
                 }
@@ -1827,7 +1827,7 @@ fn cmd_task_yoloheal(state: ArmState) -> Result<(), String> {
     println!("task.yolo_heal.changed={changed}");
     if on {
         println!(
-            "goal.yolo_heal.hint=blocked_streak 到 {} 且工位非 yolo 时自动治（用户级 full 落键加重启格加续 goal，留痕 .heal-log）；off 可撤",
+            "task.yolo_heal.hint=blocked_streak 到 {} 且工位非 yolo 时自动治（用户级 full 落键加重启格加续 task，留痕 .heal-log）；off 可撤",
             hst::task::BLOCKED_STORM_THRESHOLD
         );
     } else {

@@ -2867,7 +2867,7 @@ fn goal_list_kv_json_jsonl_and_repair_rows() {
     assert_eq!(v["present"], serde_json::json!(true));
     assert!(v["task"]["text"].as_str().is_some());
     assert_eq!(v["repaired"], serde_json::Value::Null);
-    // json:信封 data.count 加 goals 数组。
+    // json:信封 data.count 加 tasks 数组。
     let out = hst()
         .env("HST_ROOT", &tmp)
         .args(["--json", "task", "list"])
@@ -2879,7 +2879,7 @@ fn goal_list_kv_json_jsonl_and_repair_rows() {
     let v: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&out)).unwrap();
     assert_eq!(v["meta"]["command"], serde_json::json!("task-list"));
     assert_eq!(v["data"]["count"], serde_json::json!(2));
-    assert_eq!(v["data"]["goals"].as_array().map(Vec::len), Some(2));
+    assert_eq!(v["data"]["tasks"].as_array().map(Vec::len), Some(2));
     // 坏档:list 触修复(kv 行注 promote),聚合面不卡死。
     let ga = tmp
         .join("state")
