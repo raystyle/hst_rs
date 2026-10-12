@@ -31,6 +31,17 @@
 //! heavy 两倍陈旧接管），`HST_GOAL_SWEEPER=off`
 //! 逃生闸。wake 文本 v2 自包含五件（goal 文本加上轮收束态加即刻推进加
 //! 防卡死防空转边界加用法）。
+//!
+//! goalhard-01（2026-10-12 goal 原语地基批）：舰队互视互改地基加固。
+//! 写原语四硬化——唯一 tmp 名（并发写者不互吞，LWW 语义下 set/clear
+//! 永不假错）、写后回读验非空（真源写后验教训）、unix fsync（断电窗
+//! 耐久）、`.bak` 上次好档维护；审计道 `.goal-audit`（set/clear/repair
+//! 管理动作留痕，host 加 user 加 pid 归属）；坏档自愈 = 隔离留证加
+//! bak 晋升或判缺省（doctor 体检面保持只读纯读）；风暴耐久序 = 唤醒
+//! 节流先落盘后发 prompt、yolo 治冷却先落盘后跑治序列（写盘故障不再
+//! 引发每趟重试风暴）、sweeper 每趟至多一个治动作；增量路写前验
+//! set_at 乐观守卫（并发 set 不被增量旧档吞）；机读面 `goal show`
+//! json 信封加 `goal list` 全机清单（插件 list --all 聚合消费）。
 
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -142,26 +153,34 @@ pub fn goal_path(home: &Path, root: &Path) -> PathBuf {
     goal_dir(home).join(format!("{}.json", slug(&root.display().to_string())))
 }
 
-/// 读指定 goal 文件（缺失 = None；坏损 = Err 响亮）。
+/// 读指定 goal 文件（缺失 = None；坏损 = Err 响亮）。并发 clear 竞态
+///（读中文件被删）按缺失收（goalhard-01:is_file 判真与读之间被并发 clear
+/// 删走不是坏档,整档 LWW 合法态）。
 ///
 /// # Errors
 ///
-/// 文件在场但不可解析时返回 [`GoalError::Corrupt`]。
+/// 文件在场但不可读或不可解析时返回 [`GoalError::Corrupt`]。
 pub fn read_record(path: &Path) -> Result<Option<GoalRecord>, GoalError> {
-    if !path.exists() {
+    if !path.is_file() {
         return Ok(None);
     }
-    // 复用 yolo 面的 BOM 容忍读；解析失败硬错上抛，绝不覆写真数据。
-    let v = crate::yolo::read_json(path).map_err(|e| GoalError::Corrupt {
+    let corrupt = |cause: String| GoalError::Corrupt {
         path: path.display().to_string(),
-        cause: e,
-    })?;
+        cause,
+    };
+    let text = match std::fs::read_to_string(path) {
+        Ok(t) => t,
+        // 读中消失:并发 clear 已收,按缺失收。
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(corrupt(e.to_string())),
+    };
+    // BOM 容忍（同 yolo 面 D52 先例:舰队 PowerShell 常写 UTF-8 BOM,serde
+    // 对 BOM 头整体拒收）。
+    let text = text.trim_start_matches('\u{feff}');
+    let v: Json = serde_json::from_str(text).map_err(|e| corrupt(e.to_string()))?;
     serde_json::from_value(v)
         .map(Some)
-        .map_err(|e| GoalError::Corrupt {
-            path: path.display().to_string(),
-            cause: e.to_string(),
-        })
+        .map_err(|e| corrupt(e.to_string()))
 }
 
 fn write_record(path: &Path, rec: &GoalRecord) -> Result<(), GoalError> {
@@ -175,23 +194,106 @@ fn write_record(path: &Path, rec: &GoalRecord) -> Result<(), GoalError> {
         path: path.display().to_string(),
         cause: format!("serialize: {e}"),
     })? + "\n";
+    // 上次好档维护（goalhard-01 坏档自愈的前置）：主档可解析才刷 .bak，
+    // 坏档不覆好 bak；best-effort，不阻断主写。
+    keep_last_good(path);
     // 原子写（tmp 加 rename，同 hook state 先例）：Stop 腿与状态栏读并发
-    // 不见半文件。
-    let tmp = path.with_extension("json.tmp");
-    std::fs::write(&tmp, body).map_err(|e| GoalError::Io {
+    // 不见半文件。tmp 名唯一（pid 加随机 token）：本地与远端（ssh/mesh
+    // exec 落本机）并发写者互不吞 tmp，rename 即整档最后写胜，set/clear
+    // 永不因 tmp 互撞假错。
+    let tmp = path.with_extension(format!("json.{}.tmp", write_token()));
+    std::fs::write(&tmp, &body).map_err(|e| GoalError::Io {
         path: tmp.display().to_string(),
         cause: e.to_string(),
     })?;
-    std::fs::rename(&tmp, path).map_err(|e| {
+    fsync_path(&tmp);
+    let rename_err = std::fs::rename(&tmp, path).err();
+    if let Some(e) = rename_err {
         let _ = std::fs::remove_file(&tmp);
-        GoalError::Io {
+        return Err(GoalError::Io {
             path: path.display().to_string(),
             cause: e.to_string(),
-        }
-    })
+        });
+    }
+    if let Some(dir) = path.parent() {
+        fsync_path(dir);
+    }
+    // 写后验（goalhard-01，真源写后验非空教训）：回读解析且 text 非空，
+    // 不通过即响亮报错，绝不静默留坏档；主位缺失 = 并发 clear 已收
+    //（rename 已成的缺席只可能来自并发删除，整档 LWW 合法态）放行。
+    match read_record(path) {
+        Ok(Some(back)) if !back.text.trim().is_empty() => Ok(()),
+        Ok(None) => Ok(()),
+        Ok(Some(_)) => Err(GoalError::Io {
+            path: path.display().to_string(),
+            cause: "verify: 写后回读 text 为空".into(),
+        }),
+        Err(e) => Err(GoalError::Io {
+            path: path.display().to_string(),
+            cause: format!("verify: 写后回读失败 {e}"),
+        }),
+    }
 }
 
-/// 设置本项目 goal（覆盖旧 goal，rounds 归零重计）。
+/// 写者唯一 token（pid 加 getrandom，同 sweeper 锁身份先例）。
+fn write_token() -> String {
+    let mut b = [0u8; 8];
+    let _ = getrandom::fill(&mut b);
+    format!("{}-{:016x}", std::process::id(), u64::from_be_bytes(b))
+}
+
+/// 上次好档路径（`<slug>.json.bak`；修复面的晋升源）。
+fn bak_path(path: &Path) -> PathBuf {
+    path.with_extension("json.bak")
+}
+
+/// 主档在场且可解析时刷 `.bak`（原子写同形，best-effort 静默）。
+fn keep_last_good(path: &Path) {
+    let Ok(body) = std::fs::read(path) else {
+        return;
+    };
+    if serde_json::from_slice::<GoalRecord>(&body).is_err() {
+        return;
+    }
+    let bak = bak_path(path);
+    let tmp = bak.with_extension(format!("bak.{}.tmp", write_token()));
+    if std::fs::write(&tmp, &body).is_ok() && std::fs::rename(&tmp, &bak).is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+}
+
+/// fsync 耐久（goalhard-01 断电窗）：unix 下尽力而为（网络文件系统可
+/// 拒，失败不计）；Windows 无对应原语，跳过（rename 原子性仍在）。
+#[cfg(unix)]
+fn fsync_path(p: &Path) {
+    let _ = std::fs::File::open(p).and_then(|f| f.sync_all());
+}
+
+#[cfg(not(unix))]
+fn fsync_path(_p: &Path) {}
+
+/// 乐观守卫写入（goalhard-01 并发语义，整档 CAS）：增量路（rounds/
+/// streak 等读改写）落盘前重读全档与读取时快照比对——任一字段变（并发
+/// set 换文本、同秒 set 只换文本也中、heal 换节流、他路计数）即弃写让位
+/// 返回 false（他方写保全，增量不吞管理写）。验后 rename 前的 TOCTOU 窗
+/// 已收窄到微秒级，残余竞争按整档 LWW 收敛（守卫不改原子性，只保语义）。
+///
+/// # Errors
+///
+/// 守卫重读或写盘失败时返回 [`GoalError`]。
+fn write_record_guarded(
+    path: &Path,
+    expected: &GoalRecord,
+    rec: &GoalRecord,
+) -> Result<bool, GoalError> {
+    match read_record(path)? {
+        Some(cur) if &cur == expected => write_record(path, rec).map(|_| true),
+        _ => Ok(false),
+    }
+}
+
+/// 设置本项目 goal（覆盖旧 goal，rounds 归零重计；整档最后写胜语义，
+/// 真写落审计道）。
 ///
 /// # Errors
 ///
@@ -214,7 +316,20 @@ pub fn set_goal(home: &Path, root: &Path, text: &str) -> Result<GoalRecord, Goal
         blocked_alarm_at: 0,
         yolo_heal_at: 0,
     };
-    write_record(&goal_path(home, root), &rec)?;
+    let path = goal_path(home, root);
+    let prior_rounds = read_record(&path).ok().flatten().map(|p| p.rounds);
+    write_record(&path, &rec)?;
+    goal_audit_append(
+        home,
+        &slug(&root.display().to_string()),
+        "set",
+        &format!(
+            "{} prior_rounds={} text={}",
+            audit_source(),
+            prior_rounds.unwrap_or(0),
+            flatten_inline(&rec.text)
+        ),
+    );
     Ok(rec)
 }
 
@@ -227,7 +342,54 @@ pub fn show_goal(home: &Path, root: &Path) -> Result<Option<GoalRecord>, GoalErr
     read_record(&goal_path(home, root))
 }
 
-/// 清空本项目 goal（删文件；返回是否真删，无 goal 零改动合法）。
+/// 全机在册 goal 清单行（`hst goal list` 的数据面，goalhard-01 机读
+/// 聚合原语：goal 插件 list --all 逐机消费）。
+pub struct GoalListRow {
+    /// 项目键 slug（文件名去 `.json`；项目路径的损压缩形，同键规则）。
+    pub slug: String,
+    /// 存储文件路径。
+    pub file: PathBuf,
+    /// goal 记录（None = 修复后判缺省或本无档）。
+    pub rec: Option<GoalRecord>,
+    /// 修复注记（本趟触发过坏档修复时在）。
+    pub repaired: Option<String>,
+}
+
+/// 列本机全部在册 goal（goalhard-01）：按统一收集器 goal_files 字典
+/// 序逐档，坏档经修复面（隔离加 bak 晋升或判缺省）不卡清单。
+///
+/// # Errors
+///
+/// goal 目录不可读时返回 `String`（清单面整趟响亮，不静默截短）。
+pub fn list_goals(home: &Path) -> Result<Vec<GoalListRow>, String> {
+    let dir = goal_dir(home);
+    if !dir.exists() {
+        return Ok(Vec::new());
+    }
+    std::fs::read_dir(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    let mut rows = Vec::new();
+    for path in goal_files(home) {
+        let slug = path
+            .file_stem()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_default();
+        match read_record_repairing(home, &path) {
+            Ok((rec, note)) => rows.push(GoalListRow {
+                slug,
+                file: path,
+                rec,
+                repaired: note.map(|n| n.action),
+            }),
+            Err(e) => {
+                return Err(format!("{}: {e}", path.display()));
+            }
+        }
+    }
+    Ok(rows)
+}
+
+/// 清空本项目 goal（删文件；返回是否真删，无 goal 零改动合法）。`.bak`
+/// 上次好档保留（误清恢复源）。真删落审计道。
 ///
 /// # Errors
 ///
@@ -237,11 +399,175 @@ pub fn clear_goal(home: &Path, root: &Path) -> Result<bool, GoalError> {
     if !path.exists() {
         return Ok(false);
     }
+    let key = slug(&root.display().to_string());
+    let prior = read_record(&path).ok().flatten();
     std::fs::remove_file(&path).map_err(|e| GoalError::Io {
         path: path.display().to_string(),
         cause: e.to_string(),
     })?;
+    goal_audit_append(
+        home,
+        &key,
+        "clear",
+        &format!(
+            "{} text={}",
+            audit_source(),
+            prior
+                .map(|p| flatten_inline(&p.text))
+                .unwrap_or_else(|| "(unreadable)".into())
+        ),
+    );
     Ok(true)
+}
+
+/// 留痕日志上限（goalhard-01）：`.heal-log` 与 `.goal-audit` 追加前查
+/// 尺寸，超限先滚 `.1`（keep-one，超限旧档弃），长役不无限增长。
+pub const AUDIT_LOG_CAP_BYTES: u64 = 1024 * 1024;
+
+/// 审计道（goalhard-01 互视互改审计）：`.goal-audit` 单行追加
+/// （ts 加 slug 加 action 加 detail），set/clear/repair 管理动作留痕
+/// （heal 域动作在 `.heal-log`，不重记）。best-effort。
+fn goal_audit_append(home: &Path, slug: &str, action: &str, detail: &str) {
+    append_capped(
+        &goal_dir(home).join(".goal-audit"),
+        &format!("{} {} {} {}", unix_secs(), slug, action, detail),
+    );
+}
+
+/// 带轮转帽的单行追加（`.heal-log` 与 `.goal-audit` 共用；并发轮转竞态
+/// 下 rename 失败方直接续写原档，容忍偶超限）。单 write_all 含换行:unix
+/// O_APPEND 单次写原子定位,并发追加不交错行（writeln! 两笔写会在行中
+/// 拼进他行,实证 2026-10-12 并发锤测试）。best-effort。
+fn append_capped(path: &Path, line: &str) {
+    if let Some(d) = path.parent() {
+        let _ = std::fs::create_dir_all(d);
+    }
+    if let Ok(md) = std::fs::metadata(path) {
+        if md.len() >= AUDIT_LOG_CAP_BYTES {
+            let _ = std::fs::rename(path, path.with_extension("1"));
+        }
+    }
+    let _ = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .and_then(|mut f| {
+            use std::io::Write as _;
+            f.write_all(format!("{line}\n").as_bytes())
+        });
+}
+
+/// 写者归属（审计行内 host 加 user 加 pid；远端 ssh/mesh exec 落本机时
+/// 进程身份即调用方代理身份，跨机聚合按各机 `.goal-audit` 自证）。
+fn audit_source() -> String {
+    format!(
+        "host={} user={} pid={}",
+        hostname_or_dash(),
+        std::env::var("USER")
+            .or_else(|_| std::env::var("USERNAME"))
+            .unwrap_or_else(|_| "-".into()),
+        std::process::id()
+    )
+}
+
+fn hostname_or_dash() -> String {
+    let direct = if cfg!(unix) {
+        std::fs::read_to_string("/etc/hostname")
+            .ok()
+            .map(|s| s.trim().to_string())
+    } else {
+        std::env::var("COMPUTERNAME").ok()
+    };
+    direct
+        .filter(|s| !s.is_empty())
+        .or_else(|| std::env::var("HOSTNAME").ok())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "-".into())
+}
+
+/// 坏档修复注记（读面自愈的回执：隔离留证 + 晋升或判缺省）。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RepairNote {
+    /// 动作（promote = bak 晋升回主档；drop = 无好档判缺省）。
+    pub action: String,
+    /// 坏档隔离后的路径（取证面）。
+    pub quarantined: String,
+}
+
+/// 读面自愈（goalhard-01 坏档重建路径）：主档坏损时不再卡死——隔离坏档
+/// 留证（`<slug>.json.corrupt-<ts>-<token>`），`.bak` 有好档即晋升回主档
+/// （写后验同形），无好档即判缺省态；动作落 `.goal-audit`。doctor 体检
+/// 面不走此口（只读契约），走纯 [`read_record`] 响亮报坏。
+///
+/// # Errors
+///
+/// 隔离失败（权限或竞态，坏档维持原样不覆写）或 bak 晋升写盘失败时返回
+/// 原因 [`GoalError`]。
+pub fn read_record_repairing(
+    home: &Path,
+    path: &Path,
+) -> Result<(Option<GoalRecord>, Option<RepairNote>), GoalError> {
+    let err = match read_record(path) {
+        Ok(v) => return Ok((v, None)),
+        Err(e) => e,
+    };
+    let GoalError::Corrupt { .. } = err else {
+        return Err(err);
+    };
+    let stem = path
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let quarantined = path.with_extension(format!("json.corrupt-{}-{}", unix_secs(), {
+        let mut b = [0u8; 4];
+        let _ = getrandom::fill(&mut b);
+        format!("{:08x}", u32::from_be_bytes(b))
+    }));
+    if std::fs::rename(path, &quarantined).is_err() {
+        // 隔离不动手：维持响亮，绝不覆写真数据。
+        return Err(err);
+    }
+    match read_record(&bak_path(path)) {
+        Ok(Some(rec)) if !rec.text.trim().is_empty() => {
+            write_record(path, &rec)?;
+            goal_audit_append(
+                home,
+                &stem,
+                "repair",
+                &format!(
+                    "{} action=promote quarantined={}",
+                    audit_source(),
+                    quarantined.display()
+                ),
+            );
+            Ok((
+                Some(rec),
+                Some(RepairNote {
+                    action: "promote".into(),
+                    quarantined: quarantined.display().to_string(),
+                }),
+            ))
+        }
+        _ => {
+            goal_audit_append(
+                home,
+                &stem,
+                "repair",
+                &format!(
+                    "{} action=drop quarantined={}",
+                    audit_source(),
+                    quarantined.display()
+                ),
+            );
+            Ok((
+                None,
+                Some(RepairNote {
+                    action: "drop".into(),
+                    quarantined: quarantined.display().to_string(),
+                }),
+            ))
+        }
+    }
 }
 
 /// payload 项目根解析序（同旧 loop 探针链，REQ-019 时点口径承接）：
@@ -372,13 +698,20 @@ pub fn stop_hook(
     let Some(path) = goal_file_for(home, Path::new(&root)) else {
         return Ok(None);
     };
-    let mut rec = match read_record(&path).map_err(|e| e.to_string())? {
-        Some(r) => r,
-        None => return Ok(None),
+    // 读面自愈（goalhard-01）：坏档先修复再用，坏档不再卡死提醒链。
+    let mut rec = match read_record_repairing(home, &path).map_err(|e| e.to_string())? {
+        (Some(r), _) => r,
+        (None, _) => return Ok(None),
     };
+    let expected = rec.clone();
     rec.rounds += 1;
     rec.last_stop_at = unix_secs();
-    write_record(&path, &rec).map_err(|e| e.to_string())?;
+    // 乐观守卫（goalhard-01）：计数落盘时并发 set/clear 已换档即弃写让位
+    //（他方新 goal 从零计，本轮增量无意义；clear 已收即不复活），本轮
+    // 不出提醒（下一轮自然停接续）。
+    if !write_record_guarded(&path, &expected, &rec).map_err(|e| e.to_string())? {
+        return Ok(None);
+    }
     if payload.is_some_and(|v| v.get("stop_hook_active").and_then(|x| x.as_bool()) == Some(true)) {
         return Ok(None);
     }
@@ -415,8 +748,9 @@ pub const SWEEPER_LIFE_SECS: u64 = 2 * 3600;
 /// sweeper 单趟 heavy 最坏时长（rev-codex G-1 判据锚）：herdr 预算和
 /// 取整 = agent list 4s 加治序列（send-keys 三发各 8s 加回 shell 轮询
 /// 15s 加 start 35s 加续发 8s，约 86s）。blocked 治另受风暴阈加 6h 冷却
-/// 双闸；单趟多目标按此时长线性叠，叠超陈旧阈即被接管让位（锁验主保
-/// 后继锁不误删）。
+/// 双闸；goalhard-01 起 sweeper 路每趟治动作上帽一个（heavy_cap），单趟
+/// heavy 与 goal 数无关地有界，不叠破陈旧阈；叠破时接管让位（锁验主保
+/// 后继锁不误删）兜底仍在。
 const SWEEP_HEAVY_WORST_SECS: u64 = 90;
 
 /// sweeper 锁陈旧阈（REQ-047 单实例）：心跳重写超此时长即判死锁接管。
@@ -589,6 +923,7 @@ pub fn wake_text(rec: &GoalRecord, project: &str, now: u64) -> String {
 }
 
 /// 单 goal 的自愈回执行（kv 面）。
+#[derive(Debug)]
 pub struct HealReport {
     /// goal 项目键 slug。
     pub slug: String,
@@ -777,14 +1112,20 @@ fn yolo_heal_sequence(
 }
 
 /// 自愈扫描入口（`hst goal heal`）：扫在册 goal（`only` 给定则单项目），
-/// 逐条判定后分型处置（REQ-047 两维态矩阵）：Wake 形经 `herdr agent
-/// prompt` 唤醒并落 last_heal_at 加风暴闸计数；Blocked 形报警留痕
+/// 逐条判定后分型处置（REQ-047 两维态矩阵）：Wake 形先落 last_heal_at
+/// 加风暴闸计数再经 `herdr agent prompt` 唤醒（goalhard-01 耐久序：节流
+/// 先于 prompt 落盘，写盘故障不再引发每趟重唤风暴）；Blocked 形报警留痕
 ///（streak 递增加 `.heal-log` alarm-blocked 行），预授权（arm 标记）且
-/// streak 到阈值且工位非 yolo 且过冷却时走 yolo 治序列（`heavy` 为真才
-/// 执行：治动作含重启格至多 50 秒，hook 事件路径传 false 只报警让位
-/// sweeper 或手动面执行）。dry_run 只报判定不落盘不唤不发。herdr 消费面
-/// 只读 agent list 加单发 prompt 加治序列原语（send-keys/get/start），
-/// 不改 herdr 仓。
+/// streak 到阈值且工位非 yolo 且过冷却时走 yolo 治序列——冷却先落盘再跑
+/// 治序列（goalhard-01：治序列失败也持有冷却，防每趟 sweep 重启格风暴；
+/// 写盘失败即不治）。`heavy` 为真才可治（hook 事件路径传 false 只报警
+/// 让位 sweeper 或手动面执行）；`heavy_cap` 限单趟治动作数（sweeper 路传
+/// `Some(1)`：单趟 heavy 有界，多 goal 同 blocked 不叠破锁陈旧阈；手动
+/// 面传 `None` 不帽）。并发 set 撞增量写即 `skip-raced` 让位（乐观守卫）；
+/// 单档写盘失败折 `skip-write-fail` 行不弃整趟。dry_run 只报判定不落盘
+/// 不唤不发。坏档经修复面（隔离加 bak 晋升或判缺省）不入 skip-corrupt
+/// 死档。herdr 消费面只读 agent list 加单发 prompt 加治序列原语
+/// （send-keys/get/start），不改 herdr 仓。
 ///
 /// # Errors
 ///
@@ -795,22 +1136,14 @@ pub fn run_heal(
     only: Option<&Path>,
     dry_run: bool,
     heavy: bool,
+    heavy_cap: Option<usize>,
 ) -> Result<Vec<HealReport>, String> {
     let panes = parse_agent_list(&herdr_output(&["agent", "list"])?)?;
     let now = unix_secs();
-    let dir = goal_dir(home);
-    let rd = std::fs::read_dir(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-    let mut files: Vec<PathBuf> = rd
-        .flatten()
-        .map(|e| e.path())
-        .filter(|p| {
-            p.extension().is_some_and(|x| x == "json")
-                && p.file_stem()
-                    .is_some_and(|s| !s.to_string_lossy().ends_with(".tmp"))
-        })
-        .collect();
-    files.sort();
+    sweep_stale_tmp(home, now);
+    let files = goal_files(home);
     let only_slug = only.map(|r| slug(&r.display().to_string()));
+    let mut heavy_done = 0usize;
     let mut out = Vec::new();
     for path in files {
         let stem = path
@@ -822,9 +1155,28 @@ pub fn run_heal(
                 continue;
             }
         }
-        let mut rec = match read_record(&path) {
-            Ok(Some(r)) => r,
-            Ok(None) => continue,
+        // 坏档先修复（goalhard-01）：修复即继续本趟判定，不再死档。
+        let mut rec = match read_record_repairing(home, &path) {
+            Ok((Some(r), note)) => {
+                if let Some(n) = note {
+                    out.push(HealReport {
+                        slug: stem.clone(),
+                        action: format!("repair-{}", n.action),
+                        detail: n.quarantined,
+                    });
+                }
+                r
+            }
+            Ok((None, note)) => {
+                if let Some(n) = note {
+                    out.push(HealReport {
+                        slug: stem,
+                        action: format!("repair-{}", n.action),
+                        detail: n.quarantined,
+                    });
+                }
+                continue;
+            }
             Err(e) => {
                 out.push(HealReport {
                     slug: stem,
@@ -834,6 +1186,7 @@ pub fn run_heal(
                 continue;
             }
         };
+        let expected = rec.clone();
         match heal_verdict(&rec, &stem, &panes, now) {
             HealVerdict::Wake { pane } => {
                 if dry_run {
@@ -847,12 +1200,8 @@ pub fn run_heal(
                     });
                     continue;
                 }
-                let project = panes
-                    .iter()
-                    .find(|p| p.pane_id == pane)
-                    .map(|p| p.cwd.clone())
-                    .unwrap_or_else(|| stem.clone());
-                herdr_output(&["agent", "prompt", &pane, &wake_text(&rec, &project, now)])?;
+                // 节流先落盘（goalhard-01 耐久序）：last_heal_at 加 streak
+                // 持久化先于 prompt，prompt 失败只丢本唤不引重试风暴。
                 rec.last_heal_at = now;
                 rec.heal_streak = if rec.rounds == rec.heal_rounds {
                     rec.heal_streak + 1
@@ -860,15 +1209,45 @@ pub fn run_heal(
                     1
                 };
                 rec.heal_rounds = rec.rounds;
-                write_record(&path, &rec).map_err(|e| e.to_string())?;
-                out.push(HealReport {
-                    slug: stem,
-                    action: "woke".into(),
-                    detail: format!(
-                        "pane={pane} rounds={} streak={}",
-                        rec.rounds, rec.heal_streak
-                    ),
-                });
+                match write_record_guarded(&path, &expected, &rec) {
+                    Ok(true) => {}
+                    Ok(false) => {
+                        out.push(HealReport {
+                            slug: stem,
+                            action: "skip-raced".into(),
+                            detail: "并发 set/clear 让位，本趟不唤".into(),
+                        });
+                        continue;
+                    }
+                    Err(e) => {
+                        out.push(HealReport {
+                            slug: stem,
+                            action: "skip-write-fail".into(),
+                            detail: e.to_string(),
+                        });
+                        continue;
+                    }
+                }
+                let project = panes
+                    .iter()
+                    .find(|p| p.pane_id == pane)
+                    .map(|p| p.cwd.clone())
+                    .unwrap_or_else(|| stem.clone());
+                match herdr_output(&["agent", "prompt", &pane, &wake_text(&rec, &project, now)]) {
+                    Ok(_) => out.push(HealReport {
+                        slug: stem,
+                        action: "woke".into(),
+                        detail: format!(
+                            "pane={pane} rounds={} streak={}",
+                            rec.rounds, rec.heal_streak
+                        ),
+                    }),
+                    Err(e) => out.push(HealReport {
+                        slug: stem,
+                        action: "wake-fail".into(),
+                        detail: format!("pane={pane} 节流已落盘，下窗再试: {e}"),
+                    }),
+                }
             }
             HealVerdict::Blocked { pane, agent, name } => {
                 // streak：rounds 有增长先归零（新活动周期），再目击递增。
@@ -879,6 +1258,7 @@ pub fn run_heal(
                     && rec.blocked_streak >= BLOCKED_STORM_THRESHOLD
                     && !crate::yolo::user_yolo_active_with(user_home, &agent)
                     && now.saturating_sub(rec.yolo_heal_at) >= YOLO_HEAL_COOLDOWN_SECS;
+                let cap_open = heavy_cap.is_none_or(|cap| heavy_done < cap);
                 let mut detail = format!("pane={pane} agent={agent} streak={}", rec.blocked_streak);
                 // 报警先行（委托令「blocked 即先报警留痕」）：防抖窗过即报，
                 // 与是否治互不 gating。
@@ -886,46 +1266,80 @@ pub fn run_heal(
                     rec.blocked_alarm_at = now;
                     heal_log_append(home, &stem, "alarm-blocked", &detail);
                 }
-                let action = if eligible {
-                    if dry_run {
+                if eligible && !cap_open {
+                    // 单趟治名额已用（dry 与实跑同判）：让位下趟 tick。
+                    out.push(HealReport {
+                        slug: stem,
+                        action: "heavy-deferred".into(),
+                        detail: format!(
+                            "{detail} 本趟治名额已用（cap={}），下趟 tick 再治",
+                            heavy_cap.unwrap_or(0)
+                        ),
+                    });
+                    continue;
+                }
+                if dry_run {
+                    let action = if eligible {
+                        // dry 也占治名额（判据与实跑同源,cap 语义一致）。
+                        heavy_done += 1;
                         "would-yolo-heal"
-                    } else {
-                        let project = panes
-                            .iter()
-                            .find(|p| p.pane_id == pane)
-                            .map(|p| p.cwd.clone())
-                            .unwrap_or_else(|| stem.clone());
-                        match yolo_heal_sequence(
-                            user_home, &pane, &agent, &name, &rec, &project, now,
-                        ) {
-                            Ok(d) => {
-                                rec.yolo_heal_at = now;
-                                detail.push_str(&format!(" heal=ok:{d}"));
-                                heal_log_append(home, &stem, "yolo-heal", &detail);
-                                "yolo-heal"
-                            }
-                            Err(e) => {
-                                // 失败同落冷却（防锤），下窗再试。
-                                rec.yolo_heal_at = now;
-                                detail.push_str(&format!(" heal=fail:{e}"));
-                                heal_log_append(home, &stem, "yolo-heal-fail", &detail);
-                                "yolo-heal-fail"
-                            }
-                        }
-                    }
-                } else if alarm_due {
-                    if dry_run {
+                    } else if alarm_due {
                         "would-alarm-blocked"
                     } else {
-                        "alarm-blocked"
-                    }
-                } else {
-                    // 防抖窗内：streak 已计，报警静默。
-                    "blocked-muted"
-                };
-                if !dry_run {
-                    write_record(&path, &rec).map_err(|e| e.to_string())?;
+                        "blocked-muted"
+                    };
+                    out.push(HealReport {
+                        slug: stem,
+                        action: action.into(),
+                        detail,
+                    });
+                    continue;
                 }
+                if eligible {
+                    // 冷却先落盘（goalhard-01 耐久序）：yolo_heal_at 持久化
+                    // 先于治序列，治失败也持有冷却（防锤），写失败即不治。
+                    rec.yolo_heal_at = now;
+                }
+                let action = match write_record_guarded(&path, &expected, &rec) {
+                    Ok(true) => {
+                        if eligible {
+                            heavy_done += 1;
+                            let project = panes
+                                .iter()
+                                .find(|p| p.pane_id == pane)
+                                .map(|p| p.cwd.clone())
+                                .unwrap_or_else(|| stem.clone());
+                            match yolo_heal_sequence(
+                                user_home, &pane, &agent, &name, &rec, &project, now,
+                            ) {
+                                Ok(d) => {
+                                    detail.push_str(&format!(" heal=ok:{d}"));
+                                    heal_log_append(home, &stem, "yolo-heal", &detail);
+                                    "yolo-heal"
+                                }
+                                Err(e) => {
+                                    // 失败已持有冷却（先落盘），下窗再试。
+                                    detail.push_str(&format!(" heal=fail:{e}"));
+                                    heal_log_append(home, &stem, "yolo-heal-fail", &detail);
+                                    "yolo-heal-fail"
+                                }
+                            }
+                        } else if alarm_due {
+                            "alarm-blocked"
+                        } else {
+                            // 防抖窗内：streak 已计，报警静默。
+                            "blocked-muted"
+                        }
+                    }
+                    Ok(false) => {
+                        detail.push_str(" 并发 set/clear 让位");
+                        "skip-raced"
+                    }
+                    Err(e) => {
+                        detail.push_str(&format!(" 写盘失败:{e}"));
+                        "skip-write-fail"
+                    }
+                };
                 out.push(HealReport {
                     slug: stem,
                     action: action.into(),
@@ -991,20 +1405,13 @@ fn sweep_due(home: &Path, now: u64) -> bool {
 }
 
 /// 自愈留痕（goal-01 澄清令「可观测」面）：单行追加 `.heal-log`
-///（ts 加 slug 加 action 加 detail），best-effort。
+///（ts 加 slug 加 action 加 detail），best-effort；goalhard-01 起过
+/// [`AUDIT_LOG_CAP_BYTES`] 先滚 `.1`（keep-one）。
 fn heal_log_append(home: &Path, slug: &str, action: &str, detail: &str) {
-    let p = goal_dir(home).join(".heal-log");
-    if let Some(d) = p.parent() {
-        let _ = std::fs::create_dir_all(d);
-    }
-    let _ = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&p)
-        .and_then(|mut f| {
-            use std::io::Write as _;
-            writeln!(f, "{} {} {} {}", unix_secs(), slug, action, detail)
-        });
+    append_capped(
+        &goal_dir(home).join(".heal-log"),
+        &format!("{} {} {} {}", unix_secs(), slug, action, detail),
+    );
 }
 
 /// hook 事件流挂载的自愈扫描入口（goal-01 澄清令：自愈须事件驱动实时，
@@ -1031,12 +1438,9 @@ pub fn heal_sweep(home: &Path, user_home: &Path) -> Result<Option<usize>, String
         let _ = std::fs::create_dir_all(d);
     }
     let _ = std::fs::write(sweep_stamp(home), now.to_string());
-    let rows = run_heal(home, user_home, None, false, false)?;
+    let rows = run_heal(home, user_home, None, false, false, None)?;
     for r in &rows {
-        if matches!(
-            r.action.as_str(),
-            "woke" | "skip-storm-capped" | "no-agent" | "skip-corrupt"
-        ) {
+        if report_logworthy(&r.action) {
             heal_log_append(home, &r.slug, &r.action, &r.detail);
         }
     }
@@ -1066,6 +1470,69 @@ fn goal_dir_has_goals(home: &Path) -> bool {
             })
         })
         .unwrap_or(false)
+}
+
+/// 在册 goal 文件清单（goalhard-01 统一收集器：run_heal 扫描与
+/// `goal list` 共用）。收录形 = 扩展名 `json` 且非隐藏文件（`.heal-log`
+/// 等治理件与 `.bak`、`.corrupt-*`、`*.tmp` 一律排除），字典序稳定。
+fn goal_files(home: &Path) -> Vec<PathBuf> {
+    let mut files: Vec<PathBuf> = std::fs::read_dir(goal_dir(home))
+        .map(|rd| {
+            rd.flatten()
+                .map(|e| e.path())
+                .filter(|p| {
+                    p.extension().is_some_and(|x| x == "json")
+                        && p.file_stem().is_some_and(|s| {
+                            let s = s.to_string_lossy();
+                            !s.starts_with('.') && !s.ends_with(".tmp")
+                        })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    files.sort();
+    files
+}
+
+/// 崩溃残件 tmp 的清扫阈（goalhard-01）：唯一 tmp 名后写者不再互踩，
+/// 残件只占位；超此时长（mtime 距今）的 `*.tmp` 在扫描趟顺手清。
+pub const TMP_STALE_SECS: u64 = 3600;
+
+fn sweep_stale_tmp(home: &Path, now: u64) {
+    let Ok(rd) = std::fs::read_dir(goal_dir(home)) else {
+        return;
+    };
+    for e in rd.flatten() {
+        let p = e.path();
+        if p.extension().is_some_and(|x| x == "tmp") {
+            let stale = p
+                .metadata()
+                .and_then(|m| m.modified())
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .is_some_and(|d| now.saturating_sub(d.as_secs()) > TMP_STALE_SECS);
+            if stale {
+                let _ = std::fs::remove_file(&p);
+            }
+        }
+    }
+}
+
+/// 回执行是否值得 `.heal-log` 留痕（heal_sweep 与 sweeper 两驱动共用判据，
+/// goalhard-01 收口单源）：唤醒族与转人工族必留，新 wake-fail（节流已
+/// 落盘的唤失败）与 repair 族同留（可观测）。
+fn report_logworthy(action: &str) -> bool {
+    matches!(
+        action,
+        "woke"
+            | "wake-fail"
+            | "skip-storm-capped"
+            | "no-agent"
+            | "skip-corrupt"
+            | "skip-write-fail"
+            | "repair-promote"
+            | "repair-drop"
+    )
 }
 
 /// sweeper 单实例锁（`.sweeper-lock`，内容 = `pid token 心跳epoch秒`
@@ -1230,13 +1697,12 @@ fn sweeper_loop_impl(home: &Path, user_home: &Path, tick: u64) -> Result<(), Str
             }
             let _ = std::fs::write(sweeper_stamp_path(home), now.to_string());
             // rev-codex F-2：结果先存不 `?`，报错也要走到收尾释放锁。
-            let res = run_heal(home, user_home, None, false, true);
+            // goalhard-01：heavy_cap=Some(1)——单趟治动作有界，多 goal 同
+            // blocked 不叠破锁陈旧阈（每 tick 让位下一档，自然轮转）。
+            let res = run_heal(home, user_home, None, false, true, Some(1));
             if let Ok(rows) = &res {
                 for r in rows {
-                    if matches!(
-                        r.action.as_str(),
-                        "woke" | "skip-storm-capped" | "no-agent" | "skip-corrupt"
-                    ) {
+                    if report_logworthy(&r.action) {
                         heal_log_append(home, &r.slug, &r.action, &r.detail);
                     }
                 }
@@ -1282,10 +1748,11 @@ pub fn blocked_fastpath(
     let Some(path) = goal_file_for(home, Path::new(&root)) else {
         return Ok(None);
     };
-    let mut rec = match read_record(&path).map_err(|e| e.to_string())? {
-        Some(r) => r,
-        None => return Ok(None),
+    let mut rec = match read_record_repairing(home, &path).map_err(|e| e.to_string())? {
+        (Some(r), _) => r,
+        (None, _) => return Ok(None),
     };
+    let expected = rec.clone();
     let now = unix_secs();
     bump_blocked_streak(&mut rec);
     let stem = path
@@ -1300,13 +1767,20 @@ pub fn blocked_fastpath(
         })
         .unwrap_or("-");
     let detail = format!("session={session} streak={}", rec.blocked_streak);
-    if now.saturating_sub(rec.blocked_alarm_at) >= BLOCKED_ALARM_SECS {
+    // 报警态先入档（goalhard-01 防抖耐久:与守卫写同笔落盘）。
+    let alarm_due = now.saturating_sub(rec.blocked_alarm_at) >= BLOCKED_ALARM_SECS;
+    if alarm_due {
         rec.blocked_alarm_at = now;
-        write_record(&path, &rec).map_err(|e| e.to_string())?;
+    }
+    // 乐观守卫（goalhard-01）：并发 set/clear 已换档即弃写让位（streak
+    // 属旧 goal，无意义），本事件零动作。
+    if !write_record_guarded(&path, &expected, &rec).map_err(|e| e.to_string())? {
+        return Ok(None);
+    }
+    if alarm_due {
         heal_log_append(home, &stem, "alarm-blocked-fast", &detail);
         Ok(Some(format!("{stem} alarm-blocked-fast {detail}")))
     } else {
-        write_record(&path, &rec).map_err(|e| e.to_string())?;
         Ok(None)
     }
 }
@@ -1692,12 +2166,12 @@ mod tests {
         std::env::set_var("HERDR_FAKE_LOG", &log);
         std::env::set_var("PATH", &path);
         // dry-run：只报不唤不落盘。
-        let rows = run_heal(&home, &user, Some(proj), true, false).unwrap();
+        let rows = run_heal(&home, &user, Some(proj), true, false, None).unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].action, "would-wake", "{:?}", rows[0].detail);
         assert!(!log.exists());
         // 实跑：唤醒一次，计数落盘。
-        let rows = run_heal(&home, &user, Some(proj), false, false).unwrap();
+        let rows = run_heal(&home, &user, Some(proj), false, false, None).unwrap();
         assert_eq!(rows[0].action, "woke", "{:?}", rows[0].detail);
         let woke_log = std::fs::read_to_string(&log).unwrap();
         assert!(woke_log.contains("闭环 t 题") && woke_log.contains("hst goal clear"));
@@ -1705,7 +2179,7 @@ mod tests {
         assert_eq!(rec.heal_streak, 1);
         assert!(rec.last_heal_at > 0);
         // 紧跟第二趟：静默窗频控跳过（无新 prompt）。
-        let rows = run_heal(&home, &user, Some(proj), false, false).unwrap();
+        let rows = run_heal(&home, &user, Some(proj), false, false, None).unwrap();
         assert_eq!(rows[0].action, "skip-throttled", "{:?}", rows[0].detail);
         assert_eq!(std::fs::read_to_string(&log).unwrap(), woke_log);
         // 风暴闸：伪造 streak 到顶后转人工。
@@ -1713,7 +2187,7 @@ mod tests {
         rec.heal_streak = HEAL_STORM_CAP;
         rec.last_heal_at = 1;
         write_record(&goal_path(&home, proj), &rec).unwrap();
-        let rows = run_heal(&home, &user, Some(proj), false, false).unwrap();
+        let rows = run_heal(&home, &user, Some(proj), false, false, None).unwrap();
         assert_eq!(rows[0].action, "skip-storm-capped", "{:?}", rows[0].detail);
         // heal_sweep（goal-01 澄清令事件驱动面）：off 闸让位、实扫唤醒加
         // 留痕（.heal-log 与 .heal-sweep）、盖章限频二连让位。
@@ -1746,10 +2220,27 @@ mod tests {
         std::fs::create_dir_all(p.parent().unwrap()).unwrap();
         std::fs::write(&p, "not-json").unwrap();
         assert_eq!(show_goal(&home, root).unwrap_err().code(), "corrupt");
-        // Stop 腿遇坏损：上抛（调用方 fail-open），不静默覆写。
+        // goalhard-01 读面自愈契约：Stop 腿遇坏档修复（隔离留证，无好档判
+        // 缺省），不再响亮 Err 卡死提醒链；原坏字节保存在隔离档不丢。
         let stop = json!({ "hook_event_name": "Stop", "cwd": "/w/x" });
-        assert!(stop_hook(&home, Some(&stop), None).is_err());
-        assert_eq!(std::fs::read_to_string(&p).unwrap(), "not-json");
+        assert!(stop_hook(&home, Some(&stop), None).unwrap().is_none());
+        assert!(!p.exists(), "无好档判缺省，主位空");
+        let dir = goal_dir(&home);
+        let quarantined: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .flatten()
+            .map(|e| e.path())
+            .filter(|f| {
+                f.file_name()
+                    .is_some_and(|n| n.to_string_lossy().starts_with("-w-x.json.corrupt-"))
+            })
+            .collect();
+        assert_eq!(quarantined.len(), 1, "坏档隔离留证: {quarantined:?}");
+        assert_eq!(
+            std::fs::read_to_string(&quarantined[0]).unwrap(),
+            "not-json",
+            "原坏字节不丢"
+        );
         let _ = std::fs::remove_dir_all(&home);
     }
 
@@ -1920,6 +2411,523 @@ mod tests {
         sweeper_loop(&home, Path::new("/nonexistent-user")).unwrap();
         assert!(!sweeper_lock_path(&home).exists(), "off 即退不留锁");
         std::env::remove_var("HST_GOAL_SWEEPER");
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    // ===== goalhard-01 三族回归（并发写 / 崩溃注入 / 风暴闸）加机读面 =====
+
+    #[test]
+    fn concurrent_writers_lww_never_corrupt_never_spurious_error() {
+        // goalhard-01 并发族:双写者(本地与远端 ssh 落本机的同构多进程面)
+        // 加清者加读者四线程锤同键。不变量:读者恒见有效档或缺失(绝不坏
+        // 档);写者全 Ok(唯一 tmp,固定 tmp 名先例下两写者互吞必现假错);
+        // 终态有效或缺失(整档 LWW);审计道行数与真发生的管理动作对账。
+        let home = std::sync::Arc::new(fresh_home("cc"));
+        let root = Path::new("/w/proj");
+        let path = goal_path(&home, root);
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(4));
+        let mut writers = Vec::new();
+        for tag in ["A", "B"] {
+            let (h, b) = (home.clone(), barrier.clone());
+            writers.push(std::thread::spawn(move || {
+                b.wait();
+                for i in 0..60 {
+                    set_goal(&h, root, &format!("{tag}-{i}")).unwrap();
+                }
+            }));
+        }
+        let clearer = {
+            let (h, b) = (home.clone(), barrier.clone());
+            std::thread::spawn(move || {
+                b.wait();
+                let mut removed = 0usize;
+                for _ in 0..30 {
+                    if clear_goal(&h, root).unwrap() {
+                        removed += 1;
+                    }
+                }
+                removed
+            })
+        };
+        let reader = {
+            let (p, b) = (path.clone(), barrier.clone());
+            std::thread::spawn(move || {
+                b.wait();
+                // 读者跑固定预算:写者们 120 发 set 期间持续抽查不变量。
+                for _ in 0..4000 {
+                    match read_record(&p) {
+                        Ok(Some(r)) => assert!(!r.text.is_empty(), "半档: {r:?}"),
+                        Ok(None) => {}
+                        Err(e) => panic!("读者见坏档: {e}"),
+                    }
+                }
+            })
+        };
+        for h in writers {
+            if let Err(e) = h.join() {
+                std::panic::resume_unwind(e);
+            }
+        }
+        let cleared = clearer.join().unwrap();
+        reader.join().unwrap();
+        let final_rec = read_record(&path).unwrap();
+        assert!(
+            final_rec.as_ref().is_none_or(|r| !r.text.is_empty()),
+            "终态整档 LWW: {final_rec:?}"
+        );
+        // 审计道对账:120 发 set 每发一行;clear 只真删才留行。
+        let audit =
+            std::fs::read_to_string(goal_dir(&home).join(".goal-audit")).unwrap_or_default();
+        let count = |action: &str| {
+            audit
+                .lines()
+                .filter(|l| l.split_whitespace().nth(2) == Some(action))
+                .count()
+        };
+        assert_eq!(count("set"), 120, "{audit}");
+        assert_eq!(count("clear"), cleared, "{audit}");
+        let _ = std::fs::remove_dir_all(&*home);
+    }
+
+    #[test]
+    fn write_verify_bak_promote_and_drop_repair_paths() {
+        // goalhard-01 坏档族:bak 维护(上次好档)、坏档隔离晋升、无好档判
+        // 缺省、修复幂等、doctor 纯读面不修复、审计留痕。
+        let home = fresh_home("bk");
+        let root = Path::new("/w/p");
+        set_goal(&home, root, "第一目标").unwrap();
+        set_goal(&home, root, "第二目标").unwrap();
+        let p = goal_path(&home, root);
+        // bak = 上次好档(第一目标;第二次 set 前主档可解析才刷)。
+        assert_eq!(
+            read_record(&bak_path(&p)).unwrap().unwrap().text,
+            "第一目标"
+        );
+        // 坏主档:修复晋升,主档复活,坏档隔离留证。
+        std::fs::write(&p, "half-writ{").unwrap();
+        let (rec, note) = read_record_repairing(&home, &p).unwrap();
+        assert_eq!(rec.as_ref().unwrap().text, "第一目标");
+        let note = note.unwrap();
+        assert_eq!(note.action, "promote");
+        assert!(Path::new(&note.quarantined).is_file(), "坏档隔离留证");
+        assert_eq!(read_record(&p).unwrap().unwrap().text, "第一目标");
+        // 幂等:再读无注记。
+        let (_, note2) = read_record_repairing(&home, &p).unwrap();
+        assert!(note2.is_none());
+        // 审计道:promote 行在册(此节目录未清时点检)。
+        let audit = std::fs::read_to_string(goal_dir(&home).join(".goal-audit")).unwrap();
+        assert!(audit.contains(" action=promote "), "{audit}");
+        // 无好档判缺省:坏主档加坏 bak → drop,主位空,隔离留证。
+        let _ = std::fs::remove_dir_all(goal_dir(&home));
+        set_goal(&home, root, "孤档").unwrap();
+        std::fs::write(&p, "x").unwrap();
+        std::fs::write(&bak_path(&p), "bad-bak").unwrap();
+        let (rec3, note3) = read_record_repairing(&home, &p).unwrap();
+        assert!(rec3.is_none(), "无好档判缺省: {rec3:?}");
+        assert_eq!(note3.unwrap().action, "drop");
+        assert!(!p.exists(), "主位空(坏档已隔离)");
+        // 审计道:drop 行在册(本节目录未清时点检)。
+        let audit = std::fs::read_to_string(goal_dir(&home).join(".goal-audit")).unwrap();
+        assert!(audit.contains(" action=drop "), "{audit}");
+        // doctor 纯读面契约:坏档上 show_goal 仍响亮 Corrupt,不修复。
+        let _ = std::fs::remove_dir_all(goal_dir(&home));
+        set_goal(&home, root, "t").unwrap();
+        std::fs::write(&p, "x").unwrap();
+        assert_eq!(show_goal(&home, root).unwrap_err().code(), "corrupt");
+        assert_eq!(std::fs::read_to_string(&p).unwrap(), "x", "纯读面不动坏档");
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn race_guard_full_record_cas_same_second_set_detected() {
+        // goalhard-01 守卫族:整档 CAS——同秒并发 set 只换文本(set_at 同秒
+        // 分不出)仍判变让位;快照未变即写成功;clear 后不复活。
+        let home = fresh_home("cas");
+        let root = Path::new("/w/r");
+        let p = goal_path(&home, root);
+        set_goal(&home, root, "原目标").unwrap();
+        let snapshot = read_record(&p).unwrap().unwrap();
+        // 同秒第二发 set:文本变即全档比对命中(旧 set_at 单键判据的盲区)。
+        set_goal(&home, root, "新目标").unwrap();
+        let mut bumped = snapshot.clone();
+        bumped.rounds += 1;
+        assert!(
+            !write_record_guarded(&p, &snapshot, &bumped).unwrap(),
+            "同秒换文本的并发 set 让增量让位"
+        );
+        assert_eq!(read_record(&p).unwrap().unwrap().text, "新目标");
+        // 快照与盘上一致:写成功。
+        let cur = read_record(&p).unwrap().unwrap();
+        let mut next = cur.clone();
+        next.rounds += 1;
+        assert!(write_record_guarded(&p, &cur, &next).unwrap());
+        assert_eq!(read_record(&p).unwrap().unwrap().rounds, 1);
+        // clear 后:主位空,守卫让位不复活。
+        clear_goal(&home, root).unwrap();
+        assert!(
+            !write_record_guarded(&p, &next, &next).unwrap(),
+            "clear 后不复活"
+        );
+        assert!(!p.exists());
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn stop_hook_and_fastpath_repair_corrupt_store() {
+        // goalhard-01 读面自愈实弹:Stop 腿与 blocked 快道遇坏档先修复再走
+        // (旧形响亮 Err 卡死提醒链);doctor 面(show_goal)仍纯读。
+        let home = fresh_home("rp");
+        let root = Path::new("/w/p");
+        set_goal(&home, root, "第一目标").unwrap();
+        set_goal(&home, root, "第二目标").unwrap();
+        let p = goal_path(&home, root);
+        // Stop 腿:坏档晋升 bak(第一目标)后计数加提醒照常。
+        std::fs::write(&p, "garbage").unwrap();
+        let stop = json!({ "hook_event_name": "Stop", "cwd": "/w/p" });
+        let out = stop_hook(&home, Some(&stop), None).unwrap().unwrap();
+        assert!(out.contains("第一目标"), "提醒载晋升后的 goal: {out}");
+        let rec = read_record(&p).unwrap().unwrap();
+        assert_eq!(rec.text, "第一目标");
+        assert_eq!(rec.rounds, 1);
+        // 快道:再坏档(重新 set 后破坏),blocked 事件修复加报警。
+        set_goal(&home, root, "第三目标").unwrap();
+        set_goal(&home, root, "第四目标").unwrap();
+        std::fs::write(&p, "garbage2").unwrap();
+        let perm = json!({
+            "hook_event_name": "Notification",
+            "notification_type": "permission_request",
+            "cwd": "/w/p",
+            "session_id": "s9"
+        });
+        let line = blocked_fastpath(&home, Some(&perm), None).unwrap();
+        assert!(
+            line.as_ref()
+                .is_some_and(|l| l.contains("alarm-blocked-fast")),
+            "{line:?}"
+        );
+        let rec2 = read_record(&p).unwrap().unwrap();
+        assert_eq!(rec2.text, "第三目标", "晋升上次好档");
+        assert_eq!(rec2.blocked_streak, 1);
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn wake_throttle_durable_before_prompt() {
+        // goalhard-01 风暴闸族:prompt 失败时节流先落盘(旧形 prompt 先发
+        // 写后落,写失败即下趟重唤风暴);第二趟 skip-throttled 不再发。
+        let _g = crate::pathutil::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let home = fresh_home("wt");
+        let user = fresh_home("wt-user");
+        let proj = Path::new("/w/proj");
+        set_goal(&home, proj, "盯发布").unwrap();
+        let mut aged = show_goal(&home, proj).unwrap().unwrap();
+        aged.set_at = 1;
+        aged.last_stop_at = 1;
+        write_record(&goal_path(&home, proj), &aged).unwrap();
+        let dir = std::env::temp_dir().join(format!(
+            "hst-goal-wakefail-{}-{}",
+            std::process::id(),
+            unix_secs()
+        ));
+        let bin = dir.join("bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        let list = dir.join("list.json");
+        std::fs::write(
+            &list,
+            format!(
+                r#"{{"result":{{"agents":[{{"agent":"claude","agent_status":"idle","cwd":"{}","pane_id":"w1:p5"}}]}}}}"#,
+                proj.display()
+            ),
+        )
+        .unwrap();
+        // prompt 即败(list 必须通,唤醒发不出去);路径烤进脚本不走 env
+        //（测试进程 env 是全局可变共享面,免并发串扰）。
+        std::fs::write(
+            &bin.join("herdr"),
+            format!(
+                concat!(
+                    "#!/bin/sh\n",
+                    "if [ \"$1 $2\" = \"agent list\" ]; then cat {list}; exit 0; fi\n",
+                    "if [ \"$1 $2\" = \"agent prompt\" ]; then exit 1; fi\n",
+                ),
+                list = list.display(),
+            ),
+        )
+        .unwrap();
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&bin.join("herdr"), std::fs::Permissions::from_mode(0o755))
+                .unwrap();
+        }
+        let saved_path = std::env::var("PATH").unwrap_or_default();
+        let path_env = format!("{}:{}", bin.display(), saved_path);
+        std::env::set_var("PATH", &path_env);
+        let rows = run_heal(&home, &user, Some(proj), false, false, None).unwrap();
+        assert_eq!(rows[0].action, "wake-fail", "{:?}", rows[0].detail);
+        // 节流已落盘:last_heal_at 加 streak 持久,不因 prompt 失败回滚。
+        let rec = show_goal(&home, proj).unwrap().unwrap();
+        assert!(rec.last_heal_at > 0, "节流先落盘: {rec:?}");
+        assert_eq!(rec.heal_streak, 1);
+        // 第二趟:静默窗频控,不再发 prompt(风暴闸实证)。
+        let rows2 = run_heal(&home, &user, Some(proj), false, false, None).unwrap();
+        assert_eq!(rows2[0].action, "skip-throttled");
+        std::env::set_var("PATH", &saved_path);
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&home);
+        let _ = std::fs::remove_dir_all(&user);
+    }
+
+    #[test]
+    fn yolo_heal_cooldown_durable_before_sequence() {
+        // goalhard-01 风暴闸族:治序列失败时冷却已先落盘(旧形治后落,写
+        // 失败即每趟 sweep 重启格风暴);第二趟不再治;手动面 heavy_deferred
+        // 上帽单趟一个治动作。
+        let _g = crate::pathutil::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let home = fresh_home("yc");
+        let user = fresh_home("yc-user");
+        let proj = Path::new("/w/proj");
+        set_goal(&home, proj, "解阻塞").unwrap();
+        set_yolo_heal_armed(&home, true).unwrap();
+        let mut aged = show_goal(&home, proj).unwrap().unwrap();
+        aged.set_at = 1;
+        aged.last_stop_at = 1;
+        aged.blocked_streak = 1;
+        aged.blocked_rounds = 0;
+        write_record(&goal_path(&home, proj), &aged).unwrap();
+        let dir = std::env::temp_dir().join(format!(
+            "hst-goal-yolocool-{}-{}",
+            std::process::id(),
+            unix_secs()
+        ));
+        let bin = dir.join("bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        let list = dir.join("list.json");
+        let keys = dir.join("keys.log");
+        std::fs::write(
+            &list,
+            format!(
+                r#"{{"result":{{"agents":[{{"agent":"claude","agent_status":"blocked","cwd":"{}","pane_id":"w1:p5"}}]}}}}"#,
+                proj.display()
+            ),
+        )
+        .unwrap();
+        // send-keys 计数后即败(治序列第一步即折,快路径);路径烤进脚本。
+        std::fs::write(
+            &bin.join("herdr"),
+            format!(
+                concat!(
+                    "#!/bin/sh\n",
+                    "if [ \"$1 $2\" = \"agent list\" ]; then cat {list}; exit 0; fi\n",
+                    "if [ \"$1 $2\" = \"agent send-keys\" ]; then echo x >> {keys}; exit 1; fi\n",
+                ),
+                list = list.display(),
+                keys = keys.display(),
+            ),
+        )
+        .unwrap();
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&bin.join("herdr"), std::fs::Permissions::from_mode(0o755))
+                .unwrap();
+        }
+        let saved_path = std::env::var("PATH").unwrap_or_default();
+        let path_env = format!("{}:{}", bin.display(), saved_path);
+        std::env::set_var("PATH", &path_env);
+        // 第一趟(streak bump 到 2 即阈值):治序列失败,冷却已先落盘。
+        let rows = run_heal(&home, &user, Some(proj), false, true, None).unwrap();
+        assert_eq!(rows[0].action, "yolo-heal-fail", "{:?}", rows[0].detail);
+        let rec = show_goal(&home, proj).unwrap().unwrap();
+        assert!(rec.yolo_heal_at > 0, "冷却先落盘: {rec:?}");
+        // 第二趟:冷却窗(6h)内不再治,防抖窗内静默计数。
+        let rows2 = run_heal(&home, &user, Some(proj), false, true, None).unwrap();
+        assert_eq!(rows2[0].action, "blocked-muted", "{:?}", rows2[0].detail);
+        assert_eq!(
+            std::fs::read_to_string(&keys).unwrap().lines().count(),
+            1,
+            "治动作只发生一次(冷却耐久)"
+        );
+        std::env::set_var("PATH", &saved_path);
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&home);
+        let _ = std::fs::remove_dir_all(&user);
+    }
+
+    #[test]
+    fn sweeper_heavy_cap_one_action_per_pass() {
+        // goalhard-01 风暴闸族:两档同 Eligibility,sweeper 形(cap=Some(1))
+        // 单趟只治一档,另一档 heavy-deferred(dry 双证:两档保持 Eligible
+        // 下仍只见一个 would-yolo-heal);实跑治序列落键级联(首档治后用户
+        // 级 yolo 全落,次档非 yolo 前置失效)叠加帽后单趟仍只一键序。
+        let _g = crate::pathutil::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let home = fresh_home("hc");
+        let user = fresh_home("hc-user");
+        let pa = Path::new("/w/a");
+        let pb = Path::new("/w/b");
+        for root in [pa, pb] {
+            set_goal(&home, root, "解阻塞").unwrap();
+            let mut aged = show_goal(&home, root).unwrap().unwrap();
+            aged.set_at = 1;
+            aged.last_stop_at = 1;
+            aged.blocked_streak = 1;
+            aged.blocked_rounds = 0;
+            write_record(&goal_path(&home, root), &aged).unwrap();
+        }
+        set_yolo_heal_armed(&home, true).unwrap();
+        let dir = std::env::temp_dir().join(format!(
+            "hst-goal-heavycap-{}-{}",
+            std::process::id(),
+            unix_secs()
+        ));
+        let bin = dir.join("bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        let list = dir.join("list.json");
+        let keys = dir.join("keys.log");
+        std::fs::write(
+            &list,
+            format!(
+                r#"{{"result":{{"agents":[{{"agent":"claude","agent_status":"blocked","cwd":"{}","pane_id":"w1:p1"}},{{"agent":"claude","agent_status":"blocked","cwd":"{}","pane_id":"w1:p2"}}]}}}}"#,
+                pa.display(),
+                pb.display()
+            ),
+        )
+        .unwrap();
+        // send-keys 计数后即败(治序列第一步即折,快路径);路径烤进脚本。
+        std::fs::write(
+            &bin.join("herdr"),
+            format!(
+                concat!(
+                    "#!/bin/sh\n",
+                    "if [ \"$1 $2\" = \"agent list\" ]; then cat {list}; exit 0; fi\n",
+                    "if [ \"$1 $2\" = \"agent send-keys\" ]; then echo x >> {keys}; exit 1; fi\n",
+                ),
+                list = list.display(),
+                keys = keys.display(),
+            ),
+        )
+        .unwrap();
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&bin.join("herdr"), std::fs::Permissions::from_mode(0o755))
+                .unwrap();
+        }
+        let saved_path = std::env::var("PATH").unwrap_or_default();
+        let path_env = format!("{}:{}", bin.display(), saved_path);
+        std::env::set_var("PATH", &path_env);
+        // dry 双证:两档均 Eligible,cap=1 下只一档 would-yolo-heal,另一档
+        // heavy-deferred(dry 零副作用,两档 Eligibility 不因治变)。
+        let rows = run_heal(&home, &user, None, true, true, Some(1)).unwrap();
+        let mut actions: Vec<&str> = rows.iter().map(|r| r.action.as_str()).collect();
+        actions.sort_unstable();
+        assert_eq!(
+            actions,
+            vec!["heavy-deferred", "would-yolo-heal"],
+            "{rows:?}"
+        );
+        // 实跑:首档治序列(键序即折),次档或被帽让位或因落键级联非
+        // Eligible,单趟仍只一键序。
+        let rows2 = run_heal(&home, &user, None, false, true, Some(1)).unwrap();
+        assert!(
+            rows2.iter().any(|r| r.action == "yolo-heal-fail"),
+            "{rows2:?}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&keys).unwrap().lines().count(),
+            1,
+            "单趟只一键序(帽加落键级联双保险)"
+        );
+        std::env::set_var("PATH", &saved_path);
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&home);
+        let _ = std::fs::remove_dir_all(&user);
+    }
+
+    #[test]
+    fn goal_files_filter_and_stale_tmp_swept() {
+        // goalhard-01 收集器:goal_files 只收在册主档(治理件加 bak 加
+        // 坏档隔离件加 tmp 全排除);崩溃残件 tmp 超龄被扫描趟清走。
+        let home = fresh_home("gf");
+        let root = Path::new("/w/p");
+        set_goal(&home, root, "在册").unwrap();
+        let dir = goal_dir(&home);
+        let main = goal_path(&home, root);
+        for (name, body) in [
+            (".heal-log", "1 a b c\n"),
+            (".sweeper-lock", "1 2 3\n"),
+            (
+                "-w-p.json.bak",
+                "{\"text\":\"旧\",\"set_at\":1,\"rounds\":0,\"last_stop_at\":0}",
+            ),
+            ("-w-p.json.corrupt-1-ab", "junk"),
+            ("-w-p.json.123-abc.tmp", "half"),
+            ("x.json.9-1.tmp", "half2"),
+        ] {
+            std::fs::write(dir.join(name), body).unwrap();
+        }
+        let files = goal_files(&home);
+        assert_eq!(files, vec![main.clone()], "只收在册主档: {files:?}");
+        // tmp 清扫:注入未来时刻,全部 tmp 超龄清走,主档与 bak 不动。
+        sweep_stale_tmp(&home, unix_secs() + TMP_STALE_SECS + 60);
+        assert!(!dir.join("-w-p.json.123-abc.tmp").exists());
+        assert!(!dir.join("x.json.9-1.tmp").exists());
+        assert!(main.exists());
+        assert!(dir.join("-w-p.json.bak").exists(), "bak 不被 tmp 清扫误伤");
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn heal_and_goal_audit_logs_rotate_at_cap() {
+        // goalhard-01 留痕轮转:过 AUDIT_LOG_CAP_BYTES 先滚 .1(keep-one)
+        // 再写,长役不无限增长。
+        let home = fresh_home("rot");
+        let dir = goal_dir(&home);
+        std::fs::create_dir_all(&dir).unwrap();
+        let heal = dir.join(".heal-log");
+        std::fs::write(&heal, "x".repeat(AUDIT_LOG_CAP_BYTES as usize + 1)).unwrap();
+        heal_log_append(&home, "s", "woke", "d");
+        assert!(
+            std::fs::metadata(&heal).unwrap().len() < AUDIT_LOG_CAP_BYTES,
+            "新档回小"
+        );
+        assert!(
+            std::fs::metadata(dir.join(".heal-log.1")).unwrap().len() > AUDIT_LOG_CAP_BYTES,
+            "旧档滚 .1"
+        );
+        assert_eq!(std::fs::read_to_string(&heal).unwrap().lines().count(), 1);
+        let audit = dir.join(".goal-audit");
+        std::fs::write(&audit, "y".repeat(AUDIT_LOG_CAP_BYTES as usize + 1)).unwrap();
+        goal_audit_append(&home, "s", "set", "d");
+        assert!(std::fs::metadata(dir.join(".goal-audit.1")).unwrap().len() > AUDIT_LOG_CAP_BYTES);
+        assert_eq!(std::fs::read_to_string(&audit).unwrap().lines().count(), 1);
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn list_goals_reports_rows_with_repair_notes() {
+        // goalhard-01 机读面:list_goals 字典序逐档,坏档修复注记入行,
+        // 空目录合法空清单。
+        let home = fresh_home("lg2");
+        assert!(list_goals(&home).unwrap().is_empty(), "空目录空清单");
+        set_goal(&home, Path::new("/w/b"), "B 档").unwrap();
+        // A 连发两遍:第二遍前主档可解析,刷出 .bak(晋升源)。
+        set_goal(&home, Path::new("/w/a"), "A 旧档").unwrap();
+        set_goal(&home, Path::new("/w/a"), "A 档").unwrap();
+        let rows = list_goals(&home).unwrap();
+        let slugs: Vec<&str> = rows.iter().map(|r| r.slug.as_str()).collect();
+        assert_eq!(slugs, vec!["-w-a", "-w-b"], "字典序稳定: {slugs:?}");
+        assert!(rows.iter().all(|r| r.rec.is_some() && r.repaired.is_none()));
+        // 坏档:show 未触过,list 触修复(bak 晋升)注记入行。
+        let pa = goal_path(&home, Path::new("/w/a"));
+        std::fs::write(&pa, "bad").unwrap();
+        let rows2 = list_goals(&home).unwrap();
+        let row_a = rows2.iter().find(|r| r.slug == "-w-a").unwrap();
+        assert_eq!(row_a.repaired.as_deref(), Some("promote"));
+        assert!(row_a.rec.is_some(), "晋升后照常在册");
         let _ = std::fs::remove_dir_all(&home);
     }
 }

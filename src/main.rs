@@ -185,12 +185,14 @@ enum GoalCmd {
         #[arg(long)]
         project: Option<PathBuf>,
     },
-    /// 查看本项目 goal（无 goal 给 goal.present=false）
+    /// 查看本项目 goal（无 goal 给 goal.present=false）；配 --json 出信封（goalhard-01 机读面，goal 插件聚合直接消费）
     Show {
         /// 项目根；默认当前目录
         #[arg(long)]
         project: Option<PathBuf>,
     },
+    /// 列本机全部在册 goal（goalhard-01 机读聚合面：goal 插件 list --all 逐机消费；kv/json/jsonl 三态同全局 --format）
+    List,
     /// 清空本项目 goal（Stop 提醒与状态栏段随撤；无 goal 零改动退 0）
     Clear {
         /// 项目根；默认当前目录
@@ -690,6 +692,7 @@ fn run() -> Result<(), String> {
         Commands::Goal { cmd } => match cmd {
             GoalCmd::Set { text, project } => cmd_goal_set(&text, project),
             GoalCmd::Show { project } => cmd_goal_show(project),
+            GoalCmd::List => cmd_goal_list(),
             GoalCmd::Clear { project } => cmd_goal_clear(project),
             GoalCmd::Heal {
                 project,
@@ -1702,38 +1705,126 @@ fn cmd_goal_set(text: &str, project: Option<PathBuf>) -> Result<(), String> {
     Ok(())
 }
 
-/// REQ-047 两维态 show 面：blocked 维与 yolo 治新字段同源出。
+/// REQ-047 两维态 show 面：blocked 维与 yolo 治新字段同源出。goalhard-01：
+/// json/jsonl 出 fmtio 信封（机读聚合面，jsonl 单实体视同信封），坏档经
+/// 修复面出 `repaired` 注记行。
 fn cmd_goal_show(project: Option<PathBuf>) -> Result<(), String> {
     let root = project_root(project)?;
     let home = hst::install::hst_home()?;
     let armed = goal::yolo_heal_armed(&home);
-    match goal::show_goal(&home, &root).map_err(|e| format!("goal error={}: {e}", e.code()))? {
-        Some(r) => {
-            println!("goal.present=true");
-            println!("goal.text={}", r.text);
-            println!("goal.rounds={}", r.rounds);
-            println!("goal.set_at={}", r.set_at);
-            if r.last_stop_at > 0 {
-                println!("goal.last_stop_at={}", r.last_stop_at);
+    let path = goal::goal_path(&home, &root);
+    let (found, repaired) = goal::read_record_repairing(&home, &path)
+        .map_err(|e| format!("goal error={}: {e}", e.code()))?;
+    match hst::fmtio::mode() {
+        hst::fmtio::Format::Json | hst::fmtio::Format::Jsonl => {
+            let mut data = serde_json::json!({
+                "present": found.is_some(),
+                "project": root.display().to_string(),
+                "slug": path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default(),
+                "file": path.display().to_string(),
+                "goal": match found.as_ref() {
+                    Some(g) => Some(serde_json::to_value(g).map_err(|e| e.to_string())?),
+                    None => None,
+                },
+                "yolo_heal_armed": armed,
+            });
+            if let Some(n) = &repaired {
+                data["repaired"] =
+                    serde_json::json!({ "action": n.action, "quarantined": n.quarantined });
             }
-            if r.last_heal_at > 0 {
-                println!("goal.last_heal_at={}", r.last_heal_at);
-                println!("goal.heal_streak={}", r.heal_streak);
-            }
-            if r.blocked_streak > 0 {
-                println!("goal.blocked_streak={}", r.blocked_streak);
-            }
-            if r.blocked_alarm_at > 0 {
-                println!("goal.blocked_alarm_at={}", r.blocked_alarm_at);
-            }
-            if r.yolo_heal_at > 0 {
-                println!("goal.yolo_heal_at={}", r.yolo_heal_at);
-            }
+            print_json("goal-show", &root, Ok(data))
         }
-        None => println!("goal.present=false"),
+        hst::fmtio::Format::Kv => {
+            match &found {
+                Some(r) => {
+                    println!("goal.present=true");
+                    println!("goal.text={}", r.text);
+                    println!("goal.rounds={}", r.rounds);
+                    println!("goal.set_at={}", r.set_at);
+                    if r.last_stop_at > 0 {
+                        println!("goal.last_stop_at={}", r.last_stop_at);
+                    }
+                    if r.last_heal_at > 0 {
+                        println!("goal.last_heal_at={}", r.last_heal_at);
+                        println!("goal.heal_streak={}", r.heal_streak);
+                    }
+                    if r.blocked_streak > 0 {
+                        println!("goal.blocked_streak={}", r.blocked_streak);
+                    }
+                    if r.blocked_alarm_at > 0 {
+                        println!("goal.blocked_alarm_at={}", r.blocked_alarm_at);
+                    }
+                    if r.yolo_heal_at > 0 {
+                        println!("goal.yolo_heal_at={}", r.yolo_heal_at);
+                    }
+                }
+                None => println!("goal.present=false"),
+            }
+            println!("goal.yolo_heal.armed={}", if armed { "on" } else { "off" });
+            if let Some(n) = &repaired {
+                println!(
+                    "goal.repair action={} quarantined={}",
+                    n.action, n.quarantined
+                );
+            }
+            Ok(())
+        }
     }
-    println!("goal.yolo_heal.armed={}", if armed { "on" } else { "off" });
-    Ok(())
+}
+
+/// goalhard-01 全机在册清单面：goal 插件 list --all 逐机消费的聚合原语。
+/// kv 逐档 marker 行；json 信封（data.count 加 goals 数组）；jsonl 逐档
+/// 对象（列表形，无信封）。坏档修复后出 repaired 注记，不卡清单。
+fn cmd_goal_list() -> Result<(), String> {
+    let home = hst::install::hst_home()?;
+    let rows = goal::list_goals(&home)?;
+    let row_json = |r: &goal::GoalListRow| -> Result<serde_json::Value, String> {
+        Ok(serde_json::json!({
+            "slug": r.slug,
+            "file": r.file.display().to_string(),
+            "present": r.rec.is_some(),
+            "goal": match r.rec.as_ref() {
+                Some(g) => Some(serde_json::to_value(g).map_err(|e| e.to_string())?),
+                None => None,
+            },
+            "repaired": r.repaired,
+        }))
+    };
+    match hst::fmtio::mode() {
+        hst::fmtio::Format::Json => {
+            let goals: Vec<serde_json::Value> = rows
+                .iter()
+                .map(&row_json)
+                .collect::<Result<Vec<_>, String>>()?;
+            let data = serde_json::json!({ "count": goals.len(), "goals": goals });
+            print_json("goal-list", Path::new("."), Ok(data))
+        }
+        hst::fmtio::Format::Jsonl => {
+            for r in &rows {
+                println!("{}", row_json(r)?);
+            }
+            Ok(())
+        }
+        hst::fmtio::Format::Kv => {
+            println!("goal.list.count={}", rows.len());
+            for r in &rows {
+                match &r.rec {
+                    Some(g) => println!(
+                        "goal.list slug={} text={} rounds={} set_at={}",
+                        r.slug, g.text, g.rounds, g.set_at
+                    ),
+                    None => println!("goal.list slug={} present=false", r.slug),
+                }
+                if let Some(note) = &r.repaired {
+                    println!("goal.list slug={} repaired={}", r.slug, note);
+                }
+            }
+            if rows.is_empty() {
+                println!("goal.list.hint=无在册 goal；先 hst goal set");
+            }
+            Ok(())
+        }
+    }
 }
 
 fn cmd_goal_clear(project: Option<PathBuf>) -> Result<(), String> {
@@ -1764,7 +1855,7 @@ fn cmd_goal_heal(project: Option<PathBuf>, dry_run: bool, interval: bool) -> Res
         Some(p) => Some(project_root(Some(p))?),
         None => None,
     };
-    let rows = goal::run_heal(&home, &user_home, only.as_deref(), dry_run, true)?;
+    let rows = goal::run_heal(&home, &user_home, only.as_deref(), dry_run, true, None)?;
     println!("goal.heal.count={}", rows.len());
     for r in &rows {
         println!("goal.heal slug={} action={} {}", r.slug, r.action, r.detail);

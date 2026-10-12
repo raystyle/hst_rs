@@ -2687,3 +2687,322 @@ fn update_version_output_parses() {
         .find(|t| t.chars().next().is_some_and(|c| c.is_ascii_digit()));
     assert_eq!(dotted, Some(env!("CARGO_PKG_VERSION")), "输出形：{s}");
 }
+
+// ===== goalhard-01(goal 原语地基批)三族回归加机读面集成 =====
+
+#[test]
+fn goal_show_json_envelope_and_filter_output() {
+    // goalhard-01 机读面:`hst goal show --json`(全局旗标后置形)出 fmtio
+    // 信封,data 载 present/project/slug/file/goal 全字段/yolo_heal_armed;
+    // present=false 稳态;--filter-output 键路径过滤同源。
+    let tmp = std::env::temp_dir().join(format!(
+        "hst-cli-goaljson-{}-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis(),
+        NEXT_TEST_DIR.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    let root = tmp.join("proj");
+    std::fs::create_dir_all(&root).unwrap();
+    let out = hst()
+        .env("HST_ROOT", &tmp)
+        .args(["goal", "set", "舰队升级协调", "--project"])
+        .arg(&root)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert!(String::from_utf8_lossy(&out).contains("goal.set"));
+    let out = hst()
+        .env("HST_ROOT", &tmp)
+        .args(["goal", "show", "--json", "--project"])
+        .arg(&root)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&out)).unwrap();
+    assert_eq!(v["ok"], serde_json::json!(true), "{v}");
+    assert_eq!(v["meta"]["command"], serde_json::json!("goal-show"));
+    assert_eq!(v["data"]["present"], serde_json::json!(true));
+    assert_eq!(v["data"]["goal"]["text"], serde_json::json!("舰队升级协调"));
+    assert_eq!(v["data"]["goal"]["rounds"], serde_json::json!(0));
+    assert_eq!(v["data"]["yolo_heal_armed"], serde_json::json!(false));
+    assert!(v["data"]["slug"].as_str().is_some_and(|s| !s.is_empty()));
+    assert!(v["data"]["file"]
+        .as_str()
+        .is_some_and(|s| s.ends_with(".json")));
+    // present=false 稳态(无 goal 合法)。
+    let out = hst()
+        .env("HST_ROOT", &tmp)
+        .args(["goal", "show", "--json", "--project"])
+        .arg(tmp.join("none"))
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&out)).unwrap();
+    assert_eq!(v["data"]["present"], serde_json::json!(false));
+    assert_eq!(v["data"]["goal"], serde_json::Value::Null);
+    // --filter-output 与信封面同源(goal.text 单键)。
+    let out = hst()
+        .env("HST_ROOT", &tmp)
+        .args([
+            "--json",
+            "--filter-output",
+            "goal.text",
+            "goal",
+            "show",
+            "--project",
+        ])
+        .arg(&root)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&out)).unwrap();
+    assert_eq!(
+        v["data"]["goal.text"],
+        serde_json::json!("舰队升级协调"),
+        "{v}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
+fn goal_list_kv_json_jsonl_and_repair_rows() {
+    // goalhard-01 全机清单面(插件 list --all 聚合消费):kv/json/jsonl 三态
+    // 同源;空目录 count=0;坏档修复行入清单(kv repaired 行与 jsonl 字段)。
+    let tmp = std::env::temp_dir().join(format!(
+        "hst-cli-goallist-{}-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis(),
+        NEXT_TEST_DIR.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    let pa = tmp.join("a");
+    let pb = tmp.join("b");
+    std::fs::create_dir_all(&pa).unwrap();
+    std::fs::create_dir_all(&pb).unwrap();
+    // 空目录:count=0 加 hint。
+    hst()
+        .env("HST_ROOT", &tmp)
+        .args(["goal", "list"])
+        .assert()
+        .success()
+        .stdout(contains("goal.list.count=0"))
+        .stdout(contains("goal.list.hint="));
+    // 两档在册(各连发两遍给 A 刷 bak)。
+    for (root, txt) in [(&pa, "A 旧"), (&pa, "A 档"), (&pb, "B 档")] {
+        hst()
+            .env("HST_ROOT", &tmp)
+            .args(["goal", "set", txt, "--project"])
+            .arg(root)
+            .assert()
+            .success();
+    }
+    let slug_of = |p: &std::path::Path| -> String {
+        p.display()
+            .to_string()
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+            .collect()
+    };
+    // kv:count=2 加两行。
+    let out = hst()
+        .env("HST_ROOT", &tmp)
+        .args(["goal", "list"])
+        .assert()
+        .success()
+        .stdout(contains("goal.list.count=2"))
+        .stdout(contains(&format!("slug={}", slug_of(&pa))))
+        .stdout(contains(&format!("slug={}", slug_of(&pb))))
+        .stdout(contains("text=A 档"))
+        .get_output()
+        .stdout
+        .clone();
+    let out = String::from_utf8_lossy(&out).to_string();
+    assert!(!out.contains("repaired"), "健档无修复行");
+    // jsonl:逐行对象,字段机读形。
+    let out = hst()
+        .env("HST_ROOT", &tmp)
+        .args(["--format", "jsonl", "goal", "list"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let out = String::from_utf8_lossy(&out).to_string();
+    let lines: Vec<&str> = out.lines().filter(|l| !l.trim().is_empty()).collect();
+    assert_eq!(lines.len(), 2, "{out}");
+    let v: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
+    assert_eq!(v["present"], serde_json::json!(true));
+    assert!(v["goal"]["text"].as_str().is_some());
+    assert_eq!(v["repaired"], serde_json::Value::Null);
+    // json:信封 data.count 加 goals 数组。
+    let out = hst()
+        .env("HST_ROOT", &tmp)
+        .args(["--json", "goal", "list"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&out)).unwrap();
+    assert_eq!(v["meta"]["command"], serde_json::json!("goal-list"));
+    assert_eq!(v["data"]["count"], serde_json::json!(2));
+    assert_eq!(v["data"]["goals"].as_array().map(Vec::len), Some(2));
+    // 坏档:list 触修复(kv 行注 promote),聚合面不卡死。
+    let ga = tmp
+        .join("state")
+        .join("goal")
+        .join(format!("{}.json", slug_of(&pa)));
+    std::fs::write(&ga, "broken{").unwrap();
+    hst()
+        .env("HST_ROOT", &tmp)
+        .args(["goal", "list"])
+        .assert()
+        .success()
+        .stdout(contains("goal.list.count=2"))
+        .stdout(contains("repaired=promote"))
+        .stdout(contains("text=A 旧"));
+    // 审计道:repair 行在册。
+    let audit =
+        std::fs::read_to_string(tmp.join("state").join("goal").join(".goal-audit")).unwrap();
+    assert!(audit.contains(" action=promote "), "{audit}");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
+fn goal_crash_injection_kill9_store_stays_consistent() {
+    // goalhard-01 崩溃注入族:真二进制反复 set 中途 SIGKILL(杀点轮转覆盖
+    // 启动加写盘窗),store 恒有效或缺失(原子写形核验),无残件阻塞,终态
+    // set/show 恢复正常。
+    let tmp = std::env::temp_dir().join(format!(
+        "hst-cli-goalcrash-{}-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis(),
+        NEXT_TEST_DIR.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    let root = tmp.join("proj");
+    std::fs::create_dir_all(&root).unwrap();
+    let exe = env!("CARGO_BIN_EXE_hst");
+    for i in 0..40u64 {
+        let mut child = std::process::Command::new(exe)
+            .env("HST_ROOT", &tmp)
+            .args(["goal", "set", &format!("crash-{i}"), "--project"])
+            .arg(&root)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        // 杀点轮转 0 至 11ms:覆盖进程启动前后与写盘窗内外。
+        std::thread::sleep(std::time::Duration::from_millis(i % 12));
+        let _ = child.kill();
+        child.wait().unwrap();
+        // 不变量:show 退 0 且 present 合法(绝不 corrupt 崩)。
+        let out = std::process::Command::new(exe)
+            .env("HST_ROOT", &tmp)
+            .args(["goal", "show", "--project"])
+            .arg(&root)
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "kill 后 show 须退 0: {out:?}");
+        let s = String::from_utf8_lossy(&out.stdout);
+        assert!(
+            s.contains("goal.present=true") || s.contains("goal.present=false"),
+            "present 合法态: {s}"
+        );
+    }
+    // 终态:一发完整 set 成功(残件 tmp 不阻塞写路),show 可见。
+    hst()
+        .env("HST_ROOT", &tmp)
+        .args(["goal", "set", "终态目标", "--project"])
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(contains("goal.set text=终态目标"));
+    hst()
+        .env("HST_ROOT", &tmp)
+        .args(["goal", "show", "--project"])
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(contains("goal.present=true"))
+        .stdout(contains("goal.text=终态目标"));
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
+fn goal_concurrent_process_sets_both_succeed_lww() {
+    // goalhard-01 并发族(进程形,远端 ssh/mesh exec 落本机同构):两进程
+    // 同键并发 set 互不假错(唯一 tmp),终态整档 LWW ∈ 两值;审计道双行。
+    let tmp = std::env::temp_dir().join(format!(
+        "hst-cli-goalpar-{}-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis(),
+        NEXT_TEST_DIR.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    let root = tmp.join("proj");
+    std::fs::create_dir_all(&root).unwrap();
+    let exe = env!("CARGO_BIN_EXE_hst");
+    for round in 0..8 {
+        let mut a = std::process::Command::new(exe)
+            .env("HST_ROOT", &tmp)
+            .args(["goal", "set", &format!("A-{round}"), "--project"])
+            .arg(&root)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        let mut b = std::process::Command::new(exe)
+            .env("HST_ROOT", &tmp)
+            .args(["goal", "set", &format!("B-{round}"), "--project"])
+            .arg(&root)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        // 双进程并发写:两发都须退 0(固定 tmp 名形下一家 rename 吞他家的
+        // tmp 即假错)。
+        assert!(a.wait().unwrap().success(), "A 假错 r{round}");
+        assert!(b.wait().unwrap().success(), "B 假错 r{round}");
+        // 终态整档 LWW:文本属两写者之一,绝无混档。
+        let out = std::process::Command::new(exe)
+            .env("HST_ROOT", &tmp)
+            .args(["goal", "show", "--json", "--project"])
+            .arg(&root)
+            .output()
+            .unwrap();
+        let v: serde_json::Value =
+            serde_json::from_str(&String::from_utf8_lossy(&out.stdout)).unwrap();
+        let text = v["data"]["goal"]["text"].as_str().unwrap().to_string();
+        assert!(
+            text == format!("A-{round}") || text == format!("B-{round}"),
+            "LWW 终态: {text}"
+        );
+    }
+    // 审计道:16 发 set 全留行。
+    let audit =
+        std::fs::read_to_string(tmp.join("state").join("goal").join(".goal-audit")).unwrap();
+    let sets = audit
+        .lines()
+        .filter(|l| l.split_whitespace().nth(2) == Some("set"))
+        .count();
+    assert_eq!(sets, 16, "{audit}");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
