@@ -21,3 +21,7 @@
 
 - `render` — 渲染入口：stdin 全量字节加 agent 名，出多行状态串（行间 `\n`）。
 
+## Constants
+
+- `STATE_STALE_SECS` — hook 状态读序（D28，hst 段与 hookstate 段共享，与 pwsh 同序）：1)
+

@@ -3085,6 +3085,9 @@ fn help_faces_carry_no_archaeology_markers() {
         "D39",
         "D45",
         "D55",
+        "goalhard",
+        "goal-01",
+        "entropy-01",
     ];
     for face in &faces {
         let out = hst()

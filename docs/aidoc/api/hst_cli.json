@@ -795,7 +795,7 @@
     {
       "path": "hst_cli::shim",
       "kind": "module",
-      "docs": "shim 三形态自包含状态写入器：cmd/ps1/sh 加 grok 包装（D27/D28/D39）。\n用户级 hook 壳（REQ-032 载体全原生）：thin 透传，cmd 与 sh 两载体，\n全部逻辑收进 hst 二进制本体（`hst hook state/token/goal`，goal 腿\nREQ-045 加，仅 claude Stop 事件挂载）。部署时\n烘焙部署方二进制绝对路径（self update 原位替换，路径不漂）。D28 自包\n含设计退役记档：hst 缺位或故障时 shell 退出码非 2，agent 侧按非阻塞\n错误处理 = fail-open（状态通道回落 unknown）；M060a 白名单语义由 hst\n本体内化（token 腿 exit 硬约束 0 与 2，仅自判 block 出 2）。\ngrok 的 Windows 单路径包装（M048）保留：包装烘焙 agent 参转调 thin\ncmd。Windows 注册走 thin ps1 一行壳（REQ-032 评审 F2 方案③，D39 三壳\n通吃形 powershell.exe -File <正斜杠>）；.cmd 只留 grok 包装与手工面。"
+      "docs": "shim 三形态自包含状态写入器：cmd/ps1/sh 加 grok 包装（D27/D28/D39）。\n用户级 hook 壳（REQ-032 载体全原生）：thin 透传，cmd 与 sh 两载体，\n全部逻辑收进 hst 二进制本体（`hst hook token/goal`，\nREQ-045 加，仅 claude Stop 事件挂载）。部署时\n烘焙部署方二进制绝对路径（self update 原位替换，路径不漂）。D28 自包\n含设计退役记档：hst 缺位或故障时 shell 退出码非 2，agent 侧按非阻塞\n错误处理 = fail-open（状态通道回落 unknown）；M060a 白名单语义由 hst\n本体内化（token 腿 exit 硬约束 0 与 2，仅自判 block 出 2）。\ngrok 的 Windows 单路径包装（M048）保留：包装烘焙 agent 参转调 thin\ncmd。Windows 注册走 thin ps1 一行壳（REQ-032 评审 F2 方案③，D39 三壳\n通吃形 powershell.exe -File <正斜杠>）；.cmd 只留 grok 包装与手工面。"
     },
     {
       "path": "hst_cli::shim::deploy_shims",
@@ -805,7 +805,7 @@
     {
       "path": "hst_cli::shim::deploy_shims_with",
       "kind": "function",
-      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n壳部署（REQ-032 thin 透传面）：state/token/goal 三腿（goal 腿 REQ-045\n加）sh 加 ps1 加 cmd 三载体加 grok 包装，exe 烘焙部署方 current_exe\n绝对路径；幂等内容判等；oma 旧名件与 pentest 退役件清扫。"
+      "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n壳部署（thin 透传面）：token 与 goal 两腿，各 sh 加 ps1 加 cmd 三载体\n加 grok 包装，exe 烘焙部署方 current_exe 绝对路径；幂等内容判等；oma\n旧名件与 state 及 pentest 退役件清扫。"
     },
     {
       "path": "hst_cli::shim::deploy_shims_with_exe",
@@ -906,6 +906,11 @@
       "path": "hst_cli::statusrender",
       "kind": "module",
       "docs": " 状态栏原生渲染引擎（ADR-0010、REQ-026）：hst statusline render 子命令\n 的 Rust 实现，退役 pwsh 脚本载体。\n 状态栏原生渲染引擎（ADR-0010、REQ-026）：`hst statusline render <agent>`\n 读 stdin agent JSON 出状态行。REQ-038 起 PS1 载体完全淘汰，本引擎是\n 唯一渲染载体（历史对版口径见 ADR-0010 与 REQ-026：与退役前 pwsh 脚本\n 在 Ansi 形下逐字相同；管道缺省形态 PowerShell Host 渲染器剥 ANSI，旧\n 载体在 agent 实际调用里无色，原生缺省带色，评审 F1）。复用单源：段序与模板配置走\n statusline.rs 的 StatuslineConfig 加 effective_orders；goal 段走 goal\n 自有存储（REQ-045，用户令 2026-10-11「hst 不再关联 goal 和 loop」，\n loop 段随 loop 面退役出仓）；goalmode（/goal 原生态）倒序分块扫描本\n 模块 Rust 形（流式倒扫）。性能面：无\n pwsh 冷启动（约 300ms）加流式倒扫（105MB transcript 毫秒级）。ANSI 退\n 裸文本开关：`NO_COLOR` 或 `HST_STATUSLINE_NO_ANSI` 任一非空（评审 F1）。\n 已知边界：tools 段（显式选用面）首版渲染为空、版本本地探测缓存面\n（D46）未移植（payload version 字段归一承载）、REQ-014/REQ-017 哨兵面\n 未移植，见 REQ-026。"
+    },
+    {
+      "path": "hst_cli::statusrender::STATE_STALE_SECS",
+      "kind": "constant",
+      "docs": "hook 状态读序（D28，hst 段与 hookstate 段共享，与 pwsh 同序）：1)\nHST_STATE_FILE 覆盖；2) 用户级会话键 `~/.hst/state/<agent>-<会话id>.json`\n（构造恒匹配免闸）；3) 用户级 `<agent>.json`（会话闸：记录带 session\n且不符续找）；4) 项目级 `<root>/.hst/state/<agent>.json`（同闸）。\n返回 (态, 命中文件)；全缺回落 unknown。\n会话态档新鲜度闸(hst-rev F-3 裁定:态显示随 state 腿退役):写入者已\n退役(SessionEnd GC 同亡),陈旧档超此窗按缺位收,防旧机升级后僵态永显;\n升级初窗(48h)内旧档仍显示,渐进入 unknown 稳态。"
     },
     {
       "path": "hst_cli::statusrender::render",
@@ -1110,7 +1115,7 @@
     {
       "path": "hst_cli::verify",
       "kind": "module",
-      "docs": "`hst agents verify`：四家无头验收两层判据（D17/S033）。\n`hst agents verify`（D17）：四家 agent 的 hook 与状态栏全平台无头验收。\n两层判据（S033 源码实证底座；D28 起注册面全量用户级）：\n- 状态栏：**验收已部署的面**（D37，2026-09-13 wsl 总台验收适配）：脚本\n  本体直跑（mock 空 JSON 喂 stdin，断言 stdout 任一行含 `agent:state`\n  机读标记（D42 三行布局起 agent 态在第二行；D46 起可带连字符版本形\n  `agent-<version>:state`），S025；脚本由 verify 按\n  需释放）；codex 无外部命令面（M045），断\n  `~/.codex/config.toml` 的 `[tui] status_line` 含内置项 ID。面未部署\n  （无 `[tui] status_line`）或可选运行时缺位（pwsh 不在 PATH）= skip\n  不计败、带 CTA（状态栏是可选面，doctor 另有 warn）；已部署但断链\n  （marker 缺、内置项缺 run-state 锚、脚本非零退出）仍 fail。\n- hook：临时目录起无头会话。entropy-01（2026-10-12 用户令）：hst-state\n  腿退役（herdr 的 herdr-agent-state hook 已覆盖会话状态同步），运行时\n  可观测腿只剩 claude 的 goal 面——claude 判据改押 goal rounds（Stop\n  事件端到端：临时 goal 在册，无头会话收束后 rounds 递增即 ok，模型\n  应答失败不影响判定）；codex/grok/kimi 无运行时可观测腿，skip 带注\n  （注册面形态由 hst doctor 的 hooks.form 验）。注册走**真实用户级\n  面**：byte 备份五件配置、deploy、Drop 还原。"
+      "docs": "`hst agents verify`：四家无头验收两层判据（D17/S033）。\n`hst agents verify`（D17）：四家 agent 的 hook 与状态栏全平台无头验收。\n两层判据（S033 源码实证底座；D28 起注册面全量用户级）：\n- 状态栏：**验收已部署的面**（D37，2026-09-13 wsl 总台验收适配）：脚本\n  本体直跑（mock 空 JSON 喂 stdin，断言 stdout 任一行含 `agent:state`\n  机读标记（D42 三行布局起 agent 态在第二行；D46 起可带连字符版本形\n  `agent-<version>:state`），S025；脚本由 verify 按\n  需释放）；codex 无外部命令面（M045），断\n  `~/.codex/config.toml` 的 `[tui] status_line` 含内置项 ID。面未部署\n  （无 `[tui] status_line`）或可选运行时缺位（pwsh 不在 PATH）= skip\n  不计败、带 CTA（状态栏是可选面，doctor 另有 warn）；已部署但断链\n  （marker 缺、内置项缺 run-state 锚、脚本非零退出）仍 fail。\n- hook：临时目录起无头会话。entropy-01（2026-10-12 用户令）：hst-state\n  腿退役（herdr 的 herdr-agent-state hook 已覆盖会话状态同步），运行时\n  可观测腿只剩 claude 的 goal 面——claude 判据改押 task rounds（Stop\n  事件端到端：临时 task 在册，无头会话收束后 rounds 递增即 ok，判据只\n  看计数不看应答内容）；codex/grok/kimi 无运行时可观测腿，skip 带注\n  （注册面形态由 hst doctor 的 hooks.form 验）。注册走**真实用户级\n  面**：byte 备份五件配置、deploy、Drop 还原。"
     },
     {
       "path": "hst_cli::verify::AgentOutcome",

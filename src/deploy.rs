@@ -154,10 +154,9 @@ pub(crate) fn is_ours(command: &str) -> bool {
 }
 
 /// JSON arrays of handler groups under settings["hooks"][event], append-only:
-/// drop stale oma entries, keep foreign ones, add ours exactly once. REQ-028
-/// 起同事件可双挂（state 加 token 腿）：现行为 handler 集合，陈旧判据 =
-/// 「ours 且不在本次命令集」；旧形态 ours 按「命令含 hst-token 即 token
-/// 腿、否则首 handler（state 腿）」就近替换，不互删。
+/// drop stale oma entries, keep foreign ones, add ours exactly once. 现行为
+/// handler 集合，陈旧判据 = 「ours 且不在本次命令集」（旧形态 ours 含
+/// state 腿等退役腿，一律弃后补现行）。
 fn merge_hook_event(
     settings: &mut Json,
     event: &str,
@@ -801,27 +800,48 @@ fn merge_codex_hook_event(
         else {
             continue;
         };
+        // 单趟重建（hst-rev F-2）：本腿 ours 换现行形（同形去重保首，形态
+        // 变化计 changed）；旧形 ours（state 腿等，管理事件上 sweep 不管）
+        // 本侧键外科摘除——异侧外来活串保留，两侧皆 ours 整弃；外来不动。
         let before = hooks.len();
-        hooks.retain(|handler| {
-            if !ours_this_leg(handler) {
-                return true;
+        let mut kept: Vec<Json> = Vec::new();
+        for handler in hooks.iter() {
+            if ours_this_leg(handler) {
+                let next = codex_handler_value(handler, oma, session_end, side);
+                if seen.insert(next.clone()) {
+                    if &next != handler {
+                        changed = true;
+                    }
+                    kept.push(next);
+                } else {
+                    changed = true; // 同形重复弃
+                }
+            } else if handler_is_ours(handler) {
+                changed = true;
+                let mut h = handler.clone();
+                if let Some(obj) = h.as_object_mut() {
+                    for k in ["command", "commandWindows"] {
+                        let ours_side = obj
+                            .get(k)
+                            .and_then(|c| c.as_str())
+                            .map(is_ours)
+                            .unwrap_or(false);
+                        if ours_side {
+                            obj.remove(k);
+                        }
+                    }
+                }
+                if h.get("command").is_some() || h.get("commandWindows").is_some() {
+                    kept.push(h); // 异侧外来活串保留
+                }
+            } else {
+                kept.push(handler.clone());
             }
-            let next = codex_handler_value(handler, oma, session_end, side);
-            seen.insert(next) // 同形重复：保首条弃余
-        });
-        if hooks.len() != before {
+        }
+        if kept.len() != before {
             changed = true;
         }
-        for handler in hooks.iter_mut() {
-            if !ours_this_leg(handler) {
-                continue;
-            }
-            let next = codex_handler_value(handler, oma, session_end, side);
-            if handler != &next {
-                *handler = next;
-                changed = true;
-            }
-        }
+        *hooks = kept;
     }
     // 本腿现行形在场判据：seen 非空即已有本腿条目（保首去重后仍在场）。
     if seen.is_empty() {
@@ -2213,6 +2233,70 @@ mod tests {
         let mut second = DeployReport::default();
         deploy_user_hooks_with(&user, &oma, host_side(), &mut second).unwrap();
         assert!(second.wrote.is_empty(), "idempotent after healing");
+        let _ = fs::remove_dir_all(&user);
+        let _ = fs::remove_dir_all(&oma);
+    }
+
+    #[test]
+    fn codex_legacy_state_entries_swept_from_managed_events() {
+        // hst-rev F-2 回归：旧形装机(state 加 token 双挂 + state 单挂多事件)
+        // 升级一趟 init 后,管理事件上的旧 state 条目外科清出(异侧外来活串
+        // 保留),不残留指向已删 shim 的死注册;幂等。
+        let user = fresh_dir("cxheal");
+        let oma = fresh_dir("cxheal-oma");
+        let path = user.join(".codex").join("hooks.json");
+        ensure_parent(&path).unwrap();
+        // JSON 串内的引号须转义(命令值形 = ""<sh>" codex")。
+        let sh_state = format!("\\\"{}\\\" codex", oma.display());
+        let sh_token = format!("\\\"{}\\\" codex", oma.display());
+        write_text(
+            &path,
+            &format!(
+                r#"{{"hooks": {{
+                    "PreToolUse": [{{"matcher": "*", "hooks": [
+                        {{"type": "command", "command": "{sh_state}",
+                         "commandWindows": "powershell.exe -File {fwd}/hooks/hst-state.ps1 codex", "timeout": 10}},
+                        {{"type": "command", "command": "{sh_token}", "timeout": 10}},
+                        {{"type": "command", "command": "/foreign/keep.js"}}]}}],
+                    "UserPromptSubmit": [{{"matcher": "*", "hooks": [
+                        {{"type": "command", "command": "{sh_state}"}},
+                        {{"type": "command", "command": "{sh_token}"}}]}}],
+                    "SessionStart": [{{"matcher": "*", "hooks": [
+                        {{"type": "command", "command": "{sh_state}"}},
+                        {{"type": "command", "command": "/foreign/start.js"}}]}}]
+                }}}}"#,
+                fwd = crate::pathutil::forward_slash(&oma)
+            ),
+        )
+        .unwrap();
+        let mut r = DeployReport::default();
+        deploy_user_hooks_with(&user, &oma, OsSide::Unix, &mut r).unwrap();
+        let text = fs::read_to_string(&path).unwrap();
+        assert!(!text.contains("hst-state"), "旧 state 条目全清: {text}");
+        let v: Json = serde_json::from_str(&text).unwrap();
+        let count = |ev: &str| {
+            v["hooks"][ev]
+                .as_array()
+                .unwrap()
+                .iter()
+                .flat_map(|g| g["hooks"].as_array().unwrap().iter())
+                .filter(|h| handler_is_ours(h))
+                .count()
+        };
+        assert_eq!(count("PreToolUse"), 1, "token 单条现行");
+        assert_eq!(count("UserPromptSubmit"), 1, "token 单条现行");
+        // 外来条目保留(含 state 条目被摘后残留的异侧无关外来)。
+        let all = text.clone();
+        assert!(
+            all.contains("/foreign/keep.js") && all.contains("/foreign/start.js"),
+            "{all}"
+        );
+        // SessionStart 已无 ours:整事件只剩外来。
+        assert_eq!(count("SessionStart"), 0);
+        // 幂等：二趟零写。
+        let mut r2 = DeployReport::default();
+        deploy_user_hooks_with(&user, &oma, OsSide::Unix, &mut r2).unwrap();
+        assert!(r2.wrote.is_empty(), "idempotent: {:?}", r2.wrote);
         let _ = fs::remove_dir_all(&user);
         let _ = fs::remove_dir_all(&oma);
     }

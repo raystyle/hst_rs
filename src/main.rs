@@ -176,7 +176,7 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum GoalCmd {
-    /// 设置本项目 goal（自有存储覆盖旧 goal，rounds 重计；Stop 每轮提醒随之换目标）
+    /// 设置本项目 task（自有存储覆盖旧 task，rounds 重计；Stop 每轮提醒随之换目标）
     Set {
         /// goal 文本（trim 后非空；Stop 提醒与状态栏 goal 段显示源）
         text: String,
@@ -184,15 +184,15 @@ enum GoalCmd {
         #[arg(long)]
         project: Option<PathBuf>,
     },
-    /// 查看本项目 goal（无 goal 给 goal.present=false）；配 --json 出信封（goalhard-01 机读面，goal 插件聚合直接消费）
+    /// 查看本项目 task（无 task 给 goal.present=false）；配 --json 出信封（机读面，插件聚合直接消费）
     Show {
         /// 项目根；默认当前目录
         #[arg(long)]
         project: Option<PathBuf>,
     },
-    /// 列本机全部在册 goal（goalhard-01 机读聚合面：goal 插件 list --all 逐机消费；kv/json/jsonl 三态同全局 --format）
+    /// 列本机全部在册 task（机读聚合面：插件 list --all 逐机消费；kv/json/jsonl 三态同全局 --format）
     List,
-    /// 清空本项目 goal（Stop 提醒与状态栏段随撤；无 goal 零改动退 0）
+    /// 清空本项目 task（Stop 提醒与状态栏段随撤；无 task 零改动退 0）
     Clear {
         /// 项目根；默认当前目录
         #[arg(long)]

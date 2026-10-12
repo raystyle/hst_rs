@@ -14,9 +14,9 @@
   （marker 缺、内置项缺 run-state 锚、脚本非零退出）仍 fail。
 - hook：临时目录起无头会话。entropy-01（2026-10-12 用户令）：hst-state
   腿退役（herdr 的 herdr-agent-state hook 已覆盖会话状态同步），运行时
-  可观测腿只剩 claude 的 goal 面——claude 判据改押 goal rounds（Stop
-  事件端到端：临时 goal 在册，无头会话收束后 rounds 递增即 ok，模型
-  应答失败不影响判定）；codex/grok/kimi 无运行时可观测腿，skip 带注
+  可观测腿只剩 claude 的 goal 面——claude 判据改押 task rounds（Stop
+  事件端到端：临时 task 在册，无头会话收束后 rounds 递增即 ok，判据只
+  看计数不看应答内容）；codex/grok/kimi 无运行时可观测腿，skip 带注
   （注册面形态由 hst doctor 的 hooks.form 验）。注册走**真实用户级
   面**：byte 备份五件配置、deploy、Drop 还原。
 

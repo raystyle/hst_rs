@@ -558,10 +558,8 @@ segments5 = ["goalmode"]
 #   goal {icon}  {goal}（第四行；图标后双空格对齐 hst 段形；{goal} 截 60、
 #   {count} = Stop 腿轮次，可自配）
 #   hookstate {icon}  {alias}（第三行；注册面全部 hook 的功能别名清单，
-#   带属主进程前缀连字符接功能加 ` | ` 分隔（REQ-028 一命令一脚本一别
-#   名）：herdr-agent-state 映射 herdr-agent状态监控、hst-token（hst
-#   hook token 单对）映射 hst-token护栏、hst-state（hst hook state 单
-#   对）映射 hst-会话状态同步，未收录 hook 回落 stem 本名，全局插件
+#   英文 id 直用（hst-token 映射 hst-token-guard；hst-state 腿已退役），
+#   未收录 hook 回落 stem 本名，全局插件
 #   hook 显示插件名连字符加其 statusMessage（REQ-044；文案自带插件名
 #   前缀时不双拼），清单空回落泛称 hook；恒单行不折（REQ-044 折行裁
 #   撤，用户令 2026-10-03）；{state} 占位符可自配带回态）

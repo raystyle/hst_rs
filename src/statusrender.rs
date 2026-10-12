@@ -840,6 +840,26 @@ fn anchored_num_run(hay: &str) -> Option<String> {
 /// （构造恒匹配免闸）；3) 用户级 `<agent>.json`（会话闸：记录带 session
 /// 且不符续找）；4) 项目级 `<root>/.hst/state/<agent>.json`（同闸）。
 /// 返回 (态, 命中文件)；全缺回落 unknown。
+/// 会话态档新鲜度闸(hst-rev F-3 裁定:态显示随 state 腿退役):写入者已
+/// 退役(SessionEnd GC 同亡),陈旧档超此窗按缺位收,防旧机升级后僵态永显;
+/// 升级初窗(48h)内旧档仍显示,渐进入 unknown 稳态。
+pub const STATE_STALE_SECS: u64 = 48 * 3600;
+
+fn state_fresh(p: &Path) -> bool {
+    p.metadata()
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .is_some_and(|d| d.as_secs() + STATE_STALE_SECS > now_unix())
+}
+
+fn now_unix() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
 fn hook_state(ctx: &Ctx) -> (String, bool) {
     let sid = {
         let mut sid = s(ctx.d, &["session_id"]);
@@ -851,7 +871,7 @@ fn hook_state(ctx: &Ctx) -> (String, bool) {
     if let Ok(f) = std::env::var("HST_STATE_FILE") {
         if !f.is_empty() {
             let p = PathBuf::from(&f);
-            if p.is_file() {
+            if p.is_file() && state_fresh(&p) {
                 if let Some(st) = read_state_gated(&p, &sid, false) {
                     return (st, true);
                 }
@@ -865,11 +885,11 @@ fn hook_state(ctx: &Ctx) -> (String, bool) {
         .home
         .join("state")
         .join(format!("{}-{sid}.json", ctx.agent));
-    if keyed.is_file() {
+    if keyed.is_file() && state_fresh(&keyed) {
         cands.push(keyed);
     }
     let latest = ctx.home.join("state").join(format!("{}.json", ctx.agent));
-    if latest.is_file() {
+    if latest.is_file() && state_fresh(&latest) {
         cands.push(latest);
     }
     if !ctx.root.is_empty() {
@@ -877,7 +897,7 @@ fn hook_state(ctx: &Ctx) -> (String, bool) {
             .join(".hst")
             .join("state")
             .join(format!("{}.json", ctx.agent));
-        if proj.is_file() {
+        if proj.is_file() && state_fresh(&proj) {
             cands.push(proj);
         }
     }
@@ -1293,8 +1313,11 @@ fn sentinel_no_hook(ctx: &Ctx, state: &str) -> Option<String> {
         "kimi" => home.join(".kimi-code").join("config.toml"),
         _ => return None,
     };
+    // entropy-01(hst-rev F-1):判据改押现行腿(token 或 goal 任一);旧形
+    // state-only 注册不认 = no-hook! 升格触发自愈 hst hook init,即存量
+    // 升级向量(codex/grok/kimi 只有 token 腿,两腿任一即在场)。
     let reg_ok = std::fs::read_to_string(&reg)
-        .map(|t| t.contains("hst-state"))
+        .map(|t| t.contains("hst-token") || t.contains("hst-goal"))
         .unwrap_or(false);
     if reg_ok {
         return None;
@@ -2322,13 +2345,30 @@ mod tests {
         // 由 stamp 内容窗保证，这里只锁 stamp 在场与内容形）。
         let stamp = hst_home.join("state").join(".hookcheck-claude");
         assert!(stamp.exists(), "throttle stamp written");
-        // 注册面在场：不升格。
+        // 注册面在场(现行腿):不升格(hst-rev F-1:判据改押 hst-token 与
+        // hst-goal 任一)。
+        std::fs::write(
+            user.join(".claude").join("settings.json"),
+            "\"command\": \"/x/.hst/hooks/hst-goal.sh\"",
+        )
+        .unwrap();
+        assert_eq!(sentinel_no_hook(&ctx, "unknown"), None);
+        std::fs::write(
+            user.join(".claude").join("settings.json"),
+            "\"command\": \"/x/.hst/hooks/hst-token.sh\"",
+        )
+        .unwrap();
+        assert_eq!(sentinel_no_hook(&ctx, "unknown"), None);
+        // 旧形 state-only 注册不认(自愈升级向量):升格并落 stamp。
         std::fs::write(
             user.join(".claude").join("settings.json"),
             "\"command\": \"/x/.hst/hooks/hst-state.sh\"",
         )
         .unwrap();
-        assert_eq!(sentinel_no_hook(&ctx, "unknown"), None);
+        assert_eq!(
+            sentinel_no_hook(&ctx, "unknown").as_deref(),
+            Some("no-hook!")
+        );
         // 非 unknown：不升格。
         assert_eq!(sentinel_no_hook(&ctx, "working"), None);
         std::env::remove_var("HOME");

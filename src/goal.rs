@@ -197,7 +197,7 @@ fn write_record(path: &Path, rec: &GoalRecord) -> Result<(), GoalError> {
     // 上次好档维护（goalhard-01 坏档自愈的前置）：主档可解析才刷 .bak，
     // 坏档不覆好 bak；best-effort，不阻断主写。
     keep_last_good(path);
-    // 原子写（tmp 加 rename，同 hook state 先例）：Stop 腿与状态栏读并发
+    // 原子写（tmp 加 rename）：Stop 腿与状态栏读并发
     // 不见半文件。tmp 名唯一（pid 加随机 token）：本地与远端（ssh/mesh
     // exec 落本机）并发写者互不吞 tmp，rename 即整档最后写胜，set/clear
     // 永不因 tmp 互撞假错。

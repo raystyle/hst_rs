@@ -17,6 +17,12 @@ state 腿四去:注册矩阵改形(claude 六事件 token×2 加 goal×4 单挂;
 - 无头会话对 Stop 提醒的自清授权是真执行不挑场合:验收判据档被会话自清导致判据假阴(goal-record-vanished)。凡以 task 档为判据的无头面,档文本须明示勿清。此坑直接适用于 task-migrate-01 批。
 - 大文件块替换三教训承 goalhard-01 而再验:python 批量替换必须逐条 assert(本批一处格式差异被 assert 拦下未酿静默失败);行号定位先读后删;测试种子随接口改形时,期望串与种子要同批改(段名表测试中文期望与 hst-state 种子分两批改导致两轮回红)。
 
+## 评审轮(hst-rev kimi,2026-10-13)
+
+首轮回执:F 三条 G 七条(A 升级清出不闭环,B/C/D/E/F 主项全 CONFIRM)。F-1 statusline no-hook 哨兵判据滞旧(押 hst-state 标记,新形注册下健康装机永久误报 no-hook! 加每小时白跑自愈,实证 scratch 复现;测试种子旧形假绿)→ 判据改押现行腿,旧形注册不认即自愈升级向量。F-2 codex 管理事件旧形 state 条目清出破洞(ours_this_leg 只认 token 加 sweep 跳管理事件,双挂中的 state 条目两路不管而 shim 已删,每次 PreToolUse 调死脚本,实证 scratch 旧形种子复现;claude 与 kimi 面实证净)→ merge 单趟重建外科摘键,回归件在测。F-3 状态栏态源枯竭(评审格明示须总台加用户裁定)→ 呈三选一,用户裁定「态显示随腿退役」:读序保留加 48h 新鲜度闸,陈旧档按缺位收,AGENTS.md 状态写句同步。G 收养五条(G-1 hint 单臂化,G-2 模块注释考古清,G-3 批次代号出 about 加门禁标记扩,G-4 goal 组 about task 化,G-5 verify 措辞收敛),G-6 记档归 task-migrate-01,G-7 缝保留注记。修后 230 加 57 全绿。
+
+评审实操:K3 逐窗权限代批(Ask When Needed 模式,逐命令弹窗, approve-for-session 不粘)与上下文策略窗代答各一笔;评审格自带 todo 清单推进(事实核/diff/残留搜/门禁 worktree 复证/机读面实证),全流程约 50 分钟。
+
 ## 次
 
 REQ-049 登记与索引行;评审轮次与回执见追记;task-migrate-01(goal 改名 task 迁移批,用户令五件)接续开工。

@@ -1,5 +1,5 @@
 //! 用户级 hook 壳（REQ-032 载体全原生）：thin 透传，cmd 与 sh 两载体，
-//! 全部逻辑收进 hst 二进制本体（`hst hook state/token/goal`，goal 腿
+//! 全部逻辑收进 hst 二进制本体（`hst hook token/goal`，
 //! REQ-045 加，仅 claude Stop 事件挂载）。部署时
 //! 烘焙部署方二进制绝对路径（self update 原位替换，路径不漂）。D28 自包
 //! 含设计退役记档：hst 缺位或故障时 shell 退出码非 2，agent 侧按非阻塞
@@ -89,9 +89,9 @@ pub fn deploy_shims(root: &std::path::Path) -> Result<(Vec<PathBuf>, Vec<String>
 /// # Errors
 ///
 /// 失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。
-/// 壳部署（REQ-032 thin 透传面）：state/token/goal 三腿（goal 腿 REQ-045
-/// 加）sh 加 ps1 加 cmd 三载体加 grok 包装，exe 烘焙部署方 current_exe
-/// 绝对路径；幂等内容判等；oma 旧名件与 pentest 退役件清扫。
+/// 壳部署（thin 透传面）：token 与 goal 两腿，各 sh 加 ps1 加 cmd 三载体
+/// 加 grok 包装，exe 烘焙部署方 current_exe 绝对路径；幂等内容判等；oma
+/// 旧名件与 state 及 pentest 退役件清扫。
 pub fn deploy_shims_with(
     root_param: &std::path::Path,
     shell: &str,

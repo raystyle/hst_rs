@@ -11,9 +11,9 @@
 //!   （marker 缺、内置项缺 run-state 锚、脚本非零退出）仍 fail。
 //! - hook：临时目录起无头会话。entropy-01（2026-10-12 用户令）：hst-state
 //!   腿退役（herdr 的 herdr-agent-state hook 已覆盖会话状态同步），运行时
-//!   可观测腿只剩 claude 的 goal 面——claude 判据改押 goal rounds（Stop
-//!   事件端到端：临时 goal 在册，无头会话收束后 rounds 递增即 ok，模型
-//!   应答失败不影响判定）；codex/grok/kimi 无运行时可观测腿，skip 带注
+//!   可观测腿只剩 claude 的 goal 面——claude 判据改押 task rounds（Stop
+//!   事件端到端：临时 task 在册，无头会话收束后 rounds 递增即 ok，判据只
+//!   看计数不看应答内容）；codex/grok/kimi 无运行时可观测腿，skip 带注
 //!   （注册面形态由 hst doctor 的 hooks.form 验）。注册走**真实用户级
 //!   面**：byte 备份五件配置、deploy、Drop 还原。
 
@@ -472,26 +472,15 @@ fn scopeguard_clear_goal<'a>(home: &'a Path, root: &'a Path) -> ClearGoal<'a> {
 
 /// 环境原因失败时的可行动 hint（不只打 fail）。
 fn hook_hint(agent: &str) -> Option<String> {
-    Some(match agent {
-        "codex" => "codex 信任闸 exec 下静默跳过无提示（S033）：确认 \
-            --dangerously-bypass-hook-trust 已带；D28 用户级注册的 \
-            [hooks.state] trusted_hash 由 hst init 预种在 ~/.codex/config.toml。\
-            hook 经会话环境 shell 执行（Windows 缺省 PowerShell，M057）：\
-            commandWindows 为无引号正斜杠形态（M059，bash / PS / cmd 三吃）"
+    // entropy-01(hst-rev G-1)：判据重定后 hook 面只在 claude 实跑，hint 单臂
+    // 化；他家走 skip 前置分支，本函数不再服务他臂。
+    let _ = agent;
+    Some(
+        "确认 claude 用户级注册在位（hst hook init 部署，Stop 事件挂 hst-goal \
+            shim）且无头会话真实收束；判据只看 task rounds 递增（Stop 事件端到 \
+            端），模型应答内容不影响判定"
             .into(),
-        "grok" => "grok hooks 走全局层 ~/.grok/hooks/（D28）：verify 已 byte 备份\
-            并 deploy 用户级注册（结束还原）；项目源 folder trust 门禁条目也已\
-            自动种子并摘除；仍失败检查 grok 版本对 global hooks 层的支持"
-            .into(),
-        "kimi" => "kimi print 模式只触发全局 [[hooks]]（S033 勘误，2026-09-10 实证）；\
-            D28 注册面即用户级 ~/.kimi-code/config.toml，verify 已 byte 备份 deploy\
-            并在结束还原；判据只押 SessionStart/UserPromptSubmit"
-            .into(),
-        _ => "确认 shim 在位（~/.hst/hooks/hst-state.*，hst init 部署）且 jq 在 \
-            PATH（jq 缺位时 cmd shim 走 findstr 回落）；判据只看 state 落盘（env \
-            隔离文件加用户级窗口回落双路），模型应答失败不影响"
-            .into(),
-    })
+    )
 }
 
 /// verify 的真实家取值（刻意不认 HST_USER_HOME 隔离缝：live 验收要验的
