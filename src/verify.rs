@@ -419,10 +419,10 @@ fn verify_hook_in(
         Ok(h) => h,
         Err(e) => return fail(format!("hst-home: {e}")),
     };
-    if let Err(e) = crate::goal::set_goal(
+    if let Err(e) = crate::task::set_task(
         &home,
         tmp,
-        "hst 无头验收判据档:请勿 clear 本 goal,直接简答 ok 结束",
+        "hst 无头验收判据档:请勿 clear 本 task,直接简答 ok 结束",
     ) {
         return fail(format!("goal-set: {e}"));
     }
@@ -444,7 +444,7 @@ fn verify_hook_in(
     };
     // 超时杀进程不算失败本身：判据只看 rounds。
     let _exited = wait_with_timeout(&mut child, Duration::from_secs(timeout_secs));
-    match crate::goal::show_goal(&home, tmp) {
+    match crate::task::show_task(&home, tmp) {
         Ok(Some(rec)) if rec.rounds >= 1 => {
             (LayerVerdict::Ok, Some(format!("rounds={}", rec.rounds)))
         }
@@ -462,7 +462,7 @@ struct ClearGoal<'a> {
 
 impl Drop for ClearGoal<'_> {
     fn drop(&mut self) {
-        let _ = crate::goal::clear_goal(self.home, self.root);
+        let _ = crate::task::clear_task(self.home, self.root);
     }
 }
 

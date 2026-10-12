@@ -198,6 +198,7 @@ fn render_segment(ctx: &Ctx, id: &str) -> Result<Option<String>, String> {
         "tokens",
         "duration",
         "goal",
+        "task",
         "goalmode",
         "hookstate",
         "git",
@@ -270,7 +271,7 @@ fn segment_opt(ctx: &Ctx, id: &str) -> Option<String> {
             ))
         }
         "hookstate" => seg_hookstate(ctx),
-        "goal" => seg_goal(ctx),
+        "goal" | "task" => seg_goal(ctx),
         "goalmode" => seg_goalmode(ctx),
         "mcp" => {
             let cj = user_home()
@@ -950,7 +951,7 @@ const HOOK_ALIASES: &[(&str, &str)] = &[
     // 密钥拦截（API key 命中 exit 2 阻断）。
     ("hst-token", "hst-token-guard"),
     // hst goal 腿：Claude Code Stop 等四事件提醒注入与 goal 自驱。
-    ("hst-goal", "hst-goal"),
+    ("hst-task", "hst-task"),
 ];
 
 /// 新增 hook 收录指引（评审 G3）：只改 HOOK_ALIASES 一处加 stem 判定回
@@ -1319,7 +1320,7 @@ fn sentinel_no_hook(ctx: &Ctx, state: &str) -> Option<String> {
     // state-only 注册不认 = no-hook! 升格触发自愈 hst hook init,即存量
     // 升级向量(codex/grok/kimi 只有 token 腿,两腿任一即在场)。
     let reg_ok = std::fs::read_to_string(&reg)
-        .map(|t| t.contains("hst-token") || t.contains("hst-goal"))
+        .map(|t| t.contains("hst-token") || t.contains("hst-task") || t.contains("hst-task"))
         .unwrap_or(false);
     if reg_ok {
         return None;
@@ -1592,8 +1593,8 @@ fn seg_goal(ctx: &Ctx) -> Option<String> {
         }
         root
     };
-    let rec = crate::goal::goal_file_for(ctx.home, Path::new(&root))
-        .and_then(|p| crate::goal::read_record(&p).ok().flatten())?;
+    let rec = crate::task::task_file_for(ctx.home, Path::new(&root))
+        .and_then(|p| crate::task::read_record(&p).ok().flatten())?;
     let mut text = rec.text.replace(['\r', '\n'], " ").trim().to_string();
     if text.is_empty() {
         return None;
@@ -2078,13 +2079,13 @@ mod tests {
         std::fs::create_dir_all(&claude_dir).unwrap();
         std::fs::write(
             claude_dir.join("settings.json"),
-            r#"{"hooks":{"Stop":[{"matcher":"*","hooks":[{"type":"command","command":"\"/x/.hst/hooks/hst-goal.sh\" claude"}]}],"SessionStart":[{"matcher":"*","hooks":[{"type":"command","command":"bash '/other/herdr-agent-state.sh' session"}]}],"Notification":[{"matcher":"*","hooks":[{"type":"command","command":"bash /x/.hst/hooks/hst-token.sh claude"}]}]}}"#,
+            r#"{"hooks":{"Stop":[{"matcher":"*","hooks":[{"type":"command","command":"\"/x/.hst/hooks/hst-task.sh\" claude"}]}],"SessionStart":[{"matcher":"*","hooks":[{"type":"command","command":"bash '/other/herdr-agent-state.sh' session"}]}],"Notification":[{"matcher":"*","hooks":[{"type":"command","command":"bash /x/.hst/hooks/hst-token.sh claude"}]}]}}"#,
         )
         .unwrap();
         // 别名表序（herdr 在先，用户例序），未收录 metric-bridge 回落本名殿后。
         assert_eq!(
             hooked_aliases_at(&tmp, "claude", ""),
-            "herdr-agent-state | hst-token-guard | hst-goal"
+            "herdr-agent-state | hst-token-guard | hst-task"
         );
         // kimi TOML 面：ours 加外来同列。
         let kimi_dir = tmp.join(".kimi-code");
@@ -2104,7 +2105,7 @@ mod tests {
         std::fs::create_dir_all(&grok_dir).unwrap();
         std::fs::write(
             grok_dir.join("ohmyagents-state.json"),
-            r#"{"hooks":{"Stop":[{"matcher":"*","hooks":[{"type":"command","command":"/x/hst-goal.sh grok"}]}]}}"#,
+            r#"{"hooks":{"Stop":[{"matcher":"*","hooks":[{"type":"command","command":"/x/hst-task.sh grok"}]}]}}"#,
         )
         .unwrap();
         std::fs::write(
@@ -2114,7 +2115,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             hooked_aliases_at(&tmp, "grok", ""),
-            "herdr-agent-state | hst-goal"
+            "herdr-agent-state | hst-task"
         );
         // REQ-039：claude 项目级注册面并入（payload project_dir 下
         // .claude/settings.json 加 settings.local.json），未收录 stem
@@ -2124,7 +2125,7 @@ mod tests {
         std::fs::create_dir_all(&pdot).unwrap();
         std::fs::write(
             pdot.join("settings.json"),
-            r#"{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-tool-guard.sh\""}]}],"Stop":[{"hooks":[{"type":"command","command":"/x/.hst/hooks/hst-goal.sh claude"}]}]}}"#,
+            r#"{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-tool-guard.sh\""}]}],"Stop":[{"hooks":[{"type":"command","command":"/x/.hst/hooks/hst-task.sh claude"}]}]}}"#,
         )
         .unwrap();
         std::fs::write(
@@ -2134,7 +2135,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             hooked_aliases_at(&tmp, "claude", proj.to_str().unwrap()),
-            "herdr-agent-state | hst-token-guard | hst-goal | knowledge-recall | session-tool-guard"
+            "herdr-agent-state | hst-token-guard | hst-task | knowledge-recall | session-tool-guard"
         );
         // 坏损 JSON 零命中不炸。
         std::fs::write(claude_dir.join("settings.json"), "{ not json").unwrap();
@@ -2215,7 +2216,7 @@ mod tests {
         // 显式 false、c 无显式项缺省关、d 依赖项目根命中、e 显式 true）。
         std::fs::write(
             claude_dir.join("settings.json"),
-            r#"{"hooks":{"Stop":[{"hooks":[{"command":"/x/.hst/hooks/hst-goal.sh claude"}]}]},"enabledPlugins":{"plug-a@mk":true,"plug-b@mk":false,"plug-e@mk":true}}"#,
+            r#"{"hooks":{"Stop":[{"hooks":[{"command":"/x/.hst/hooks/hst-task.sh claude"}]}]},"enabledPlugins":{"plug-a@mk":true,"plug-b@mk":false,"plug-e@mk":true}}"#,
         )
         .unwrap();
         // 无项目根：user 作用域 a 入列（statusMessage 形），e 入列且自带
@@ -2223,7 +2224,7 @@ mod tests {
         // 作用域无根不收。
         assert_eq!(
             hooked_aliases_at(&tmp, "claude", ""),
-            "hst-goal | plug-a-md 禁字门禁 | plug-e 前缀静检"
+            "hst-task | plug-a-md 禁字门禁 | plug-e 前缀静检"
         );
         // 项目根命中：d 入列（projectPath 同根；项目作用域插件由项目级
         // settings 落 enabled，项目档入链）；项目 local 把 b 覆写 true
@@ -2241,7 +2242,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             hooked_aliases_at(&tmp, "claude", proj.to_str().unwrap()),
-            "hst-goal | plug-a-md 禁字门禁 | plug-b-plain-guard | plug-e 前缀静检 | plug-d-项目守卫"
+            "hst-task | plug-a-md 禁字门禁 | plug-b-plain-guard | plug-e 前缀静检 | plug-d-项目守卫"
         );
         // 坏损 installed_plugins.json 零命中不炸（回落 settings 面）。
         std::fs::write(
@@ -2251,7 +2252,7 @@ mod tests {
             "{ not json",
         )
         .unwrap();
-        assert_eq!(hooked_aliases_at(&tmp, "claude", ""), "hst-goal");
+        assert_eq!(hooked_aliases_at(&tmp, "claude", ""), "hst-task");
         let _ = std::fs::remove_dir_all(&tmp);
     }
 
@@ -2348,10 +2349,10 @@ mod tests {
         let stamp = hst_home.join("state").join(".hookcheck-claude");
         assert!(stamp.exists(), "throttle stamp written");
         // 注册面在场(现行腿):不升格(hst-rev F-1:判据改押 hst-token 与
-        // hst-goal 任一)。
+        // hst-task 任一)。
         std::fs::write(
             user.join(".claude").join("settings.json"),
-            "\"command\": \"/x/.hst/hooks/hst-goal.sh\"",
+            "\"command\": \"/x/.hst/hooks/hst-task.sh\"",
         )
         .unwrap();
         assert_eq!(sentinel_no_hook(&ctx, "unknown"), None);
@@ -2682,7 +2683,7 @@ mod tests {
         ));
         std::fs::create_dir_all(&home).unwrap();
         let root = std::path::Path::new("/w/hst-proj");
-        crate::goal::set_goal(&home, root, "盯发布窗口").unwrap();
+        crate::task::set_task(&home, root, "盯发布窗口").unwrap();
         let cfg = StatuslineConfig {
             template: vec![("goal-ascii".to_string(), "{goal}|{count}".to_string())],
             ..Default::default()
@@ -2718,16 +2719,16 @@ mod tests {
         assert!(row.contains("盯发布窗口"), "subdir walk: {row}");
         // 轮次随 Stop 腿计数联动。
         let stop = serde_json::json!({ "hook_event_name": "Stop", "cwd": "/w/hst-proj" });
-        crate::goal::stop_hook(&home, Some(&stop), None).unwrap();
+        crate::task::stop_hook(&home, Some(&stop), None).unwrap();
         let row = seg_goal(&mk_ctx!(&bare, "/w/hst-proj")).unwrap();
         assert!(row.contains("盯发布窗口|1"), "{row}");
         // 超 60 字截断。
         let long = "长".repeat(72);
-        crate::goal::set_goal(&home, root, &long).unwrap();
+        crate::task::set_task(&home, root, &long).unwrap();
         let row = seg_goal(&mk_ctx!(&bare, "/w/hst-proj")).unwrap();
         assert!(row.contains(&format!("{}…", "长".repeat(60))), "{row}");
         // 清空隐行。
-        crate::goal::clear_goal(&home, root).unwrap();
+        crate::task::clear_task(&home, root).unwrap();
         assert!(seg_goal(&mk_ctx!(&bare, "/w/hst-proj")).is_none());
         let _ = std::fs::remove_dir_all(&home);
     }

@@ -588,7 +588,7 @@ fn init_full_deploys_hooks_yolo_and_sweeps_skills() {
         }
         if let Some(h) = ours.first() {
             let cmd = h["command"].as_str().unwrap();
-            let stem = if want_token { "hst-token" } else { "hst-goal" };
+            let stem = if want_token { "hst-token" } else { "hst-task" };
             assert!(
                 cmd.contains(stem),
                 "registration points at the {stem} shim: {cmd}"
@@ -601,7 +601,7 @@ fn init_full_deploys_hooks_yolo_and_sweeps_skills() {
     }
     // shims 常驻 hst 根 hooks/；state 腿四件随退役清扫不再落盘。
     assert!(hst_root.join("hooks").join("hst-token.sh").exists());
-    assert!(hst_root.join("hooks").join("hst-goal.sh").exists());
+    assert!(hst_root.join("hooks").join("hst-task.sh").exists());
     assert!(!hst_root.join("hooks").join("hst-state.sh").exists());
     // 四家用户级注册面落齐（kimi 是 [[hooks]] 数组、codex 带信任预种）。
     for rel in [
@@ -1159,12 +1159,12 @@ fn goal_set_show_clear_roundtrip_own_store() {
     std::fs::create_dir_all(&proj).unwrap();
     hst()
         .env("HST_ROOT", &tmp)
-        .args(["goal", "set", "盯发布窗口", "--project"])
+        .args(["task", "set", "盯发布窗口", "--project"])
         .arg(&proj)
         .assert()
         .success()
-        .stdout(contains("goal.set text=盯发布窗口"))
-        .stdout(contains("goal.set file="));
+        .stdout(contains("task.set text=盯发布窗口"))
+        .stdout(contains("task.set file="));
     // 自有存储落位；scheduled_tasks.json 不生成（关联解除断言面）。
     let slug: String = proj
         .display()
@@ -1174,7 +1174,7 @@ fn goal_set_show_clear_roundtrip_own_store() {
         .collect();
     assert!(
         tmp.join("state")
-            .join("goal")
+            .join("task")
             .join(format!("{slug}.json"))
             .exists(),
         "own store at state/goal/{slug}.json"
@@ -1185,39 +1185,39 @@ fn goal_set_show_clear_roundtrip_own_store() {
     );
     hst()
         .env("HST_ROOT", &tmp)
-        .args(["goal", "show", "--project"])
+        .args(["task", "show", "--project"])
         .arg(&proj)
         .assert()
         .success()
-        .stdout(contains("goal.present=true"))
-        .stdout(contains("goal.text=盯发布窗口"))
-        .stdout(contains("goal.rounds=0"));
+        .stdout(contains("task.present=true"))
+        .stdout(contains("task.text=盯发布窗口"))
+        .stdout(contains("task.rounds=0"));
     hst()
         .env("HST_ROOT", &tmp)
-        .args(["goal", "clear", "--project"])
+        .args(["task", "clear", "--project"])
         .arg(&proj)
         .assert()
         .success()
-        .stdout(contains("goal.clear present=true"));
+        .stdout(contains("task.clear present=true"));
     hst()
         .env("HST_ROOT", &tmp)
-        .args(["goal", "show", "--project"])
+        .args(["task", "show", "--project"])
         .arg(&proj)
         .assert()
         .success()
-        .stdout(contains("goal.present=false"));
+        .stdout(contains("task.present=false"));
     // 无 goal 再 clear：零改动合法退 0。
     hst()
         .env("HST_ROOT", &tmp)
-        .args(["goal", "clear", "--project"])
+        .args(["task", "clear", "--project"])
         .arg(&proj)
         .assert()
         .success()
-        .stdout(contains("goal.clear present=false"));
+        .stdout(contains("task.clear present=false"));
     // 空文本短码承接（goal error=empty_goal）。
     hst()
         .env("HST_ROOT", &tmp)
-        .args(["goal", "set", "  ", "--project"])
+        .args(["task", "set", "  ", "--project"])
         .arg(&proj)
         .assert()
         .failure()
@@ -1244,7 +1244,7 @@ fn goal_stop_hook_leg_reminds_on_natural_stop_only() {
     std::fs::create_dir_all(&proj).unwrap();
     hst()
         .env("HST_ROOT", &tmp)
-        .args(["goal", "set", "闭环 REQ 收尾", "--project"])
+        .args(["task", "set", "闭环 REQ 收尾", "--project"])
         .arg(&proj)
         .assert()
         .success();
@@ -1255,7 +1255,7 @@ fn goal_stop_hook_leg_reminds_on_natural_stop_only() {
     let out = hst()
         .env("HST_ROOT", &tmp)
         .env("HST_GOAL_SWEEPER", "off")
-        .args(["hook", "goal", "--agent", "claude"])
+        .args(["hook", "task", "--agent", "claude"])
         .write_stdin(stop_payload.as_str())
         .output()
         .unwrap();
@@ -1267,17 +1267,17 @@ fn goal_stop_hook_leg_reminds_on_natural_stop_only() {
     );
     assert!(s.contains("闭环 REQ 收尾"), "reason carries goal: {s}");
     assert!(
-        s.contains("hst goal clear"),
+        s.contains("hst task clear"),
         "reason carries close hint: {s}"
     );
     hst()
         .env("HST_ROOT", &tmp)
-        .args(["goal", "show", "--project"])
+        .args(["task", "show", "--project"])
         .arg(&proj)
         .assert()
         .success()
-        .stdout(contains("goal.rounds=1"))
-        .stdout(contains("goal.last_stop_at="));
+        .stdout(contains("task.rounds=1"))
+        .stdout(contains("task.last_stop_at="));
     // 续跑再停（stop_hook_active）：放行零输出，计数仍落盘。
     let again = format!(
         r#"{{"hook_event_name":"Stop","cwd":"{}","stop_hook_active":true}}"#,
@@ -1286,7 +1286,7 @@ fn goal_stop_hook_leg_reminds_on_natural_stop_only() {
     let out = hst()
         .env("HST_ROOT", &tmp)
         .env("HST_GOAL_SWEEPER", "off")
-        .args(["hook", "goal", "--agent", "claude"])
+        .args(["hook", "task", "--agent", "claude"])
         .write_stdin(again.as_str())
         .output()
         .unwrap();
@@ -1298,11 +1298,11 @@ fn goal_stop_hook_leg_reminds_on_natural_stop_only() {
     );
     hst()
         .env("HST_ROOT", &tmp)
-        .args(["goal", "show", "--project"])
+        .args(["task", "show", "--project"])
         .arg(&proj)
         .assert()
         .success()
-        .stdout(contains("goal.rounds=2"));
+        .stdout(contains("task.rounds=2"));
     // 非 Stop 事件：静默零改动。
     let other = format!(
         r#"{{"hook_event_name":"PreToolUse","cwd":"{}"}}"#,
@@ -1311,7 +1311,7 @@ fn goal_stop_hook_leg_reminds_on_natural_stop_only() {
     let out = hst()
         .env("HST_ROOT", &tmp)
         .env("HST_GOAL_SWEEPER", "off")
-        .args(["hook", "goal", "--agent", "claude"])
+        .args(["hook", "task", "--agent", "claude"])
         .write_stdin(other.as_str())
         .output()
         .unwrap();
@@ -1372,7 +1372,7 @@ fn goal_heal_scans_wakes_and_throttles_via_herdr() {
     // 在册 goal 拨到停摆态（set_at 拨老，静默窗外）。
     hst()
         .env("HST_ROOT", &tmp)
-        .args(["goal", "set", "解完 eval 余题", "--project"])
+        .args(["task", "set", "解完 eval 余题", "--project"])
         .arg(&root)
         .assert()
         .success();
@@ -1382,7 +1382,7 @@ fn goal_heal_scans_wakes_and_throttles_via_herdr() {
         .chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
         .collect();
-    let goal_file = tmp.join("state").join("goal").join(format!("{slug}.json"));
+    let goal_file = tmp.join("state").join("task").join(format!("{slug}.json"));
     let aged = r#"{"text":"解完 eval 余题","set_at":1,"rounds":0,"last_stop_at":1,"last_heal_at":0,"heal_streak":0,"heal_rounds":0}"#;
     std::fs::write(&goal_file, aged).unwrap();
     // dry-run：would-wake、零 prompt、记录不动。
@@ -1391,11 +1391,11 @@ fn goal_heal_scans_wakes_and_throttles_via_herdr() {
         .env("HERDR_FAKE_LIST", &list)
         .env("HERDR_FAKE_LOG", &log)
         .env("PATH", &path)
-        .args(["goal", "heal", "--dry-run", "--project"])
+        .args(["task", "heal", "--dry-run", "--project"])
         .arg(&root)
         .assert()
         .success()
-        .stdout(contains("goal.heal.count=1"))
+        .stdout(contains("task.heal.count=1"))
         .stdout(contains("action=would-wake"));
     assert!(!log.exists());
     assert_eq!(std::fs::read_to_string(&goal_file).unwrap(), aged);
@@ -1405,7 +1405,7 @@ fn goal_heal_scans_wakes_and_throttles_via_herdr() {
         .env("HERDR_FAKE_LIST", &list)
         .env("HERDR_FAKE_LOG", &log)
         .env("PATH", &path)
-        .args(["goal", "heal", "--project"])
+        .args(["task", "heal", "--project"])
         .arg(&root)
         .assert()
         .success()
@@ -1414,26 +1414,26 @@ fn goal_heal_scans_wakes_and_throttles_via_herdr() {
     let woke = std::fs::read_to_string(&log).unwrap();
     assert!(woke.contains("解完 eval 余题"), "{woke}");
     assert!(
-        woke.contains("hst goal clear") && woke.contains("hst goal 用法"),
+        woke.contains("hst task clear") && woke.contains("hst task 用法"),
         "{woke}"
     );
     // 可观测（澄清令件 3）：自愈留痕经 goal show 可查。
     hst()
         .env("HST_ROOT", &tmp)
-        .args(["goal", "show", "--project"])
+        .args(["task", "show", "--project"])
         .arg(&root)
         .assert()
         .success()
-        .stdout(contains("goal.present=true"))
-        .stdout(contains("goal.last_heal_at="))
-        .stdout(contains("goal.heal_streak=1"));
+        .stdout(contains("task.present=true"))
+        .stdout(contains("task.last_heal_at="))
+        .stdout(contains("task.heal_streak=1"));
     // 紧跟第二趟：静默窗频控。
     hst()
         .env("HST_ROOT", &tmp)
         .env("HERDR_FAKE_LIST", &list)
         .env("HERDR_FAKE_LOG", &log)
         .env("PATH", &path)
-        .args(["goal", "heal", "--project"])
+        .args(["task", "heal", "--project"])
         .arg(&root)
         .assert()
         .success()
@@ -1450,23 +1450,23 @@ fn goal_heal_scans_wakes_and_throttles_via_herdr() {
         .env("HERDR_FAKE_LIST", &list)
         .env("HERDR_FAKE_LOG", &log)
         .env("PATH", &path)
-        .args(["goal", "heal", "--project"])
+        .args(["task", "heal", "--project"])
         .arg(&root)
         .assert()
         .success()
         .stdout(contains("action=alarm-blocked"))
         .stdout(contains("agent=claude"));
     let heal_log =
-        std::fs::read_to_string(tmp.join("state").join("goal").join(".heal-log")).unwrap();
+        std::fs::read_to_string(tmp.join("state").join("task").join(".heal-log")).unwrap();
     assert!(heal_log.contains("alarm-blocked"), "{heal_log}");
     hst()
         .env("HST_ROOT", &tmp)
-        .args(["goal", "show", "--project"])
+        .args(["task", "show", "--project"])
         .arg(&root)
         .assert()
         .success()
-        .stdout(contains("goal.blocked_streak=1"))
-        .stdout(contains("goal.yolo_heal.armed=off"));
+        .stdout(contains("task.blocked_streak=1"))
+        .stdout(contains("task.yolo_heal.armed=off"));
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -1488,7 +1488,7 @@ fn goal_hook_blocked_fastpath_alarms_without_output() {
     hst()
         .env("HST_ROOT", &tmp)
         .env("HST_GOAL_SWEEPER", "off")
-        .args(["goal", "set", "盯评审收口", "--project"])
+        .args(["task", "set", "盯评审收口", "--project"])
         .arg(&proj)
         .assert()
         .success();
@@ -1499,7 +1499,7 @@ fn goal_hook_blocked_fastpath_alarms_without_output() {
     let out = hst()
         .env("HST_ROOT", &tmp)
         .env("HST_GOAL_SWEEPER", "off")
-        .args(["hook", "goal", "--agent", "claude"])
+        .args(["hook", "task", "--agent", "claude"])
         .write_stdin(perm_payload.as_str())
         .output()
         .unwrap();
@@ -1511,13 +1511,13 @@ fn goal_hook_blocked_fastpath_alarms_without_output() {
     );
     hst()
         .env("HST_ROOT", &tmp)
-        .args(["goal", "show", "--project"])
+        .args(["task", "show", "--project"])
         .arg(&proj)
         .assert()
         .success()
-        .stdout(contains("goal.blocked_streak=1"));
+        .stdout(contains("task.blocked_streak=1"));
     let heal_log =
-        std::fs::read_to_string(tmp.join("state").join("goal").join(".heal-log")).unwrap();
+        std::fs::read_to_string(tmp.join("state").join("task").join(".heal-log")).unwrap();
     assert!(
         heal_log.contains("alarm-blocked-fast session=s9"),
         "{heal_log}"
@@ -1526,17 +1526,17 @@ fn goal_hook_blocked_fastpath_alarms_without_output() {
     hst()
         .env("HST_ROOT", &tmp)
         .env("HST_GOAL_SWEEPER", "off")
-        .args(["hook", "goal", "--agent", "claude"])
+        .args(["hook", "task", "--agent", "claude"])
         .write_stdin(perm_payload.as_str())
         .output()
         .unwrap();
     hst()
         .env("HST_ROOT", &tmp)
-        .args(["goal", "show", "--project"])
+        .args(["task", "show", "--project"])
         .arg(&proj)
         .assert()
         .success()
-        .stdout(contains("goal.blocked_streak=2"));
+        .stdout(contains("task.blocked_streak=2"));
     // 非权限形通知（tip）：零动作。
     let tip_payload = format!(
         r#"{{"hook_event_name":"Notification","notification_type":"tip","cwd":"{}"}}"#,
@@ -1545,7 +1545,7 @@ fn goal_hook_blocked_fastpath_alarms_without_output() {
     let out = hst()
         .env("HST_ROOT", &tmp)
         .env("HST_GOAL_SWEEPER", "off")
-        .args(["hook", "goal", "--agent", "claude"])
+        .args(["hook", "task", "--agent", "claude"])
         .write_stdin(tip_payload.as_str())
         .output()
         .unwrap();
@@ -1626,25 +1626,25 @@ fn goal_yolo_heal_arm_and_sequence_via_fake_herdr() {
     };
     // arm 开关面：on 落标记、show 出 armed=on。
     env()
-        .args(["goal", "yolo-heal", "on"])
+        .args(["task", "yolo-heal", "on"])
         .assert()
         .success()
-        .stdout(contains("goal.yolo_heal.armed=on"))
-        .stdout(contains("goal.yolo_heal.changed=true"));
+        .stdout(contains("task.yolo_heal.armed=on"))
+        .stdout(contains("task.yolo_heal.changed=true"));
     assert!(tmp
         .join("state")
-        .join("goal")
+        .join("task")
         .join(".yolo-heal-armed")
         .is_file());
     // 重复 on 零改动。
     env()
-        .args(["goal", "yolo-heal", "on"])
+        .args(["task", "yolo-heal", "on"])
         .assert()
         .success()
-        .stdout(contains("goal.yolo_heal.changed=false"));
+        .stdout(contains("task.yolo_heal.changed=false"));
     hst()
         .env("HST_ROOT", &tmp)
-        .args(["goal", "set", "修完阻塞件", "--project"])
+        .args(["task", "set", "修完阻塞件", "--project"])
         .arg(&root)
         .assert()
         .success();
@@ -1655,14 +1655,14 @@ fn goal_yolo_heal_arm_and_sequence_via_fake_herdr() {
         .chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
         .collect();
-    let goal_file = tmp.join("state").join("goal").join(format!("{slug}.json"));
+    let goal_file = tmp.join("state").join("task").join(format!("{slug}.json"));
     let mut rec: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&goal_file).unwrap()).unwrap();
     rec["blocked_streak"] = serde_json::json!(1);
     rec["blocked_rounds"] = serde_json::json!(0);
     std::fs::write(&goal_file, serde_json::to_string(&rec).unwrap()).unwrap();
     env()
-        .args(["goal", "heal", "--project"])
+        .args(["task", "heal", "--project"])
         .arg(&root)
         .assert()
         .success()
@@ -1687,30 +1687,30 @@ fn goal_yolo_heal_arm_and_sequence_via_fake_herdr() {
         "{starts}"
     );
     let prompts = std::fs::read_to_string(&prompt_log).unwrap();
-    assert!(prompts.contains("hst goal 自驱唤醒"), "{prompts}");
+    assert!(prompts.contains("hst task 自驱唤醒"), "{prompts}");
     assert!(prompts.contains("即刻推进"), "{prompts}");
     assert!(prompts.contains("防卡死防空转边界"), "{prompts}");
     // 留痕：alarm-blocked（先报警）加 yolo-heal 双行。
     let heal_log =
-        std::fs::read_to_string(tmp.join("state").join("goal").join(".heal-log")).unwrap();
+        std::fs::read_to_string(tmp.join("state").join("task").join(".heal-log")).unwrap();
     assert!(heal_log.contains("alarm-blocked"), "{heal_log}");
     assert!(heal_log.contains("yolo-heal"), "{heal_log}");
     // 治后即 yolo：同态再扫不再治（非 yolo 前置天然幂等），走防抖静默。
     env()
-        .args(["goal", "heal", "--project"])
+        .args(["task", "heal", "--project"])
         .arg(&root)
         .assert()
         .success()
         .stdout(contains("action=blocked-muted"));
     // off 撤预授权。
     env()
-        .args(["goal", "yolo-heal", "off"])
+        .args(["task", "yolo-heal", "off"])
         .assert()
         .success()
-        .stdout(contains("goal.yolo_heal.armed=off"));
+        .stdout(contains("task.yolo_heal.armed=off"));
     assert!(!tmp
         .join("state")
-        .join("goal")
+        .join("task")
         .join(".yolo-heal-armed")
         .is_file());
     let _ = std::fs::remove_dir_all(&tmp);
@@ -1733,7 +1733,7 @@ fn loop_commands_retired() {
         .failure();
     // goal 旧 scheduled_tasks 旗标（--session/--via-herdr）随关联解除撤。
     hst()
-        .args(["goal", "set", "x", "--via-herdr", "t"])
+        .args(["task", "set", "x", "--via-herdr", "t"])
         .assert()
         .failure();
 }
@@ -2119,6 +2119,24 @@ fn verify_live_headless_acceptance_for_installed_agents() {
             continue;
         }
         if name == "claude" {
+            // taskmigrate-01 装机落差门:shim 烘焙回落装机位 hst,装机位
+            // 版本不支持 hook task 腿(2.11.0 前)时端到端必红,属环境事实
+            // 非缺陷(装机位升级 2.12.0 后自活),skip 带注。
+            let installed =
+                std::path::PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "/root".into()))
+                    .join(".local/bin/hst");
+            if installed.is_file() {
+                let probe = std::process::Command::new(&installed)
+                    .args(["hook", "task", "--help"])
+                    .output();
+                if !matches!(&probe, Ok(o) if o.status.success()) {
+                    eprintln!(
+                        "skip: installed hst predates task leg (shim bakes installed exe); \
+                         upgrade installed hst to activate live verify"
+                    );
+                    continue;
+                }
+            }
             ran += 1;
             hst()
                 .args(["agents", "verify", name, "--timeout", "90"])
@@ -2676,7 +2694,7 @@ fn update_version_output_parses() {
 
 #[test]
 fn goal_show_json_envelope_and_filter_output() {
-    // goalhard-01 机读面:`hst goal show --json`(全局旗标后置形)出 fmtio
+    // goalhard-01 机读面:`hst task show --json`(全局旗标后置形)出 fmtio
     // 信封,data 载 present/project/slug/file/goal 全字段/yolo_heal_armed;
     // present=false 稳态;--filter-output 键路径过滤同源。
     let tmp = std::env::temp_dir().join(format!(
@@ -2692,17 +2710,17 @@ fn goal_show_json_envelope_and_filter_output() {
     std::fs::create_dir_all(&root).unwrap();
     let out = hst()
         .env("HST_ROOT", &tmp)
-        .args(["goal", "set", "舰队升级协调", "--project"])
+        .args(["task", "set", "舰队升级协调", "--project"])
         .arg(&root)
         .assert()
         .success()
         .get_output()
         .stdout
         .clone();
-    assert!(String::from_utf8_lossy(&out).contains("goal.set"));
+    assert!(String::from_utf8_lossy(&out).contains("task.set"));
     let out = hst()
         .env("HST_ROOT", &tmp)
-        .args(["goal", "show", "--json", "--project"])
+        .args(["task", "show", "--json", "--project"])
         .arg(&root)
         .assert()
         .success()
@@ -2713,8 +2731,8 @@ fn goal_show_json_envelope_and_filter_output() {
     assert_eq!(v["ok"], serde_json::json!(true), "{v}");
     assert_eq!(v["meta"]["command"], serde_json::json!("goal-show"));
     assert_eq!(v["data"]["present"], serde_json::json!(true));
-    assert_eq!(v["data"]["goal"]["text"], serde_json::json!("舰队升级协调"));
-    assert_eq!(v["data"]["goal"]["rounds"], serde_json::json!(0));
+    assert_eq!(v["data"]["task"]["text"], serde_json::json!("舰队升级协调"));
+    assert_eq!(v["data"]["task"]["rounds"], serde_json::json!(0));
     assert_eq!(v["data"]["yolo_heal_armed"], serde_json::json!(false));
     assert!(v["data"]["slug"].as_str().is_some_and(|s| !s.is_empty()));
     assert!(v["data"]["file"]
@@ -2725,7 +2743,7 @@ fn goal_show_json_envelope_and_filter_output() {
     // jsonl 裸实体(rev-codex G-4:家族先例同形,无信封层)。
     let out = hst()
         .env("HST_ROOT", &tmp)
-        .args(["--format", "jsonl", "goal", "show", "--project"])
+        .args(["--format", "jsonl", "task", "show", "--project"])
         .arg(&root)
         .assert()
         .success()
@@ -2736,12 +2754,12 @@ fn goal_show_json_envelope_and_filter_output() {
     assert!(v.get("ok").is_none(), "jsonl 无信封层: {v}");
     assert!(v.get("meta").is_none(), "jsonl 无信封层: {v}");
     assert_eq!(v["present"], serde_json::json!(true));
-    assert_eq!(v["goal"]["text"], serde_json::json!("舰队升级协调"));
+    assert_eq!(v["task"]["text"], serde_json::json!("舰队升级协调"));
     assert_eq!(v["repaired"], serde_json::Value::Null);
     // present=false 稳态(无 goal 合法)。
     let out = hst()
         .env("HST_ROOT", &tmp)
-        .args(["goal", "show", "--json", "--project"])
+        .args(["task", "show", "--json", "--project"])
         .arg(tmp.join("none"))
         .assert()
         .success()
@@ -2750,15 +2768,15 @@ fn goal_show_json_envelope_and_filter_output() {
         .clone();
     let v: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&out)).unwrap();
     assert_eq!(v["data"]["present"], serde_json::json!(false));
-    assert_eq!(v["data"]["goal"], serde_json::Value::Null);
-    // --filter-output 与信封面同源(goal.text 单键)。
+    assert_eq!(v["data"]["task"], serde_json::Value::Null);
+    // --filter-output 与信封面同源(task.text 单键)。
     let out = hst()
         .env("HST_ROOT", &tmp)
         .args([
             "--json",
             "--filter-output",
-            "goal.text",
-            "goal",
+            "task.text",
+            "task",
             "show",
             "--project",
         ])
@@ -2770,7 +2788,7 @@ fn goal_show_json_envelope_and_filter_output() {
         .clone();
     let v: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&out)).unwrap();
     assert_eq!(
-        v["data"]["goal.text"],
+        v["data"]["task.text"],
         serde_json::json!("舰队升级协调"),
         "{v}"
     );
@@ -2797,16 +2815,16 @@ fn goal_list_kv_json_jsonl_and_repair_rows() {
     // 空目录:count=0 加 hint。
     hst()
         .env("HST_ROOT", &tmp)
-        .args(["goal", "list"])
+        .args(["task", "list"])
         .assert()
         .success()
-        .stdout(contains("goal.list.count=0"))
-        .stdout(contains("goal.list.hint="));
+        .stdout(contains("task.list.count=0"))
+        .stdout(contains("task.list.hint="));
     // 两档在册(各连发两遍给 A 刷 bak)。
     for (root, txt) in [(&pa, "A 旧"), (&pa, "A 档"), (&pb, "B 档")] {
         hst()
             .env("HST_ROOT", &tmp)
-            .args(["goal", "set", txt, "--project"])
+            .args(["task", "set", txt, "--project"])
             .arg(root)
             .assert()
             .success();
@@ -2821,10 +2839,10 @@ fn goal_list_kv_json_jsonl_and_repair_rows() {
     // kv:count=2 加两行。
     let out = hst()
         .env("HST_ROOT", &tmp)
-        .args(["goal", "list"])
+        .args(["task", "list"])
         .assert()
         .success()
-        .stdout(contains("goal.list.count=2"))
+        .stdout(contains("task.list.count=2"))
         .stdout(contains(&format!("slug={}", slug_of(&pa))))
         .stdout(contains(&format!("slug={}", slug_of(&pb))))
         .stdout(contains("text=A 档"))
@@ -2836,7 +2854,7 @@ fn goal_list_kv_json_jsonl_and_repair_rows() {
     // jsonl:逐行对象,字段机读形。
     let out = hst()
         .env("HST_ROOT", &tmp)
-        .args(["--format", "jsonl", "goal", "list"])
+        .args(["--format", "jsonl", "task", "list"])
         .assert()
         .success()
         .get_output()
@@ -2847,12 +2865,12 @@ fn goal_list_kv_json_jsonl_and_repair_rows() {
     assert_eq!(lines.len(), 2, "{out}");
     let v: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
     assert_eq!(v["present"], serde_json::json!(true));
-    assert!(v["goal"]["text"].as_str().is_some());
+    assert!(v["task"]["text"].as_str().is_some());
     assert_eq!(v["repaired"], serde_json::Value::Null);
     // json:信封 data.count 加 goals 数组。
     let out = hst()
         .env("HST_ROOT", &tmp)
-        .args(["--json", "goal", "list"])
+        .args(["--json", "task", "list"])
         .assert()
         .success()
         .get_output()
@@ -2865,20 +2883,20 @@ fn goal_list_kv_json_jsonl_and_repair_rows() {
     // 坏档:list 触修复(kv 行注 promote),聚合面不卡死。
     let ga = tmp
         .join("state")
-        .join("goal")
+        .join("task")
         .join(format!("{}.json", slug_of(&pa)));
     std::fs::write(&ga, "broken{").unwrap();
     hst()
         .env("HST_ROOT", &tmp)
-        .args(["goal", "list"])
+        .args(["task", "list"])
         .assert()
         .success()
-        .stdout(contains("goal.list.count=2"))
+        .stdout(contains("task.list.count=2"))
         .stdout(contains("repaired=promote"))
         .stdout(contains("text=A 旧"));
     // 审计道:repair 行在册。
     let audit =
-        std::fs::read_to_string(tmp.join("state").join("goal").join(".goal-audit")).unwrap();
+        std::fs::read_to_string(tmp.join("state").join("task").join(".task-audit")).unwrap();
     assert!(audit.contains(" action=promote "), "{audit}");
     let _ = std::fs::remove_dir_all(&tmp);
 }
@@ -2903,7 +2921,7 @@ fn goal_crash_injection_kill9_store_stays_consistent() {
     for i in 0..40u64 {
         let mut child = std::process::Command::new(exe)
             .env("HST_ROOT", &tmp)
-            .args(["goal", "set", &format!("crash-{i}"), "--project"])
+            .args(["task", "set", &format!("crash-{i}"), "--project"])
             .arg(&root)
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
@@ -2916,20 +2934,20 @@ fn goal_crash_injection_kill9_store_stays_consistent() {
         // 不变量一:show 退 0 且 present 合法(绝不 corrupt 崩)。
         let out = std::process::Command::new(exe)
             .env("HST_ROOT", &tmp)
-            .args(["goal", "show", "--project"])
+            .args(["task", "show", "--project"])
             .arg(&root)
             .output()
             .unwrap();
         assert!(out.status.success(), "kill 后 show 须退 0: {out:?}");
         let s = String::from_utf8_lossy(&out.stdout);
         assert!(
-            s.contains("goal.present=true") || s.contains("goal.present=false"),
+            s.contains("task.present=true") || s.contains("task.present=false"),
             "present 合法态: {s}"
         );
         // 不变量二(rev-codex G-5,文件级直锁原子写):零坏档隔离件(修复面
         // 从未触发 = rename 原子性成立),主档在场时裸字节可解析。早期杀
         // 点可落在 goal 目录创建前,目录缺失按空收。
-        let gdir = tmp.join("state").join("goal");
+        let gdir = tmp.join("state").join("task");
         let entry_paths: Vec<_> = std::fs::read_dir(&gdir)
             .map(|rd| rd.flatten().map(|e| e.path()).collect())
             .unwrap_or_default();
@@ -2960,19 +2978,19 @@ fn goal_crash_injection_kill9_store_stays_consistent() {
     // 终态:一发完整 set 成功(残件 tmp 不阻塞写路),show 可见。
     hst()
         .env("HST_ROOT", &tmp)
-        .args(["goal", "set", "终态目标", "--project"])
+        .args(["task", "set", "终态目标", "--project"])
         .arg(&root)
         .assert()
         .success()
-        .stdout(contains("goal.set text=终态目标"));
+        .stdout(contains("task.set text=终态目标"));
     hst()
         .env("HST_ROOT", &tmp)
-        .args(["goal", "show", "--project"])
+        .args(["task", "show", "--project"])
         .arg(&root)
         .assert()
         .success()
-        .stdout(contains("goal.present=true"))
-        .stdout(contains("goal.text=终态目标"));
+        .stdout(contains("task.present=true"))
+        .stdout(contains("task.text=终态目标"));
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -2995,7 +3013,7 @@ fn goal_concurrent_process_sets_both_succeed_lww() {
     for round in 0..8 {
         let mut a = std::process::Command::new(exe)
             .env("HST_ROOT", &tmp)
-            .args(["goal", "set", &format!("A-{round}"), "--project"])
+            .args(["task", "set", &format!("A-{round}"), "--project"])
             .arg(&root)
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
@@ -3003,7 +3021,7 @@ fn goal_concurrent_process_sets_both_succeed_lww() {
             .unwrap();
         let mut b = std::process::Command::new(exe)
             .env("HST_ROOT", &tmp)
-            .args(["goal", "set", &format!("B-{round}"), "--project"])
+            .args(["task", "set", &format!("B-{round}"), "--project"])
             .arg(&root)
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
@@ -3016,13 +3034,13 @@ fn goal_concurrent_process_sets_both_succeed_lww() {
         // 终态整档 LWW:文本属两写者之一,绝无混档。
         let out = std::process::Command::new(exe)
             .env("HST_ROOT", &tmp)
-            .args(["goal", "show", "--json", "--project"])
+            .args(["task", "show", "--json", "--project"])
             .arg(&root)
             .output()
             .unwrap();
         let v: serde_json::Value =
             serde_json::from_str(&String::from_utf8_lossy(&out.stdout)).unwrap();
-        let text = v["data"]["goal"]["text"].as_str().unwrap().to_string();
+        let text = v["data"]["task"]["text"].as_str().unwrap().to_string();
         assert!(
             text == format!("A-{round}") || text == format!("B-{round}"),
             "LWW 终态: {text}"
@@ -3030,7 +3048,7 @@ fn goal_concurrent_process_sets_both_succeed_lww() {
     }
     // 审计道:16 发 set 全留行。
     let audit =
-        std::fs::read_to_string(tmp.join("state").join("goal").join(".goal-audit")).unwrap();
+        std::fs::read_to_string(tmp.join("state").join("task").join(".task-audit")).unwrap();
     let sets = audit
         .lines()
         .filter(|l| l.split_whitespace().nth(2) == Some("set"))
@@ -3052,7 +3070,7 @@ fn help_faces_carry_no_archaeology_markers() {
         vec!["hook", "--help"],
         vec!["hook", "init", "--help"],
         vec!["hook", "token", "--help"],
-        vec!["hook", "goal", "--help"],
+        vec!["hook", "task", "--help"],
         vec!["hook", "verify", "--help"],
         vec!["statusline", "--help"],
         vec!["self", "--help"],
@@ -3064,8 +3082,8 @@ fn help_faces_carry_no_archaeology_markers() {
         vec!["ledger", "--help"],
         vec!["yolo", "--help"],
         vec!["diagnose", "--help"],
-        vec!["goal", "--help"],
-        vec!["goal", "heal", "--help"],
+        vec!["task", "--help"],
+        vec!["task", "heal", "--help"],
     ];
     let markers = [
         // 注:~/.oma 旧根迁移是活功能(hook init 的 heal 面),不作考古痕。
@@ -3106,4 +3124,143 @@ fn help_faces_carry_no_archaeology_markers() {
             );
         }
     }
+}
+
+#[test]
+fn task_command_family_and_goal_alias_compat() {
+    // taskmigrate-01:hst task 主命令族落位;hst goal 兼容别名一版走通
+    //(同档同语义,不双写);hook goal 别名静默同效。
+    let tmp = std::env::temp_dir().join(format!(
+        "hst-cli-taskalias-{}-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis(),
+        NEXT_TEST_DIR.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    let root = tmp.join("proj");
+    std::fs::create_dir_all(&root).unwrap();
+    // 主命令族。
+    hst()
+        .env("HST_ROOT", &tmp)
+        .args(["task", "set", "正名后任务", "--project"])
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(contains("task.set text=正名后任务"));
+    // 兼容别名:读面同档。
+    hst()
+        .env("HST_ROOT", &tmp)
+        .args(["goal", "show", "--project"])
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(contains("task.present=true"))
+        .stdout(contains("task.text=正名后任务"));
+    // 别名写面同语义(写同一 state/task 档)。
+    hst()
+        .env("HST_ROOT", &tmp)
+        .args(["goal", "set", "别名写入", "--project"])
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(contains("task.set text=别名写入"));
+    let slug: String = root
+        .display()
+        .to_string()
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect();
+    assert!(tmp
+        .join("state")
+        .join("task")
+        .join(format!("{slug}.json"))
+        .is_file());
+    assert!(!tmp.join("state").join("goal").exists(), "旧位不再写");
+    // hook 腿别名:goal 静默走 task 同效(计数落同一档)。
+    hst()
+        .env("HST_ROOT", &tmp)
+        .args(["hook", "task", "--agent", "claude"])
+        .write_stdin(format!(
+            "{{\"hook_event_name\":\"Stop\",\"cwd\":\"{}\"}}",
+            root.display()
+        ))
+        .assert()
+        .success();
+    hst()
+        .env("HST_ROOT", &tmp)
+        .args(["hook", "goal", "--agent", "claude"])
+        .write_stdin(format!(
+            "{{\"hook_event_name\":\"Stop\",\"cwd\":\"{}\"}}",
+            root.display()
+        ))
+        .assert()
+        .success();
+    hst()
+        .env("HST_ROOT", &tmp)
+        .args(["task", "show", "--project"])
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(contains("task.rounds=2"));
+    // 清面别名。
+    hst()
+        .env("HST_ROOT", &tmp)
+        .args(["goal", "clear", "--project"])
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(contains("task.clear present=true"));
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
+fn task_store_migrates_from_legacy_goal_dir() {
+    // taskmigrate-01 迁移回放(进程级):预置 state/goal 旧档,新二进制首访
+    // CLI 即平移 state/task,旧档可续读(rounds 续计不丢)。
+    let tmp = std::env::temp_dir().join(format!(
+        "hst-cli-taskmig-{}-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis(),
+        NEXT_TEST_DIR.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    let root = tmp.join("proj");
+    std::fs::create_dir_all(&root).unwrap();
+    let slug: String = root
+        .display()
+        .to_string()
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect();
+    let old_dir = tmp.join("state").join("goal");
+    std::fs::create_dir_all(&old_dir).unwrap();
+    std::fs::write(
+        old_dir.join(format!("{slug}.json")),
+        r#"{"text":"旧档任务","set_at":100,"rounds":7,"last_stop_at":200}"#,
+    )
+    .unwrap();
+    // 旧位先经旧命令面可读不再验;新命令首访触发平移。
+    hst()
+        .env("HST_ROOT", &tmp)
+        .args(["task", "show", "--project"])
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(contains("task.present=true"))
+        .stdout(contains("task.text=旧档任务"))
+        .stdout(contains("task.rounds=7"));
+    assert!(tmp
+        .join("state")
+        .join("task")
+        .join(format!("{slug}.json"))
+        .is_file());
+    assert!(!old_dir.exists(), "旧位整目录平移");
+    let audit =
+        std::fs::read_to_string(tmp.join("state").join("task").join(".task-audit")).unwrap();
+    assert!(audit.contains(" migrate "), "{audit}");
+    let _ = std::fs::remove_dir_all(&tmp);
 }

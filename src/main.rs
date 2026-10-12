@@ -8,9 +8,9 @@ use serde_json::Value;
 
 use hst::agents;
 use hst::doctor;
-use hst::goal;
 use hst::hook;
 use hst::install;
+use hst::task;
 use hst::trace;
 use hst::yolo;
 
@@ -167,18 +167,19 @@ enum Commands {
         #[command(subcommand)]
         cmd: DiagnoseCmd,
     },
-    /// task 自治面（现役命令名 hst goal，下版更名 hst task）：项目级 task 设置、查看与清空；Stop hook 每轮提醒，状态栏段同源显示
-    Goal {
+    /// task 自治面：项目级 task 设置、查看与清空；Stop hook 每轮提醒，状态栏段同源显示
+    #[command(alias = "goal")]
+    Task {
         #[command(subcommand)]
-        cmd: GoalCmd,
+        cmd: TaskCmd,
     },
 }
 
 #[derive(Subcommand)]
-enum GoalCmd {
+enum TaskCmd {
     /// 设置本项目 task（自有存储覆盖旧 task，rounds 重计；Stop 每轮提醒随之换目标）
     Set {
-        /// goal 文本（trim 后非空；Stop 提醒与状态栏 goal 段显示源）
+        /// task 文本（trim 后非空；Stop 提醒与状态栏 task 段显示源）
         text: String,
         /// 项目根；默认当前目录（状态栏与 Stop 腿按 payload 项目根同规则键控，子目录调用须显式给）
         #[arg(long)]
@@ -200,7 +201,7 @@ enum GoalCmd {
     },
     /// 自愈唤醒扫描：task 在册而格位停摆过静默窗（15 分钟）时经 herdr agent prompt 唤醒；blocked 维报警留痕，预授权且反复 blocked 触发 yolo 治；working 不扰；连续 3 次唤醒无 rounds 增长即风暴闸转人工；须在 herdr 会话格内跑
     Heal {
-        /// 项目根；缺省扫全部在册 goal
+        /// 项目根；缺省扫全部在册 task
         #[arg(long)]
         project: Option<PathBuf>,
         /// 预演：只报判定不唤醒不落盘
@@ -218,7 +219,7 @@ enum GoalCmd {
     },
 }
 
-/// yolo 治预授权态（`hst goal yolo-heal` 参数面）。
+/// yolo 治预授权态（`hst task yolo-heal` 参数面）。
 #[derive(clap::ValueEnum, Clone, Copy)]
 enum ArmState {
     /// 预授权开：blocked_streak 到 2 且工位非 yolo 即触发治序列
@@ -481,8 +482,9 @@ enum HookCmd {
         #[arg(long)]
         agent: Option<String>,
     },
-    /// goal 腿：Claude Code Stop 等四事件提醒注入与 goal 自驱（rounds 计数落盘）
-    Goal {
+    /// task 腿：Claude Code Stop 等四事件提醒注入与 task 自驱（rounds 计数落盘）
+    #[command(alias = "goal")]
+    Task {
         /// 事件名；省略则读 stdin JSON（注册面形）
         #[arg(value_name = "事件")]
         event: Option<String>,
@@ -616,7 +618,7 @@ fn run() -> Result<(), String> {
         Commands::Hook { cmd } => match cmd {
             HookCmd::Init { project } => cmd_hook_init(project),
             HookCmd::Token { event, agent } => cmd_hook_token(event, agent),
-            HookCmd::Goal { event, agent } => cmd_hook_goal(event, agent),
+            HookCmd::Task { event, agent } => cmd_hook_task(event, agent),
             HookCmd::Verify { names, timeout } => cmd_agents_verify(names, timeout, true),
         },
         Commands::Statusline {
@@ -663,17 +665,17 @@ fn run() -> Result<(), String> {
             YoloCmd::Check { project } => cmd_yolo_check(project),
         },
         Commands::Diagnose { cmd } => cmd_diagnose(cmd),
-        Commands::Goal { cmd } => match cmd {
-            GoalCmd::Set { text, project } => cmd_goal_set(&text, project),
-            GoalCmd::Show { project } => cmd_goal_show(project),
-            GoalCmd::List => cmd_goal_list(),
-            GoalCmd::Clear { project } => cmd_goal_clear(project),
-            GoalCmd::Heal {
+        Commands::Task { cmd } => match cmd {
+            TaskCmd::Set { text, project } => cmd_task_set(&text, project),
+            TaskCmd::Show { project } => cmd_task_show(project),
+            TaskCmd::List => cmd_task_list(),
+            TaskCmd::Clear { project } => cmd_task_clear(project),
+            TaskCmd::Heal {
                 project,
                 dry_run,
                 interval,
-            } => cmd_goal_heal(project, dry_run, interval),
-            GoalCmd::YoloHeal { state } => cmd_goal_yoloheal(state),
+            } => cmd_task_heal(project, dry_run, interval),
+            TaskCmd::YoloHeal { state } => cmd_task_yoloheal(state),
         },
         Commands::Issue { cmd } => cmd_issue(cmd),
     }
@@ -1614,16 +1616,16 @@ fn agent_report_row(r: &agents::Report) -> Value {
 
 /// goal 自治面（REQ-045）：set/show/clear 读写自有存储
 /// `~/.hst/state/goal/<slug>.json`（项目键 slug 同 trace 与 projyolo）。
-fn cmd_goal_set(text: &str, project: Option<PathBuf>) -> Result<(), String> {
+fn cmd_task_set(text: &str, project: Option<PathBuf>) -> Result<(), String> {
     let root = project_root(project)?;
     let home = hst::install::hst_home()?;
     let r =
-        goal::set_goal(&home, &root, text).map_err(|e| format!("goal error={}: {e}", e.code()))?;
-    println!("goal.set text={}", r.text);
-    println!("goal.set project={}", root.display());
-    println!("goal.set file={}", goal::goal_path(&home, &root).display());
+        task::set_task(&home, &root, text).map_err(|e| format!("goal error={}: {e}", e.code()))?;
+    println!("task.set text={}", r.text);
+    println!("task.set project={}", root.display());
+    println!("task.set file={}", task::task_path(&home, &root).display());
     println!(
-        "goal.hint=Stop 每轮提醒由 hst-goal hook 腿承载（hst init 注册 claude Stop 事件）；达成后 hst goal clear 收束"
+        "task.hint=Stop 每轮提醒由 hst-task hook 腿承载（hst init 注册 claude Stop 事件）；达成后 hst task clear 收束"
     );
     Ok(())
 }
@@ -1631,12 +1633,12 @@ fn cmd_goal_set(text: &str, project: Option<PathBuf>) -> Result<(), String> {
 /// REQ-047 两维态 show 面：blocked 维与 yolo 治新字段同源出。goalhard-01：
 /// json 出 fmtio 信封、jsonl 出裸实体（rev-codex G-4，家族先例同形），机读
 /// 聚合面；坏档经修复面出 `repaired` 注记行。
-fn cmd_goal_show(project: Option<PathBuf>) -> Result<(), String> {
+fn cmd_task_show(project: Option<PathBuf>) -> Result<(), String> {
     let root = project_root(project)?;
     let home = hst::install::hst_home()?;
-    let armed = goal::yolo_heal_armed(&home);
-    let path = goal::goal_path(&home, &root);
-    let (found, repaired) = goal::read_record_repairing(&home, &path)
+    let armed = task::yolo_heal_armed(&home);
+    let path = task::task_path(&home, &root);
+    let (found, repaired) = task::read_record_repairing(&home, &path)
         .map_err(|e| format!("goal error={}: {e}", e.code()))?;
     match hst::fmtio::mode() {
         hst::fmtio::Format::Json => {
@@ -1653,33 +1655,33 @@ fn cmd_goal_show(project: Option<PathBuf>) -> Result<(), String> {
         hst::fmtio::Format::Kv => {
             match &found {
                 Some(r) => {
-                    println!("goal.present=true");
-                    println!("goal.text={}", r.text);
-                    println!("goal.rounds={}", r.rounds);
-                    println!("goal.set_at={}", r.set_at);
+                    println!("task.present=true");
+                    println!("task.text={}", r.text);
+                    println!("task.rounds={}", r.rounds);
+                    println!("task.set_at={}", r.set_at);
                     if r.last_stop_at > 0 {
-                        println!("goal.last_stop_at={}", r.last_stop_at);
+                        println!("task.last_stop_at={}", r.last_stop_at);
                     }
                     if r.last_heal_at > 0 {
-                        println!("goal.last_heal_at={}", r.last_heal_at);
-                        println!("goal.heal_streak={}", r.heal_streak);
+                        println!("task.last_heal_at={}", r.last_heal_at);
+                        println!("task.heal_streak={}", r.heal_streak);
                     }
                     if r.blocked_streak > 0 {
-                        println!("goal.blocked_streak={}", r.blocked_streak);
+                        println!("task.blocked_streak={}", r.blocked_streak);
                     }
                     if r.blocked_alarm_at > 0 {
-                        println!("goal.blocked_alarm_at={}", r.blocked_alarm_at);
+                        println!("task.blocked_alarm_at={}", r.blocked_alarm_at);
                     }
                     if r.yolo_heal_at > 0 {
-                        println!("goal.yolo_heal_at={}", r.yolo_heal_at);
+                        println!("task.yolo_heal_at={}", r.yolo_heal_at);
                     }
                 }
-                None => println!("goal.present=false"),
+                None => println!("task.present=false"),
             }
-            println!("goal.yolo_heal.armed={}", if armed { "on" } else { "off" });
+            println!("task.yolo_heal.armed={}", if armed { "on" } else { "off" });
             if let Some(n) = &repaired {
                 println!(
-                    "goal.repair action={} quarantined={}",
+                    "task.repair action={} quarantined={}",
                     n.action, n.quarantined
                 );
             }
@@ -1693,8 +1695,8 @@ fn cmd_goal_show(project: Option<PathBuf>) -> Result<(), String> {
 fn goal_show_data(
     root: &std::path::Path,
     path: &std::path::Path,
-    found: &Option<hst::goal::GoalRecord>,
-    repaired: &Option<hst::goal::RepairNote>,
+    found: &Option<hst::task::TaskRecord>,
+    repaired: &Option<hst::task::RepairNote>,
     armed: bool,
 ) -> Result<serde_json::Value, String> {
     Ok(serde_json::json!({
@@ -1702,7 +1704,7 @@ fn goal_show_data(
         "project": root.display().to_string(),
         "slug": path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default(),
         "file": path.display().to_string(),
-        "goal": match found {
+        "task": match found {
             Some(g) => Some(serde_json::to_value(g).map_err(|e| e.to_string())?),
             None => None,
         },
@@ -1717,15 +1719,15 @@ fn goal_show_data(
 /// goalhard-01 全机在册清单面：goal 插件 list --all 逐机消费的聚合原语。
 /// kv 逐档 marker 行；json 信封（data.count 加 goals 数组）；jsonl 逐档
 /// 对象（列表形，无信封）。坏档修复后出 repaired 注记，不卡清单。
-fn cmd_goal_list() -> Result<(), String> {
+fn cmd_task_list() -> Result<(), String> {
     let home = hst::install::hst_home()?;
-    let rows = goal::list_goals(&home)?;
-    let row_json = |r: &goal::GoalListRow| -> Result<serde_json::Value, String> {
+    let rows = task::list_tasks(&home)?;
+    let row_json = |r: &task::TaskListRow| -> Result<serde_json::Value, String> {
         Ok(serde_json::json!({
             "slug": r.slug,
             "file": r.file.display().to_string(),
             "present": r.rec.is_some(),
-            "goal": match r.rec.as_ref() {
+            "task": match r.rec.as_ref() {
                 Some(g) => Some(serde_json::to_value(g).map_err(|e| e.to_string())?),
                 None => None,
             },
@@ -1744,7 +1746,7 @@ fn cmd_goal_list() -> Result<(), String> {
             let data = serde_json::json!({ "count": goals.len(), "goals": goals });
             // meta.project 传 goal 存储目录（rev-codex G-4：机器面读到有语义，
             // 不传无义字面 "."）。
-            print_json("goal-list", &hst::goal::goal_dir(&home), Ok(data))
+            print_json("goal-list", &hst::task::task_dir(&home), Ok(data))
         }
         hst::fmtio::Format::Jsonl => {
             for r in &rows {
@@ -1753,14 +1755,14 @@ fn cmd_goal_list() -> Result<(), String> {
             Ok(())
         }
         hst::fmtio::Format::Kv => {
-            println!("goal.list.count={}", rows.len());
+            println!("task.list.count={}", rows.len());
             for r in &rows {
                 match &r.rec {
                     Some(g) => println!(
-                        "goal.list slug={} text={} rounds={} set_at={}",
+                        "task.list slug={} text={} rounds={} set_at={}",
                         r.slug, g.text, g.rounds, g.set_at
                     ),
-                    None => println!("goal.list slug={} present=false", r.slug),
+                    None => println!("task.list slug={} present=false", r.slug),
                 }
                 if let Some(note) = &r.repaired {
                     println!(
@@ -1770,23 +1772,23 @@ fn cmd_goal_list() -> Result<(), String> {
                 }
             }
             if rows.is_empty() {
-                println!("goal.list.hint=无在册 goal；先 hst goal set");
+                println!("task.list.hint=无在册 task；先 hst task set");
             }
             Ok(())
         }
     }
 }
 
-fn cmd_goal_clear(project: Option<PathBuf>) -> Result<(), String> {
+fn cmd_task_clear(project: Option<PathBuf>) -> Result<(), String> {
     let root = project_root(project)?;
     let home = hst::install::hst_home()?;
     let removed =
-        goal::clear_goal(&home, &root).map_err(|e| format!("goal error={}: {e}", e.code()))?;
+        task::clear_task(&home, &root).map_err(|e| format!("goal error={}: {e}", e.code()))?;
     if removed {
-        println!("goal.clear present=true");
-        println!("goal.clear project={}", root.display());
+        println!("task.clear present=true");
+        println!("task.clear project={}", root.display());
     } else {
-        println!("goal.clear present=false");
+        println!("task.clear present=false");
     }
     Ok(())
 }
@@ -1794,42 +1796,42 @@ fn cmd_goal_clear(project: Option<PathBuf>) -> Result<(), String> {
 /// goal-01 自愈扫描分派（REQ-047 三驱之一的手动面）：逐在册 goal 两维态
 /// 判定，Wake 形唤醒、Blocked 形报警与（预授权时）yolo 治。`--interval`
 /// 为 sweeper 子进程体（有界循环，单实例锁）。
-fn cmd_goal_heal(project: Option<PathBuf>, dry_run: bool, interval: bool) -> Result<(), String> {
+fn cmd_task_heal(project: Option<PathBuf>, dry_run: bool, interval: bool) -> Result<(), String> {
     let home = hst::install::hst_home()?;
     let user_home = hst::pathutil::user_home()?;
     if interval {
-        goal::sweeper_loop(&home, &user_home)?;
+        task::sweeper_loop(&home, &user_home)?;
         return Ok(());
     }
     let only = match project {
         Some(p) => Some(project_root(Some(p))?),
         None => None,
     };
-    let rows = goal::run_heal(&home, &user_home, only.as_deref(), dry_run, true, None)?;
-    println!("goal.heal.count={}", rows.len());
+    let rows = task::run_heal(&home, &user_home, only.as_deref(), dry_run, true, None)?;
+    println!("task.heal.count={}", rows.len());
     for r in &rows {
-        println!("goal.heal slug={} action={} {}", r.slug, r.action, r.detail);
+        println!("task.heal slug={} action={} {}", r.slug, r.action, r.detail);
     }
     if rows.is_empty() {
-        println!("goal.heal.hint=无在册 goal（~/.hst/state/goal/ 空）；先 hst goal set");
+        println!("task.heal.hint=无在册 task（~/.hst/state/task/ 空,旧 state/goal 访问时自动平移）；先 hst task set");
     }
     Ok(())
 }
 
 /// REQ-047 yolo 治预授权开关面：on 落 arm 标记，off 撤。
-fn cmd_goal_yoloheal(state: ArmState) -> Result<(), String> {
+fn cmd_task_yoloheal(state: ArmState) -> Result<(), String> {
     let home = hst::install::hst_home()?;
     let on = matches!(state, ArmState::On);
-    let changed = goal::set_yolo_heal_armed(&home, on)?;
-    println!("goal.yolo_heal.armed={}", if on { "on" } else { "off" });
-    println!("goal.yolo_heal.changed={changed}");
+    let changed = task::set_yolo_heal_armed(&home, on)?;
+    println!("task.yolo_heal.armed={}", if on { "on" } else { "off" });
+    println!("task.yolo_heal.changed={changed}");
     if on {
         println!(
             "goal.yolo_heal.hint=blocked_streak 到 {} 且工位非 yolo 时自动治（用户级 full 落键加重启格加续 goal，留痕 .heal-log）；off 可撤",
-            hst::goal::BLOCKED_STORM_THRESHOLD
+            hst::task::BLOCKED_STORM_THRESHOLD
         );
     } else {
-        println!("goal.yolo_heal.hint=已撤预授权，blocked 只报警留痕不治");
+        println!("task.yolo_heal.hint=已撤预授权，blocked 只报警留痕不治");
     }
     Ok(())
 }
@@ -1840,7 +1842,7 @@ fn cmd_goal_yoloheal(state: ArmState) -> Result<(), String> {
 /// blocked 带内快道（报警留痕，stdout 零输出不扰权限决策面）。收束与
 /// blocked 事件均 ensure sweeper（有界间隔自驱子进程）。stdout 只出提醒
 /// JSON；错误面 fail-open 不挡 agent（写盘故障只在 HST_HOOK_VERBOSE 打点）。
-fn cmd_hook_goal(event: Option<String>, agent: Option<String>) -> Result<(), String> {
+fn cmd_hook_task(event: Option<String>, agent: Option<String>) -> Result<(), String> {
     let _ = agent;
     let payload = if event.is_some() {
         None
@@ -1857,7 +1859,7 @@ fn cmd_hook_goal(event: Option<String>, agent: Option<String>) -> Result<(), Str
             return Ok(());
         }
     };
-    match hst::goal::stop_hook(&home, payload.as_ref(), event.as_deref()) {
+    match hst::task::stop_hook(&home, payload.as_ref(), event.as_deref()) {
         Ok(Some(out)) => {
             // 提醒先出后扫（goal-01）：decision JSON 落定 flush 后才跑自愈
             // 扫描，扫描有界且 fail-open，最坏不拖丢本会话提醒。
@@ -1876,22 +1878,22 @@ fn cmd_hook_goal(event: Option<String>, agent: Option<String>) -> Result<(), Str
     // blocked 形（Notification 权限形加 PermissionRequest）走带内快道；
     // 两者都先 ensure sweeper（独立进程组，本腿超时不连坐）。
     let ev = hst::hook::event_label(event.as_deref(), payload.as_ref());
-    let is_stop = hst::goal::is_stop_event(payload.as_ref(), event.as_deref());
+    let is_stop = hst::task::is_stop_event(payload.as_ref(), event.as_deref());
     let is_end = is_stop || ev == "sessionend";
     let blocked = hst::hook::state_for_payload(&ev, payload.as_ref()) == "blocked";
     if is_end || blocked {
-        hst::goal::ensure_sweeper(&home);
+        hst::task::ensure_sweeper(&home);
     }
     if is_end {
         let user_home = hst::pathutil::user_home().unwrap_or_default();
-        if let Err(e) = hst::goal::heal_sweep(&home, &user_home) {
+        if let Err(e) = hst::task::heal_sweep(&home, &user_home) {
             if verbose {
                 eprintln!("hst hook goal heal: {e}");
             }
         }
     }
     if blocked {
-        match hst::goal::blocked_fastpath(&home, payload.as_ref(), event.as_deref()) {
+        match hst::task::blocked_fastpath(&home, payload.as_ref(), event.as_deref()) {
             Ok(Some(line)) => {
                 if verbose {
                     eprintln!("hst hook goal: {line}");

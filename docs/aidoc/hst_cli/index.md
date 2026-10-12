@@ -1,4 +1,4 @@
-# hst-cli 2.11.0
+# hst-cli 2.12.0
 
 hst-cli：HST（Hooks, Statusline, Trace）库面——四家 agent（claude、
 codex、grok、kimi）的部署配置与诊断内核。承载五功能：hook 状态落盘
@@ -17,7 +17,6 @@ docs/research 与 docs/adr；输出信封契约见 fmtio 模块文档。
 - [`diagnose`](diagnose.md): `hst diagnose` 活性诊断族：网关缓存命中矩阵与配置活性（D21）。
 - [`doctor`](doctor.md): `hst doctor` 只读体检：yolo、信任、二进制、登录态、hook 形态、状态栏与状态面。
 - [`fmtio`](fmtio.md): 全局输出三态（kv/json/jsonl）与结构化错误出口契约。
-- [`goal`](goal.md): `hst goal` 自治面（REQ-045，REQ-019 演进）：自有存储、Stop 事件提醒
 - [`hook`](hook.md): `hst hook`：事件到四态映射、用户级 session 分键 state 落盘与密钥拦截分流（D28/S030）。
 - [`install`](install.md): hst 根解析与共享下载件（self update 复用）。
 - [`ledger`](ledger.md): 统一 issue 入口客户端面（issues.ohmygh.com，REQ-057 对齐）。
@@ -26,6 +25,7 @@ docs/research 与 docs/adr；输出信封契约见 fmtio 模块文档。
 - [`shim`](shim.md): shim 三形态自包含状态写入器：cmd/ps1/sh 加 grok 包装（D27/D28/D39）。
 - [`statusline`](statusline.md): `hst statusline`：四家状态栏写入面幂等合并与拆段拼装（S025/D18/D42 至 D51）。
 - [`statusrender`](statusrender.md): 状态栏原生渲染引擎（ADR-0010、REQ-026）：hst statusline render 子命令
+- [`task`](task.md): `hst goal` 自治面（REQ-045，REQ-019 演进）：自有存储、Stop 事件提醒
 - [`trace`](trace.md): trace 六视图：联邦读四家原生会话库归一检索（P0013/P0014，D19）。
 - [`update`](update.md): `hst self update`：dev 滚动与 stable 正式版自更新、镜像腿与缺省回退（S028/D16/D48）。
 - [`verify`](verify.md): `hst agents verify`：四家无头验收两层判据（D17/S033）。

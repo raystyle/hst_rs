@@ -1,6 +1,6 @@
 {
   "crate": "hst-cli",
-  "version": "2.11.0",
+  "version": "2.12.0",
   "items": [
     {
       "path": "hst_cli::agents",
@@ -346,216 +346,6 @@
       "path": "hst_cli::fmtio::structured",
       "kind": "function",
       "docs": "结构化模式（错误走单行 JSON、stdout 纯数据）。"
-    },
-    {
-      "path": "hst_cli::goal",
-      "kind": "module",
-      "docs": "`hst goal` 自治面（REQ-045，REQ-019 演进）：自有存储、Stop 事件提醒\n腿与状态栏自源显示（用户令 2026-10-11「hst 不再关联 goal 和 loop」）。\nhst goal 自治面（REQ-045，REQ-019 演进；用户令 2026-10-11「hst 不再\n关联 goal 和 loop」「hst 自己用 hook 实现 goal」）：goal 文本由 hst\n自有存储承载（`~/.hst/state/goal/<slug>.json`，slug 规则同 trace 与\nprojyolo：路径非字母数字一律 `-`），与项目 `.claude/scheduled_tasks.json`\n的一切读写解除（该文件回归 Claude Code 原生 CronCreate 域，loop 面\nv2.10.0 退役）。Stop 事件腿（`hst hook goal`，注册面 Claude Stop 事件\n与 state 腿双挂，仅 claude）：每轮 agent 停止 rounds 计数落盘（状态栏\ngoal 段的事件驱动数据源），自然停（payload 无 stop_hook_active）出\nadditionalContext 提醒注入一轮（goal-02 干净显示形，续跑同 decision\nblock 语义）、续跑引发的再停放行（Claude\nCode Stop 契约，[实证: code.claude.com/docs/en/hooks 2026-10-11 查：\nstop_hook_active 在场须 exit 0 防死环；block 加 reason 续跑]），\n恒无死环。CLI 面 set/show/clear 语义承接 REQ-019 管理命令面（项目级，\n--project 缺省当前目录；项目键 = CLI 侧项目根与 payload 侧\nworkspace.project_dir 同一 slug，子目录调用键不中，须在项目根跑或显式\n给 --project）。goal-01（2026-10-11）两修：其一子目录键漂——hook\npayload 常只带 cwd 而 agent 多在项目子目录工作，精确 slug 键不中，\n解析改就近上溯（goal_file_for）取最近在册 goal；其二自愈面\n（run_heal，用户令「如果没用唤醒操作 herdr api 自愈唤醒一下」）\n——goal 在册而停摆未被唤醒过静默窗时经 herdr agent prompt 唤醒，\nblocked 等人裁与频控风暴闸豁免，提醒与唤醒文本均附 hst goal 用法\n（用户令「让 agent 自行操作」）。\n\nREQ-047（2026-10-12 架构批）：自驱机制升两维态。检测三路（Stop 事件\n流加 herdr 格态加 Notification/PermissionRequest 带内快道）；判定矩阵\n六序（no-agent、working 不扰、blocked 分型、idle 唤醒、频控、风暴）；\nblocked 不再静默豁免，alarm 报警留痕（`.heal-log` 加 show 面），预授权\n（`hst goal yolo-heal on`）下反复 blocked 触发 yolo 治（落键加重启格加\n续 goal）；间隔自驱 = hook 起 sweeper 有界子进程（60 秒 tick、2 小时\n寿命、`.sweeper-lock` 单实例锁 pid 加 token 身份验主、tick 加最坏\nheavy 两倍陈旧接管），`HST_GOAL_SWEEPER=off`\n逃生闸。wake 文本 v2 自包含五件（goal 文本加上轮收束态加即刻推进加\n防卡死防空转边界加用法）。\n\ngoalhard-01（2026-10-12 goal 原语地基批）：舰队互视互改地基加固。\n写原语四硬化——唯一 tmp 名（并发写者不互吞，LWW 语义下 set/clear\n永不假错）、写后回读验非空（真源写后验教训）、unix fsync（断电窗\n耐久）、`.bak` 上次好档维护；审计道 `.goal-audit`（set/clear/repair\n管理动作留痕，host 加 user 加 pid 归属）；坏档自愈 = 隔离留证加\nbak 晋升或判缺省（doctor 体检面保持只读纯读）；风暴耐久序 = 唤醒\n节流先落盘后发 prompt、yolo 治冷却先落盘后跑治序列（写盘故障不再\n引发每趟重试风暴）、sweeper 每趟至多一个治动作；增量路写前整档\n快照乐观守卫（并发 set 不被增量旧档吞，同秒只换文本亦判变）；机读面\n`goal show` json 信封加 `goal list` 全机清单（插件 list --all 聚合消费）。"
-    },
-    {
-      "path": "hst_cli::goal::AUDIT_LOG_CAP_BYTES",
-      "kind": "constant",
-      "docs": "留痕日志上限（goalhard-01）：`.heal-log` 与 `.goal-audit` 追加前查\n尺寸，超限先滚 `.1`（keep-one，超限旧档弃），长役不无限增长。"
-    },
-    {
-      "path": "hst_cli::goal::BLOCKED_ALARM_SECS",
-      "kind": "constant",
-      "docs": "blocked 报警防抖窗（REQ-047）：同 goal 两次报警的最小间隔（streak 仍\n计数，报警静默）。"
-    },
-    {
-      "path": "hst_cli::goal::BLOCKED_STORM_THRESHOLD",
-      "kind": "constant",
-      "docs": "yolo 治阈值（REQ-047）：blocked_streak 到此值即「反复 blocked」，预授权\n下触发治序列。"
-    },
-    {
-      "path": "hst_cli::goal::GoalError",
-      "kind": "enum",
-      "docs": "goal 面错误（承接 REQ-021 类型契约先例）：`Display` 面向人，\n[`GoalError::code`] 给 agent 稳定短码（CLI 错误面 `goal error=<code>`）。"
-    },
-    {
-      "path": "hst_cli::goal::GoalListRow",
-      "kind": "struct",
-      "docs": "全机在册 goal 清单行（`hst goal list` 的数据面，goalhard-01 机读\n聚合原语：goal 插件 list --all 逐机消费）。"
-    },
-    {
-      "path": "hst_cli::goal::GoalRecord",
-      "kind": "struct",
-      "docs": "goal 记录（自有存储单文件形，项目一键一文件）。"
-    },
-    {
-      "path": "hst_cli::goal::HEAL_IDLE_SECS",
-      "kind": "constant",
-      "docs": "自愈静默窗（goal-01 频控即此一闸）：goal 在役而 max(last_stop_at,\nlast_heal_at, set_at) 距今不足此值不判停摆——Stop 提醒链的正常节拍\n余量，也是两次自愈唤醒的最小间隔（防风暴）。"
-    },
-    {
-      "path": "hst_cli::goal::HEAL_STORM_CAP",
-      "kind": "constant",
-      "docs": "风暴闸：连续无 rounds 增长的自愈唤醒次数上限（Stop 事件回场即归零），\n超过即停手转 report（疑驱动链坏死，须人工重开会话或核 doctor）。"
-    },
-    {
-      "path": "hst_cli::goal::HealReport",
-      "kind": "struct",
-      "docs": "单 goal 的自愈回执行（kv 面）。"
-    },
-    {
-      "path": "hst_cli::goal::HealVerdict",
-      "kind": "enum",
-      "docs": "自愈判定两态族（纯函数面；输入 = goal 在册态加 herdr 格状态加当下时\n刻）。判定口径：goal 已清即无文件不入本判；working 不扰；blocked 分型\n处置（REQ-047：不再静默豁免，报警加预授权 yolo 治由引擎面承接）；静默\n窗内不唤醒；风暴闸到顶不唤醒。"
-    },
-    {
-      "path": "hst_cli::goal::PaneFace",
-      "kind": "struct",
-      "docs": "herdr 格状态面（`herdr agent list` 的 result.agents 投影，消费面只读\n四字段）。"
-    },
-    {
-      "path": "hst_cli::goal::RepairNote",
-      "kind": "struct",
-      "docs": "坏档修复注记（读面自愈的回执：隔离留证 + 晋升或判缺省）。"
-    },
-    {
-      "path": "hst_cli::goal::SWEEPER_LIFE_SECS",
-      "kind": "constant",
-      "docs": "sweeper 单次寿命（REQ-047 有界性）：到点即退，续命须新 hook 事件\nensure（非 daemon）。"
-    },
-    {
-      "path": "hst_cli::goal::SWEEPER_STALE_SECS",
-      "kind": "constant",
-      "docs": "sweeper 锁陈旧阈（REQ-047 单实例）：心跳重写超此时长即判死锁接管。\nrev-codex G-1 自 90 抬位 = tick 加最坏 heavy 两倍：heavy 跑程锁不\n心跳，鲜活窗须罩住「上一跳后整 tick 等待加整趟 heavy」再留一倍余量。"
-    },
-    {
-      "path": "hst_cli::goal::SWEEPER_TICK_SECS",
-      "kind": "constant",
-      "docs": "sweeper tick 间隔（REQ-047 间隔自驱）：有界子进程的检查节拍。"
-    },
-    {
-      "path": "hst_cli::goal::SWEEP_MIN_GAP_SECS",
-      "kind": "constant",
-      "docs": "扫描盖章限频（goal-01 澄清令「事件驱动、零轮询」面的频控外闸）：\nheal_sweep 挂在每轮 Stop 事件流上，任一 Stop 至多触发一次全量扫描\n每 [`SWEEP_MIN_GAP_SECS`]（盖章文件 `.heal-sweep` 存上次扫描时刻；非\n轮询 daemon，纯事件到点判）。"
-    },
-    {
-      "path": "hst_cli::goal::TMP_STALE_SECS",
-      "kind": "constant",
-      "docs": "崩溃残件 tmp 的清扫阈（goalhard-01）：唯一 tmp 名后写者不再互踩，\n残件只占位；超此时长（mtime 距今）的 `*.tmp` 在扫描趟顺手清。"
-    },
-    {
-      "path": "hst_cli::goal::YOLO_HEAL_COOLDOWN_SECS",
-      "kind": "constant",
-      "docs": "yolo 治冷却窗（REQ-047）：两次治动作的最小间隔（成败同计，防锤）。"
-    },
-    {
-      "path": "hst_cli::goal::blocked_fastpath",
-      "kind": "function",
-      "docs": "blocked 带内快道（REQ-047 两维态的实时腿）：goal 腿挂上 Notification 与\nPermissionRequest 后,payload 权限形（复用 hook 面 state_for_payload 判\nblocked）即对该项目 goal 报警留痕加 streak 递增,零 herdr 依赖零\nstdout（不扰权限决策面）。防抖窗内只计 streak 不重报。返回 Some(回执\n行) = 本事件实报,None = 不属 blocked 形或防抖让位。\n\n# Errors\n\n存储坏损时返回 `String`（调用方 fail-open）。"
-    },
-    {
-      "path": "hst_cli::goal::clear_goal",
-      "kind": "function",
-      "docs": "清空本项目 goal（删文件；返回是否真删，无 goal 零改动合法）。`.bak`\n同删（rev-codex G-3：clear 后再 set 不刷 bak，留着旧 bak 只会在新档\n坏损时复活已清目标；误清恢复由审计道 clear 行 text= 快照承载）。并发\nclear 竞态（读档后文件被别家收走）按已清收。真删落审计道。\n\n# Errors\n\nIO 失败时返回 [`GoalError`]。"
-    },
-    {
-      "path": "hst_cli::goal::ensure_sweeper",
-      "kind": "function",
-      "docs": "hook 起 sweeper（REQ-047 间隔自驱的起动面）：goal 在册且无鲜活锁即\ndetach 起有界子进程（`hst goal heal --interval`），unix 下独立进程组\n（hook 超时组杀不连坐）。零目标零锁鲜零动作;失败静默（fail-open）。"
-    },
-    {
-      "path": "hst_cli::goal::goal_dir",
-      "kind": "function",
-      "docs": "goal 存储目录（`<hst 自管根>/state/goal/`；测试经 HST_ROOT 缝注入）。"
-    },
-    {
-      "path": "hst_cli::goal::goal_file_for",
-      "kind": "function",
-      "docs": " 就近上溯解析（goal-01 根因 B 修）：hook payload 常只带 cwd 而 agent\n 多在项目子目录工作（pi-rs 实证 cwd = 项目/practice/eval），精确 slug\n 键不中致 Stop 提醒静默漏发；从 root 逐级上溯取最近一层在册 goal 文件\n（深者胜：子目录自有 goal 优先于项目根 goal）。CLI set/clear 仍按给定\n 根精确键（管理面不动）。"
-    },
-    {
-      "path": "hst_cli::goal::goal_path",
-      "kind": "function",
-      "docs": "项目 goal 文件路径（`<dir>/<slug>.json`）。"
-    },
-    {
-      "path": "hst_cli::goal::heal_sweep",
-      "kind": "function",
-      "docs": "hook 事件流挂载的自愈扫描入口（goal-01 澄清令：自愈须事件驱动实时，\n挂 Stop 事件流当场判定；REQ-047 扩 SessionEnd 收束事件）：goal 腿处理完\n本会话提醒并已输出后调用；盖章限频内直接让位（零子进程开销），\n过章才扫（herdr list 有界 4s，唤醒 prompt 有界 8s，全 fail-open 不影\n响主链）。治序列不在此路执行（heavy=false，hook 10s 预算装不下重启\n格，让位 sweeper 与手动面）。`HST_GOAL_HEAL=off` 为逃生闸（诊断/测试\n面）。返回 Some(回执行数) = 本轮实扫，None = 未到点或关闸。\n\n# Errors\n\nherdr 不可达或扫描内部失败时返回 `String`（调用方仅 verbose 打点）。"
-    },
-    {
-      "path": "hst_cli::goal::heal_verdict",
-      "kind": "function",
-      "docs": "自愈判定（纯函数；检测形态 = goal-01 裁量口径：rounds 无增长加 Stop 后\nidle 时限，idle/blocked 态取自 herdr 格状态而非墙钟推断）。"
-    },
-    {
-      "path": "hst_cli::goal::is_stop_event",
-      "kind": "function",
-      "docs": "事件是否 Stop（事件参数形或 payload hook_event_name 形；heal_sweep 的\n挂载判据同源）。"
-    },
-    {
-      "path": "hst_cli::goal::list_goals",
-      "kind": "function",
-      "docs": "列本机全部在册 goal（goalhard-01）：按统一收集器 goal_files 字典\n序逐档，坏档经修复面（隔离加 bak 晋升或判缺省）不卡清单。\n\n# Errors\n\ngoal 目录不可读时返回 `String`（清单面整趟响亮，不静默截短）。"
-    },
-    {
-      "path": "hst_cli::goal::parse_agent_list",
-      "kind": "function",
-      "docs": "`herdr agent list` stdout 解析（纯函数面，测试注入 JSON 串）。\n\n# Errors\n\n输出非 JSON 或形不符（无 result.agents 数组）时返回 `String`。"
-    },
-    {
-      "path": "hst_cli::goal::read_record",
-      "kind": "function",
-      "docs": " 读指定 goal 文件（缺失 = None；坏损 = Err 响亮）。并发 clear 竞态\n（读中文件被删）按缺失收（goalhard-01:is_file 判真与读之间被并发 clear\n 删走不是坏档,整档 LWW 合法态）。\n\n # Errors\n\n 文件在场但不可读或不可解析时返回 [`GoalError::Corrupt`]。"
-    },
-    {
-      "path": "hst_cli::goal::read_record_repairing",
-      "kind": "function",
-      "docs": "读面自愈（goalhard-01 坏档重建路径）：主档坏损时不再卡死——隔离坏档\n留证（`<slug>.json.corrupt-<ts>-<token>`），`.bak` 有好档即晋升回主档\n（写后验同形），无好档即判缺省态；动作落 `.goal-audit`。doctor 体检\n面不走此口（只读契约），走纯 [`read_record`] 响亮报坏。\n\n# Errors\n\n隔离失败（权限或竞态，坏档维持原样不覆写）或 bak 晋升写盘失败时返回\n原因 [`GoalError`]。"
-    },
-    {
-      "path": "hst_cli::goal::reminder_json",
-      "kind": "function",
-      "docs": "Stop 提醒 JSON（goal-02 输出面调优）：`hookSpecificOutput.additionalContext`\n形（Claude Code Stop 契约，2.1.163 起），续跑语义与 `decision: block`\n同（同 `stop_hook_active` 防环加 8 连续续跑帽），但 transcript 标注\n`Stop hook feedback` 且不发 hook error 通知——消除「Stop hook error:」\n观感（用户报 2026-10-11，文档引文在 REQ-046 goal-02 注记）。\n\n# Errors\n\n序列化失败时返回 `String`（纯字符串组合，实跑不可达，类型面完整）。\n\n# Errors\n\n序列化失败时返回 `String`（纯字符串组合，实跑不可达，类型面完整）。"
-    },
-    {
-      "path": "hst_cli::goal::run_heal",
-      "kind": "function",
-      "docs": " 自愈扫描入口（`hst goal heal`）：扫在册 goal（`only` 给定则单项目），\n 逐条判定后分型处置（REQ-047 两维态矩阵）：Wake 形先落 last_heal_at\n 加风暴闸计数再经 `herdr agent prompt` 唤醒（goalhard-01 耐久序：节流\n 先于 prompt 落盘，写盘故障不再引发每趟重唤风暴）；Blocked 形报警留痕\n（streak 递增加 `.heal-log` alarm-blocked 行），预授权（arm 标记）且\n streak 到阈值且工位非 yolo 且过冷却时走 yolo 治序列——冷却先落盘再跑\n 治序列（goalhard-01：治序列失败也持有冷却，防每趟 sweep 重启格风暴；\n 写盘失败即不治）。wake-fail（prompt 发出失败）同吃 heal_streak 预算\n（rev-codex G-7 裁定保持：传输层连坏即驱动链坏死，连续 3 次转人工等\n 人裁，恢复面 = agent 真活动（rounds 增长））。`heavy` 为真才可治（hook 事件路径传 false 只报警\n 让位 sweeper 或手动面执行）；`heavy_cap` 限单趟治动作数（sweeper 路传\n `Some(1)`：单趟 heavy 有界，多 goal 同 blocked 不叠破锁陈旧阈；手动\n 面传 `None` 不帽）。并发 set 撞增量写即 `skip-raced` 让位（乐观守卫）；\n 单档写盘失败折 `skip-write-fail` 行不弃整趟。dry_run 只报判定不落盘\n 不唤不发。坏档经修复面（隔离加 bak 晋升或判缺省）不入 skip-corrupt\n 死档。herdr 消费面只读 agent list 加单发 prompt 加治序列原语\n （send-keys/get/start），不改 herdr 仓。\n\n # Errors\n\n herdr 不可达或输出形不符时返回 `String`（整趟拒跑，不做半吊子自愈）。"
-    },
-    {
-      "path": "hst_cli::goal::set_goal",
-      "kind": "function",
-      "docs": "设置本项目 goal（覆盖旧 goal，rounds 归零重计；整档最后写胜语义，\n真写落审计道）。\n\n# Errors\n\n文本 trim 后为空、存储坏损或 IO 失败时返回 [`GoalError`]。"
-    },
-    {
-      "path": "hst_cli::goal::set_yolo_heal_armed",
-      "kind": "function",
-      "docs": " yolo 治预授权写侧（`hst goal yolo-heal on|off`）。返回是否真改动\n（重复 on 或重复 off 零改动合法）。\n\n # Errors\n\n IO 失败时返回 `String`。"
-    },
-    {
-      "path": "hst_cli::goal::show_goal",
-      "kind": "function",
-      "docs": "查看本项目 goal（无 goal 返回 None，查看面不受阻）。\n\n# Errors\n\n存储坏损或 IO 失败时返回 [`GoalError`]。"
-    },
-    {
-      "path": "hst_cli::goal::slug",
-      "kind": "function",
-      "docs": "项目键 slug（规则同 trace 与 projyolo marker：路径非字母数字一律 `-`）。"
-    },
-    {
-      "path": "hst_cli::goal::stop_hook",
-      "kind": "function",
-      "docs": "Stop 腿入口（`hst hook goal`）：非 Stop 事件或本项目无 goal 返回\nNone（静默放行）；有 goal 则 rounds 递增落盘后，自然停（payload 无\nstop_hook_active）返回 additionalContext 提醒 JSON（续跑同 decision\nblock 语义，goal-02 干净显示形）、续跑再停（stop_hook_active=true）\n返回 None。计数落盘恒执行（防环放行轮也计），状态栏 goal 段数据随之\n刷新。\ngoal-01 起 goal_file_for 就近上溯解析（子目录 cwd 容形）。\n\n# Errors\n\n存储坏损或 IO 失败时返回 `String`（调用方 fail-open，不挡 agent 停止）。"
-    },
-    {
-      "path": "hst_cli::goal::sweeper_loop",
-      "kind": "function",
-      "docs": "sweeper 有界主循环（`hst goal heal --interval` 子进程体）：抢锁让位即\n退;tick 心跳,寿命到点或 goal 清空即退;到点实扫（heavy=true,治序列\n在此路执行）。非 daemon:单次寿命 [`SWEEPER_LIFE_SECS`],续命须新 hook\n事件 ensure。\n\n# Errors\n\n扫描内部失败时返回 `String`（子进程 stderr 落幕）。rev-codex F-2：\n扫描报错不走 `?` 提前返回（会跳过收尾），统一收尾释放自持锁后传播。"
-    },
-    {
-      "path": "hst_cli::goal::wake_text",
-      "kind": "function",
-      "docs": "自愈唤醒文本 v2（REQ-047 自包含五件：goal 文本加上轮收束态加即刻推进\n指令加防卡死防空转边界加用法；herdr agent prompt 载体，单行契约）。"
-    },
-    {
-      "path": "hst_cli::goal::yolo_heal_armed",
-      "kind": "function",
-      "docs": "yolo 治预授权读侧（REQ-047）：标记文件在场即 armed。"
     },
     {
       "path": "hst_cli::hook",
@@ -916,6 +706,216 @@
       "path": "hst_cli::statusrender::render",
       "kind": "function",
       "docs": "渲染入口：stdin 全量字节加 agent 名，出多行状态串（行间 `\\n`）。\n\n# Errors\n\nstdin 不可读、配置坏损或渲染内部错误时返回 `String`。"
+    },
+    {
+      "path": "hst_cli::task",
+      "kind": "module",
+      "docs": "`hst goal` 自治面（REQ-045，REQ-019 演进）：自有存储、Stop 事件提醒\n腿与状态栏自源显示（用户令 2026-10-11「hst 不再关联 goal 和 loop」）。\nhst task 自治面（REQ-045，REQ-019 演进；用户令 2026-10-11「hst 不再\n关联 goal 和 loop」「hst 自己用 hook 实现 goal」）：task 文本由 hst\n自有存储承载（`~/.hst/state/goal/<slug>.json`，slug 规则同 trace 与\nprojyolo：路径非字母数字一律 `-`），与项目 `.claude/scheduled_tasks.json`\n的一切读写解除（该文件回归 Claude Code 原生 CronCreate 域，loop 面\nv2.10.0 退役）。Stop 事件腿（`hst hook goal`，注册面 Claude Stop 事件\n与 state 腿双挂，仅 claude）：每轮 agent 停止 rounds 计数落盘（状态栏\ngoal 段的事件驱动数据源），自然停（payload 无 stop_hook_active）出\nadditionalContext 提醒注入一轮（goal-02 干净显示形，续跑同 decision\nblock 语义）、续跑引发的再停放行（Claude\nCode Stop 契约，[实证: code.claude.com/docs/en/hooks 2026-10-11 查：\nstop_hook_active 在场须 exit 0 防死环；block 加 reason 续跑]），\n恒无死环。CLI 面 set/show/clear 语义承接 REQ-019 管理命令面（项目级，\n--project 缺省当前目录；项目键 = CLI 侧项目根与 payload 侧\nworkspace.project_dir 同一 slug，子目录调用键不中，须在项目根跑或显式\n给 --project）。goal-01（2026-10-11）两修：其一子目录键漂——hook\npayload 常只带 cwd 而 agent 多在项目子目录工作，精确 slug 键不中，\n解析改就近上溯（task_file_for）取最近在册 task；其二自愈面\n（run_heal，用户令「如果没用唤醒操作 herdr api 自愈唤醒一下」）\n——goal 在册而停摆未被唤醒过静默窗时经 herdr agent prompt 唤醒，\nblocked 等人裁与频控风暴闸豁免，提醒与唤醒文本均附 hst task 用法\n（用户令「让 agent 自行操作」）。\n\nREQ-047（2026-10-12 架构批）：自驱机制升两维态。检测三路（Stop 事件\n流加 herdr 格态加 Notification/PermissionRequest 带内快道）；判定矩阵\n六序（no-agent、working 不扰、blocked 分型、idle 唤醒、频控、风暴）；\nblocked 不再静默豁免，alarm 报警留痕（`.heal-log` 加 show 面），预授权\n（`hst task yolo-heal on`）下反复 blocked 触发 yolo 治（落键加重启格加\n续 goal）；间隔自驱 = hook 起 sweeper 有界子进程（60 秒 tick、2 小时\n寿命、`.sweeper-lock` 单实例锁 pid 加 token 身份验主、tick 加最坏\nheavy 两倍陈旧接管），`HST_GOAL_SWEEPER=off`\n逃生闸。wake 文本 v2 自包含五件（task 文本加上轮收束态加即刻推进加\n防卡死防空转边界加用法）。\n\ntaskmigrate-01（2026-10-13 用户令「不叫 goal 了就是 task 任务」）：\ngoal 全面正名 task——命令族 `hst task`（`hst goal` 兼容别名一版）、\n状态档 `state/task`（旧 `state/goal` 访问时整目录平移，读旧写新）、\n钩子腿 `hst-task`（旧 `hst-task` 注册与 shim 经 init 清出）、留痕\n`.task-audit`（旧 `.goal-audit` 随档迁移留档）、逃生闸 `HST_TASK_*`\n（旧 `HST_GOAL_*` 双名兼容一版）。\n\ngoalhard-01（2026-10-12 goal 原语地基批）：舰队互视互改地基加固。\n写原语四硬化——唯一 tmp 名（并发写者不互吞，LWW 语义下 set/clear\n永不假错）、写后回读验非空（真源写后验教训）、unix fsync（断电窗\n耐久）、`.bak` 上次好档维护；审计道 `.goal-audit`（set/clear/repair\n管理动作留痕，host 加 user 加 pid 归属）；坏档自愈 = 隔离留证加\nbak 晋升或判缺省（doctor 体检面保持只读纯读）；风暴耐久序 = 唤醒\n节流先落盘后发 prompt、yolo 治冷却先落盘后跑治序列（写盘故障不再\n引发每趟重试风暴）、sweeper 每趟至多一个治动作；增量路写前整档\n快照乐观守卫（并发 set 不被增量旧档吞，同秒只换文本亦判变）；机读面\n`goal show` json 信封加 `goal list` 全机清单（插件 list --all 聚合消费）。"
+    },
+    {
+      "path": "hst_cli::task::AUDIT_LOG_CAP_BYTES",
+      "kind": "constant",
+      "docs": "留痕日志上限（goalhard-01）：`.heal-log` 与 `.goal-audit` 追加前查\n尺寸，超限先滚 `.1`（keep-one，超限旧档弃），长役不无限增长。"
+    },
+    {
+      "path": "hst_cli::task::BLOCKED_ALARM_SECS",
+      "kind": "constant",
+      "docs": "blocked 报警防抖窗（REQ-047）：同 goal 两次报警的最小间隔（streak 仍\n计数，报警静默）。"
+    },
+    {
+      "path": "hst_cli::task::BLOCKED_STORM_THRESHOLD",
+      "kind": "constant",
+      "docs": "yolo 治阈值（REQ-047）：blocked_streak 到此值即「反复 blocked」，预授权\n下触发治序列。"
+    },
+    {
+      "path": "hst_cli::task::HEAL_IDLE_SECS",
+      "kind": "constant",
+      "docs": "自愈静默窗（goal-01 频控即此一闸）：goal 在役而 max(last_stop_at,\nlast_heal_at, set_at) 距今不足此值不判停摆——Stop 提醒链的正常节拍\n余量，也是两次自愈唤醒的最小间隔（防风暴）。"
+    },
+    {
+      "path": "hst_cli::task::HEAL_STORM_CAP",
+      "kind": "constant",
+      "docs": "风暴闸：连续无 rounds 增长的自愈唤醒次数上限（Stop 事件回场即归零），\n超过即停手转 report（疑驱动链坏死，须人工重开会话或核 doctor）。"
+    },
+    {
+      "path": "hst_cli::task::HealReport",
+      "kind": "struct",
+      "docs": "单 goal 的自愈回执行（kv 面）。"
+    },
+    {
+      "path": "hst_cli::task::HealVerdict",
+      "kind": "enum",
+      "docs": "自愈判定两态族（纯函数面；输入 = goal 在册态加 herdr 格状态加当下时\n刻）。判定口径：goal 已清即无文件不入本判；working 不扰；blocked 分型\n处置（REQ-047：不再静默豁免，报警加预授权 yolo 治由引擎面承接）；静默\n窗内不唤醒；风暴闸到顶不唤醒。"
+    },
+    {
+      "path": "hst_cli::task::PaneFace",
+      "kind": "struct",
+      "docs": "herdr 格状态面（`herdr agent list` 的 result.agents 投影，消费面只读\n四字段）。"
+    },
+    {
+      "path": "hst_cli::task::RepairNote",
+      "kind": "struct",
+      "docs": "坏档修复注记（读面自愈的回执：隔离留证 + 晋升或判缺省）。"
+    },
+    {
+      "path": "hst_cli::task::SWEEPER_LIFE_SECS",
+      "kind": "constant",
+      "docs": "sweeper 单次寿命（REQ-047 有界性）：到点即退，续命须新 hook 事件\nensure（非 daemon）。"
+    },
+    {
+      "path": "hst_cli::task::SWEEPER_STALE_SECS",
+      "kind": "constant",
+      "docs": "sweeper 锁陈旧阈（REQ-047 单实例）：心跳重写超此时长即判死锁接管。\nrev-codex G-1 自 90 抬位 = tick 加最坏 heavy 两倍：heavy 跑程锁不\n心跳，鲜活窗须罩住「上一跳后整 tick 等待加整趟 heavy」再留一倍余量。"
+    },
+    {
+      "path": "hst_cli::task::SWEEPER_TICK_SECS",
+      "kind": "constant",
+      "docs": "sweeper tick 间隔（REQ-047 间隔自驱）：有界子进程的检查节拍。"
+    },
+    {
+      "path": "hst_cli::task::SWEEP_MIN_GAP_SECS",
+      "kind": "constant",
+      "docs": "扫描盖章限频（goal-01 澄清令「事件驱动、零轮询」面的频控外闸）：\nheal_sweep 挂在每轮 Stop 事件流上，任一 Stop 至多触发一次全量扫描\n每 [`SWEEP_MIN_GAP_SECS`]（盖章文件 `.heal-sweep` 存上次扫描时刻；非\n轮询 daemon，纯事件到点判）。"
+    },
+    {
+      "path": "hst_cli::task::TMP_STALE_SECS",
+      "kind": "constant",
+      "docs": "崩溃残件 tmp 的清扫阈（goalhard-01）：唯一 tmp 名后写者不再互踩，\n残件只占位；超此时长（mtime 距今）的 `*.tmp` 在扫描趟顺手清。"
+    },
+    {
+      "path": "hst_cli::task::TaskError",
+      "kind": "enum",
+      "docs": "goal 面错误（承接 REQ-021 类型契约先例）：`Display` 面向人，\n[`TaskError::code`] 给 agent 稳定短码（CLI 错误面 `goal error=<code>`）。"
+    },
+    {
+      "path": "hst_cli::task::TaskListRow",
+      "kind": "struct",
+      "docs": "全机在册 task 清单行（`hst task list` 的数据面，goalhard-01 机读\n聚合原语：goal 插件 list --all 逐机消费）。"
+    },
+    {
+      "path": "hst_cli::task::TaskRecord",
+      "kind": "struct",
+      "docs": "goal 记录（自有存储单文件形，项目一键一文件）。"
+    },
+    {
+      "path": "hst_cli::task::YOLO_HEAL_COOLDOWN_SECS",
+      "kind": "constant",
+      "docs": "yolo 治冷却窗（REQ-047）：两次治动作的最小间隔（成败同计，防锤）。"
+    },
+    {
+      "path": "hst_cli::task::blocked_fastpath",
+      "kind": "function",
+      "docs": "blocked 带内快道（REQ-047 两维态的实时腿）：goal 腿挂上 Notification 与\nPermissionRequest 后,payload 权限形（复用 hook 面 state_for_payload 判\nblocked）即对该项目 goal 报警留痕加 streak 递增,零 herdr 依赖零\nstdout（不扰权限决策面）。防抖窗内只计 streak 不重报。返回 Some(回执\n行) = 本事件实报,None = 不属 blocked 形或防抖让位。\n\n# Errors\n\n存储坏损时返回 `String`（调用方 fail-open）。"
+    },
+    {
+      "path": "hst_cli::task::clear_task",
+      "kind": "function",
+      "docs": "清空本项目 goal（删文件；返回是否真删，无 goal 零改动合法）。`.bak`\n同删（rev-codex G-3：clear 后再 set 不刷 bak，留着旧 bak 只会在新档\n坏损时复活已清目标；误清恢复由审计道 clear 行 text= 快照承载）。并发\nclear 竞态（读档后文件被别家收走）按已清收。真删落审计道。\n\n# Errors\n\nIO 失败时返回 [`TaskError`]。"
+    },
+    {
+      "path": "hst_cli::task::ensure_sweeper",
+      "kind": "function",
+      "docs": "hook 起 sweeper（REQ-047 间隔自驱的起动面）：goal 在册且无鲜活锁即\ndetach 起有界子进程（`hst task heal --interval`），unix 下独立进程组\n（hook 超时组杀不连坐）。零目标零锁鲜零动作;失败静默（fail-open）。"
+    },
+    {
+      "path": "hst_cli::task::heal_sweep",
+      "kind": "function",
+      "docs": "hook 事件流挂载的自愈扫描入口（goal-01 澄清令：自愈须事件驱动实时，\n挂 Stop 事件流当场判定；REQ-047 扩 SessionEnd 收束事件）：goal 腿处理完\n本会话提醒并已输出后调用；盖章限频内直接让位（零子进程开销），\n过章才扫（herdr list 有界 4s，唤醒 prompt 有界 8s，全 fail-open 不影\n响主链）。治序列不在此路执行（heavy=false，hook 10s 预算装不下重启\n格，让位 sweeper 与手动面）。`HST_GOAL_HEAL=off` 为逃生闸（诊断/测试\n面）。返回 Some(回执行数) = 本轮实扫，None = 未到点或关闸。\n\n# Errors\n\nherdr 不可达或扫描内部失败时返回 `String`（调用方仅 verbose 打点）。"
+    },
+    {
+      "path": "hst_cli::task::heal_verdict",
+      "kind": "function",
+      "docs": "自愈判定（纯函数；检测形态 = goal-01 裁量口径：rounds 无增长加 Stop 后\nidle 时限，idle/blocked 态取自 herdr 格状态而非墙钟推断）。"
+    },
+    {
+      "path": "hst_cli::task::is_stop_event",
+      "kind": "function",
+      "docs": "事件是否 Stop（事件参数形或 payload hook_event_name 形；heal_sweep 的\n挂载判据同源）。"
+    },
+    {
+      "path": "hst_cli::task::list_tasks",
+      "kind": "function",
+      "docs": "列本机全部在册 task（goalhard-01）：按统一收集器 task_files 字典\n序逐档，坏档经修复面（隔离加 bak 晋升或判缺省）不卡清单。\n\n# Errors\n\ngoal 目录不可读时返回 `String`（清单面整趟响亮，不静默截短）。"
+    },
+    {
+      "path": "hst_cli::task::parse_agent_list",
+      "kind": "function",
+      "docs": "`herdr agent list` stdout 解析（纯函数面，测试注入 JSON 串）。\n\n# Errors\n\n输出非 JSON 或形不符（无 result.agents 数组）时返回 `String`。"
+    },
+    {
+      "path": "hst_cli::task::read_record",
+      "kind": "function",
+      "docs": " 读指定 goal 文件（缺失 = None；坏损 = Err 响亮）。并发 clear 竞态\n（读中文件被删）按缺失收（goalhard-01:is_file 判真与读之间被并发 clear\n 删走不是坏档,整档 LWW 合法态）。\n\n # Errors\n\n 文件在场但不可读或不可解析时返回 [`TaskError::Corrupt`]。"
+    },
+    {
+      "path": "hst_cli::task::read_record_repairing",
+      "kind": "function",
+      "docs": "读面自愈（goalhard-01 坏档重建路径）：主档坏损时不再卡死——隔离坏档\n留证（`<slug>.json.corrupt-<ts>-<token>`），`.bak` 有好档即晋升回主档\n（写后验同形），无好档即判缺省态；动作落 `.goal-audit`。doctor 体检\n面不走此口（只读契约），走纯 [`read_record`] 响亮报坏。\n\n# Errors\n\n隔离失败（权限或竞态，坏档维持原样不覆写）或 bak 晋升写盘失败时返回\n原因 [`TaskError`]。"
+    },
+    {
+      "path": "hst_cli::task::reminder_json",
+      "kind": "function",
+      "docs": "Stop 提醒 JSON（goal-02 输出面调优）：`hookSpecificOutput.additionalContext`\n形（Claude Code Stop 契约，2.1.163 起），续跑语义与 `decision: block`\n同（同 `stop_hook_active` 防环加 8 连续续跑帽），但 transcript 标注\n`Stop hook feedback` 且不发 hook error 通知——消除「Stop hook error:」\n观感（用户报 2026-10-11，文档引文在 REQ-046 goal-02 注记）。\n\n# Errors\n\n序列化失败时返回 `String`（纯字符串组合，实跑不可达，类型面完整）。\n\n# Errors\n\n序列化失败时返回 `String`（纯字符串组合，实跑不可达，类型面完整）。"
+    },
+    {
+      "path": "hst_cli::task::run_heal",
+      "kind": "function",
+      "docs": " 自愈扫描入口（`hst task heal`）：扫在册 task（`only` 给定则单项目），\n 逐条判定后分型处置（REQ-047 两维态矩阵）：Wake 形先落 last_heal_at\n 加风暴闸计数再经 `herdr agent prompt` 唤醒（goalhard-01 耐久序：节流\n 先于 prompt 落盘，写盘故障不再引发每趟重唤风暴）；Blocked 形报警留痕\n（streak 递增加 `.heal-log` alarm-blocked 行），预授权（arm 标记）且\n streak 到阈值且工位非 yolo 且过冷却时走 yolo 治序列——冷却先落盘再跑\n 治序列（goalhard-01：治序列失败也持有冷却，防每趟 sweep 重启格风暴；\n 写盘失败即不治）。wake-fail（prompt 发出失败）同吃 heal_streak 预算\n（rev-codex G-7 裁定保持：传输层连坏即驱动链坏死，连续 3 次转人工等\n 人裁，恢复面 = agent 真活动（rounds 增长））。`heavy` 为真才可治（hook 事件路径传 false 只报警\n 让位 sweeper 或手动面执行）；`heavy_cap` 限单趟治动作数（sweeper 路传\n `Some(1)`：单趟 heavy 有界，多 goal 同 blocked 不叠破锁陈旧阈；手动\n 面传 `None` 不帽）。并发 set 撞增量写即 `skip-raced` 让位（乐观守卫）；\n 单档写盘失败折 `skip-write-fail` 行不弃整趟。dry_run 只报判定不落盘\n 不唤不发。坏档经修复面（隔离加 bak 晋升或判缺省）不入 skip-corrupt\n 死档。herdr 消费面只读 agent list 加单发 prompt 加治序列原语\n （send-keys/get/start），不改 herdr 仓。\n\n # Errors\n\n herdr 不可达或输出形不符时返回 `String`（整趟拒跑，不做半吊子自愈）。"
+    },
+    {
+      "path": "hst_cli::task::set_task",
+      "kind": "function",
+      "docs": "设置本项目 goal（覆盖旧 goal，rounds 归零重计；整档最后写胜语义，\n真写落审计道）。\n\n# Errors\n\n文本 trim 后为空、存储坏损或 IO 失败时返回 [`TaskError`]。"
+    },
+    {
+      "path": "hst_cli::task::set_yolo_heal_armed",
+      "kind": "function",
+      "docs": " yolo 治预授权写侧（`hst task yolo-heal on|off`）。返回是否真改动\n（重复 on 或重复 off 零改动合法）。\n\n # Errors\n\n IO 失败时返回 `String`。"
+    },
+    {
+      "path": "hst_cli::task::show_task",
+      "kind": "function",
+      "docs": "查看本项目 goal（无 goal 返回 None，查看面不受阻）。\n\n# Errors\n\n存储坏损或 IO 失败时返回 [`TaskError`]。"
+    },
+    {
+      "path": "hst_cli::task::slug",
+      "kind": "function",
+      "docs": "项目键 slug（规则同 trace 与 projyolo marker：路径非字母数字一律 `-`）。"
+    },
+    {
+      "path": "hst_cli::task::stop_hook",
+      "kind": "function",
+      "docs": "Stop 腿入口（`hst hook goal`）：非 Stop 事件或本项目无 goal 返回\nNone（静默放行）；有 goal 则 rounds 递增落盘后，自然停（payload 无\nstop_hook_active）返回 additionalContext 提醒 JSON（续跑同 decision\nblock 语义，goal-02 干净显示形）、续跑再停（stop_hook_active=true）\n返回 None。计数落盘恒执行（防环放行轮也计），状态栏 goal 段数据随之\n刷新。\ngoal-01 起 task_file_for 就近上溯解析（子目录 cwd 容形）。\n\n# Errors\n\n存储坏损或 IO 失败时返回 `String`（调用方 fail-open，不挡 agent 停止）。"
+    },
+    {
+      "path": "hst_cli::task::sweeper_loop",
+      "kind": "function",
+      "docs": "sweeper 有界主循环（`hst task heal --interval` 子进程体）：抢锁让位即\n退;tick 心跳,寿命到点或 goal 清空即退;到点实扫（heavy=true,治序列\n在此路执行）。非 daemon:单次寿命 [`SWEEPER_LIFE_SECS`],续命须新 hook\n事件 ensure。\n\n# Errors\n\n扫描内部失败时返回 `String`（子进程 stderr 落幕）。rev-codex F-2：\n扫描报错不走 `?` 提前返回（会跳过收尾），统一收尾释放自持锁后传播。"
+    },
+    {
+      "path": "hst_cli::task::task_dir",
+      "kind": "function",
+      "docs": "goal 存储目录（`<hst 自管根>/state/goal/`；测试经 HST_ROOT 缝注入）。"
+    },
+    {
+      "path": "hst_cli::task::task_file_for",
+      "kind": "function",
+      "docs": " 就近上溯解析（goal-01 根因 B 修）：hook payload 常只带 cwd 而 agent\n 多在项目子目录工作（pi-rs 实证 cwd = 项目/practice/eval），精确 slug\n 键不中致 Stop 提醒静默漏发；从 root 逐级上溯取最近一层在册 task 文件\n（深者胜：子目录自有 goal 优先于项目根 goal）。CLI set/clear 仍按给定\n 根精确键（管理面不动）。"
+    },
+    {
+      "path": "hst_cli::task::task_path",
+      "kind": "function",
+      "docs": "项目 goal 文件路径（`<dir>/<slug>.json`）。"
+    },
+    {
+      "path": "hst_cli::task::wake_text",
+      "kind": "function",
+      "docs": "自愈唤醒文本 v2（REQ-047 自包含五件：task 文本加上轮收束态加即刻推进\n指令加防卡死防空转边界加用法；herdr agent prompt 载体，单行契约）。"
+    },
+    {
+      "path": "hst_cli::task::yolo_heal_armed",
+      "kind": "function",
+      "docs": "yolo 治预授权读侧（REQ-047）：标记文件在场即 armed。"
     },
     {
       "path": "hst_cli::trace",

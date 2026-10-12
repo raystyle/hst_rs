@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### 里程碑 2026-10-13：v2.12.0 goal 全面正名 task
+
+- **命令族更名**：`hst task`（set/show/list/clear/heal/yolo-heal）为正名主面；`hst goal` 兼容别名保留一版（同档同语义）；`hst hook task` 为腿正名（`hook goal` 静默别名）；钩子腿 shim `hst-goal.*` 更名 `hst-task.*`，存量注册与旧 shim 经 `hst init` 一趟清出。
+- **状态档迁移**：`~/.hst/state/goal/` 迁 `~/.hst/state/task/`（访问时整目录平移，读旧写新；双在场逐档合并，冲突留旧位）；留痕 `.goal-audit` 随档迁移留档，新写 `.task-audit`；逃生闸 `HST_TASK_HEAL`/`HST_TASK_SWEEPER`（旧 `HST_GOAL_*` 双名兼容一版）。
+- **本版同车**：hst-state 腿退役（REQ-049，herdr-agent-state 覆盖会话态）与 statusbar 段名纯英文、帮助面去考古；goal 地基加固（REQ-048：并发原子性、坏档自愈、风暴闸耐久序、机读面）。
+- 机读面：`hst task show --json` 与 `hst task list` 三态（json 信封 data 键 `task`）；statusline 段 id `task`（`goal` 兼容映射）。
+
 ### 里程碑 2026-10-12：v2.11.0 goal 自驱机制两维态与间隔自驱
 
 - **REQ-047 goal 自驱机制升两维态闭环（架构批五件）**：检测三路（Stop 事件流加 herdr 格态加 Notification/PermissionRequest 带内快道）；判定矩阵六序，blocked 不再静默豁免（alarm 报警留痕 `.heal-log` 与 show 面）；预授权（`hst goal yolo-heal on|off`）下反复 blocked 触发 yolo 治序列（四家用户级 full 落键加 esc 加 /exit 加 enter 键序重启格加 fresh 起加 wake v2 续 goal）；间隔自驱 sweeper（hook 起有界子进程，60 秒 tick 加 2 小时寿命加 `.sweeper-lock` 单实例）；goal 腿注册面扩四事件双挂（Stop 加 SessionEnd 加 Notification 加 PermissionRequest）；wake v2 自包含五件模板（goal 文本加上轮收束态加即刻推进加防卡死防空转边界加用法）；GoalRecord 增四字段 serde default 存量兼容。活弹双证：blocked 信任屏真格报警留痕加 sweeper 唤醒注入到 agent 自行 clear 闭环实录。

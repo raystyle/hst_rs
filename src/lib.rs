@@ -21,9 +21,6 @@ pub mod diagnose;
 pub mod doctor;
 /// 全局输出三态（kv/json/jsonl）与结构化错误出口契约。
 pub mod fmtio;
-/// `hst goal` 自治面（REQ-045，REQ-019 演进）：自有存储、Stop 事件提醒
-/// 腿与状态栏自源显示（用户令 2026-10-11「hst 不再关联 goal 和 loop」）。
-pub mod goal;
 /// `hst hook`：事件到四态映射、用户级 session 分键 state 落盘与密钥拦截分流（D28/S030）。
 pub mod hook;
 /// hst 根解析与共享下载件（self update 复用）。
@@ -41,6 +38,9 @@ pub mod statusline;
 /// 状态栏原生渲染引擎（ADR-0010、REQ-026）：hst statusline render 子命令
 /// 的 Rust 实现，退役 pwsh 脚本载体。
 pub mod statusrender;
+/// `hst goal` 自治面（REQ-045，REQ-019 演进）：自有存储、Stop 事件提醒
+/// 腿与状态栏自源显示（用户令 2026-10-11「hst 不再关联 goal 和 loop」）。
+pub mod task;
 /// trace 六视图：联邦读四家原生会话库归一检索（P0013/P0014，D19）。
 pub mod trace;
 /// `hst self update`：dev 滚动与 stable 正式版自更新、镜像腿与缺省回退（S028/D16/D48）。

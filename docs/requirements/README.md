@@ -52,3 +52,4 @@
 | REQ-047 | implemented | must | goal自驱机制两维态与间隔自驱 | goal 单测新增五件加 yolo 单测一件加集成三件；活弹双证；rev-codex 回执修复批四条（索引行回填 goalhard-01 批，前批漏登在案） |
 | REQ-048 | implemented | must | goal原语地基批稳定性加固 | goal 单测新增十件加改件两件加集成新增四件（并发锤加崩溃注入 kill-9 实弹加风暴耐久序加机读面）；单测 226 升 236 集成 53 升 57 绿；rev-codex 三轮评审收口(首轮 F 三条 G 采纳五裁定三,二轮 F 两条含 show 面接线补落地,终轮 F-6 文档同步,追记在单) |
 | REQ-049 | implemented | must | statusbar与帮助面减熵清理 | deploy 单测改件六件加 statusrender 两件加 verify 判据重定(goal rounds 活弹 rounds=2)加集成新增帮助面零考古门;state 腿四去(注册/shim/CLI/写盘)加段名纯英文加 task 正名先行;评审轮见追记 |
+| REQ-050 | implemented | must | goal改名task迁移批 | task 单测新增两件加集成新增两件(别名兼容加进程级迁移回放)加全量随动;单测 232 集成 59 绿;装机落差门一件;2.12.0 定名 |

@@ -581,7 +581,8 @@ fn command_target(c: &str) -> std::path::PathBuf {
 const OURS_SHIM_STEMS: &[&str] = &[
     "hst-state",
     "hst-token",
-    "hst-goal",
+    "hst-task",
+    "hst-task",
     "hst-pentest",
     "oma-state",
 ];
@@ -836,10 +837,10 @@ fn kimi_hooks_form(toml: Option<&Toml>) -> &'static str {
             continue;
         }
         ours = true;
-        // entropy-01:现行 shim 腿 = hst-token 与 hst-goal;hst-state 与 oma
+        // entropy-01:现行 shim 腿 = hst-token 与 hst-task;hst-state 与 oma
         // 旧名仍认(存量未重init机的注册面分类)。
         if c.contains("hst-token")
-            || c.contains("hst-goal")
+            || c.contains("hst-task")
             || c.contains("hst-state")
             || c.contains("oma-state")
         {
@@ -935,12 +936,12 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
     // REQ-045 goal 自治面体检（用户令 2026-10-11「hst 不再关联 goal 和
     // loop」；REQ-020 的 scheduled_tasks 读检随 loop 退役出仓，对该文件
     // 的读写关联全解除，属主回归 Claude Code 原生 CronCreate）：两面——
-    // claude Stop 事件 goal 腿注册在场（hst-goal shim，缺席 rerun hst
+    // claude Stop 事件 goal 腿注册在场（hst-task shim，缺席 rerun hst
     // init 补挂）与自有存储 `~/.hst/state/goal/` 可读；本项目 goal 现状
     //（文本与轮次）为对账面不告警。
     {
         let hst_home = crate::install::hst_home().unwrap_or_else(|_| home.clone());
-        let gdir = crate::goal::goal_dir(&hst_home);
+        let gdir = crate::task::task_dir(&hst_home);
         let stop_goal_registered = json_file(&home.join(".claude").join("settings.json"))
             .and_then(|v| v.get("hooks").cloned())
             .and_then(|h| h.get("Stop").and_then(|s| s.as_array()).cloned())
@@ -950,9 +951,9 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
                         .and_then(|hs| hs.as_array())
                         .is_some_and(|hs| {
                             hs.iter().any(|h| {
-                                h.get("command")
-                                    .and_then(|c| c.as_str())
-                                    .is_some_and(|c| c.contains("hst-goal"))
+                                h.get("command").and_then(|c| c.as_str()).is_some_and(|c| {
+                                    c.contains("hst-task") || c.contains("hst-task")
+                                })
                             })
                         })
                 })
@@ -967,7 +968,7 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
         } else {
             "stop goal-hook missing (rerun hst init)".to_string()
         };
-        match crate::goal::show_goal(&hst_home, &root) {
+        match crate::task::show_task(&hst_home, &root) {
             Ok(Some(rec)) => {
                 let mut text = rec.text.replace(['\r', '\n'], " ");
                 if text.chars().count() > 40 {
@@ -984,7 +985,7 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
                 detail.push_str(&format!(" goal store unreadable: {e}"));
             }
         }
-        push_status(&mut findings, "claude", "goal", status, &gdir, detail);
+        push_status(&mut findings, "claude", "task", status, &gdir, detail);
     }
 
     // D28 第 3 轮：yolo 两级显式（--yolo 用户级、--project-yolo 项目级），
@@ -2362,15 +2363,15 @@ mod tests {
             env.user.join(".claude").join("settings.json"),
             r#"{"hooks": {"Stop": [{"matcher": "*", "hooks": [
                 {"type": "command", "command": "/sh/hst-state.sh claude", "timeout": 10},
-                {"type": "command", "command": "/sh/hst-goal.sh claude", "timeout": 10}
+                {"type": "command", "command": "/sh/hst-task.sh claude", "timeout": 10}
             ]}]}}"#,
         )
         .unwrap();
-        crate::goal::set_goal(&env.oma, &env.root, "盯发布窗口").unwrap();
+        crate::task::set_task(&env.oma, &env.root, "盯发布窗口").unwrap();
         let d = diagnose(&env.root).expect("diagnose");
         drop(env);
-        assert_eq!(d.status("claude", "goal"), Some(Status::Ok));
-        let row = d.findings.iter().find(|f| f.check == "goal").unwrap();
+        assert_eq!(d.status("claude", "task"), Some(Status::Ok));
+        let row = d.findings.iter().find(|f| f.check == "task").unwrap();
         assert!(
             row.detail.contains("stop goal-hook registered"),
             "detail: {}",
@@ -2386,7 +2387,7 @@ mod tests {
 
     #[test]
     fn goal_check_warn_when_stop_goal_hook_missing() {
-        // claude 用户级 settings 在场而 Stop 无 hst-goal 腿：warn 提示
+        // claude 用户级 settings 在场而 Stop 无 hst-task 腿：warn 提示
         // rerun hst init（REQ-045 注册面）。
         let env = goal_env("glmiss");
         fs::write(
@@ -2398,8 +2399,8 @@ mod tests {
         .unwrap();
         let d = diagnose(&env.root).expect("diagnose");
         drop(env);
-        assert_eq!(d.status("claude", "goal"), Some(Status::Warn));
-        let row = d.findings.iter().find(|f| f.check == "goal").unwrap();
+        assert_eq!(d.status("claude", "task"), Some(Status::Warn));
+        let row = d.findings.iter().find(|f| f.check == "task").unwrap();
         assert!(
             row.detail
                 .contains("stop goal-hook missing (rerun hst init)"),
@@ -2417,13 +2418,13 @@ mod tests {
     fn goal_check_warn_on_corrupt_store() {
         let env = goal_env("glcor");
         fs::write(env.user.join(".claude").join("settings.json"), "{}").unwrap();
-        let p = crate::goal::goal_path(&env.oma, &env.root);
+        let p = crate::task::task_path(&env.oma, &env.root);
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(&p, "not-json").unwrap();
         let d = diagnose(&env.root).expect("diagnose");
         drop(env);
-        assert_eq!(d.status("claude", "goal"), Some(Status::Warn));
-        let row = d.findings.iter().find(|f| f.check == "goal").unwrap();
+        assert_eq!(d.status("claude", "task"), Some(Status::Warn));
+        let row = d.findings.iter().find(|f| f.check == "task").unwrap();
         assert!(
             row.detail.contains("goal store unreadable"),
             "detail: {}",
