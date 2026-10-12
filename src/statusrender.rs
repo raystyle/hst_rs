@@ -868,6 +868,8 @@ fn hook_state(ctx: &Ctx) -> (String, bool) {
         }
         sid
     };
+    // HST_STATE_FILE 覆盖缝(hst-rev G-7):state 写入者已退役,本缝保留为
+    // 遗留档显与测试缝(verify 与单测注入),生面孔无写入者。
     if let Ok(f) = std::env::var("HST_STATE_FILE") {
         if !f.is_empty() {
             let p = PathBuf::from(&f);

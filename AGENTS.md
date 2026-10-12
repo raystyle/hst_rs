@@ -1,6 +1,6 @@
 # HST
 
-> HST（Hooks, Statusline, Trace）：Agent 全平台部署配置与诊断工具，专注五功能（agent 可用性诊断、hook 设置、状态栏设置、对话 trace、yolo 不阻塞设置）。公开契约以类型签名与 `///` 契约注释为准。本项目会话由 hst 自治理（hook 与状态栏经 `hst init` 部署，agent 状态写用户级 `~/.hst/state/`）。
+> HST（Hooks, Statusline, Trace）：Agent 全平台部署配置与诊断工具，专注五功能（agent 可用性诊断、hook 设置、状态栏设置、对话 trace、yolo 不阻塞设置）。公开契约以类型签名与 `///` 契约注释为准。本项目会话由 hst 自治理（hook 与状态栏经 `hst init` 部署；会话态同步归 herdr-agent-state，hst-state 腿已退役）。
 
 ## Commands
 
