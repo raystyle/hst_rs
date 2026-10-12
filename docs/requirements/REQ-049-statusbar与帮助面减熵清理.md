@@ -45,6 +45,5 @@ clap about 全清(main.rs 十八处重写):D/S/P/REQ/M 编号、ome 与 ohmyclou
 - G 收养:G-1 hook_hint 单臂化(claude 判据 = task rounds 端到端);G-2 模块注释考古清(shim 头档与腿注、statusline 示例别名行、goal 原子写先例注、deploy merge 注);G-3 goal 族 about 去批次代号(goalhard-01 等),零考古门标记清单扩批次代号形;G-4 GoalCmd 组内称谓统一 task 化(Set/Show/List/Clear 四 about);G-5 verify 模块档措辞收敛(判据只看计数不看应答内容);G-7 HST_STATE_FILE 覆盖缝保留为遗留与测试缝(F-3 裁定下读序仍在,注记在 hook_state 文档)。
 - G-6 记档不修:verify 判据档写真实 task 存储,SIGKILL 残留有界(sweeper 扫为 no-agent 只报不清),验收标记跳过面归 task-migrate-01 批。
 - 判断项 J1 评审 CONFIRM(两替代案不取,同意取舍);D 恒等映射条目 CONFIRM(别名表承载显示序)。
-
 - 实证一笔:无头会话会依 Stop 提醒里的自清授权把验收判据档 clear 掉(提醒文本「停机权在你」对无头会话同样生效),判据档文本须明示勿清;此坑对 task-migrate-01 批的判据面同样适用。
 - 本机实况一笔:本机用户级注册存量为旧形(Stop 仅挂 hst-state,goal 腿未注册),本批 sweep 机制在下次 `hst init` 时自动清;活弹 verify 经 UserHooksGuard 的 byte 备份加 deploy 加还原走现行面,不受存量影响。
