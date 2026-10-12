@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### 里程碑 2026-10-12：v2.11.0 goal 自驱机制两维态与间隔自驱
+
+- **REQ-047 goal 自驱机制升两维态闭环（架构批五件）**：检测三路（Stop 事件流加 herdr 格态加 Notification/PermissionRequest 带内快道）；判定矩阵六序，blocked 不再静默豁免（alarm 报警留痕 `.heal-log` 与 show 面）；预授权（`hst goal yolo-heal on|off`）下反复 blocked 触发 yolo 治序列（四家用户级 full 落键加 esc 加 /exit 加 enter 键序重启格加 fresh 起加 wake v2 续 goal）；间隔自驱 sweeper（hook 起有界子进程，60 秒 tick 加 2 小时寿命加 `.sweeper-lock` 单实例）；goal 腿注册面扩四事件双挂（Stop 加 SessionEnd 加 Notification 加 PermissionRequest）；wake v2 自包含五件模板（goal 文本加上轮收束态加即刻推进加防卡死防空转边界加用法）；GoalRecord 增四字段 serde default 存量兼容。活弹双证：blocked 信任屏真格报警留痕加 sweeper 唤醒注入到 agent 自行 clear 闭环实录。
+- **rev-codex 回执修复批（F-1 加 F-2 必修与 G-1 加 G-2 建议同批）**：yolo `# Panics` 契约段归位 `apply_user_yolo_level_with`；sweeper 扫描报错改收尾统一验主释放锁不留孤儿；锁内容升 pid 加随机 token 三段身份，心跳重写与释放与陈旧接管均验主，陈旧阈自 90 抬位 240 秒（tick 加最坏 heavy 两倍）；治序列轮询 herdr 报错不算回 shell。新增单测两件，单测 224 升 226 集成 53 全绿。
+- **装机面**：win 面与 lan-ubuntu 装位 2.10.2 落差随本版镜像 stable 到货即闭；4e9a244 双拼修复已随 v2.10.3 发出，本版不重复携带。
+
 ### 里程碑 2026-10-12：v2.10.3 hookstate 插件名前缀双拼修复
 
 - **REQ-044 判据补（总台修复单：本机 claude statusline 末段渲染「evo-lint-evo-lint 后缀静检」双拼）**：插件 hook 显示形原为无条件 `{插件名}-{statusMessage}` 前缀拼装，而 statusMessage 在 Claude Code 原生显示面是全文文案、插件作者常把插件名写进首段（evo-lint 0.8.0「evo-lint 后缀静检」实证），双拼由此生。修法 `plugin_display`：文案自带插件名前缀时原样用不双拼，边界三形（全等加空格加连字符）命中即免，无缝前缀照常拼；stem 回落腿同判。纯显示缺陷修复无契约变化，补丁定版 2.10.3，镜像 stable 到货后 lan-ubuntu 装位落差即闭。
