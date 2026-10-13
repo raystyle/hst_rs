@@ -23,3 +23,7 @@ fleet 快照道:FleetCounts 档形(state/fleet-snap.json)加 parse_agents_view(�
 ## 次
 
 REQ-051 实现批提交推 lane/statusbar-v2 开评审闸门;遗留:goal alias 与 hook goal 摘除预定 2.13(REQ-050 追记在册);ark catalog 滚版管道;doctor detail 旧措辞随 2.13 清;PEVO check.py 装位路径待总台正。
+
+## 装机位先行换防一笔
+
+总台三令同根(实况栏仍显 bash 加 task 无循环时间):装机位 hst 2.12.0 旧默认序与旧模板,新渲染在未发布 lane 构建里。处置:release 构建原子换装(rename 盖 text file busy,直 cp 报错),备份 hst.bak-2.12.0 留根;实况即时四行形(bash 退,R5 · 20m 循环时间显,fleet 刷新)。版本面仍报 2.12.0(版本载体 Cargo.toml,2.13.0 发布批统一),正式装机换防随发布链覆盖。15 分钟检测默认确认:HEAL_IDLE_SECS = 15 * 60(task.rs:800,停摆静默窗),循环时间显示与检测同源读 last_stop_at 零新增检测环。
