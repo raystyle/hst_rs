@@ -21,19 +21,16 @@ use crate::yolo::{read_toml, toml_write};
 /// cwd 会进来即花成「缁跨洘」形 GBK 误解码，D28 补钉）、stdin JSON 解析
 /// （claude code 供给 model 等；codex 无 stdin 数据时退化）、Seg 与 FmtTok、
 /// FmtDur 助手、`$parts` 收集器。
+/// 默认第一行「身份与项目」（REQ-051 四行结构）：agent 类型加版本（首位，
+/// 用户令）/ dir / git 分支 / clock（bash 与运行时环境版本段默认退役，段
+/// id 保留可显式写回）。D18 定制面 `segments` 键缺省回落此序。
+pub(crate) const DEFAULT_SEGMENTS: &[&str] = &["agent", "dir", "git", "clock"];
 
-/// 默认第一行「项目状态」（D44 用户四令排版）：shell / cwd / git 分支 /
-/// 包版本与工具链尾巴（环境与项目同线，D18/D42 的 shell 领首惯例回归）。
-/// D18 定制面 `segments` 键缺省回落此序。
-pub(crate) const DEFAULT_SEGMENTS: &[&str] = &[
-    "shell", "dir", "git", "package", "python", "rust", "node", "zig", "go", "cpp", "clock",
-];
-
-/// 默认第二行「agent 状态」（D43 精修、D45 段更名 hst、REQ-019 曾加 loop
-/// 与 goal 尾段，REQ-024 移第三行专属行）：agent 态 / 模型 / context
-/// 百分比加 token 绝对值（`46% [449k/977k]` 形，构成 mix 退位）/ 耗时。
+/// 默认第二行「运行时」（REQ-051）：模型 / context（四格条形加百分比加
+/// token 绝对值，`▰▰▱▱ 42% (82k/195k)` 形）/ 耗时 / fleet 舰队计数（纯读
+/// 快照零子进程）。agent 态段随 REQ-049 F-3 与 REQ-051 退役。
 /// `segments2` 键缺省回落此序。
-pub(crate) const DEFAULT_SEGMENTS2: &[&str] = &["hst", "model", "context", "duration"];
+pub(crate) const DEFAULT_SEGMENTS2: &[&str] = &["model", "context", "duration", "fleet"];
 
 /// 默认第三行 = hookstate 专属行（REQ-026 起，用户令 2026-09-27 行序
 /// 裁定「应该在排在第3行」，自第五行前移）：hook 通道别名清单独占一行
@@ -41,7 +38,8 @@ pub(crate) const DEFAULT_SEGMENTS2: &[&str] = &["hst", "model", "context", "dura
 /// 缺省回落此序。
 pub(crate) const DEFAULT_SEGMENTS3: &[&str] = &["hookstate"];
 
-/// 默认第四行 = goal 专属行（REQ-045 起：hst goal 自治面，自有存储源，
+/// 默认第四行 = task 专属行（REQ-045 起 goal 自治面,REQ-051 task 正名
+/// 独占一行,goalmode 退化前缀旗;
 /// loop 段随 loop 面退役出仓；REQ-024 至 REQ-042 时点口径为 loop 行）：
 /// 本项目 goal 文本加 Stop 腿轮次；无 goal 时整行剔除（零噪声不变）。
 /// tools / mcp / tokens 仍可显式写 `segments4` 换位。`segments4` 键缺省
@@ -52,7 +50,7 @@ pub(crate) const DEFAULT_SEGMENTS4: &[&str] = &["goal"];
 /// 顺移）：`/goal` Goal Mode 条件文本加在役态（active/paused，会话
 /// transcript 尾探）；无 goal 会话整行隐藏（零噪声）。`segments5` 键缺
 /// 省回落此序。
-pub(crate) const DEFAULT_SEGMENTS5: &[&str] = &["goalmode"];
+pub(crate) const DEFAULT_SEGMENTS5: &[&str] = &[];
 
 /// 内嵌默认模板（D18）。键 = 段 id；`context-ascii` 是 grok 的结构差异项
 /// （nerd 版带 used/window 括号对，ascii 版只有百分比加 ctx 后缀）。
@@ -70,9 +68,11 @@ const DEFAULT_TEMPLATES: &[(&str, &str)] = &[
     ("shell", "{icon}{name}"),
     ("dir", "{icon}{path}"),
     ("hst", "{icon}{agent}:{state}"),
+    ("agent", "{icon}{agent}"),
+    ("fleet", "{icon}{fleet}"),
     ("model", "{icon}{model}"),
-    ("context", "{icon}{pct}% [{used}/{window}]"),
-    ("context-ascii", "{pct}% [{used}/{window}]"),
+    ("context", "{bar} {pct}% ({used}/{window})"),
+    ("context-ascii", "{pct}% ({used}/{window})"),
     ("tools", "{icon}{count}"),
     ("tools-ascii", "{count}"),
     ("mcp", "{icon}{count}"),
@@ -80,9 +80,9 @@ const DEFAULT_TEMPLATES: &[(&str, &str)] = &[
     ("tokens", "{icon}{used}/{window}"),
     ("tokens-ascii", "{used}/{window}"),
     ("duration", "{icon}{duration}"),
-    ("goal", "{icon}  {goal}"),
-    ("goal-ascii", "{goal}"),
+    ("goal", "{icon}{mode}{goal} R{count} · {age}"),
     ("goalmode", "{icon}  {text}"),
+    ("goal-ascii", "{goal} R{count} · {age}"),
     ("goalmode-ascii", "{text}"),
     ("hookstate", "{icon}  {alias}"),
     ("hookstate-ascii", "{alias}"),
@@ -116,6 +116,8 @@ const DEFAULT_ICONS: &[(&str, &str)] = &[
     ("git", "\u{e0a0} "),
     ("shell", "\u{ea85} "),
     ("hst", "\u{f06a9}  "),
+    ("agent", "\u{2733} "),
+    ("fleet", "\u{2630} "),
     ("model", "\u{2726} "),
     ("context", "\u{f035b} "),
     ("tools", "\u{f0ad} "),
@@ -518,51 +520,51 @@ pub const EXAMPLE_TOML: &str = r#"# ~/.hst/statusline.toml —— 状态栏用�
 # 原生渲染每帧直读本文件（改完即生效，无需重跑部署）。
 # 键级缺省回落：没写的键用内嵌默认；坏文件硬错退出 1。
 
-# 段落清单（五段行，行序用户令 2026-09-27：hookstate 第三、goal 第四、
-# goalmode 第五）：
-# segments = 第一行项目状态（shell / cwd / git 分支 / 包版本与工具链尾巴）、
-# segments2 = 第二行 agent 状态（agent 态 / 模型 / context 百分比加 token
-# 绝对值 / 耗时）、
-# segments3 = 第三行 hookstate 专属行（注册面 hook 功能别名清单，双缺
-# 整行隐藏）、
-# segments4 = 第四行 goal 专属行（hst goal 自治面，REQ-045：自有存储源加
-# Stop 腿轮次，无 goal 整行隐藏）、
-# segments5 = 第五行 goalmode 专属行（/goal Goal Mode 条件加在役态
-# active/paused，会话 transcript 尾探，无 goal 整行隐藏），
+# 段落清单（四行结构 REQ-051：L1 身份与项目、L2 运行时、L3 hook、L4 task）：
+# segments = L1 身份与项目行（agent 类型加版本 / 目录 / git 分支 / 时钟；
+# bash 与运行时环境版本段默认退役，段 id 保留可显式写回）、
+# segments2 = L2 运行时行（模型 / context 条形加百分比加 token 绝对值 /
+# 耗时 / fleet 舰队计数，fleet 纯读 ~/.hst/state/fleet-snap.json 零子进程）、
+# segments3 = L3 hook 专属行（注册面 hook 功能别名清单，清单内部 `|` 细分，
+# 双缺整行隐藏）、
+# segments4 = L4 task 专属行（hst task 自治面：文本加 R 轮次加循环时间
+# （距上轮 age 的 d/h/m 形），goalmode 退化为行内前缀旗（active 加
+# paused，在役才显），无 task 整行隐藏）、
+# segments5 = 第五行保留（默认空；显式写 goalmode 等段可启五行走旧形）、
 # 段 id 数组即全量（显隐加顺序）；tools / mcp / tokens 三段仍可显式写入
 # 后续行与专属段同线换位，如：
 #   segments4 = ["goal", "tools", "mcp"]
-# goal 经 `hst goal set "goal 文本"` 设置、`hst goal show` 查看、
-# `hst goal clear` 清空（REQ-045，自治面；loop 段已随 loop 面退役，定时
-# 任务归 Claude Code 原生 CronCreate/ScheduleWakeup）。
-# 例（隐藏 shell 与时长段、git 提到目录前）：
-#   segments = ["dir", "git"]
-#   segments2 = ["hst", "model", "context"]
+# task 经 `hst task set "task 文本"` 设置、`hst task show` 查看、
+# `hst task clear` 清空（REQ-045 起 goal 正名 task，自治面）。
+# 例（隐藏时钟段、git 提到目录前）：
+#   segments = ["agent", "dir", "git"]
+#   segments2 = ["model", "context", "duration", "fleet"]
 #   segments3 = []
-# 退单行（kimi / grok 运行时自动并一行；显式退单行用）：
+# 退单行（kimi 运行时自动恒单行紧凑形；grok 1.0.50 起多行；显式退单行用）：
 #   single_line = true
-segments = ["shell", "dir", "git", "package", "python", "rust", "node", "zig", "go", "cpp", "clock"]
-segments2 = ["hst", "model", "context", "duration"]
+segments = ["agent", "dir", "git", "clock"]
+segments2 = ["model", "context", "duration", "fleet"]
 segments3 = ["hookstate"]
 segments4 = ["goal"]
-segments5 = ["goalmode"]
+segments5 = []
 
-# 段内模板（[template]）：每段一条格式串；`<段>-ascii` 是 grok 的 ASCII 形
+# 段内模板（[template]）：每段一条格式串；`<段>-ascii` 是 ASCII 形
 #（缺省同用 nerd 模板、图标恒空）。可用占位符：
+#   agent {icon}{agent}（L1 身份段：agent 名或 agent-版本归一形）
+#   fleet {icon}{fleet}（L2 舰队段：W/N 平时形，blocked 加 !B、done 加 Dn）
 #   shell {icon}{name} / dir {icon}{path} / hst {icon}{agent}{state}
 #   goalmode {icon}  {text}（/goal 原始参数文本；可自配 {state}）
-#   model {icon}{model} / context {icon}{pct}{used}{window}{mix}（mix = 构成
-#   占比 [sN tN mN]，transcript 可解析时才有）
+#   model {icon}{model} / context {icon}{bar}{pct}{used}{window}（bar = 四格
+#   条形，窄窗自动去括号对）
 #   tools {icon}{count} / mcp {icon}{count} / tokens {icon}{used}{window}
 #   duration {icon}{duration} / git {icon}{branch}{flags}
-#   goal {icon}  {goal}（第四行；图标后双空格对齐 hst 段形；{goal} 截 60、
-#   {count} = Stop 腿轮次，可自配）
-#   hookstate {icon}  {alias}（第三行；注册面全部 hook 的功能别名清单，
-#   英文 id 直用（hst-token 映射 hst-token-guard；hst-state 腿已退役），
-#   未收录 hook 回落 stem 本名，全局插件
-#   hook 显示插件名连字符加其 statusMessage（REQ-044；文案自带插件名
-#   前缀时不双拼），清单空回落泛称 hook；恒单行不折（REQ-044 折行裁
-#   撤，用户令 2026-10-03）；{state} 占位符可自配带回态）
+#   goal {icon}{mode}{goal} R{count} · {age}（L4 task 行；{mode} = goalmode
+#   前缀旗（active 加 paused，在役才显）、{goal} 截 60、{count} = Stop 腿
+#   轮次、{age} = 距上轮循环时间 d/h/m 形）
+#   hookstate {icon}  {alias}（L3 hook 行；注册面全部 hook 的功能别名清单，
+#   英文 id 直用（hst-token 映射 hst-token-guard），未收录 hook 回落 stem
+#   本名，全局插件 hook 的 statusMessage 含中文时回落纯插件名（REQ-051
+#   hook 零中文），清单空回落泛称 hook；窄窗截首三个至首一个
 #   package 与六工具链段（python 加 rust 加 node 加 zig 加 go 加 cpp）{icon}{version}
 #   （ts 不是独立段 id：它是 node 段内部第二部件，[icons] 的 ts 键只管该部件字形，写进 segments 会响亮报错）
 #   clock {icon}{datetime}（D51：年月日加当前时间，分钟精度）
@@ -571,7 +573,9 @@ segments5 = ["goalmode"]
 # hst = "{agent}[{state}]"
 
 # 图标映射（[icons]）：键级回落；hst 机器人宽字形默认跟两空格。
-# 可用键：shell / shell-pwsh / dir / git / hst / model / context / tools / mcp / tokens
+# 可用键：shell / shell-pwsh / dir / git / hst / agent（REQ-051 L1 身份段）
+#         / fleet（REQ-051 L2 舰队段）
+#         / model / context / tools / mcp / tokens
 #         / duration / goal（REQ-019 加，REQ-045 起自有存储源）
 #         / goalmode（REQ-025 加）
 #         / package / python / rust / node / ts / zig / go / cpp
@@ -582,11 +586,10 @@ segments5 = ["goalmode"]
 
 # codex 内置项子集（[codex] items）：替换写入 ~/.codex/config.toml 的
 # [tui].status_line 内置项 ID 清单；未知 id codex 侧静默跳过（S016）。
-# codex 只有内置项面（无外部命令 statusline），D40 后缺省集已含 token
-# 细分（used / total-input / total-output / window），D46 加 codex-version
-# （版本段 codex 侧承载）；tools 与 MCP 计数、context 构成 codex 能力面
-# 不可达。
-# 例（只要分支与目录）：
+# codex 只有内置项面（无外部命令 statusline）；REQ-051 换序对齐 L1 至 L2
+# 语义（版本到目录到分支到模型到 context 三键），run-state 出默认集；
+# fleet 与 hook 与 task 不上 codex（无对应内置项，不硬造）。
+# 例（只要目录与分支）：
 # [codex]
 # items = ["current-dir", "git-branch"]
 "#;
@@ -612,16 +615,13 @@ segments5 = ["goalmode"]
 /// used` 与 `N used`），故实际渲染比用户给的字面多一处 used 词，项选择面
 /// 不可再收（hst 只能选 id，不能改 codex 的渲染）。
 const CODEX_STATUS_LINE_ITEMS: &[&str] = &[
-    "run-state",
     "codex-version",
+    "current-dir",
+    "git-branch",
     "model-with-reasoning",
     "context-used",
     "context-window-size",
     "used-tokens",
-    "permissions",
-    "current-dir",
-    "git-branch",
-    "branch-changes",
 ];
 
 fn render_codex_tui_section(items: &[&str]) -> String {
@@ -925,21 +925,29 @@ mod tests {
     #[test]
     fn codex_tui_section_is_builtin_ids_not_command_argv() {
         let tui = render_codex_tui_section(CODEX_STATUS_LINE_ITEMS);
-        assert!(tui.contains("run-state"));
-        // D46：codex 侧版本走内置项 codex-version（源码实证
-        // StatusLineItem::CodexVersion，strum kebab_case）。
-        assert!(tui.contains("codex-version"));
-        assert!(tui.contains("git-branch"));
-        assert!(tui.contains("status_line_use_colors = true"));
-        // 2026-09-28 用户令：读序 = 百分比到窗口到用量；in 与 out 两项已去。
-        let order: Vec<usize> = ["context-used", "context-window-size", "used-tokens"]
-            .iter()
-            .map(|id| tui.find(&format!("\"{id}\"")).expect("item present"))
-            .collect();
+        // REQ-051 换序对齐 L1 至 L2 语义:版本到目录到分支到模型到 context
+        // 三键;run-state 出默认集(grok 邻格评审,态归 herdr 域)。
+        let order: Vec<usize> = [
+            "codex-version",
+            "current-dir",
+            "git-branch",
+            "model-with-reasoning",
+            "context-used",
+            "context-window-size",
+            "used-tokens",
+        ]
+        .iter()
+        .map(|id| tui.find(&format!("\"{id}\"")).expect("item present"))
+        .collect();
         assert!(
-            order[0] < order[1] && order[1] < order[2],
-            "order: {order:?}"
+            order.windows(2).all(|w| w[0] < w[1]),
+            "REQ-051 order: {order:?}"
         );
+        assert!(
+            !tui.contains("run-state") && !tui.contains("branch-changes"),
+            "run-state 与 branch-changes 出默认集: {tui}"
+        );
+        assert!(tui.contains("status_line_use_colors = true"));
         assert!(
             !tui.contains("total-input-tokens") && !tui.contains("total-output-tokens"),
             "in/out items retired: {tui}"
@@ -950,7 +958,7 @@ mod tests {
         );
         let last = tui
             .lines()
-            .find(|l| l.trim_start().starts_with('"') && l.contains("branch-changes"))
+            .find(|l| l.trim_start().starts_with('"') && l.contains("used-tokens"))
             .unwrap();
         assert!(
             !last.trim().ends_with(','),

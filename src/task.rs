@@ -54,7 +54,10 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value as Json};
+use serde_json::json;
+// 注释行断 rustfmt 重排组:仓门禁 edition 2021 与 evo-lint 静检 edition
+// 2024 对 json 与 Value 排序互斥,拆行分组双版并绿(豁免在案)。
+use serde_json::Value as Json;
 
 /// goal 记录（自有存储单文件形，项目一键一文件）。
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -1740,6 +1743,184 @@ pub fn ensure_sweeper(home: &Path) {
     let _ = cmd.spawn();
 }
 
+// ===== REQ-051 fleet 快照道 =====
+
+/// fleet 快照计数（`~/.hst/state/fleet-snap.json` body；渲染面纯读零网络
+/// 零子进程）。hosts 按首见序聚合计数。
+#[derive(Serialize, Deserialize, Default, Debug, PartialEq, Eq)]
+pub struct FleetCounts {
+    /// 快照时刻（epoch 秒；渲染面龄降级判据）。
+    pub ts: u64,
+    /// 在册格位总数。
+    pub total: u64,
+    /// working 态格位数。
+    pub working: u64,
+    /// idle 态格位数。
+    pub idle: u64,
+    /// blocked 态格位数。
+    pub blocked: u64,
+    /// done 态格位数（不折入 idle）。
+    pub done: u64,
+    /// 逐主机格位计数。
+    pub hosts: Vec<FleetHost>,
+}
+
+/// 逐主机 fleet 计数。
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct FleetHost {
+    /// 主机名（agents view 表 HOST 列）。
+    pub name: String,
+    /// 该主机格位数。
+    pub panes: u64,
+}
+
+/// fleet 快照档位（`<hst 自管根>/state/fleet-snap.json`）。
+pub fn fleet_snap_path(home: &Path) -> PathBuf {
+    home.join("state").join("fleet-snap.json")
+}
+
+/// 解析 `agents view` 输出表（实装 v2.0.0 无 --json 面，TEXT 表格 token
+/// 化）：表头行跳过；pane 形 token（`w9:p3` 形，窗口侧 w 前缀字母数字、
+/// pane 侧 p 前缀数字）锚行，status 取 pane 后 token ∈ {idle, working,
+/// blocked, done}（坏行回退全行扫态词）；HOST 列 = 行首 token。零行出
+/// 零计数（渲染面 total=0 段隐藏）。
+pub fn parse_agents_view(text: &str, ts: u64) -> FleetCounts {
+    let mut c = FleetCounts {
+        ts,
+        ..FleetCounts::default()
+    };
+    for line in text.lines().skip(1) {
+        let toks: Vec<&str> = line.split_whitespace().collect();
+        if toks.is_empty() {
+            continue;
+        }
+        let Some(pane_i) = toks.iter().position(|t| is_pane_token(t)) else {
+            continue;
+        };
+        let status = toks
+            .get(pane_i + 1)
+            .filter(|t| matches!(**t, "idle" | "working" | "blocked" | "done"))
+            .or_else(|| {
+                toks.iter()
+                    .find(|t| matches!(**t, "idle" | "working" | "blocked" | "done"))
+            })
+            .copied()
+            .unwrap_or("");
+        if status.is_empty() {
+            continue;
+        }
+        c.total += 1;
+        match status {
+            "working" => c.working += 1,
+            "idle" => c.idle += 1,
+            "blocked" => c.blocked += 1,
+            "done" => c.done += 1,
+            _ => {}
+        }
+        let host = toks[0].to_string();
+        match c.hosts.iter_mut().find(|h| h.name == host) {
+            Some(h) => h.panes += 1,
+            None => c.hosts.push(FleetHost {
+                name: host,
+                panes: 1,
+            }),
+        }
+    }
+    c
+}
+
+/// pane 形 token 判据（`w9:p3` 形：窗口侧 w 加字母数字、pane 侧 p 加数字）。
+fn is_pane_token(t: &str) -> bool {
+    let Some((w, p)) = t.split_once(':') else {
+        return false;
+    };
+    w.len() >= 2
+        && w.starts_with('w')
+        && w[1..].chars().all(|c| c.is_ascii_alphanumeric())
+        && p.len() >= 2
+        && p.starts_with('p')
+        && p[1..].chars().all(|c| c.is_ascii_digit())
+}
+
+/// fleet 刷新生产者（`hst task fleet-refresh` 内部面）：跑 `agents view`
+/// 解析计数原子落快照（tmp 加 rename 同 task 档先例）；agents 缺位或报
+/// 错返回 Err（快照缺，渲染面段隐藏零噪声）。
+///
+/// # Errors
+///
+/// agents 缺位或 spawn 失败、view 非零退、快照原子写失败时返回 `String`。
+pub fn fleet_refresh(home: &Path) -> Result<(), String> {
+    let out = std::process::Command::new("agents")
+        .arg("view")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .map_err(|e| format!("agents view spawn: {e}"))?;
+    if !out.status.success() {
+        return Err(format!(
+            "agents view exit {}",
+            out.status.code().unwrap_or(-1)
+        ));
+    }
+    let counts = parse_agents_view(&String::from_utf8_lossy(&out.stdout), unix_secs());
+    let path = fleet_snap_path(home);
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| format!("fleet snap dir: {e}"))?;
+    }
+    let body =
+        serde_json::to_string_pretty(&counts).map_err(|e| format!("fleet snap ser: {e}"))? + "\n";
+    let tmp = path.with_extension(format!("json.{}.tmp", write_token()));
+    std::fs::write(&tmp, &body).map_err(|e| format!("fleet snap write: {e}"))?;
+    if let Err(e) = std::fs::rename(&tmp, &path) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(format!("fleet snap rename: {e}"));
+    }
+    Ok(())
+}
+
+/// hook 腿挂载的 fleet 刷新道（REQ-051 刷新骑现有循环其一）：任一事件
+/// 到场先经 60 秒节流戳（`.fleet-snap-check`），到期 detach 起
+/// `hst task fleet-refresh`（unix 下独立进程组，hook 超时组杀不连坐）。
+/// 测试载荷（cfg!(test)）与 HST_FLEET_REFRESH=off（集成测试与手动排障）
+/// 不 spawn；失败静默（fail-open，快照缺段隐藏）。
+pub fn ensure_fleet_refresh(home: &Path) {
+    if cfg!(test) || fleet_refresh_off() {
+        return;
+    }
+    let dir = home.join("state");
+    let stamp = dir.join(".fleet-snap-check");
+    let now = unix_secs();
+    if let Ok(t) = std::fs::read_to_string(&stamp) {
+        if let Ok(last) = t.trim().parse::<u64>() {
+            if now.saturating_sub(last) < 60 {
+                return;
+            }
+        }
+    }
+    if std::fs::create_dir_all(&dir).is_ok() {
+        let _ = std::fs::write(&stamp, now.to_string());
+    }
+    let Ok(exe) = std::env::current_exe() else {
+        return;
+    };
+    let mut cmd = std::process::Command::new(exe);
+    cmd.args(["task", "fleet-refresh"])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt as _;
+        // 独立进程组:hook 腿被超时组杀时刷新子进程不连坐。
+        cmd.process_group(0);
+    }
+    let _ = cmd.spawn();
+}
+
+/// fleet 刷新逃生闸（HST_FLEET_REFRESH=off 时 hook 腿不 spawn）。
+fn fleet_refresh_off() -> bool {
+    std::env::var_os("HST_FLEET_REFRESH").is_some_and(|v| v == "off")
+}
+
 /// sweeper 有界主循环（`hst task heal --interval` 子进程体）：抢锁让位即
 /// 退;tick 心跳,寿命到点或 goal 清空即退;到点实扫（heavy=true,治序列
 /// 在此路执行）。非 daemon:单次寿命 [`SWEEPER_LIFE_SECS`],续命须新 hook
@@ -1780,6 +1961,9 @@ fn sweeper_loop_impl(home: &Path, user_home: &Path, tick: u64) -> Result<(), Str
                 let _ = std::fs::create_dir_all(d);
             }
             let _ = std::fs::write(sweeper_stamp_path(home), now.to_string());
+            // REQ-051 刷新骑现有循环其二:sweeper 到点实扫趟顺带刷 fleet
+            // 快照(间隔即 5 分钟级,天然在 30 分钟老化阈内);fail-open。
+            let _ = fleet_refresh(home);
             // rev-codex F-2：结果先存不 `?`，报错也要走到收尾释放锁。
             // goalhard-01：heavy_cap=Some(1)——单趟治动作有界，多 goal 同
             // blocked 不叠破锁陈旧阈（每 tick 让位下一档，自然轮转）。
@@ -2201,7 +2385,6 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn run_heal_end_to_end_with_fake_herdr() {
-        use std::io::Write as _;
         let _g = crate::pathutil::ENV_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
@@ -3120,5 +3303,102 @@ mod tests {
         );
         assert!(row_a.rec.is_some(), "晋升后照常在册");
         let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn parse_agents_view_counts_and_hosts() {
+        // REQ-051 fleet 快照解析器:实装 v2.0.0 的 view 输出是 TEXT 表格
+        // (无 --json 面),表头跳过,pane 形 token 锚行,status 取 pane 后
+        // token;done 不折 idle;hosts 首见序聚合;空表零计数。
+        let text = "HOST         PANE     STATUS   KIND    CWD\n\
+local        -            w6:p1    working  claude  /home/ray/repos/pi-rs\n\
+local        -            w6:p3    idle     kimi    /home/ray/repos/pi-rs\n\
+local        evo-claude   w8:p1    done     claude  /home/ray/repos/project-evo\n\
+lan-win      -            w13:p1   working  claude  D:\\repos\\ai-ccoe\n\
+pi-server    pi-web       w3:p1    blocked  claude  /home/ubuntu/repos/pi-web\n";
+        let c = parse_agents_view(text, 1000);
+        assert_eq!(c.total, 5);
+        assert_eq!(c.working, 2);
+        assert_eq!(c.idle, 1);
+        assert_eq!(c.blocked, 1);
+        assert_eq!(c.done, 1, "done 不折 idle");
+        assert_eq!(c.hosts.len(), 3, "首见序: {:?}", c.hosts);
+        assert_eq!(c.hosts[0].name, "local");
+        assert_eq!(c.hosts[0].panes, 3);
+        assert_eq!(c.hosts[2].name, "pi-server");
+        // 空表与只有表头零计数。
+        assert_eq!(parse_agents_view("HOST PANE STATUS KIND CWD\n", 1).total, 0);
+        assert_eq!(parse_agents_view("", 1).total, 0);
+        // 坏行(无 pane 形 token)跳过不炸。
+        let odd = "HOST PANE STATUS KIND CWD\nno pane here\nlocal w9:p1 idle claude /x\n";
+        assert_eq!(parse_agents_view(odd, 1).total, 1);
+    }
+
+    #[test]
+    fn fleet_refresh_writes_atomic_snapshot() {
+        // REQ-051 fleet 快照生产者:agents 在场跑通原子落档(tmp 加 rename),
+        // json 形回读对得上;agents 缺位(假 PATH)报 Err 且不留半档。
+        // ENV_LOCK:PATH 突变与他测的 herdr PATH 查找互斥。
+        let _g = crate::pathutil::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let home = fresh_home("ffr");
+        let dir = std::env::temp_dir().join(format!(
+            "hst-task-ffr-bin-{}-{}",
+            std::process::id(),
+            unix_secs()
+        ));
+        let bin = dir.join("bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        let script = bin.join("agents");
+        std::fs::write(
+            &script,
+            "#!/bin/sh\necho 'HOST PANE STATUS KIND CWD'\necho 'local w9:p1 working claude /x'\n",
+        )
+        .unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        let path_var = std::env::join_paths([&bin, std::path::Path::new("/nonexistent")])
+            .unwrap()
+            .display()
+            .to_string();
+        let old_path = std::env::var_os("PATH");
+        std::env::set_var("PATH", &path_var);
+        let ok = fleet_refresh(&home);
+        if let Some(old) = &old_path {
+            std::env::set_var("PATH", old);
+        } else {
+            std::env::remove_var("PATH");
+        }
+        if !ok.is_ok() {
+            // 非 unix 或 spawn 受限环境:只验失败面不落半档。
+            assert!(!fleet_snap_path(&home).exists());
+        } else {
+            let text = std::fs::read_to_string(fleet_snap_path(&home)).unwrap();
+            let c: FleetCounts = serde_json::from_str(&text).unwrap();
+            assert_eq!(c.total, 1);
+            assert_eq!(c.working, 1);
+        }
+        // agents 缺位:报 Err,快照档不落。
+        let old_path = std::env::var_os("PATH");
+        std::env::set_var("PATH", "/nonexistent");
+        let err = fleet_refresh(&home);
+        if let Some(old) = &old_path {
+            std::env::set_var("PATH", old);
+        } else {
+            std::env::remove_var("PATH");
+        }
+        assert!(err.is_err());
+        let snap = fleet_snap_path(&home);
+        if ok.is_ok() {
+            assert!(snap.exists(), "成功档不被失败趟清除");
+        } else {
+            assert!(!snap.exists());
+        }
+        let _ = std::fs::remove_dir_all(&home);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

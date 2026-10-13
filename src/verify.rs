@@ -227,18 +227,16 @@ fn verify_statusline(agent: &str, _home: &Path) -> LayerVerdict {
         LayerVerdict::Fail {
             reason: "marker-missing".into(),
             hint: Some(format!(
-                "原生渲染 stdout 应含机读标记 {agent}[-<version>]:<state>（S025；D42 起 agent 态在第二行，D46 起可带连字符版本形）"
+                "原生渲染 stdout 应含机读标记 {agent} 或 {agent}-<version>（REQ-051 起 L1 身份段直立形，段界收尾；旧冒号形兼容）"
             )),
         }
     }
 }
 
 /// 无头验收的纯函数面（细则见模块文档与集成测试）。
-/// 在第二行；D46 起版本并入 agent 名）。旧形 `<agent>:<state>`；新形
-/// `<agent>-<version>:<state>`（用户裁连字符拼接），版本 token 数字起头
-/// 且含点（probe 正则与 payload version 都至少一段 `.N`；点门槛同时压
-/// 「claude-2026:」类无点数字误报）。探不到版本时脚本回落旧形，两形都
-/// 必须过。
+/// REQ-051 起 L1 身份段直立形 `agent` / `agent-<version>`（态段退役无
+/// 冒号尾，段界收尾；版本 token 数字起头且含点）；旧两形 `<agent>:<state>`
+/// 与 `<agent>-<version>:<state>` 兼容认（装机位旧版 hst 渲染过渡期）。
 pub fn statusline_marker_ok(agent: &str, stdout: &str) -> bool {
     // D42 三行布局：agent 态在第二行（一行 = 项目状态），机读标记从
     // 「首行含」放宽为「任一行含」（消费面 = verify 与 grep，S025 契约
@@ -247,11 +245,14 @@ pub fn statusline_marker_ok(agent: &str, stdout: &str) -> bool {
 }
 
 /// 无头验收的单行标记判据面（细则见模块文档与集成测试）。
-/// `-<version>:`（D46 新形，版本后必须收在 `:`）。
+/// `-<version>:`（D46 新形，版本后必须收在 `:`）；REQ-051 起 L1 身份段
+/// `agent` 或 `agent-<version>` 直立形（态段退役，无冒号尾）：前邻空格
+/// （图标后）或行首，后随段界（空格、`|`、行尾或 ANSI 前缀）。
 fn marker_line_hit(agent: &str, line: &str) -> bool {
     let mut from = 0;
     while let Some(pos) = line[from..].find(agent) {
-        let rest = &line[from + pos + agent.len()..];
+        let at = from + pos;
+        let rest = &line[at + agent.len()..];
         if rest.starts_with(':') {
             return true;
         }
@@ -264,9 +265,42 @@ fn marker_line_hit(agent: &str, line: &str) -> bool {
                 return true;
             }
         }
-        from += pos + agent.len();
+        if identity_segment_hit(rest, &line[..at]) {
+            return true;
+        }
+        from = at + agent.len();
     }
     false
+}
+
+/// REQ-051 L1 身份段直立形判据：rest = agent 之后的尾巴，before = agent
+/// 之前的行前缀。尾巴可为空（行尾收）、段界起头（空格 / `|` / ANSI 转义
+/// 前缀）或 `-<数字.数字>` 版本尾后接段界；前缀须以空格（图标后）、
+/// ANSI 复位或行首收。路径形 `/x/claude`（前邻 `/`）与同前缀名
+/// `claude-code`（`-` 后非版本形）不认。
+fn identity_segment_hit(rest: &str, before: &str) -> bool {
+    let tail = match rest.strip_prefix('-') {
+        Some(r) => {
+            let tok: String = r
+                .chars()
+                .take_while(|c| c.is_ascii_alphanumeric() || *c == '.')
+                .collect();
+            if tok.starts_with(|c: char| c.is_ascii_digit()) && tok.contains('.') {
+                &r[tok.len()..]
+            } else {
+                return false;
+            }
+        }
+        None => rest,
+    };
+    let boundary = tail.is_empty()
+        || tail.starts_with(' ')
+        || tail.starts_with('|')
+        || tail.starts_with("\x1b[");
+    if !boundary {
+        return false;
+    }
+    before.is_empty() || before.ends_with(' ') || before.ends_with("\x1b[0m")
 }
 
 /// 无头验收的codex面（细则见模块文档与集成测试）。
@@ -693,18 +727,20 @@ mod tests {
         ));
         assert!(statusline_marker_ok("kimi", "kimi-1.2.3-beta.1:idle\n"));
         assert!(statusline_marker_ok("grok", "grok-1.0.30:unknown"));
+        // REQ-051 起 L1 身份段直立形无冒号尾:空格段界与裸版本尾都是正形
+        // (态段退役,冒号终结者要求随旧形只在兼容道保留)。
         assert!(
-            !statusline_marker_ok("claude", "claude 2.1.268:working"),
-            "space form is not the canonical separator"
+            statusline_marker_ok("claude", "claude 2.1.268:working"),
+            "REQ-051 直立形:空格段界正形"
+        );
+        assert!(
+            statusline_marker_ok("claude", "claude-2.1 working"),
+            "REQ-051 直立形:版本尾接段界正形"
         );
         assert!(!statusline_marker_ok("claude", "claude-2026:x"), "no dot");
         assert!(
             !statusline_marker_ok("claude", "claude-v2.1:working"),
             "version token must start with a digit"
-        );
-        assert!(
-            !statusline_marker_ok("claude", "claude-2.1 working"),
-            "colon terminator required"
         );
         // 同名前缀不吃误报：`claudex` 行不判成 `claude` 命中。
         assert!(!statusline_marker_ok("claude", "claudex-2.1.0:working"));
@@ -766,5 +802,37 @@ mod tests {
         let lines = render(&[o]);
         assert!(lines.contains(&"verify.kimi.hook.state=idle".to_string()));
         assert_eq!(lines.last().unwrap(), "verify.ok=true");
+    }
+
+    #[test]
+    fn marker_identity_form_and_rejections() {
+        // REQ-051 L1 身份段直立形:agent 或 agent-<版本> 前邻空格(图标后)
+        // 或行首,后随段界;路径形与同前缀名不认;旧冒号两形兼容。
+        assert!(statusline_marker_ok(
+            "claude",
+            "\u{1b}[38;5;250m✳ claude-2.1.163\u{1b}[0m | 󰉋 /w | 󰂠 lane/x"
+        ));
+        assert!(statusline_marker_ok("claude", "✳ claude | 󰉋 /w"));
+        assert!(statusline_marker_ok("kimi", "kimi-2.1.1 | hst_rs | lane/x"));
+        assert!(
+            statusline_marker_ok("claude", "claude:working"),
+            "旧冒号形兼容"
+        );
+        assert!(
+            statusline_marker_ok("claude", "claude-2.1.163:working"),
+            "旧版本冒号形兼容"
+        );
+        assert!(
+            !statusline_marker_ok("claude", "󰉋 /x/claude | 󰂠 y"),
+            "路径尾段不认"
+        );
+        assert!(
+            !statusline_marker_ok("claude", "󰉋 /x/claude-code | y"),
+            "同前缀名不认"
+        );
+        assert!(
+            !statusline_marker_ok("claude", "grok-1.0.50 | /w"),
+            "他家名不认"
+        );
     }
 }

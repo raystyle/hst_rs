@@ -1,9 +1,9 @@
 ---
 id: REQ-051
 title: statusbar三行终稿与舰队指标面
-status: draft
+status: implemented
 priority: must
-trace: null
+trace: 实现批 lane/statusbar-v2。单测新增七件(agent 版本归一加 fleet 龄降级加 fmt_age 与 dir_basename 加 context 三形与条形格加 kimi 单行加 marker 直立形与拒误报加 parse_agents_view 计数与 hosts 加 fleet_refresh 原子落档与缺位报错)加集成新增四件(fleet 段端到端读快照加 task fleet-refresh 子命令落档加 goalmode 前缀旗负例加 example 四行断言随新默认序)加随动改件(marker 冒号两形兼容直立形扩展、codex 内置项断言换序、hook 别名清单 Vec 化、smoke 行数断言);单测 242 集成 62 绿;实弹本机 12 格快照 fleet-refresh 落档,渲染 0.01s(<50ms 判据)
 ---
 
 # REQ-051:statusbar三行终稿与舰队指标面
@@ -89,12 +89,12 @@ L2  ▰ 42%
 
 ## Criteria 实现批验收 快核后回填
 
-- [ ] 三行结构落地(五段行收敛,字段序与退化表如稿)
-- [ ] fleet 快照道(生产者加节流刷新加龄降级),渲染零网络零子进程实测小于 50ms
-- [ ] 四家承接落地(codex 内置换序,grok 摘旧约束加 context 三键直读,kimi 单行五必留禁子进程)
-- [ ] hook 零中文(插件 CJK 标签回落)
-- [ ] task 循环时间(R 加 age)
-- [ ] 测试与门禁全绿,评审过闸
+- [x] 三行结构落地(五段行收敛,字段序与退化表如稿)
+- [x] fleet 快照道(生产者加节流刷新加龄降级),渲染零网络零子进程实测小于 50ms
+- [x] 四家承接落地(codex 内置换序,grok 摘旧约束加 context 三键直读,kimi 单行五必留禁子进程)
+- [x] hook 零中文(插件 CJK 标签回落)
+- [x] task 循环时间(R 加 age)
+- [ ] 测试与门禁全绿,评审过闸(全测与七门禁绿实跑;评审过闸追记回填)
 
 ## 追记
 
@@ -105,3 +105,5 @@ L2  ▰ 42%
 过程一笔:fb91060 提交信息声称 grok 修订全落,实盘仅 mock 一行改动(脚本中途断言失败未写盘,提交信息超前于实跑,同门禁假绿同族坑);本笔整文件重写落齐,以本文件为准。
 
 其五「task应该单独一行」= task 出 L3 独占 L4(结构改四行),goalmode 前缀旗随迁 L4。待核余项:退化阈、快照老化阈(5 分钟灰显 30 分钟隐藏)。核过转 implemented 批。
+
+实现批落盘(2026-10-13,lane/statusbar-v2):四行结构与默认序落地(DEFAULT_SEGMENTS 四行版加模板加图标,example 重写);退化表 env COLUMNS 检测(40 档双行保底加 dir basename 与 context 紧缩加 clock/fleet/git/model 逐档弃加 task 文本三档截加 hook 清单小于 60 留首一小于 80 截首三);kimi 恒单行专用道(五必留加 task 紧凑形 Rn·age 加 hook 首 id,分支直读 gitBranch 零子进程);fleet 快照道全链(FleetCounts 形加 parse_agents_view TEXT 表 token 化解析加 fleet_refresh 原子落档加 ensure_fleet_refresh 60 秒节流戳 detach 加 sweeper tick 顺带加 HST_FLEET_REFRESH=off 逃生闸,`hst task fleet-refresh` 子命令);context 三形(context_grok 三键严形缺任一隐藏加 context_kimi 比值族加 claude 形直读优先反推回落,四格条形窄窗紧缩);goalmode 前缀旗随迁 L4(mode 占位接线 goalmode_probe 在役才显);hook 清单 Vec 化内部 `|` 细分;plugin_display CJK 回落;verify marker 判据扩展(直立形 `agent[-version]` 段界收,旧冒号两形兼容,路径形与同前缀名拒);codex 内置项换序收 run-state 与 branch-changes;model_name 承 kimi 字符串 model 键。实测:本机 17 格 fleet-refresh 落档,120 列四行实弹渲染 0.01s(<50ms 判据),39/40/80/99 边界窗与 kimi 行逐窗验形。途中误写一笔:性能实测命令漏 HST_ROOT 覆写在役 task 档,当场恢复并在 .task-audit 记 restore 行。

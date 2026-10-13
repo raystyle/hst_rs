@@ -1130,13 +1130,19 @@ fn statusline_example_prints_customization_template() {
         // D51：--example 随默认段同步（codex F1：漂移会误导照抄丢时钟段）。
         .stdout(contains("\"clock\"]"))
         .stdout(contains("clock {icon}{datetime}"))
-        // REQ-024 时点行序承接到 REQ-045：hookstate 第三、goal 第四、
-        // goalmode 第五（loop 段随 loop 面退役出仓）。
-        .stdout(contains("\"context\", \"duration\"]"))
+        // REQ-024 时点行序承接到 REQ-045 再到 REQ-051 四行结构：L1 身份
+        // 与项目（agent 首位）、L2 运行时（fleet 殿后）、L3 hook、L4 task
+        // （goalmode 退化前缀旗，第五行默认空）。
+        .stdout(contains(
+            "segments = [\"agent\", \"dir\", \"git\", \"clock\"]",
+        ))
+        .stdout(contains("\"context\", \"duration\", \"fleet\"]"))
         .stdout(contains("segments3 = [\"hookstate\"]"))
         .stdout(contains("segments4 = [\"goal\"]"))
-        .stdout(contains("goal {icon}  {goal}"))
-        .stdout(contains("segments5 = [\"goalmode\"]"))
+        .stdout(contains("segments5 = []"))
+        .stdout(contains("agent {icon}{agent}"))
+        .stdout(contains("fleet {icon}{fleet}"))
+        .stdout(contains("goal {icon}{mode}{goal} R{count}"))
         .stdout(contains("goalmode {icon}  {text}"));
 }
 
@@ -1877,9 +1883,120 @@ fn statusline_render_native_marker_smoke() {
     );
     assert_eq!(
         s.lines().count(),
-        3,
-        "default three-row layout (hookstate row3, goal/goalmode hidden): {s}"
+        1,
+        "REQ-051 four-row layout: scratch 密闭空 payload,L2 model/context/duration 全缺、L3 无注册、L4 无 task,余 L1 单行: {s}"
     );
+}
+
+#[test]
+fn statusline_render_fleet_segment_reads_snapshot() {
+    // REQ-051 fleet 段端到端:HST_ROOT 钉临时根落 fleet-snap.json,渲染
+    // 纯读出 W/N 形;缺档即整段隐藏零噪声。
+    let tmp = std::env::temp_dir().join(format!("hst-render-fleet-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp);
+    std::fs::create_dir_all(tmp.join("state")).unwrap();
+    std::fs::write(
+        tmp.join("state").join("fleet-snap.json"),
+        format!(
+            r#"{{"ts":{},"total":12,"working":1,"idle":10,"blocked":0,"done":1,"hosts":[]}}"#,
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+        ),
+    )
+    .unwrap();
+    let out = hst()
+        .env("HST_ROOT", &tmp)
+        .env("HST_USER_HOME", &tmp)
+        .env("HST_STATUSLINE_NO_ANSI", "1")
+        .args(["statusline", "--render", "claude"])
+        .write_stdin("{}")
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let s = String::from_utf8_lossy(&out.stdout);
+    assert!(s.contains("1/12"), "fleet W/N 形: {s}");
+    assert!(s.contains("D1"), "done 独立记: {s}");
+    // 缺档:零噪声。
+    let tmp2 = std::env::temp_dir().join(format!("hst-render-fleet2-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp2);
+    std::fs::create_dir_all(&tmp2).unwrap();
+    let out2 = hst()
+        .env("HST_ROOT", &tmp2)
+        .env("HST_USER_HOME", &tmp2)
+        .env("HST_STATUSLINE_NO_ANSI", "1")
+        .args(["statusline", "--render", "claude"])
+        .write_stdin("{}")
+        .output()
+        .unwrap();
+    let s2 = String::from_utf8_lossy(&out2.stdout);
+    assert!(!s2.contains("1/12"), "缺档 fleet 不显: {s2}");
+    let _ = std::fs::remove_dir_all(&tmp);
+    let _ = std::fs::remove_dir_all(&tmp2);
+}
+
+#[test]
+fn task_fleet_refresh_command_writes_snapshot() {
+    // REQ-051 fleet-refresh 内部面:HST_ROOT 钉临时根,真跑 agents view
+    // (假 PATH 脚本)落快照;agents 缺位时非零退不落档。
+    let tmp = std::env::temp_dir().join(format!("hst-task-fleet-cli-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp);
+    std::fs::create_dir_all(&tmp).unwrap();
+    let bin = tmp.join("bin");
+    std::fs::create_dir_all(&bin).unwrap();
+    let script = bin.join("agents");
+    std::fs::write(
+        &script,
+        "#!/bin/sh\necho 'HOST PANE STATUS KIND CWD'\necho 'local w9:p1 working claude /x'\necho 'local w9:p3 idle kimi /y'\n",
+    )
+    .unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    let path_var = std::env::join_paths([&bin, std::path::Path::new("/nonexistent")])
+        .unwrap()
+        .display()
+        .to_string();
+    hst()
+        .env("HST_ROOT", &tmp)
+        .env("PATH", &path_var)
+        .args(["task", "fleet-refresh"])
+        .assert()
+        .success();
+    let snap = tmp.join("state").join("fleet-snap.json");
+    assert!(snap.exists(), "快照落盘");
+    let body = std::fs::read_to_string(&snap).unwrap();
+    assert!(body.contains("\"total\": 2"), "计数如表: {body}");
+    assert!(body.contains("\"working\": 1"), "working 计数: {body}");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
+fn statusline_render_goalmode_prefix_flag_on_task_row() {
+    // REQ-051 goalmode 退化前缀旗:本测只钉"无 transcript 探针时不炸不显"
+    // 的负例面(正形面走单测 goalmode_probe 域);task 在册时行形含 R 计数
+    // 与 age。
+    let tmp = std::env::temp_dir().join(format!("hst-render-gm-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp);
+    std::fs::create_dir_all(&tmp).unwrap();
+    let out = hst()
+        .env("HST_ROOT", &tmp)
+        .env("HST_USER_HOME", &tmp)
+        .env("HST_STATUSLINE_NO_ANSI", "1")
+        .args(["statusline", "--render", "claude"])
+        .write_stdin(r#"{"workspace":{"current_dir":"/nonexistent-proj-xyz"}}"#)
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let s = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        !s.contains("active") && !s.contains("paused"),
+        "无探针不显旗: {s}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
 }
 
 #[test]

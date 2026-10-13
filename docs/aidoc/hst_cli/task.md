@@ -58,12 +58,16 @@ bak 晋升或判缺省（doctor 体检面保持只读纯读）；风暴耐久序
 
 - `blocked_fastpath` — blocked 带内快道（REQ-047 两维态的实时腿）：goal 腿挂上 Notification 与
 - `clear_task` — 清空本项目 goal（删文件；返回是否真删，无 goal 零改动合法）。`.bak`
+- `ensure_fleet_refresh` — hook 腿挂载的 fleet 刷新道（REQ-051 刷新骑现有循环其一）：任一事件
 - `ensure_sweeper` — hook 起 sweeper（REQ-047 间隔自驱的起动面）：goal 在册且无鲜活锁即
+- `fleet_refresh` — fleet 刷新生产者（`hst task fleet-refresh` 内部面）：跑 `agents view`
+- `fleet_snap_path` — fleet 快照档位（`<hst 自管根>/state/fleet-snap.json`）。
 - `heal_sweep` — hook 事件流挂载的自愈扫描入口（goal-01 澄清令：自愈须事件驱动实时，
 - `heal_verdict` — 自愈判定（纯函数；检测形态 = goal-01 裁量口径：rounds 无增长加 Stop 后
 - `is_stop_event` — 事件是否 Stop（事件参数形或 payload hook_event_name 形；heal_sweep 的
 - `list_tasks` — 列本机全部在册 task（goalhard-01）：按统一收集器 task_files 字典
 - `parse_agent_list` — `herdr agent list` stdout 解析（纯函数面，测试注入 JSON 串）。
+- `parse_agents_view` — 解析 `agents view` 输出表（实装 v2.0.0 无 --json 面，TEXT 表格 token
 - `read_record` — 读指定 goal 文件（缺失 = None；坏损 = Err 响亮）。并发 clear 竞态
 - `read_record_repairing` — 读面自愈（goalhard-01 坏档重建路径）：主档坏损时不再卡死——隔离坏档
 - `reminder_json` — Stop 提醒 JSON（goal-02 输出面调优）：`hookSpecificOutput.additionalContext`
@@ -82,6 +86,8 @@ bak 晋升或判缺省（doctor 体检面保持只读纯读）；风暴耐久序
 
 ## Types
 
+- `FleetCounts` — fleet 快照计数（`~/.hst/state/fleet-snap.json` body；渲染面纯读零网络
+- `FleetHost` — 逐主机 fleet 计数。
 - `HealReport` — 单 goal 的自愈回执行（kv 面）。
 - `HealVerdict` — 自愈判定两态族（纯函数面；输入 = goal 在册态加 herdr 格状态加当下时
 - `PaneFace` — herdr 格状态面（`herdr agent list` 的 result.agents 投影，消费面只读

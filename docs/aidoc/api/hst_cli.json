@@ -728,6 +728,16 @@
       "docs": "yolo 治阈值（REQ-047）：blocked_streak 到此值即「反复 blocked」，预授权\n下触发治序列。"
     },
     {
+      "path": "hst_cli::task::FleetCounts",
+      "kind": "struct",
+      "docs": "fleet 快照计数（`~/.hst/state/fleet-snap.json` body；渲染面纯读零网络\n零子进程）。hosts 按首见序聚合计数。"
+    },
+    {
+      "path": "hst_cli::task::FleetHost",
+      "kind": "struct",
+      "docs": "逐主机 fleet 计数。"
+    },
+    {
       "path": "hst_cli::task::HEAL_IDLE_SECS",
       "kind": "constant",
       "docs": "自愈静默窗（goal-01 频控即此一闸）：goal 在役而 max(last_stop_at,\nlast_heal_at, set_at) 距今不足此值不判停摆——Stop 提醒链的正常节拍\n余量，也是两次自愈唤醒的最小间隔（防风暴）。"
@@ -813,9 +823,24 @@
       "docs": "清空本项目 goal（删文件；返回是否真删，无 goal 零改动合法）。`.bak`\n同删（rev-codex G-3：clear 后再 set 不刷 bak，留着旧 bak 只会在新档\n坏损时复活已清目标；误清恢复由审计道 clear 行 text= 快照承载）。并发\nclear 竞态（读档后文件被别家收走）按已清收。真删落审计道。\n\n# Errors\n\nIO 失败时返回 [`TaskError`]。"
     },
     {
+      "path": "hst_cli::task::ensure_fleet_refresh",
+      "kind": "function",
+      "docs": "hook 腿挂载的 fleet 刷新道（REQ-051 刷新骑现有循环其一）：任一事件\n到场先经 60 秒节流戳（`.fleet-snap-check`），到期 detach 起\n`hst task fleet-refresh`（unix 下独立进程组，hook 超时组杀不连坐）。\n测试载荷（cfg!(test)）与 HST_FLEET_REFRESH=off（集成测试与手动排障）\n不 spawn；失败静默（fail-open，快照缺段隐藏）。"
+    },
+    {
       "path": "hst_cli::task::ensure_sweeper",
       "kind": "function",
       "docs": "hook 起 sweeper（REQ-047 间隔自驱的起动面）：goal 在册且无鲜活锁即\ndetach 起有界子进程（`hst task heal --interval`），unix 下独立进程组\n（hook 超时组杀不连坐）。零目标零锁鲜零动作;失败静默（fail-open）。"
+    },
+    {
+      "path": "hst_cli::task::fleet_refresh",
+      "kind": "function",
+      "docs": "fleet 刷新生产者（`hst task fleet-refresh` 内部面）：跑 `agents view`\n解析计数原子落快照（tmp 加 rename 同 task 档先例）；agents 缺位或报\n错返回 Err（快照缺，渲染面段隐藏零噪声）。\n\n# Errors\n\nagents 缺位或 spawn 失败、view 非零退、快照原子写失败时返回 `String`。"
+    },
+    {
+      "path": "hst_cli::task::fleet_snap_path",
+      "kind": "function",
+      "docs": "fleet 快照档位（`<hst 自管根>/state/fleet-snap.json`）。"
     },
     {
       "path": "hst_cli::task::heal_sweep",
@@ -841,6 +866,11 @@
       "path": "hst_cli::task::parse_agent_list",
       "kind": "function",
       "docs": "`herdr agent list` stdout 解析（纯函数面，测试注入 JSON 串）。\n\n# Errors\n\n输出非 JSON 或形不符（无 result.agents 数组）时返回 `String`。"
+    },
+    {
+      "path": "hst_cli::task::parse_agents_view",
+      "kind": "function",
+      "docs": "解析 `agents view` 输出表（实装 v2.0.0 无 --json 面，TEXT 表格 token\n化）：表头行跳过；pane 形 token（`w9:p3` 形，窗口侧 w 前缀字母数字、\npane 侧 p 前缀数字）锚行，status 取 pane 后 token ∈ {idle, working,\nblocked, done}（坏行回退全行扫态词）；HOST 列 = 行首 token。零行出\n零计数（渲染面 total=0 段隐藏）。"
     },
     {
       "path": "hst_cli::task::read_record",
@@ -1165,7 +1195,7 @@
     {
       "path": "hst_cli::verify::statusline_marker_ok",
       "kind": "function",
-      "docs": "无头验收的纯函数面（细则见模块文档与集成测试）。\n在第二行；D46 起版本并入 agent 名）。旧形 `<agent>:<state>`；新形\n`<agent>-<version>:<state>`（用户裁连字符拼接），版本 token 数字起头\n且含点（probe 正则与 payload version 都至少一段 `.N`；点门槛同时压\n「claude-2026:」类无点数字误报）。探不到版本时脚本回落旧形，两形都\n必须过。"
+      "docs": "无头验收的纯函数面（细则见模块文档与集成测试）。\nREQ-051 起 L1 身份段直立形 `agent` / `agent-<version>`（态段退役无\n冒号尾，段界收尾；版本 token 数字起头且含点）；旧两形 `<agent>:<state>`\n与 `<agent>-<version>:<state>` 兼容认（装机位旧版 hst 渲染过渡期）。"
     },
     {
       "path": "hst_cli::yolo",

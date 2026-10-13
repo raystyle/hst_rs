@@ -18,7 +18,10 @@ use std::path::{Path, PathBuf};
 use serde_json::Value as Json;
 
 use crate::pathutil::user_home;
-use crate::statusline::{effective_orders_pub, read_config_pub, StatuslineConfig};
+// 两组拆行避 rustfmt 双版互斥(仓门禁 edition 2021 与 evo-lint 静检
+// edition 2024 对大小写混排排序互斥,单组混排必有一版红,豁免在案)。
+use crate::statusline::StatuslineConfig;
+use crate::statusline::{effective_orders_pub, read_config_pub};
 
 /// 渲染入口：stdin 全量字节加 agent 名，出多行状态串（行间 `\n`）。
 ///
@@ -88,6 +91,8 @@ struct Ctx<'a> {
     /// python / zig / go / cpp；工具链段按型门控探测。
     proj_kind: String,
     pkg_ver: String,
+    /// 窗宽（REQ-051 退化表输入）：env COLUMNS 检测，缺省 120 按满窗。
+    width: usize,
 }
 
 fn render_rows(
@@ -97,7 +102,9 @@ fn render_rows(
     rows: &[&[&str]],
     home: &Path,
 ) -> Result<String, String> {
-    let nerd = agent != "grok";
+    // REQ-051(grok 评审):grok 1.0.50 支持多行与图标,旧剥离约束退役;
+    // 图标与分隔符按总台令第四笔全量保留。
+    let nerd = true;
     let dir = {
         let mut dir = s(d, &["workspace", "current_dir"]);
         if dir.is_empty() || dir == "." {
@@ -110,6 +117,11 @@ fn render_rows(
         }
         dir
     };
+    // REQ-051 窗宽检测:agent TUI 传 COLUMNS 则退化,缺省按满窗 120。
+    let width: usize = std::env::var("COLUMNS")
+        .ok()
+        .and_then(|v| v.trim().parse().ok())
+        .unwrap_or(120);
     // root 探测门控（评审 G5，pwsh COMMON 同判）：仅 dir/hst/mcp/hookstate
     // 消费 root（目录显示、状态文件定位）；无消费者的配置不 spawn git。
     let need_root = rows.iter().any(|r| {
@@ -141,11 +153,27 @@ fn render_rows(
         root,
         proj_kind,
         pkg_ver,
+        width,
     };
+    // kimi 恒单行(REQ-051 四家承接):固定形一行,不走段行组装。
+    if agent == "kimi" {
+        return Ok(render_kimi_line(&ctx));
+    }
+    // REQ-051 退化表 40 列档:只保 L1(agent 加 dir)与 L2 的 context。
+    let fallback_rows: [&[&str]; 2] = [&["agent", "dir"], &["context"]];
+    let rows: &[&[&str]] = if width < 40 { &fallback_rows } else { rows };
     let mut out_rows: Vec<String> = Vec::new();
     for row in rows {
         let mut parts: Vec<String> = Vec::new();
         for id in *row {
+            // REQ-051 退化表右起逐段弃:clock 小于 100 弃、fleet 小于 80 弃、
+            // git 与 model 小于 60 弃。
+            if (ctx.width < 100 && *id == "clock")
+                || (ctx.width < 80 && *id == "fleet")
+                || (ctx.width < 60 && (*id == "git" || *id == "model"))
+            {
+                continue;
+            }
             if let Some(p) = render_segment(&ctx, id)? {
                 if !p.trim().is_empty() {
                     parts.push(p);
@@ -156,12 +184,68 @@ fn render_rows(
             out_rows.push(parts.join(" | "));
         }
     }
-    let joined = if cfg.single_line || agent == "kimi" || agent == "grok" {
+    // kimi 恒单行(2.1.1 只取首行)已在上方专用道;single_line 显式退单行保留。
+    let joined = if cfg.single_line {
         out_rows.join(" | ")
     } else {
         out_rows.join("\n")
     };
     Ok(format!("{joined}\n"))
+}
+
+/// kimi 恒单行(REQ-051 四家承接):2.1.1 只取 stdout 首行(300ms 超时杀,
+/// 非 0 退整行回落内置 footer),固定形一行 = 版本加目录 basename 加分支
+/// (直读 payload gitBranch,可 null 藏)加模型加 context(pct% used/window
+/// 无条形)加 task 紧凑形(R3·18m)加 hook 首 id;fleet 与 clock 与 duration
+/// 不上;零子进程(分支不起 git,目录不探测)。
+fn render_kimi_line(ctx: &Ctx) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    if let Some(p) = seg_agent(ctx) {
+        parts.push(p);
+    }
+    let base = dir_basename(&ctx.dir);
+    if !base.is_empty() {
+        parts.push(ansi(&base, "38;5;39"));
+    }
+    let br = s(ctx.d, &["gitBranch"]);
+    if !br.is_empty() {
+        parts.push(ansi(&br, "38;5;176"));
+    }
+    let m = model_name(ctx.d);
+    if !m.is_empty() {
+        parts.push(ansi(
+            &apply_fmt(
+                &tmpl_of(ctx, "model"),
+                &[("icon", icon_of(ctx, "model")), ("model", m)],
+            ),
+            "38;5;147",
+        ));
+    }
+    if let Some((pct, used, win)) = context_kimi(ctx.d) {
+        parts.push(ansi(
+            &format!("{pct}% {}/{}", fmt_tok(used), fmt_tok(win)),
+            "38;5;116",
+        ));
+    }
+    if let Some(rec) = task_record(ctx) {
+        let last = if rec.last_stop_at > 0 {
+            rec.last_stop_at
+        } else {
+            rec.set_at
+        };
+        parts.push(ansi(
+            &format!(
+                "R{}·{}",
+                rec.rounds,
+                fmt_age(now_unix().saturating_sub(last))
+            ),
+            "38;5;179",
+        ));
+    }
+    if let Some(first) = hooked_aliases(&ctx.agent, ctx.d).first() {
+        parts.push(ansi(first, "38;5;143"));
+    }
+    format!("{}\n", parts.join(" | "))
 }
 
 fn icon_of(ctx: &Ctx, key: &str) -> String {
@@ -188,6 +272,8 @@ fn tmpl_of(ctx: &Ctx, key: &str) -> String {
 /// typo 不静默丢段）。已知 id 清单镜像 statusline.rs 段注册表。
 fn render_segment(ctx: &Ctx, id: &str) -> Result<Option<String>, String> {
     const KNOWN: &[&str] = &[
+        "agent",
+        "fleet",
         "shell",
         "dir",
         "hst",
@@ -221,15 +307,25 @@ fn render_segment(ctx: &Ctx, id: &str) -> Result<Option<String>, String> {
 
 fn segment_opt(ctx: &Ctx, id: &str) -> Option<String> {
     match id {
+        "agent" => seg_agent(ctx),
+        "fleet" => seg_fleet(ctx),
         "shell" => seg_shell(ctx),
-        "dir" => Some(ansi(
-            &apply_fmt(
-                &tmpl_of(ctx, "dir"),
-                &[("icon", icon_of(ctx, "dir")), ("path", ctx.dir.clone())],
-            ),
-            "38;5;39",
-        ))
-        .filter(|x| !x.is_empty()),
+        "dir" => {
+            // REQ-051 退化表:小于 80 列取 basename(双分隔符兼容 Windows 路径)。
+            let path = if ctx.width < 80 {
+                dir_basename(&ctx.dir)
+            } else {
+                ctx.dir.clone()
+            };
+            Some(ansi(
+                &apply_fmt(
+                    &tmpl_of(ctx, "dir"),
+                    &[("icon", icon_of(ctx, "dir")), ("path", path)],
+                ),
+                "38;5;39",
+            ))
+            .filter(|x| !x.is_empty())
+        }
         "git" => seg_git(ctx),
         "clock" => {
             let now = now_hm();
@@ -957,7 +1053,6 @@ const HOOK_ALIASES: &[(&str, &str)] = &[
 /// 新增 hook 收录指引（评审 G3）：只改 HOOK_ALIASES 一处加 stem 判定回
 /// 落即可；并确认该 agent 是否多文件注册面（grok 已知 ohmyagents-
 /// state.json 与 herdr.json 双文件，注册面读全目录 *.json）。
-
 /// hookstate 段（第 5 行，用户令 2026-09-26 起，2026-09-27 四令迭代）：
 /// 注册面全部 hook 的功能别名清单独占一行（用户令「不需要working这些
 /// 状态 显示hook功能的别名」：态文本退出缺省显示，仅以行色暗示；{state}
@@ -987,10 +1082,23 @@ fn seg_hookstate(ctx: &Ctx) -> Option<String> {
     } else {
         "hookstate-ascii"
     };
+    // REQ-051 退化表:清单内部用 `|`;小于 80 列截首三个,小于 60 列只留
+    // 首一个。
+    let cap = if ctx.width < 60 {
+        1
+    } else if ctx.width < 80 {
+        3
+    } else {
+        usize::MAX
+    };
     let alias = if alias_raw.is_empty() {
         "hook".to_string()
     } else {
         alias_raw
+            .into_iter()
+            .take(cap)
+            .collect::<Vec<_>>()
+            .join("|")
     };
     Some(ansi(
         &apply_fmt(
@@ -1007,22 +1115,22 @@ fn seg_hookstate(ctx: &Ctx) -> Option<String> {
 
 /// 注册面 hook 别名清单：按 agent 定位注册文件，收集全部 hook 命令
 ///（ours 与外来都在场），stem 去重后按别名表序稳定排列（未收录 stem
-/// 字典序殿后）映射别名，分隔符 ` | ` 与他行段分隔同形（用户令
-/// 2026-09-27 两轮收敛）。claude 额外并读项目级注册面（REQ-039：payload
-/// `workspace.project_dir` 下 `.claude/settings.json` 加
-/// `settings.local.json`，项目守卫 hook 如 session-tool-guard 族入列）与
-/// 插件注册面（REQ-044：`~/.claude/plugins/` 全局插件 hook，显示形走
-/// 覆写表）。文件缺失、坏损或零挂载返回空串。codex 虽无外部状态栏面，
-/// 手动 render 亦可得清单。
-fn hooked_aliases(agent: &str, d: &Json) -> String {
+/// 字典序殿后）映射别名为序表（REQ-051：清单内部用 `|` 细分，截断与
+/// 拼接归调用方；用户令 2026-09-27 两轮收敛）。claude 额外并读项目级
+/// 注册面（REQ-039：payload `workspace.project_dir` 下
+/// `.claude/settings.json` 加 `settings.local.json`，项目守卫 hook 如
+/// session-tool-guard 族入列）与插件注册面（REQ-044：`~/.claude/plugins/`
+/// 全局插件 hook，显示形走覆写表）。文件缺失、坏损或零挂载返回空表。
+/// codex 虽无外部状态栏面，手动 render 亦可得清单。
+fn hooked_aliases(agent: &str, d: &Json) -> Vec<String> {
     match user_home() {
         Ok(h) => hooked_aliases_at(&h, agent, &s(d, &["workspace", "project_dir"])),
-        Err(_) => String::new(),
+        Err(_) => Vec::new(),
     }
 }
 
 /// hooked_aliases 的可测形（home 加项目根显式透传）。
-fn hooked_aliases_at(home: &Path, agent: &str, project_root: &str) -> String {
+fn hooked_aliases_at(home: &Path, agent: &str, project_root: &str) -> Vec<String> {
     let mut cmds: Vec<String> = Vec::new();
     // stem 到显示名覆写表（REQ-044 插件面：插件名连字符加 statusMessage，
     // 自带前缀不双拼）。
@@ -1081,7 +1189,7 @@ fn hooked_aliases_at(home: &Path, agent: &str, project_root: &str) -> String {
                 display.get(s).cloned().unwrap_or_else(|| s.clone())
             }),
     );
-    out.join(" | ")
+    out
 }
 
 /// claude 插件注册面收集（REQ-044）：`~/.claude/plugins/installed_plugins.json`
@@ -1153,6 +1261,13 @@ fn collect_plugin_hooks(
 /// 无条件前缀会产「evo-lint-evo-lint 后缀静检」双拼。前缀边界认全等加
 /// 空格加连字符三形；无缝前缀（如 `plug` 对 `plugx`）不算命中照常拼。
 fn plugin_display(short: &str, label: &str) -> String {
+    // REQ-051 hook 零中文:标签含 CJK 回落纯插件名(不双拼);英文标签保持双拼。
+    if label
+        .chars()
+        .any(|c| (c as u32) >= 0x4E00 && (c as u32) <= 0x9FFF)
+    {
+        return short.to_string();
+    }
     if label == short
         || label.starts_with(&format!("{short} "))
         || label.starts_with(&format!("{short}-"))
@@ -1326,7 +1441,7 @@ fn sentinel_no_hook(ctx: &Ctx, state: &str) -> Option<String> {
         return None;
     }
     // 节流自愈：stamp（~/.hst/state/.hookcheck-<agent>）记录上次尝试 ts，
-    ///窗内不重试。
+    // 窗内不重试。
     if throttle_due(&ctx.home.join("state"), ".hookcheck-", &ctx.agent, 3600).is_some() {
         heal_spawn(&["hook", "init"]);
     }
@@ -1456,6 +1571,90 @@ fn heal_spawn_args(prefix: &[&str], tail: &str) {
     .status();
 }
 
+/// REQ-051 L1 身份段:agent 类型加版本(版本归一承 seg_hst 逻辑;grok 与
+/// kimi 的 payload version 同路,缺键只显 agent 名)。
+fn seg_agent(ctx: &Ctx) -> Option<String> {
+    let ver = agent_version(ctx.d);
+    let agent_disp = if ver.is_empty() {
+        ctx.agent.clone()
+    } else {
+        format!("{}-{ver}", ctx.agent)
+    };
+    Some(ansi(
+        &apply_fmt(
+            &tmpl_of(ctx, "agent"),
+            &[("icon", icon_of(ctx, "agent")), ("agent", agent_disp)],
+        ),
+        "38;5;250",
+    ))
+}
+
+/// payload version 归一(seg_hst 先例:取数字加点形)。
+fn agent_version(d: &Json) -> String {
+    let pv = s(d, &["version"]);
+    if pv.is_empty() {
+        return String::new();
+    }
+    let mut num = String::new();
+    let mut seen_digit = false;
+    for c in pv.chars() {
+        if c.is_ascii_digit() || (c == '.' && seen_digit) {
+            num.push(c);
+            seen_digit = true;
+        } else if !num.is_empty() && (c.is_ascii_alphanumeric() || c == '.' || c == '+' || c == '-')
+        {
+            num.push(c);
+        } else if !num.is_empty() {
+            break;
+        }
+    }
+    if num.contains('.') {
+        num
+    } else {
+        String::new()
+    }
+}
+
+/// REQ-051 L2 fleet 段:快照档纯读(零网络零子进程);☰ W/N 平时形,
+/// blocked 非零加 !B,done 非零加 Dn(grok 评审:done 不折 idle);龄降级
+/// = 5 分钟外灰显带龄,30 分钟外段隐藏。
+fn seg_fleet(ctx: &Ctx) -> Option<String> {
+    let snap = ctx.home.join("state").join("fleet-snap.json");
+    let text = std::fs::read_to_string(&snap).ok()?;
+    let v: Json = serde_json::from_str(&text).ok()?;
+    let total = v.get("total").and_then(|x| x.as_u64())?;
+    if total == 0 {
+        return None;
+    }
+    let working = v.get("working").and_then(|x| x.as_u64()).unwrap_or(0);
+    let blocked = v.get("blocked").and_then(|x| x.as_u64()).unwrap_or(0);
+    let done = v.get("done").and_then(|x| x.as_u64()).unwrap_or(0);
+    let ts = v.get("ts").and_then(|x| x.as_u64()).unwrap_or(0);
+    let age = now_unix().saturating_sub(ts);
+    if age > 30 * 60 {
+        return None; // 超龄整段隐藏
+    }
+    let mut fleet = format!("{working}/{total}");
+    if blocked > 0 {
+        fleet.push_str(&format!(" !{blocked}"));
+    }
+    if done > 0 {
+        fleet.push_str(&format!(" D{done}"));
+    }
+    let (color, shown) = if age > 5 * 60 {
+        ("38;5;245", format!("{fleet} ·{}m", age / 60))
+    } else {
+        ("38;5;117", fleet)
+    };
+    Some(ansi(
+        &apply_fmt(
+            &tmpl_of(ctx, "fleet"),
+            &[("icon", icon_of(ctx, "fleet")), ("fleet", shown)],
+        ),
+        color,
+    ))
+}
+
 fn seg_hst(ctx: &Ctx) -> Option<String> {
     // 状态读序（D28）：与 hookstate 段共享 hook_state（会话键加闸全序）；
     // 版本取 payload version 字段归一（D46）。
@@ -1504,38 +1703,92 @@ fn seg_hst(ctx: &Ctx) -> Option<String> {
 }
 
 fn seg_context(ctx: &Ctx) -> Option<String> {
-    let (pct, win) = ctx_pct_win(ctx.d)?;
-    let used = win * pct as f64 / 100.0;
-    let key = if ctx.nerd { "context" } else { "context-ascii" };
-    Some(ansi(
-        &apply_fmt(
+    // REQ-051 键族按 agent:grok 三键严形(used_percentage 加 context_tokens
+    // 加 context_window_size 全在场才出段,grok 评审禁百分比反推不画 0%);
+    // kimi 比值族(contextUsage/contextTokens/maxContextTokens);claude 形
+    // used 缺时按取整百分比反推(旧口径兼容)。窄窗退化:小于 80 列去
+    // token 括号对,小于 40 列单格条加百分比。
+    let shaped = match ctx.agent.as_str() {
+        "grok" => context_grok(ctx.d)?,
+        "kimi" => context_kimi(ctx.d)?,
+        _ => context_shaped(ctx.d).or_else(|| context_kimi(ctx.d))?,
+    };
+    let (pct, used, win) = shaped;
+    let body = if ctx.width < 40 {
+        format!("{} {pct}%", bar_cells(pct, 1))
+    } else if ctx.width < 80 {
+        format!("{} {pct}%", bar_cells(pct, 4))
+    } else {
+        let key = if ctx.nerd { "context" } else { "context-ascii" };
+        apply_fmt(
             &tmpl_of(ctx, key),
             &[
                 ("icon", icon_of(ctx, "context")),
+                ("bar", bar_cells(pct, 4)),
                 ("pct", pct.to_string()),
                 ("used", fmt_tok(used)),
                 ("window", fmt_tok(win)),
                 ("mix", String::new()),
             ],
-        ),
-        "38;5;116",
-    ))
+        )
+    };
+    Some(ansi(&body, "38;5;116"))
 }
 
-/// context 段取值（pwsh 同口径，评审 F5）：used_percentage 向下取整
-/// 显示；缺 used 时 remaining_percentage 回退 100 减其向下取整；token
-/// 绝对值由取整后百分比反推（显示与计算同源）。
-fn ctx_pct_win(d: &Json) -> Option<(u64, f64)> {
+/// context 条形格(▰ 实加▱ 空):filled = ceil(pct*n/100) 截 0..n。
+fn bar_cells(pct: u64, n: usize) -> String {
+    let filled = (pct as usize * n).div_ceil(100).min(n);
+    format!("{}{}", "▰".repeat(filled), "▱".repeat(n - filled))
+}
+
+/// 目录 basename(双分隔符兼容 Windows 路径;空串原样)。
+fn dir_basename(dir: &str) -> String {
+    dir.trim_end_matches(['/', '\\'])
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or(dir)
+        .to_string()
+}
+
+/// grok 评审三键严形:used_percentage 加 context_tokens 加 context_window_size
+/// 三键缺任一整段隐藏(禁百分比反推)。
+fn context_grok(d: &Json) -> Option<(u64, f64, f64)> {
+    let pct = f64_at(d, &["context_window", "used_percentage"])?.floor();
+    let used = f64_at(d, &["context_window", "context_tokens"])?;
+    let win = f64_at(d, &["context_window", "context_window_size"])?;
+    Some((pct as u64, used, win))
+}
+
+/// claude 与 grok 的 context_window 三键形:(pct, used, window)。
+fn context_shaped(d: &Json) -> Option<(u64, f64, f64)> {
     let win = f64_at(d, &["context_window", "context_window_size"])?;
     let pct = match f64_at(d, &["context_window", "used_percentage"]) {
         Some(u) => u.floor(),
         None => 100.0 - f64_at(d, &["context_window", "remaining_percentage"])?.floor(),
     };
-    Some((pct as u64, win))
+    // grok 评审:used 直读 context_tokens,反推只作回落。
+    let used = f64_at(d, &["context_window", "context_tokens"]).unwrap_or(win * pct / 100.0);
+    Some((pct as u64, used, win))
+}
+
+/// kimi 的比值形:contextUsage(0.42 表 42%)加 contextTokens 加 maxContextTokens。
+fn context_kimi(d: &Json) -> Option<(u64, f64, f64)> {
+    let ratio = f64_at(d, &["contextUsage"])?;
+    let used = f64_at(d, &["contextTokens"])?;
+    let win = f64_at(d, &["maxContextTokens"])?;
+    if win <= 0.0 {
+        return None;
+    }
+    Some(((ratio * 100.0).floor() as u64, used, win))
 }
 
 /// model 段名（pwsh 同判：display_name 优先回落 id，双缺空串）。
 fn model_name(d: &Json) -> String {
+    // REQ-051 kimi 承接:model 键为字符串直取(kimi 契约);claude 形
+    // display_name 优先回落 id。
+    if let Some(m) = d.get("model").and_then(|m| m.as_str()) {
+        return m.to_string();
+    }
     let m = s(d, &["model", "display_name"]);
     if m.is_empty() {
         return s(d, &["model", "id"]);
@@ -1583,6 +1836,55 @@ fn mcp_count(d: &Json, claude_json: Option<&Path>, mcp_json: Option<&Path>) -> u
 /// dir）；四家同源显示，不再锚 claude session。存储坏损容忍隐行（读侧
 /// 只读不修，doctor check=goal 报 warn）。
 fn seg_goal(ctx: &Ctx) -> Option<String> {
+    let rec = task_record(ctx)?;
+    let mut text = rec.text.replace(['\r', '\n'], " ").trim().to_string();
+    if text.is_empty() {
+        return None;
+    }
+    // REQ-051 退化表:task 文本满窗截 60 字,小于 100 列截 16 字,小于 60
+    // 列截 8 字(省略号尾)。
+    let cap = if ctx.width < 60 {
+        8
+    } else if ctx.width < 100 {
+        16
+    } else {
+        60
+    };
+    if text.chars().count() > cap {
+        let cut: String = text.chars().take(cap).collect();
+        text = format!("{cut}…");
+    }
+    // REQ-051 task 循环时间:距上轮活动(last_stop_at,无则 set_at)的
+    // d/h/m 形;零新 IO 同源读档。
+    let last = if rec.last_stop_at > 0 {
+        rec.last_stop_at
+    } else {
+        rec.set_at
+    };
+    let age = fmt_age(now_unix().saturating_sub(last));
+    // REQ-051 goalmode 退化前缀旗:在役态(active 加 paused)才显,余隐藏。
+    let mode = match goalmode_probe(ctx) {
+        Some((st, _)) if st == "active" || st == "paused" => format!("{st} "),
+        _ => String::new(),
+    };
+    let key = if ctx.nerd { "goal" } else { "goal-ascii" };
+    Some(ansi(
+        &apply_fmt(
+            &tmpl_of(ctx, key),
+            &[
+                ("icon", icon_of(ctx, "goal")),
+                ("goal", text),
+                ("count", rec.rounds.to_string()),
+                ("age", age),
+                ("mode", mode),
+            ],
+        ),
+        "38;5;179",
+    ))
+}
+
+/// 就近上溯取在册 task 记录(段 id goal 与 task 同源;kimi 紧凑形同用)。
+fn task_record(ctx: &Ctx) -> Option<crate::task::TaskRecord> {
     let root = {
         let mut root = s(ctx.d, &["workspace", "project_dir"]);
         if root.is_empty() || root == "." {
@@ -1593,28 +1895,21 @@ fn seg_goal(ctx: &Ctx) -> Option<String> {
         }
         root
     };
-    let rec = crate::task::task_file_for(ctx.home, Path::new(&root))
-        .and_then(|p| crate::task::read_record(&p).ok().flatten())?;
-    let mut text = rec.text.replace(['\r', '\n'], " ").trim().to_string();
-    if text.is_empty() {
-        return None;
+    crate::task::task_file_for(ctx.home, Path::new(&root))
+        .and_then(|p| crate::task::read_record(&p).ok().flatten())
+}
+
+/// 距上轮活动的 d/h/m 形(59s 内为 now,59 分内为 Xm,其余 Xh,超 24h 为 Xd)。
+fn fmt_age(secs: u64) -> String {
+    if secs < 60 {
+        "now".into()
+    } else if secs < 3600 {
+        format!("{}m", secs / 60)
+    } else if secs < 24 * 3600 {
+        format!("{}h", secs / 3600)
+    } else {
+        format!("{}d", secs / 86_400)
     }
-    if text.chars().count() > 60 {
-        let cut: String = text.chars().take(60).collect();
-        text = format!("{cut}…");
-    }
-    let key = if ctx.nerd { "goal" } else { "goal-ascii" };
-    Some(ansi(
-        &apply_fmt(
-            &tmpl_of(ctx, key),
-            &[
-                ("icon", icon_of(ctx, "goal")),
-                ("goal", text),
-                ("count", rec.rounds.to_string()),
-            ],
-        ),
-        "38;5;179",
-    ))
 }
 
 fn seg_goalmode(ctx: &Ctx) -> Option<String> {
@@ -2084,8 +2379,8 @@ mod tests {
         .unwrap();
         // 别名表序（herdr 在先，用户例序），未收录 metric-bridge 回落本名殿后。
         assert_eq!(
-            hooked_aliases_at(&tmp, "claude", ""),
-            "herdr-agent-state | hst-token-guard | hst-task"
+            hooked_aliases_at(&tmp, "claude", "").join("|"),
+            "herdr-agent-state|hst-token-guard|hst-task"
         );
         // kimi TOML 面：ours 加外来同列。
         let kimi_dir = tmp.join(".kimi-code");
@@ -2096,8 +2391,8 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            hooked_aliases_at(&tmp, "kimi", ""),
-            "herdr-agent-state | hst-token-guard"
+            hooked_aliases_at(&tmp, "kimi", "").join("|"),
+            "herdr-agent-state|hst-token-guard"
         );
         // grok 多文件注册面（评审 F）：hst 的 ohmyagents-state.json 与
         // herdr 的 herdr.json 双文件合并收集。
@@ -2114,8 +2409,8 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            hooked_aliases_at(&tmp, "grok", ""),
-            "herdr-agent-state | hst-task"
+            hooked_aliases_at(&tmp, "grok", "").join("|"),
+            "herdr-agent-state|hst-task"
         );
         // REQ-039：claude 项目级注册面并入（payload project_dir 下
         // .claude/settings.json 加 settings.local.json），未收录 stem
@@ -2134,15 +2429,15 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            hooked_aliases_at(&tmp, "claude", proj.to_str().unwrap()),
-            "herdr-agent-state | hst-token-guard | hst-task | knowledge-recall | session-tool-guard"
+            hooked_aliases_at(&tmp, "claude", proj.to_str().unwrap()).join("|"),
+            "herdr-agent-state|hst-token-guard|hst-task|knowledge-recall|session-tool-guard"
         );
         // 坏损 JSON 零命中不炸。
         std::fs::write(claude_dir.join("settings.json"), "{ not json").unwrap();
-        assert_eq!(hooked_aliases_at(&tmp, "claude", ""), "");
-        // 缺文件零命中空串（段内回落泛称 hook）。
+        assert!(hooked_aliases_at(&tmp, "claude", "").is_empty());
+        // 缺文件零命中空表（段内回落泛称 hook）。
         std::fs::remove_file(claude_dir.join("settings.json")).unwrap();
-        assert_eq!(hooked_aliases_at(&tmp, "claude", ""), "");
+        assert!(hooked_aliases_at(&tmp, "claude", "").is_empty());
         let _ = std::fs::remove_dir_all(&tmp);
     }
 
@@ -2219,12 +2514,12 @@ mod tests {
             r#"{"hooks":{"Stop":[{"hooks":[{"command":"/x/.hst/hooks/hst-task.sh claude"}]}]},"enabledPlugins":{"plug-a@mk":true,"plug-b@mk":false,"plug-e@mk":true}}"#,
         )
         .unwrap();
-        // 无项目根：user 作用域 a 入列（statusMessage 形），e 入列且自带
-        // 插件名前缀不双拼（修复单 2026-10-12），b 拒，c 缺省关，d 项目
+        // 无项目根：user 作用域 a 入列（statusMessage 含 CJK 回落纯插
+        // 件名,REQ-051 hook 零中文），e 同理回落，b 拒，c 缺省关，d 项目
         // 作用域无根不收。
         assert_eq!(
-            hooked_aliases_at(&tmp, "claude", ""),
-            "hst-task | plug-a-md 禁字门禁 | plug-e 前缀静检"
+            hooked_aliases_at(&tmp, "claude", "").join("|"),
+            "hst-task|plug-a|plug-e"
         );
         // 项目根命中：d 入列（projectPath 同根；项目作用域插件由项目级
         // settings 落 enabled，项目档入链）；项目 local 把 b 覆写 true
@@ -2241,8 +2536,8 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            hooked_aliases_at(&tmp, "claude", proj.to_str().unwrap()),
-            "hst-task | plug-a-md 禁字门禁 | plug-b-plain-guard | plug-e 前缀静检 | plug-d-项目守卫"
+            hooked_aliases_at(&tmp, "claude", proj.to_str().unwrap()).join("|"),
+            "hst-task|plug-a|plug-b-plain-guard|plug-e|plug-d"
         );
         // 坏损 installed_plugins.json 零命中不炸（回落 settings 面）。
         std::fs::write(
@@ -2252,30 +2547,251 @@ mod tests {
             "{ not json",
         )
         .unwrap();
-        assert_eq!(hooked_aliases_at(&tmp, "claude", ""), "hst-task");
+        assert_eq!(hooked_aliases_at(&tmp, "claude", "").join("|"), "hst-task");
         let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn agent_segment_normalizes_payload_version() {
+        // REQ-051 L1 身份段:payload version 归一承 seg_hst 逻辑,归一出
+        // 点形才拼 agent-版本,缺键只显 agent 名。
+        let home = std::env::temp_dir().join(format!("hst-sr-agent-{}", std::process::id()));
+        std::fs::create_dir_all(&home).unwrap();
+        let cfg = StatuslineConfig::default();
+        let mk = |payload: &str| -> Option<String> {
+            let d: Json = serde_json::from_str(payload).unwrap();
+            let ctx = Ctx {
+                d: &d,
+                agent: "claude".to_string(),
+                nerd: false,
+                cfg: &cfg,
+                home: &home,
+                dir: "/w/p".to_string(),
+                root: String::new(),
+                proj_kind: String::new(),
+                pkg_ver: String::new(),
+                width: 120,
+            };
+            seg_agent(&ctx)
+        };
+        assert!(
+            mk(r#"{"version":"2.1.163 (Claude Code)"}"#)
+                .unwrap()
+                .contains("claude-2.1.163"),
+            "带尾巴的 CLI 版本归一成点形"
+        );
+        assert!(
+            mk(r#"{"version":"2.1.163"}"#)
+                .unwrap()
+                .contains("claude-2.1.163"),
+            "裸版本形"
+        );
+        let bare = mk("{}").unwrap();
+        assert!(
+            bare.contains("claude") && !bare.contains("claude-"),
+            "缺键只显 agent 名不造形: {bare}"
+        );
+        let nopoint = mk(r#"{"version":"unknown"}"#).unwrap();
+        assert!(
+            nopoint.contains("claude") && !nopoint.contains("claude-"),
+            "无点版本不拼: {nopoint}"
+        );
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn fleet_segment_reads_snapshot_with_age_degradation() {
+        // REQ-051 fleet 段:纯读快照零子进程;平时 W/N 平时形,blocked 与
+        // done 非零各自带记;5 分钟外灰显带龄,30 分钟外整段隐藏;total=0
+        // 与缺档隐藏。
+        let home = std::env::temp_dir().join(format!("hst-sr-fleet-{}", std::process::id()));
+        std::fs::create_dir_all(home.join("state")).unwrap();
+        let cfg = StatuslineConfig {
+            template: vec![("fleet".to_string(), "{fleet}".to_string())],
+            ..Default::default()
+        };
+        let d: Json = serde_json::from_str("{}").unwrap();
+        let snap = |body: &str| {
+            std::fs::write(home.join("state").join("fleet-snap.json"), body).unwrap();
+        };
+        macro_rules! mk_ctx {
+            ($home:expr) => {
+                Ctx {
+                    d: &d,
+                    agent: "claude".to_string(),
+                    nerd: false,
+                    cfg: &cfg,
+                    home: $home,
+                    dir: "/w/p".to_string(),
+                    root: String::new(),
+                    proj_kind: String::new(),
+                    pkg_ver: String::new(),
+                    width: 120,
+                }
+            };
+        }
+        let now = now_unix();
+        snap(&format!(
+            r#"{{"ts":{},"total":12,"working":1,"idle":10,"blocked":0,"done":1,"hosts":[]}}"#,
+            now
+        ));
+        let fresh = seg_fleet(&mk_ctx!(&home)).unwrap();
+        assert!(fresh.contains("1/12 D1"), "done 不折 idle: {fresh}");
+        assert!(fresh.contains("38;5;117"), "平时色: {fresh}");
+        snap(&format!(
+            r#"{{"ts":{},"total":5,"working":1,"idle":3,"blocked":1,"done":0,"hosts":[]}}"#,
+            now
+        ));
+        assert!(
+            seg_fleet(&mk_ctx!(&home)).unwrap().contains("1/5 !1"),
+            "blocked 带记"
+        );
+        // 6 分钟龄:灰显形带龄。
+        snap(&format!(
+            r#"{{"ts":{},"total":9,"working":2,"idle":7,"blocked":0,"done":0,"hosts":[]}}"#,
+            now - 6 * 60
+        ));
+        let aged = seg_fleet(&mk_ctx!(&home)).unwrap();
+        assert!(aged.contains("2/9 ·6m"), "龄 6 分钟灰显带龄: {aged}");
+        assert!(aged.contains("38;5;245"), "灰显色: {aged}");
+        // 31 分钟龄:整段隐藏。
+        snap(&format!(
+            r#"{{"ts":{},"total":9,"working":2,"idle":7,"blocked":0,"done":0,"hosts":[]}}"#,
+            now - 31 * 60
+        ));
+        assert!(seg_fleet(&mk_ctx!(&home)).is_none(), "超龄隐藏");
+        // total=0 与缺档:隐藏。
+        snap(r#"{"ts":1,"total":0,"working":0,"idle":0,"blocked":0,"done":0,"hosts":[]}"#);
+        assert!(seg_fleet(&mk_ctx!(&home)).is_none());
+        let _ = std::fs::remove_file(home.join("state").join("fleet-snap.json"));
+        assert!(seg_fleet(&mk_ctx!(&home)).is_none());
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn fmt_age_and_dir_basename_shapes() {
+        // REQ-051 task 循环时间 d/h/m 形与目录 basename 双分隔符。
+        assert_eq!(fmt_age(59), "now");
+        assert_eq!(fmt_age(60), "1m");
+        assert_eq!(fmt_age(18 * 60), "18m");
+        assert_eq!(fmt_age(3 * 3600), "3h");
+        assert_eq!(fmt_age(2 * 86_400), "2d");
+        assert_eq!(dir_basename("/home/ray/repos/hst_rs"), "hst_rs");
+        assert_eq!(dir_basename("D:\\repos\\ai-ccoe"), "ai-ccoe");
+        assert_eq!(dir_basename("/w/x/"), "x", "尾分隔符剥");
+        assert_eq!(dir_basename(""), "");
+    }
+
+    #[test]
+    fn context_three_shapes_and_bar() {
+        // REQ-051 三形:grok 三键严形(缺任一整段隐藏禁反推);kimi 比值族;
+        // claude 形 used 缺时百分比反推回落;bar 四格 ceil。
+        let d_grok: Json = serde_json::from_str(
+            r#"{"context_window":{"used_percentage":42.7,"context_tokens":84000,"context_window_size":200000}}"#,
+        )
+        .unwrap();
+        assert_eq!(context_grok(&d_grok), Some((42, 84000.0, 200000.0)));
+        let no_used: Json = serde_json::from_str(
+            r#"{"context_window":{"used_percentage":42.0,"context_window_size":200000}}"#,
+        )
+        .unwrap();
+        assert!(
+            context_grok(&no_used).is_none(),
+            "grok 缺 context_tokens 整段隐藏"
+        );
+        let d_kimi: Json = serde_json::from_str(
+            r#"{"contextUsage":0.42,"contextTokens":84000,"maxContextTokens":200000}"#,
+        )
+        .unwrap();
+        assert_eq!(context_kimi(&d_kimi), Some((42, 84000.0, 200000.0)));
+        let d_claude: Json = serde_json::from_str(
+            r#"{"context_window":{"used_percentage":46.0,"context_window_size":977000}}"#,
+        )
+        .unwrap();
+        // used 缺:取整百分比反推(46% * 977k)。
+        assert_eq!(context_shaped(&d_claude), Some((46, 449420.0, 977000.0)));
+        assert_eq!(bar_cells(0, 4), "▱▱▱▱");
+        assert_eq!(bar_cells(42, 4), "▰▰▱▱");
+        assert_eq!(bar_cells(100, 4), "▰▰▰▰");
+        assert_eq!(bar_cells(30, 1), "▰");
+        assert_eq!(bar_cells(0, 1), "▱");
+    }
+
+    #[test]
+    fn kimi_renders_single_compact_line() {
+        // REQ-051 kimi 恒单行:必留五件(版本加 basename 加分支加模型加
+        // context)加 task 紧凑形 R3·18m 加 hook 首 id;分支直读 payload
+        // 不起 git;fleet 与 clock 不上。
+        let home = std::env::temp_dir().join(format!("hst-sr-kimi-{}", std::process::id()));
+        std::fs::create_dir_all(&home).unwrap();
+        let cfg = StatuslineConfig {
+            single_line: false,
+            ..Default::default()
+        };
+        let d: Json = serde_json::from_str(
+            r#"{"version":"2.1.1","cwd":"/home/ray/repos/hst_rs","gitBranch":"lane/statusbar-v2","model":"kimi-k2","contextUsage":0.42,"contextTokens":84000,"maxContextTokens":200000}"#,
+        )
+        .unwrap();
+        let ctx = Ctx {
+            d: &d,
+            agent: "kimi".to_string(),
+            nerd: false,
+            cfg: &cfg,
+            home: &home,
+            dir: "/home/ray/repos/hst_rs".to_string(),
+            root: String::new(),
+            proj_kind: String::new(),
+            pkg_ver: String::new(),
+            width: 120,
+        };
+        let line = render_kimi_line(&ctx);
+        assert!(!line.contains('\n') || line.ends_with('\n'), "恒单行");
+        assert!(line.contains("kimi-2.1.1"), "版本: {line}");
+        assert!(line.contains("hst_rs"), "basename: {line}");
+        assert!(line.contains("lane/statusbar-v2"), "分支直读: {line}");
+        assert!(line.contains("kimi-k2"), "模型: {line}");
+        assert!(line.contains("42%"), "context pct: {line}");
+        assert!(!line.contains("☰"), "fleet 不上: {line}");
+        assert!(!line.contains("󰥔"), "clock 不上: {line}");
+        // task 在册:紧凑形 R0·(age)。
+        crate::task::set_task(
+            &home,
+            std::path::Path::new("/home/ray/repos/hst_rs"),
+            "eval 批",
+        )
+        .unwrap();
+        let line2 = render_kimi_line(&ctx);
+        assert!(line2.contains("R0·"), "task 紧凑形: {line2}");
+        assert!(!line2.contains("eval 批"), "task 文本不上 kimi 行: {line2}");
+        let _ = std::fs::remove_dir_all(&home);
     }
 
     #[test]
     fn plugin_display_dedups_short_prefix_in_label() {
         // 修复单 2026-10-12：statusMessage 自带插件名前缀（evo-lint 0.8.0
-        // 的「evo-lint 后缀静检」实证，插件作者按 Claude Code 原生显示习惯
-        // 写全文案）不双拼；边界三形全等加空格加连字符；无缝前缀不算命中。
-        assert_eq!(plugin_display("evo-lint", "后缀静检"), "evo-lint-后缀静检");
+        // 实证,插件作者按 Claude Code 原生显示习惯写全文案)不双拼;边界
+        // 三形全等加空格加连字符;无缝前缀不算命中。REQ-051 hook 零中文:
+        // CJK 标签回落纯插件名(前缀去重与否都不再显中文标签)。
+        assert_eq!(plugin_display("evo-lint", "后缀静检"), "evo-lint");
         assert_eq!(
             plugin_display("evo-lint", "evo-lint 后缀静检"),
-            "evo-lint 后缀静检",
-            "空格边界原样用"
-        );
-        assert_eq!(
-            plugin_display("evo-lint", "evo-lint-后缀静检"),
-            "evo-lint-后缀静检",
-            "连字符边界原样用"
+            "evo-lint",
+            "带前缀 CJK 标签同样回落纯名"
         );
         assert_eq!(plugin_display("evo-lint", "evo-lint"), "evo-lint");
         assert_eq!(
-            plugin_display("plug", "plugx 守卫"),
-            "plug-plugx 守卫",
+            plugin_display("evo-lint", "evo-lint suffix check"),
+            "evo-lint suffix check",
+            "英文标签空格边界原样用"
+        );
+        assert_eq!(
+            plugin_display("evo-lint", "evo-lint-suffix"),
+            "evo-lint-suffix",
+            "英文标签连字符边界原样用"
+        );
+        assert_eq!(
+            plugin_display("plug", "plugx guard"),
+            "plug-plugx guard",
             "无缝前缀照常拼"
         );
     }
@@ -2316,7 +2832,7 @@ mod tests {
     #[test]
     fn sentinel_no_hook_faces() {
         // REQ-027 原生侧：unknown 且注册面缺 hst-state 标记 → no-hook!；
-        ///注册在场不升格；非 unknown 不升格；stamp 节流窗内不重触发。
+        // 注册在场不升格；非 unknown 不升格；stamp 节流窗内不重触发。
         let tmp = std::env::temp_dir().join(format!("hst-sent-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&tmp);
         let hst_home = tmp.join("hst");
@@ -2335,6 +2851,7 @@ mod tests {
             root: String::new(),
             proj_kind: String::new(),
             pkg_ver: String::new(),
+            width: 120,
         };
         // 注册面缺位：unknown 升格（user_home 经 HOME 钉 user——本测改用
         // 直读路径面：sentinel_no_hook 经 user_home()；钉 HOME 走 ENV 锁）。
@@ -2382,7 +2899,7 @@ mod tests {
     #[test]
     fn sentinel_proj_yolo_faces() {
         // REQ-027 原生侧：marker 命中同项目且新鲜升格（复合态并显）、项目
-        ///不符与过期不升格、no-hook! 优先不叠加。
+        // 不符与过期不升格、no-hook! 优先不叠加。
         let tmp = std::env::temp_dir().join(format!("hst-py-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&tmp);
         let hst_home = tmp.join("hst");
@@ -2399,6 +2916,7 @@ mod tests {
             root: String::new(),
             proj_kind: String::new(),
             pkg_ver: String::new(),
+            width: 120,
         };
         let mdir = hst_home.join("state").join("projyolo");
         std::fs::create_dir_all(&mdir).unwrap();
@@ -2515,22 +3033,24 @@ mod tests {
     }
 
     #[test]
-    fn ctx_pct_win_floor_and_remaining_fallback() {
+    fn context_shaped_floor_and_remaining_fallback() {
         // 评审 F5：used 向下取整（46.7 出 46 非 47）；缺 used 时
-        // remaining 回退 100 减其向下取整。
+        // remaining 回退 100 减其向下取整；used 缺时取整百分比反推
+        //（REQ-051 claude 形回落道,直读优先）。REQ-051 起 pwsh 同口径
+        // 函数 ctx_pct_win 收敛入 context_shaped。
         let d: Json = serde_json::from_str(
             r#"{"context_window":{"context_window_size":977000,"used_percentage":46.7}}"#,
         )
         .unwrap();
-        assert_eq!(ctx_pct_win(&d), Some((46, 977_000.0)));
+        assert_eq!(context_shaped(&d), Some((46, 449_420.0, 977_000.0)));
         let d: Json = serde_json::from_str(
             r#"{"context_window":{"context_window_size":1000,"remaining_percentage":30.9}}"#,
         )
         .unwrap();
-        assert_eq!(ctx_pct_win(&d), Some((70, 1000.0)), "100 - floor(30.9)");
+        assert_eq!(context_shaped(&d).unwrap().0, 70, "100 - floor(30.9)");
         let d: Json =
             serde_json::from_str(r#"{"context_window":{"context_window_size":1000}}"#).unwrap();
-        assert!(ctx_pct_win(&d).is_none(), "both missing hides segment");
+        assert!(context_shaped(&d).is_none(), "both missing hides segment");
     }
 
     #[test]
@@ -2575,6 +3095,7 @@ mod tests {
             root: String::new(),
             proj_kind: String::new(),
             pkg_ver: String::new(),
+            width: 120,
         };
         assert_eq!(hook_state(&ctx), ("unknown".to_string(), false));
         // 会话键命中优先于 agent 键。
@@ -2700,6 +3221,7 @@ mod tests {
                     root: String::new(),
                     proj_kind: String::new(),
                     pkg_ver: String::new(),
+                    width: 120,
                 }
             };
         }
@@ -2775,6 +3297,7 @@ mod tests {
             root: String::new(),
             proj_kind: String::new(),
             pkg_ver: String::new(),
+            width: 120,
         };
         assert_eq!(icon_of(&ctx, "goal"), "GOAL ");
         assert_eq!(icon_of(&ctx, "hst"), "\u{f06a9}  ", "default survives");
@@ -2788,6 +3311,7 @@ mod tests {
             root: String::new(),
             proj_kind: String::new(),
             pkg_ver: String::new(),
+            width: 120,
         };
         assert_eq!(icon_of(&ctx_ascii, "loop"), "");
     }

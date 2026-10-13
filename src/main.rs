@@ -217,6 +217,8 @@ enum TaskCmd {
         #[arg(value_enum)]
         state: ArmState,
     },
+    /// fleet 快照刷新（内部面：hook 腿与 sweeper 自动骑乘，跑 agents view 落 state/fleet-snap.json 供状态栏 fleet 段纯读）
+    FleetRefresh,
 }
 
 /// yolo 治预授权态（`hst task yolo-heal` 参数面）。
@@ -676,6 +678,7 @@ fn run() -> Result<(), String> {
                 interval,
             } => cmd_task_heal(project, dry_run, interval),
             TaskCmd::YoloHeal { state } => cmd_task_yoloheal(state),
+            TaskCmd::FleetRefresh => cmd_task_fleet_refresh(),
         },
         Commands::Issue { cmd } => cmd_issue(cmd),
     }
@@ -1311,6 +1314,10 @@ fn cmd_hook_token(event: Option<String>, agent: Option<String>) -> Result<(), St
             }
         }
     }
+    // REQ-051 fleet 快照刷新骑 hook 事件流（60 秒节流 detach，fail-open）。
+    if let Ok(home) = hst::install::hst_home() {
+        hst::task::ensure_fleet_refresh(&home);
+    }
     Ok(())
 }
 
@@ -1836,6 +1843,13 @@ fn cmd_task_yoloheal(state: ArmState) -> Result<(), String> {
     Ok(())
 }
 
+/// fleet 快照刷新（REQ-051 内部面：hook 腿与 sweeper 骑乘 spawn 本面；
+/// agents 缺位报错不落快照，渲染面 fleet 段隐藏零噪声）。
+fn cmd_task_fleet_refresh() -> Result<(), String> {
+    let home = hst::install::hst_home()?;
+    hst::task::fleet_refresh(&home)
+}
+
 /// REQ-045 goal 腿分派（REQ-047 四事件面）：Stop 事件提醒注入（自然停一轮
 /// additionalContext 加 rounds 计数落盘；stop_hook_active 防环放行），
 /// SessionEnd 收束触发 sweep，Notification 与 PermissionRequest 权限形走
@@ -1884,6 +1898,8 @@ fn cmd_hook_task(event: Option<String>, agent: Option<String>) -> Result<(), Str
     if is_end || blocked {
         hst::task::ensure_sweeper(&home);
     }
+    // REQ-051 fleet 快照刷新骑 hook 事件流（60 秒节流 detach，fail-open）。
+    hst::task::ensure_fleet_refresh(&home);
     if is_end {
         let user_home = hst::pathutil::user_home().unwrap_or_default();
         if let Err(e) = hst::task::heal_sweep(&home, &user_home) {
