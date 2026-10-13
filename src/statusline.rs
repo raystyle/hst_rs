@@ -555,7 +555,7 @@ segments5 = []
 # 段内模板（[template]）：每段一条格式串；`<段>-ascii` 是 ASCII 形
 #（缺省同用 nerd 模板、图标恒空）。可用占位符：
 #   agent {icon}{agent}（L1 身份段：agent 名或 agent-版本归一形）
-#   fleet {icon}{fleet}（L2 舰队段：在线 agent 计数 N，总台第六笔回执收敛形；
+#   fleet {icon}{fleet}（L1 舰队段：W/N 形在跑数绿色异显，总台第九笔回执；
 #   龄超 5 分钟灰显带龄、超 30 分钟隐藏）
 #   shell {icon}{name} / dir {icon}{path} / hst {icon}{agent}{state}
 #   goalmode {icon}  {text}（/goal 原始参数文本；可自配 {state}）

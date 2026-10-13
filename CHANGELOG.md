@@ -9,7 +9,7 @@
 定版随发布链（版本载体唯一权威 Cargo.toml）。
 
 - **四行结构**：L1 身份与项目（fleet 在线计数首位、agent 类型加版本归一、dir、git、clock；bash 与运行时环境版本段默认退役，段 id 保留可显式写回）、L2 运行时（model、context 四格条形加百分比加 token 绝对值、duration）、L3 hook 清单（内部 `|` 细分，hook 零中文：插件 CJK 标签回落纯插件名）、L4 task 独占（文本加 `R<rounds> · <age>` 循环时间，goalmode 退化前缀旗在役才显）。宽度退化 env COLUMNS 四档（40 保底双行、60/80/100 逐段弃与截断）。
-- **fleet 舰队指标快照道**：`~/.hst/state/fleet-snap.json`（显示形为在线 agent 计数 `🐑 N`，总台回执令收敛，W/N 比与 `!B`/`Dn` 记号退役，快照计数面保留；5 分钟外灰显带龄、30 分钟外隐藏）；生产者 `hst task fleet-refresh` 跑 `agents view` TEXT 表解析原子落档；刷新骑现有循环（hook 腿 60 秒节流 detach 加 sweeper tick 顺带）；渲染纯读零网络零子进程（实弹 0.01s）。
+- **fleet 舰队指标快照道**：`~/.hst/state/fleet-snap.json`（显示形 `🐑 W/N` 在跑数绿色异显 38;5;114、零在跑回落基色，`!B`/`Dn` 记号退役，快照计数面保留；5 分钟外灰显带龄、30 分钟外隐藏）；生产者 `hst task fleet-refresh` 跑 `agents view` TEXT 表解析原子落档；刷新骑现有循环（hook 腿 60 秒节流 detach 加 sweeper tick 顺带）；渲染纯读零网络零子进程（实弹 0.01s）。
 - **四家承接**：codex 内置项换序对齐 L1 至 L2 语义（run-state 与 branch-changes 出默认集）；grok context 三键严形（缺任一整段隐藏禁反推）；kimi 恒单行（五必留加 `R3·18m` 紧凑形，分支直读 payload 零子进程）。
 - **verify marker 直立形**：S025 机读标记从冒号两形扩 `agent` / `agent-<version>` 直立形（段界收尾），旧冒号形兼容（装机位旧版渲染过渡期）。
 

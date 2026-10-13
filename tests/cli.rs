@@ -1891,7 +1891,7 @@ fn statusline_render_native_marker_smoke() {
 #[test]
 fn statusline_render_fleet_segment_reads_snapshot() {
     // REQ-051 fleet 段端到端:HST_ROOT 钉临时根落 fleet-snap.json,渲染
-    // 纯读出在线计数形(总台第六笔回执 N 形);缺档即整段隐藏零噪声。
+    // 纯读出 W/N 形(总台第九笔回执,在跑数异色);缺档即整行隐藏零噪声。
     let tmp = std::env::temp_dir().join(format!("hst-render-fleet-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&tmp);
     std::fs::create_dir_all(tmp.join("state")).unwrap();
@@ -1906,18 +1906,22 @@ fn statusline_render_fleet_segment_reads_snapshot() {
         ),
     )
     .unwrap();
+    // 评审 r1 F-1 教训:色码断言须钉死双开关(空串 = 关),环境 NO_COLOR
+    // 不渗入子进程。
     let out = hst()
         .env("HST_ROOT", &tmp)
         .env("HST_USER_HOME", &tmp)
-        .env("HST_STATUSLINE_NO_ANSI", "1")
+        .env("NO_COLOR", "")
+        .env("HST_STATUSLINE_NO_ANSI", "")
         .args(["statusline", "--render", "claude"])
         .write_stdin("{}")
         .output()
         .unwrap();
     assert!(out.status.success());
     let s = String::from_utf8_lossy(&out.stdout);
-    assert!(s.contains("\u{1f411} 12"), "fleet 在线计数形: {s}");
-    assert!(!s.contains("1/12"), "W/N 比退役: {s}");
+    assert!(s.contains("\u{1f411}"), "fleet 图标: {s}");
+    assert!(s.contains("/12"), "fleet W/N 形: {s}");
+    assert!(s.contains("38;5;114"), "在跑数异色: {s}");
     // 缺档:零噪声。
     let tmp2 = std::env::temp_dir().join(format!("hst-render-fleet2-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&tmp2);
@@ -1925,7 +1929,8 @@ fn statusline_render_fleet_segment_reads_snapshot() {
     let out2 = hst()
         .env("HST_ROOT", &tmp2)
         .env("HST_USER_HOME", &tmp2)
-        .env("HST_STATUSLINE_NO_ANSI", "1")
+        .env("NO_COLOR", "")
+        .env("HST_STATUSLINE_NO_ANSI", "")
         .args(["statusline", "--render", "claude"])
         .write_stdin("{}")
         .output()

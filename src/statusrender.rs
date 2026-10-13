@@ -1615,10 +1615,11 @@ fn agent_version(d: &Json) -> String {
     }
 }
 
-/// REQ-051 L2 fleet 段:快照档纯读(零网络零子进程)。总台第六笔回执
-/// 「就显示有多少个 agent 在线可操作」:显示形收敛为在线计数 `☰ N`
-/// (W/N 比与 !B 加 Dn 记号退役;快照计数面保留供机读与后续形);龄降级
-/// = 5 分钟外灰显带龄,30 分钟外段隐藏。
+/// REQ-051 L1 fleet 段:快照档纯读(零网络零子进程)。总台第九笔回执
+/// 「18 前面用不同颜色显示在线 3/18」:恢复 W/N 形且在跑数异色
+///(38;5;114 绿,零在跑不加色回落基色);!B 加 Dn 记号保持退役(第六笔);
+/// 龄降级 = 5 分钟外灰显带龄,30 分钟外段隐藏。段级色与在跑数色分段
+/// 施加(ansi 复位后基色重开,避免嵌套复位吞色)。
 fn seg_fleet(ctx: &Ctx) -> Option<String> {
     let snap = ctx.home.join("state").join("fleet-snap.json");
     let text = std::fs::read_to_string(&snap).ok()?;
@@ -1632,15 +1633,22 @@ fn seg_fleet(ctx: &Ctx) -> Option<String> {
     if age > 30 * 60 {
         return None; // 超龄整段隐藏
     }
-    let (color, shown) = if age > 5 * 60 {
-        ("38;5;245", format!("{total} ·{}m", age / 60))
+    let working = v.get("working").and_then(|x| x.as_u64()).unwrap_or(0);
+    let (color, age_txt) = if age > 5 * 60 {
+        ("38;5;245", format!(" ·{}m", age / 60))
     } else {
-        ("38;5;117", total.to_string())
+        ("38;5;117", String::new())
     };
+    let w_txt = if working > 0 {
+        ansi(&working.to_string(), "38;5;114")
+    } else {
+        working.to_string()
+    };
+    let body = format!("{w_txt}{}", ansi(&format!("/{total}{age_txt}"), color));
     Some(ansi(
         &apply_fmt(
             &tmpl_of(ctx, "fleet"),
-            &[("icon", icon_of(ctx, "fleet")), ("fleet", shown)],
+            &[("icon", icon_of(ctx, "fleet")), ("fleet", body)],
         ),
         color,
     ))
@@ -2592,8 +2600,9 @@ mod tests {
 
     #[test]
     fn fleet_segment_reads_snapshot_with_age_degradation() {
-        // REQ-051 fleet 段:纯读快照零子进程;总台第六笔回执收敛为在线
-        // 计数 N(W/N 与 !B 加 Dn 记号退役);5 分钟外灰显带龄,30 分钟外
+        // REQ-051 fleet 段:纯读快照零子进程;总台第九笔回执 W/N 形
+        // 且在跑数绿色异显(零在跑回落基色);!B 加 Dn 记号保持退役;
+        // 5 分钟外灰显带龄,30 分钟外
         // 整段隐藏;total=0 与缺档隐藏。评审 r1 F-1:断言面押 ANSI 色码,
         // 须 ENV_LOCK 互斥加剥双开关(NO_COLOR 与 HST_STATUSLINE_NO_ANSI
         // 任一在场即剥色必红),反例锁 HST_STATUSLINE_NO_ANSI=1 剥色形。
@@ -2634,16 +2643,19 @@ mod tests {
             now
         ));
         let fresh = seg_fleet(&mk_ctx!(&home)).unwrap();
-        assert!(fresh.contains("12"), "在线计数形: {fresh}");
-        assert!(!fresh.contains('/'), "W/N 比退役: {fresh}");
-        assert!(fresh.contains("38;5;117"), "平时色: {fresh}");
+        assert!(
+            fresh.contains("\u{1b}[38;5;114m1\u{1b}[0m"),
+            "在跑数绿色异显: {fresh}"
+        );
+        assert!(fresh.contains("/12"), "总数随段基色: {fresh}");
+        assert!(fresh.contains("38;5;117"), "段基色: {fresh}");
         snap(&format!(
             r#"{{"ts":{},"total":5,"working":1,"idle":3,"blocked":1,"done":0,"hosts":[]}}"#,
             now
         ));
         assert!(
-            seg_fleet(&mk_ctx!(&home)).unwrap().contains("5"),
-            "blocked 计入在线计数,记号不上栏"
+            seg_fleet(&mk_ctx!(&home)).unwrap().contains("/5"),
+            "blocked 计入总数,记号不上栏"
         );
         // 6 分钟龄:灰显形带龄。
         snap(&format!(
@@ -2651,7 +2663,7 @@ mod tests {
             now - 6 * 60
         ));
         let aged = seg_fleet(&mk_ctx!(&home)).unwrap();
-        assert!(aged.contains("9 ·6m"), "龄 6 分钟灰显带龄: {aged}");
+        assert!(aged.contains("/9 ·6m"), "龄 6 分钟灰显带龄: {aged}");
         assert!(aged.contains("38;5;245"), "灰显色: {aged}");
         // 31 分钟龄:整段隐藏。
         snap(&format!(
@@ -2671,7 +2683,7 @@ mod tests {
             now
         ));
         let stripped = seg_fleet(&mk_ctx!(&home)).unwrap();
-        assert_eq!(stripped, "12", "剥色后裸文本: {stripped}");
+        assert_eq!(stripped, "1/12", "剥色后裸文本: {stripped}");
         std::env::remove_var("HST_STATUSLINE_NO_ANSI");
         let _ = std::fs::remove_dir_all(&home);
     }
