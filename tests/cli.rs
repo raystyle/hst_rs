@@ -1248,7 +1248,7 @@ fn goal_stop_hook_leg_reminds_on_natural_stop_only() {
     );
     let out = hst()
         .env("HST_ROOT", &tmp)
-        .env("HST_GOAL_SWEEPER", "off")
+        .env("HST_TASK_SWEEPER", "off")
         .args(["hook", "task", "--agent", "claude"])
         .write_stdin(stop_payload.as_str())
         .output()
@@ -1279,7 +1279,7 @@ fn goal_stop_hook_leg_reminds_on_natural_stop_only() {
     );
     let out = hst()
         .env("HST_ROOT", &tmp)
-        .env("HST_GOAL_SWEEPER", "off")
+        .env("HST_TASK_SWEEPER", "off")
         .args(["hook", "task", "--agent", "claude"])
         .write_stdin(again.as_str())
         .output()
@@ -1304,7 +1304,7 @@ fn goal_stop_hook_leg_reminds_on_natural_stop_only() {
     );
     let out = hst()
         .env("HST_ROOT", &tmp)
-        .env("HST_GOAL_SWEEPER", "off")
+        .env("HST_TASK_SWEEPER", "off")
         .args(["hook", "task", "--agent", "claude"])
         .write_stdin(other.as_str())
         .output()
@@ -1484,7 +1484,7 @@ fn goal_hook_blocked_fastpath_alarms_without_output() {
     std::fs::create_dir_all(&proj).unwrap();
     hst()
         .env("HST_ROOT", &tmp)
-        .env("HST_GOAL_SWEEPER", "off")
+        .env("HST_TASK_SWEEPER", "off")
         .args(["task", "set", "盯评审收口", "--project"])
         .arg(&proj)
         .assert()
@@ -1495,7 +1495,7 @@ fn goal_hook_blocked_fastpath_alarms_without_output() {
     );
     let out = hst()
         .env("HST_ROOT", &tmp)
-        .env("HST_GOAL_SWEEPER", "off")
+        .env("HST_TASK_SWEEPER", "off")
         .args(["hook", "task", "--agent", "claude"])
         .write_stdin(perm_payload.as_str())
         .output()
@@ -1522,7 +1522,7 @@ fn goal_hook_blocked_fastpath_alarms_without_output() {
     // 防抖窗内二连：streak 递增、不重报。
     hst()
         .env("HST_ROOT", &tmp)
-        .env("HST_GOAL_SWEEPER", "off")
+        .env("HST_TASK_SWEEPER", "off")
         .args(["hook", "task", "--agent", "claude"])
         .write_stdin(perm_payload.as_str())
         .output()
@@ -1541,7 +1541,7 @@ fn goal_hook_blocked_fastpath_alarms_without_output() {
     );
     let out = hst()
         .env("HST_ROOT", &tmp)
-        .env("HST_GOAL_SWEEPER", "off")
+        .env("HST_TASK_SWEEPER", "off")
         .args(["hook", "task", "--agent", "claude"])
         .write_stdin(tip_payload.as_str())
         .output()
@@ -3304,10 +3304,9 @@ fn help_faces_carry_no_archaeology_markers() {
     }
 }
 
-#[test]
-fn task_command_family_and_goal_alias_compat() {
-    // taskmigrate-01:hst task 主命令族落位;hst goal 兼容别名一版走通
-    //(同档同语义,不双写);hook goal 别名静默同效。
+fn task_command_family_and_goal_alias_retired() {
+    // taskmigrate-01 主命令族落位;2.15(REQ-054)一版兼容期满:goal 命令族
+    // 与 hook goal 静默别名与 HST_GOAL_* 旧闸名全数退役(failure 形)。
     let tmp = std::env::temp_dir().join(format!(
         "hst-cli-taskalias-{}-{}-{}",
         std::process::id(),
@@ -3327,23 +3326,6 @@ fn task_command_family_and_goal_alias_compat() {
         .assert()
         .success()
         .stdout(contains("task.set text=正名后任务"));
-    // 兼容别名:读面同档。
-    hst()
-        .env("HST_ROOT", &tmp)
-        .args(["goal", "show", "--project"])
-        .arg(&root)
-        .assert()
-        .success()
-        .stdout(contains("task.present=true"))
-        .stdout(contains("task.text=正名后任务"));
-    // 别名写面同语义(写同一 state/task 档)。
-    hst()
-        .env("HST_ROOT", &tmp)
-        .args(["goal", "set", "别名写入", "--project"])
-        .arg(&root)
-        .assert()
-        .success()
-        .stdout(contains("task.set text=别名写入"));
     let slug: String = root
         .display()
         .to_string()
@@ -3355,20 +3337,22 @@ fn task_command_family_and_goal_alias_compat() {
         .join("task")
         .join(format!("{slug}--claude.json"))
         .is_file());
-    assert!(!tmp.join("state").join("goal").exists(), "旧位不再写");
-    // hook 腿别名:goal 静默走 task 同效(计数落同一档)。
+    // goal 命令族与 hook goal 别名退役:usage 失败形。
+    hst()
+        .env("HST_ROOT", &tmp)
+        .args(["goal", "show", "--project"])
+        .arg(&root)
+        .assert()
+        .failure();
+    hst()
+        .env("HST_ROOT", &tmp)
+        .args(["hook", "goal"])
+        .assert()
+        .failure();
+    // hook task 主面计数照常。
     hst()
         .env("HST_ROOT", &tmp)
         .args(["hook", "task", "--agent", "claude"])
-        .write_stdin(format!(
-            "{{\"hook_event_name\":\"Stop\",\"cwd\":\"{}\"}}",
-            root.display()
-        ))
-        .assert()
-        .success();
-    hst()
-        .env("HST_ROOT", &tmp)
-        .args(["hook", "goal", "--agent", "claude"])
         .write_stdin(format!(
             "{{\"hook_event_name\":\"Stop\",\"cwd\":\"{}\"}}",
             root.display()
@@ -3381,18 +3365,16 @@ fn task_command_family_and_goal_alias_compat() {
         .arg(&root)
         .assert()
         .success()
-        .stdout(contains("task.rounds=2"));
-    // 清面别名。
+        .stdout(contains("task.rounds=1"));
     hst()
         .env("HST_ROOT", &tmp)
-        .args(["goal", "clear", "--project"])
+        .args(["task", "clear", "--project"])
         .arg(&root)
         .assert()
         .success()
         .stdout(contains("task.clear present=true"));
     let _ = std::fs::remove_dir_all(&tmp);
 }
-
 #[test]
 fn task_store_migrates_from_legacy_goal_dir() {
     // taskmigrate-01 迁移回放(进程级):预置 state/goal 旧档,新二进制首访

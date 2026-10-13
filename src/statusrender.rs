@@ -1685,14 +1685,14 @@ fn seg_context(ctx: &Ctx) -> Option<String> {
     let body = if ctx.width < 40 {
         format!("{} {pct}%", bar_cells(pct, 1))
     } else if ctx.width < 80 {
-        format!("{} {pct}%", bar_cells(pct, 4))
+        format!("{} {pct}%", bar_cells(pct, 5))
     } else {
         let key = if ctx.nerd { "context" } else { "context-ascii" };
         apply_fmt(
             &tmpl_of(ctx, key),
             &[
                 ("icon", icon_of(ctx, "context")),
-                ("bar", bar_cells(pct, 4)),
+                ("bar", bar_cells(pct, 5)),
                 ("pct", pct.to_string()),
                 ("used", fmt_tok(used)),
                 ("window", fmt_tok(win)),
@@ -1703,7 +1703,7 @@ fn seg_context(ctx: &Ctx) -> Option<String> {
     Some(ansi(&body, "38;5;116"))
 }
 
-/// context 条形格(▰ 实加▱ 空):filled = ceil(pct*n/100) 截 0..n。
+/// context 条形格(▰ 实加▱ 空,总台令五块):filled = ceil(pct*n/100) 截 0..n。
 fn bar_cells(pct: u64, n: usize) -> String {
     let filled = (pct as usize * n).div_ceil(100).min(n);
     format!("{}{}", "▰".repeat(filled), "▱".repeat(n - filled))
@@ -2713,6 +2713,10 @@ mod tests {
         assert_eq!(bar_cells(100, 4), "▰▰▰▰");
         assert_eq!(bar_cells(30, 1), "▰");
         assert_eq!(bar_cells(0, 1), "▱");
+        // 总台令五块:42% 出三实二空(ceil(2.1)=3)。
+        assert_eq!(bar_cells(42, 5), "▰▰▰▱▱");
+        assert_eq!(bar_cells(0, 5), "▱▱▱▱▱");
+        assert_eq!(bar_cells(100, 5), "▰▰▰▰▰");
     }
 
     #[test]

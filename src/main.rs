@@ -174,7 +174,6 @@ enum Commands {
         cmd: DiagnoseCmd,
     },
     /// task 自治面：项目级 task 设置、查看与清空；Stop hook 每轮提醒，状态栏段同源显示
-    #[command(alias = "goal")]
     Task {
         #[command(subcommand)]
         cmd: TaskCmd,
@@ -500,7 +499,6 @@ enum HookCmd {
         agent: Option<String>,
     },
     /// task 腿：Claude Code Stop 等四事件提醒注入与 task 自驱（rounds 计数落盘）
-    #[command(alias = "goal")]
     Task {
         /// 事件名；省略则读 stdin JSON（注册面形）
         #[arg(value_name = "事件")]
@@ -1924,11 +1922,15 @@ fn cmd_hook_task(event: Option<String>, agent: Option<String>) -> Result<(), Str
     };
     match hst::task::stop_hook(&home, payload.as_ref(), event.as_deref()) {
         Ok(Some(out)) => {
-            // 提醒先出后扫（goal-01）：decision JSON 落定 flush 后才跑自愈
-            // 扫描，扫描有界且 fail-open，最坏不拖丢本会话提醒。
+            // 决策文档打印后立即收程（Stop hook 报错修,2026-10-13 总台报
+            // 「stdio went quiet before end-of-stream refusing to honor the
+            // suspect capture」根因 = 文档已出后同步 heal_sweep 的 herdr
+            // 唤醒走网络,撞 10s 注册超时被杀,尾程无 EOF 被判疑似截获):
+            // rounds 已先落盘,提醒即退;扫描骑后续事件与 sweeper 自驱。
             println!("{out}");
             use std::io::Write as _;
             let _ = std::io::stdout().flush();
+            std::process::exit(0);
         }
         Ok(None) => {}
         Err(e) => {

@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### 里程碑 2026-10-13：v2.15.0 goal 别名摘除与 Stop 收程修 REQ-054
+
+- **goal 别名族退役（REQ-050 一版兼容期满，原定 2.13 经两顺延至本版）**：`hst goal` 命令组别名、`hst hook goal` 静默别名、`HST_GOAL_HEAL`/`HST_GOAL_SWEEPER` 旧闸名全数摘除（`HST_TASK_*` 正名唯一）；状态栏段 id goal 映射与 state/goal 存量迁移道与 legacy 键兼容读不属别名族，保留。
+- **Stop hook 收程修（总台报错「stdio went quiet before end-of-stream…refusing to honor the suspect capture」）**：根因 = 决策文档（Stop 提醒 JSON）打印后同步 heal_sweep 的 herdr 唤醒走网络，撞 10s 注册超时被杀，尾程无 EOF 被 Claude Code 判疑似截获拒收；修法 = rounds 先落盘、文档 flush 后即刻 exit(0)，扫描骑后续事件与 sweeper 自驱。
+- **context 条形五块（总台令「▰▰▱▱ 五块」）**：四格升五格（42% 出 ▰▰▰▱▱）。
+
 ### 里程碑 2026-10-13：v2.14.0 token-guard 全面退钩批 REQ-052
 
 - **token-guard 默认退钩（总台令「默认关掉 hst-token-guard」）**：缺省 `hst init` 不再注册 token 腿（claude 只挂 task 四事件；codex、grok、kimi 零 hst 钩为常态），既有存量注册经新 init 一趟清出（sweep 与分侧外科摘键），shim `hst-token.*` 四载体出腿表入退役清扫；`hst hook token` CLI 保留为手动面。

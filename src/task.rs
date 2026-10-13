@@ -28,7 +28,7 @@
 //! （`hst task yolo-heal on`）下反复 blocked 触发 yolo 治（落键加重启格加
 //! 续 goal）；间隔自驱 = hook 起 sweeper 有界子进程（60 秒 tick、2 小时
 //! 寿命、`.sweeper-lock` 单实例锁 pid 加 token 身份验主、tick 加最坏
-//! heavy 两倍陈旧接管），`HST_GOAL_SWEEPER=off`
+//! heavy 两倍陈旧接管），`HST_TASK_SWEEPER=off`
 //! 逃生闸。wake 文本 v2 自包含五件（task 文本加上轮收束态加即刻推进加
 //! 防卡死防空转边界加用法）。
 //!
@@ -1632,7 +1632,7 @@ fn heal_log_append(home: &Path, slug: &str, action: &str, detail: &str) {
 /// 本会话提醒并已输出后调用；盖章限频内直接让位（零子进程开销），
 /// 过章才扫（herdr list 有界 4s，唤醒 prompt 有界 8s，全 fail-open 不影
 /// 响主链）。治序列不在此路执行（heavy=false，hook 10s 预算装不下重启
-/// 格，让位 sweeper 与手动面）。`HST_GOAL_HEAL=off` 为逃生闸（诊断/测试
+/// 格，让位 sweeper 与手动面）。`HST_TASK_HEAL=off` 为逃生闸（诊断/测试
 /// 面）。返回 Some(回执行数) = 本轮实扫，None = 未到点或关闸。
 ///
 /// # Errors
@@ -1662,7 +1662,7 @@ pub fn heal_sweep(home: &Path, user_home: &Path) -> Result<Option<usize>, String
 
 /// heal 面总逃生闸（既有）：off 关整个自愈面（sweep、快道、sweeper）。
 fn heal_face_off() -> bool {
-    ["HST_TASK_HEAL", "HST_GOAL_HEAL"]
+    ["HST_TASK_HEAL"]
         .iter()
         .any(|k| std::env::var_os(k).is_some_and(|v| v == "off"))
 }
@@ -1670,7 +1670,7 @@ fn heal_face_off() -> bool {
 /// sweeper 逃生闸（REQ-047）：off 只关间隔子进程面（ensure 不起、loop
 /// 即退），事件 sweep 与手动 heal 不受影响。
 fn sweeper_off() -> bool {
-    ["HST_TASK_SWEEPER", "HST_GOAL_SWEEPER"]
+    ["HST_TASK_SWEEPER"]
         .iter()
         .any(|k| std::env::var_os(k).is_some_and(|v| v == "off"))
 }
@@ -2659,9 +2659,9 @@ mod tests {
         assert_eq!(rows[0].action, "skip-storm-capped", "{:?}", rows[0].detail);
         // heal_sweep（goal-01 澄清令事件驱动面）：off 闸让位、实扫唤醒加
         // 留痕（.heal-log 与 .heal-sweep）、盖章限频二连让位。
-        std::env::set_var("HST_GOAL_HEAL", "off");
+        std::env::set_var("HST_TASK_HEAL", "off");
         assert_eq!(heal_sweep(&home, &user).unwrap(), None, "off 闸让位");
-        std::env::remove_var("HST_GOAL_HEAL");
+        std::env::remove_var("HST_TASK_HEAL");
         let _ = std::fs::remove_file(task_dir(&home).join(".heal-sweep"));
         let mut rec = show_task(&home, proj, "claude").unwrap().unwrap();
         rec.last_stop_at = 1;
@@ -2871,14 +2871,14 @@ mod tests {
         let _g = crate::pathutil::ENV_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        std::env::set_var("HST_GOAL_HEAL", "off");
+        std::env::set_var("HST_TASK_HEAL", "off");
         let mut aged = show_task(&home, root, "claude").unwrap().unwrap();
         aged.blocked_alarm_at = 1;
         write_record(&task_path(&home, root, "claude"), &aged).unwrap();
         assert!(blocked_fastpath(&home, Some(&perm), None)
             .unwrap()
             .is_none());
-        std::env::remove_var("HST_GOAL_HEAL");
+        std::env::remove_var("HST_TASK_HEAL");
         // 过窗再报：报警回执回场。
         let line2 = blocked_fastpath(&home, Some(&perm), None).unwrap();
         assert!(line2.is_some(), "过防抖窗重报");
@@ -2891,11 +2891,11 @@ mod tests {
         let _g = crate::pathutil::ENV_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        // HST_GOAL_SWEEPER=off:loop 即退（零副作用零锁残留）。
-        std::env::set_var("HST_GOAL_SWEEPER", "off");
+        // HST_TASK_SWEEPER=off:loop 即退（零副作用零锁残留）。
+        std::env::set_var("HST_TASK_SWEEPER", "off");
         sweeper_loop(&home, Path::new("/nonexistent-user")).unwrap();
         assert!(!sweeper_lock_path(&home).exists(), "off 即退不留锁");
-        std::env::remove_var("HST_GOAL_SWEEPER");
+        std::env::remove_var("HST_TASK_SWEEPER");
         let _ = std::fs::remove_dir_all(&home);
     }
 
