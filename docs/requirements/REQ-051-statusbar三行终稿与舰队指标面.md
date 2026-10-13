@@ -16,11 +16,12 @@ trace: null
 
 ### 三行结构定稿 现行五段行收敛为三行
 
-现行五段行(项目行、agent 态行、hookstate 行、task 行、goalmode 行)收敛为三行;字段序与行归属:
+现行五段行(项目行、agent 态行、hookstate 行、task 行、goalmode 行)收敛为四行(L1 身份与项目、L2 运行时、L3 hook、L4 task;总台令第五笔 task 独立成行);字段序与行归属:
 
 - **L1 身份与项目行**:`agent 类型加版本`(首位,用户令)接 dir 加 git 加 clock。dir 与 git 保留现显示形(总台令第二笔:bash 与运行时环境版本段默认退役;段 id 保留可显式写回 toml 自选)。agent 版本取 payload version 归一(现行 seg_hst 的版本归一逻辑随迁)。
 - **L2 运行时行**:model 加 context 加 duration 加 **fleet 段**(舰队紧凑计数,新)。agent 态显示(agent:state 文本与态色)整体退役(总台令「不需要显示 claude:working」;承 REQ-049 F-3 裁定态源已枯,会话态归 herdr 域):seg_hst 拆解 = 版本归一逻辑迁 L1 身份段,态文本与 state_color 通道退场,行色恒中性。
-- **L3 hst 域行**:hookstate(英文 id 清单,零中文,清单内部用 `|`)加 task(`◉` 前缀接文本加轮次加循环时间)。goalmode 退化为 L3 前缀旗(active 加 paused),在役才显,无 goalmode 零占位。
+- **L3 hook 行**:hookstate(英文 id 清单,零中文,清单内部用 `|`)。
+- **L4 task 行**(总台令第五笔「task应该单独一行」):`◉` 前缀接文本加轮次加循环时间,独占一行;goalmode 退化为 L4 前缀旗(active 加 paused),在役才显;无 task 整行隐藏(现行为保持)。
 
 **分隔与图标律(总台令第四笔「没有图标和分隔符?」:保留)**:段间 ` | ` 分隔(现行风格沿用),各段配 nerd 图标(路径、分支、时钟、模型、时长、fleet、hook 清单、task 各一);hook 清单内部与 task 正文前仍用 `|` 细分。
 
@@ -64,7 +65,8 @@ task 段(L3)增循环时间:`R<rounds> <age>`(age = 距上轮活动 last_stop_at
 ```text
 L1  ✳ claude-2.1.163 | 󰉋 /home/ray/repos/hst_rs | 󰂠 lane/statusbar-v2 | 󰥔 07:51
 L2  ✦ glm-4.6 | ▰▰▰▱ 42% (84k/200k) | ⏱ 12m | ☰ 1/12
-L3  ⚉ hst-task|herdr-agent-state|evo-lint | ◉ eval 批 R3 · 18m
+L3  ⚉ hst-task|herdr-agent-state|evo-lint
+L4  ◉ eval 批 R3 · 18m
 ```
 
 80 列窄窗(退化后,与退化表同规则):
@@ -72,7 +74,8 @@ L3  ⚉ hst-task|herdr-agent-state|evo-lint | ◉ eval 批 R3 · 18m
 ```text
 L1  ✳ claude-2.1.163 | 󰉋 hst_rs | 󰂠 lane/statusbar-v2
 L2  ✦ glm-4.6 | ▰▰▰▱ 42% | ⏱ 12m
-L3  ⚉ hst-task|herdr-agent-state|evo-lint | ◉ eval 批 R3…
+L3  ⚉ hst-task|herdr-agent-state|evo-lint
+L4  ◉ eval 批 R3…
 ```
 
 40 列极窄:
@@ -101,4 +104,4 @@ L2  ▰ 42%
 
 过程一笔:fb91060 提交信息声称 grok 修订全落,实盘仅 mock 一行改动(脚本中途断言失败未写盘,提交信息超前于实跑,同门禁假绿同族坑);本笔整文件重写落齐,以本文件为准。
 
-待核余项:三行字段序与行归属、退化阈、快照老化阈(5 分钟灰显 30 分钟隐藏)。核过转 implemented 批。
+其五「task应该单独一行」= task 出 L3 独占 L4(结构改四行),goalmode 前缀旗随迁 L4。待核余项:退化阈、快照老化阈(5 分钟灰显 30 分钟隐藏)。核过转 implemented 批。
