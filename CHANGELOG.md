@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### 里程碑 2026-10-13：v2.14.0 token-guard 全面退钩批 REQ-052
+
+- **token-guard 默认退钩（总台令「默认关掉 hst-token-guard」）**：缺省 `hst init` 不再注册 token 腿（claude 只挂 task 四事件；codex、grok、kimi 零 hst 钩为常态），既有存量注册经新 init 一趟清出（sweep 与分侧外科摘键），shim `hst-token.*` 四载体出腿表入退役清扫；`hst hook token` CLI 保留为手动面。
+- **开关面（总台令「不能有个开关直接关掉这个 hook」）**：`hst init --token-guard` 显式开（标记档 `~/.hst/token-guard.on`，四家注册回归），`--no-token-guard` 显式关并清出，缺省 init 不动开关按现态幂等；运行时逃生闸 `HST_TOKEN_GUARD=off` 直通。
+- **判据随动**：doctor hooks.form（他家零钩 Ok、存量 Warn 引导重 init、开关 ON 机 Ok）；statusline no-hook 哨兵仅 claude（他家零钩常态不哨）；verify 部署道随开关。
+- **同车**：插件 hook 纯名（statusMessage 不上栏）；goal alias 与 hook goal 摘除顺延后续批（收窄令「只摘除 hst-token-guard 相关」，goal 族零触碰）。
+
 ### 里程碑 2026-10-13：v2.13.0 statusbar v2 四行终稿与舰队指标面 REQ-051
 
 版本 2.13.0（minor：新能力加行为变化）。goal alias 与 hook goal 兼容别名摘除原登记 2.13，顺延 2.14 独立批承载（本版专注 statusbar v2 全量）。

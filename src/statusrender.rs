@@ -1380,11 +1380,12 @@ fn collect_toml_commands(path: &Path, cmds: &mut Vec<String>) {
     }
 }
 
-/// REQ-014 哨兵（原生侧，REQ-027）：unknown 时探注册面（按 agent 定位
-/// 配置文件，标记串 hst-state 干 stem），缺位升格 `no-hook!`；节流窗
-///（每 agent 1 小时）到期 best-effort 自愈 `hst hook init`（幂等重注
-/// 册，仅 hook 面；不在 PATH 或失败静默，不阻塞渲染）。stamp 记 ts 内容
-///（pwsh 形记 mtime；内容形可测）。
+/// REQ-014 哨兵（原生侧，REQ-027）：unknown 时探注册面，缺位升格
+/// `no-hook!`；节流窗（每 agent 1 小时）到期 best-effort 自愈
+/// `hst hook init`（幂等重注册，仅 hook 面；不在 PATH 或失败静默，不阻塞
+/// 渲染）。REQ-052 起仅 claude 有腿（task 四事件），codex 与 grok 与
+/// kimi 零 hst 钩为常态不哨。stamp 记 ts 内容（pwsh 形记 mtime；内容形
+/// 可测）。
 fn sentinel_no_hook(ctx: &Ctx, state: &str) -> Option<String> {
     if state != "unknown" {
         return None;
@@ -1393,21 +1394,14 @@ fn sentinel_no_hook(ctx: &Ctx, state: &str) -> Option<String> {
         Ok(h) => h,
         Err(_) => return None,
     };
-    let reg = match ctx.agent.as_str() {
-        "claude" => home.join(".claude").join("settings.json"),
-        "codex" => home.join(".codex").join("hooks.json"),
-        "grok" => home
-            .join(".grok")
-            .join("hooks")
-            .join("ohmyagents-state.json"),
-        "kimi" => home.join(".kimi-code").join("config.toml"),
-        _ => return None,
-    };
-    // entropy-01(hst-rev F-1):判据改押现行腿(token 或 goal 任一);旧形
-    // state-only 注册不认 = no-hook! 升格触发自愈 hst hook init,即存量
-    // 升级向量(codex/grok/kimi 只有 token 腿,两腿任一即在场)。
+    // REQ-052:token 腿退钩,唯 claude 挂腿(task 四事件);他家零钩常态
+    // 不哨(entropy-01 判据的 token 分量保留认存量未重 init 机)。
+    if ctx.agent != "claude" {
+        return None;
+    }
+    let reg = home.join(".claude").join("settings.json");
     let reg_ok = std::fs::read_to_string(&reg)
-        .map(|t| t.contains("hst-token") || t.contains("hst-task") || t.contains("hst-goal"))
+        .map(|t| t.contains("hst-task") || t.contains("hst-token") || t.contains("hst-goal"))
         .unwrap_or(false);
     if reg_ok {
         return None;
@@ -2858,6 +2852,41 @@ mod tests {
         );
         // 非 unknown：不升格。
         assert_eq!(sentinel_no_hook(&ctx, "working"), None);
+        // REQ-052:唯 claude 挂腿,他家零钩常态不哨(注册面缺位也不升格)。
+        let ctx_kimi = Ctx {
+            d: &d,
+            agent: "kimi".to_string(),
+            nerd: true,
+            cfg: &cfg,
+            home: &hst_home,
+            dir: String::new(),
+            root: String::new(),
+            proj_kind: String::new(),
+            pkg_ver: String::new(),
+            width: 120,
+        };
+        assert_eq!(
+            sentinel_no_hook(&ctx_kimi, "unknown"),
+            None,
+            "kimi 零钩不哨"
+        );
+        let ctx_codex = Ctx {
+            d: &d,
+            agent: "codex".to_string(),
+            nerd: true,
+            cfg: &cfg,
+            home: &hst_home,
+            dir: String::new(),
+            root: String::new(),
+            proj_kind: String::new(),
+            pkg_ver: String::new(),
+            width: 120,
+        };
+        assert_eq!(
+            sentinel_no_hook(&ctx_codex, "unknown"),
+            None,
+            "codex 零钩不哨"
+        );
         std::env::remove_var("HOME");
         drop(_env);
         let _ = std::fs::remove_dir_all(&tmp);

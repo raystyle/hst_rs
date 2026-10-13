@@ -53,4 +53,5 @@
 | REQ-048 | implemented | must | goal原语地基批稳定性加固 | goal 单测新增十件加改件两件加集成新增四件（并发锤加崩溃注入 kill-9 实弹加风暴耐久序加机读面）；单测 226 升 236 集成 53 升 57 绿；rev-codex 三轮评审收口(首轮 F 三条 G 采纳五裁定三,二轮 F 两条含 show 面接线补落地,终轮 F-6 文档同步,追记在单) |
 | REQ-049 | implemented | must | statusbar与帮助面减熵清理 | deploy 单测改件六件加 statusrender 两件加 verify 判据重定(goal rounds 活弹 rounds=2)加集成新增帮助面零考古门;state 腿四去(注册/shim/CLI/写盘)加段名纯英文加 task 正名先行;评审轮见追记 |
 | REQ-050 | implemented | must | goal改名task迁移批 | task 单测新增两件加集成新增两件(别名兼容加进程级迁移回放)加全量随动;单测 232 集成 59 绿;装机落差门一件;2.12.0 定名 |
+| REQ-052 | implemented | must | tokenguard全面退钩批 | 默认退钩加开关面(init --token-guard 三态加 HST_TOKEN_GUARD=off)加判据随动;goal 族零触碰移后续批;2.14.0 承载 |
 | REQ-051 | implemented | must | statusbar三行终稿与舰队指标面 | 已并 main aa07014(hst-rev r1:F-1 免复审收 G 全收养,CONFIRM 八项;四行结构加退化表加fleet快照道加kimi单行加marker直立形;装机位先行换防) |

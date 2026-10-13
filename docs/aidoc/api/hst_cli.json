@@ -1,6 +1,6 @@
 {
   "crate": "hst-cli",
-  "version": "2.13.0",
+  "version": "2.14.0",
   "items": [
     {
       "path": "hst_cli::agents",
@@ -191,6 +191,16 @@
       "path": "hst_cli::deploy::retire_project_hooks_with",
       "kind": "function",
       "docs": "# Errors\n\n失败返回 `String` 错误（路径与原因；网络与解析类见模块文档）。\n项目面退役（D28）：摘除项目级 ours hook 注册（claude/codex/grok）、\n删除 oma 部署的项目 shim（`.oma/hooks/` 三件，带生成标记才删）。\nkimi 项目侧无注册面；项目 `.oma/state/` 旧状态文件保留（状态栏旧协议\n兼容读，不属注册面）。"
+    },
+    {
+      "path": "hst_cli::deploy::set_token_guard_mark",
+      "kind": "function",
+      "docs": "写/撤 token-guard 开关标记档。\n\n# Errors\n\n标记档写或删失败时返回 `String`。"
+    },
+    {
+      "path": "hst_cli::deploy::token_guard_marked",
+      "kind": "function",
+      "docs": "token-guard 开关标记档（`<hst 根>/token-guard.on` 在场 = 开）。REQ-052:\n总台令默认关;`hst init --token-guard` 显式开,`--no-token-guard` 显式\n关,缺省 init 不动开关只按现态幂等重部署。"
     },
     {
       "path": "hst_cli::diagnose",
@@ -600,7 +610,12 @@
     {
       "path": "hst_cli::shim::deploy_shims_with_exe",
       "kind": "function",
-      "docs": "deploy_shims_with 的 exe 注入形（REQ-043 可测面）。"
+      "docs": "deploy_shims_with 的 exe 注入形（REQ-043 可测面）。\n\n# Errors\n\nshim 写盘失败时返回 `String`。"
+    },
+    {
+      "path": "hst_cli::shim::deploy_shims_with_token",
+      "kind": "function",
+      "docs": "REQ-052 开关形:token 腿 shim 与退役清扫随开关(deploy_user_hooks_with\n的参数真值直达,不重读标记档)。\n\n# Errors\n\nshim 写盘失败时返回 `String`。"
     },
     {
       "path": "hst_cli::shim::grok_wrapper",

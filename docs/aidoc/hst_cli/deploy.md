@@ -22,6 +22,8 @@ MoonshotAI/kimi-code sources).
 - `deploy_user_hooks_with` — # Errors
 - `host_side` — 部署的host_side面（细则见模块文档与集成测试）。
 - `retire_project_hooks_with` — # Errors
+- `set_token_guard_mark` — 写/撤 token-guard 开关标记档。
+- `token_guard_marked` — token-guard 开关标记档（`<hst 根>/token-guard.on` 在场 = 开）。REQ-052:
 
 ## Types
 

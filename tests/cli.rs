@@ -599,24 +599,18 @@ fn init_full_deploys_hooks_yolo_and_sweeps_skills() {
             );
         }
     }
-    // shims 常驻 hst 根 hooks/；state 腿四件随退役清扫不再落盘。
-    assert!(hst_root.join("hooks").join("hst-token.sh").exists());
+    // shims 常驻 hst 根 hooks/;REQ-052:token 腿默认退钩不落盘,state 腿
+    // 随退役清扫不再落盘。
+    assert!(!hst_root.join("hooks").join("hst-token.sh").exists());
     assert!(hst_root.join("hooks").join("hst-task.sh").exists());
     assert!(!hst_root.join("hooks").join("hst-state.sh").exists());
-    // 四家用户级注册面落齐（kimi 是 [[hooks]] 数组、codex 带信任预种）。
-    for rel in [
-        ".claude/settings.json",
-        ".codex/hooks.json",
-        ".codex/config.toml",
-        ".grok/hooks/ohmyagents-state.json",
-        ".kimi-code/config.toml",
-    ] {
-        assert!(user.join(rel).exists(), "missing user-level {rel}");
-    }
-    let kimi_user = std::fs::read_to_string(user.join(".kimi-code").join("config.toml")).unwrap();
+    // REQ-052:唯 claude 有腿;codex 与 grok 与 kimi 零注册面。
+    assert!(user.join(".claude").join("settings.json").exists());
+    let claude_user = std::fs::read_to_string(user.join(".claude").join("settings.json")).unwrap();
+    assert!(claude_user.contains("hst-task"), "task 腿在: {claude_user}");
     assert!(
-        kimi_user.contains("hst-token"),
-        "kimi user-level [[hooks]] registered: {kimi_user}"
+        !claude_user.contains("hst-token"),
+        "token 腿退: {claude_user}"
     );
     // 项目面（ADR-0005）：说明层仍在项目；skill 面退役，ours 技能目录被
     // 清扫、外来内容不动、kimi 布局目录不再预建。
@@ -1067,14 +1061,8 @@ fn init_rerun_is_byte_idempotent() {
     let hst_root = tmp.join("fake-hst-home");
     std::fs::create_dir_all(&user).unwrap();
     std::fs::create_dir_all(&hst_root).unwrap();
-    // D28：幂等判据覆盖用户级注册五件。
-    let rels = [
-        ".claude/settings.json",
-        ".codex/hooks.json",
-        ".codex/config.toml",
-        ".grok/hooks/ohmyagents-state.json",
-        ".kimi-code/config.toml",
-    ];
+    // D28 幂等判据;REQ-052 后注册面收敛 claude 单件。
+    let rels = [".claude/settings.json"];
     let read_all = |base: &std::path::Path| -> Vec<String> {
         rels.iter()
             .map(|r| std::fs::read_to_string(base.join(r)).unwrap())
@@ -2001,6 +1989,68 @@ fn statusline_render_goalmode_prefix_flag_on_task_row() {
         !s.contains("active") && !s.contains("paused"),
         "无探针不显旗: {s}"
     );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
+fn init_token_guard_switch_roundtrip_and_runtime_hatch() {
+    // REQ-052 开关面:缺省 init 零 token 注册(退钩常态);--token-guard 开
+    // 位四家注册回归加标记档;--no-token-guard 关位清出;HST_TOKEN_GUARD=off
+    // 运行时逃生闸直通。
+    let tmp = std::env::temp_dir().join(format!("hst-tg-cli-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp);
+    let user = tmp.join("user");
+    let hst_root = tmp.join("hst");
+    std::fs::create_dir_all(&user).unwrap();
+    std::fs::create_dir_all(&hst_root).unwrap();
+    // 缺省 init:零 token 注册。
+    hst()
+        .args(["init", "--yes"])
+        .arg("--project")
+        .arg(&tmp)
+        .env("HST_USER_HOME", &user)
+        .env("HST_ROOT", &hst_root)
+        .assert()
+        .success();
+    let claude = std::fs::read_to_string(user.join(".claude").join("settings.json")).unwrap();
+    assert!(!claude.contains("hst-token"), "缺省退钩: {claude}");
+    assert!(!hst_root.join("token-guard.on").exists(), "缺省无标记档");
+    assert!(!hst_root.join("hooks").join("hst-token.sh").exists());
+    // 开位:注册回归加标记档。
+    hst()
+        .args(["init", "--yes", "--token-guard"])
+        .arg("--project")
+        .arg(&tmp)
+        .env("HST_USER_HOME", &user)
+        .env("HST_ROOT", &hst_root)
+        .assert()
+        .success()
+        .stdout(contains("init.token_guard=on"));
+    let claude = std::fs::read_to_string(user.join(".claude").join("settings.json")).unwrap();
+    assert!(claude.contains("hst-token"), "开位注册回归: {claude}");
+    assert!(hst_root.join("token-guard.on").exists(), "标记档在");
+    assert!(hst_root.join("hooks").join("hst-token.sh").exists());
+    // 关位:清出加标记档撤。
+    hst()
+        .args(["init", "--yes", "--no-token-guard"])
+        .arg("--project")
+        .arg(&tmp)
+        .env("HST_USER_HOME", &user)
+        .env("HST_ROOT", &hst_root)
+        .assert()
+        .success()
+        .stdout(contains("init.token_guard=off"));
+    let claude = std::fs::read_to_string(user.join(".claude").join("settings.json")).unwrap();
+    assert!(!claude.contains("hst-token"), "关位清出: {claude}");
+    assert!(!hst_root.join("token-guard.on").exists(), "标记档撤");
+    // 运行时逃生闸:显式关位直通 exit 0。
+    let out = hst()
+        .args(["hook", "token"])
+        .env("HST_TOKEN_GUARD", "off")
+        .write_stdin("{}")
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "逃生闸直通");
     let _ = std::fs::remove_dir_all(&tmp);
 }
 

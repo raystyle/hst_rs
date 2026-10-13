@@ -559,6 +559,7 @@ impl UserHooksGuard {
             &home,
             &root,
             crate::deploy::host_side(),
+            crate::deploy::token_guard_marked(&root),
             &mut report,
         )?;
         Ok(guard)

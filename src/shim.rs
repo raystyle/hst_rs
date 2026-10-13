@@ -113,7 +113,42 @@ pub fn deploy_shims_with(
             "shim exe fallback: generator is a dev build, shims baked to \"{exe}\" (rerun bare hst init from an installed binary)"
         ));
     }
-    let (wrote, mut warns) = deploy_shims_with_exe(root_param, shell, &exe)?;
+    let (wrote, mut warns) = deploy_shims_with_exe(
+        root_param,
+        shell,
+        &exe,
+        crate::deploy::token_guard_marked(root_param),
+    )?;
+    warns.extend(extra_warns);
+    Ok((wrote, warns))
+}
+
+/// REQ-052 开关形:token 腿 shim 与退役清扫随开关(deploy_user_hooks_with
+/// 的参数真值直达,不重读标记档)。
+///
+/// # Errors
+///
+/// shim 写盘失败时返回 `String`。
+pub fn deploy_shims_with_token(
+    root_param: &std::path::Path,
+    token_guard: bool,
+) -> Result<(Vec<PathBuf>, Vec<String>), String> {
+    let shell = host_shell();
+    let cur = std::env::current_exe().ok();
+    let exe = shim_exe_path(cur.as_deref());
+    let mut extra_warns: Vec<String> = Vec::new();
+    if cur.is_some_and(|c| {
+        let s = c.display().to_string();
+        s.contains("/target/debug/")
+            || s.contains("\\target\\debug\\")
+            || s.contains("/target/release/")
+            || s.contains("\\target\\release\\")
+    }) {
+        extra_warns.push(format!(
+            "shim exe fallback: generator is a dev build, shims baked to \"{exe}\" (rerun bare hst init from an installed binary)"
+        ));
+    }
+    let (wrote, mut warns) = deploy_shims_with_exe(root_param, shell, &exe, token_guard)?;
     warns.extend(extra_warns);
     Ok((wrote, warns))
 }
@@ -157,18 +192,29 @@ fn shim_exe_path(current: Option<&std::path::Path>) -> String {
 }
 
 /// deploy_shims_with 的 exe 注入形（REQ-043 可测面）。
+///
+/// # Errors
+///
+/// shim 写盘失败时返回 `String`。
 pub fn deploy_shims_with_exe(
     root_param: &std::path::Path,
     shell: &str,
     exe: &str,
+    token_guard: bool,
 ) -> Result<(Vec<PathBuf>, Vec<String>), String> {
     let dir = root_param.join("hooks");
     std::fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     let mut wrote: Vec<PathBuf> = Vec::new();
     let mut warns = Vec::new();
-    for (leg, stem) in [("token", "hst-token"), ("task", "hst-task")] {
+    // REQ-052:开关 ON 时 token 腿四载体复挂;OFF 时腿表只剩 task。
+    let legs: &[(&str, &str)] = if token_guard {
+        &[("token", "hst-token"), ("task", "hst-task")]
+    } else {
+        &[("task", "hst-task")]
+    };
+    for (leg, stem) in legs {
         let sh = dir.join(format!("{stem}.sh"));
-        if write_if_changed(&sh, &thin_sh(&exe, leg, shell))? {
+        if write_if_changed(&sh, &thin_sh(exe, leg, shell))? {
             wrote.push(sh.clone());
         }
         #[cfg(unix)]
@@ -177,11 +223,11 @@ pub fn deploy_shims_with_exe(
             let _ = std::fs::set_permissions(&sh, std::fs::Permissions::from_mode(0o755));
         }
         let ps1 = dir.join(format!("{stem}.ps1"));
-        if write_if_changed(&ps1, &format!("\u{feff}{}", thin_ps1(&exe, leg)))? {
+        if write_if_changed(&ps1, &format!("\u{feff}{}", thin_ps1(exe, leg)))? {
             wrote.push(ps1);
         }
         let cmd = dir.join(format!("{stem}.cmd"));
-        if write_if_changed(&cmd, &crlf(&thin_cmd(&exe, leg)))? {
+        if write_if_changed(&cmd, &crlf(&thin_cmd(exe, leg)))? {
             wrote.push(cmd);
         }
         let grok = dir.join(format!("{stem}-grok.cmd"));
@@ -192,13 +238,14 @@ pub fn deploy_shims_with_exe(
     // REQ-032 退役清扫：旧 ps1 载体与 oma 旧名件；REQ-031 退役清扫：
     // pentest 腿四件（2026-09-27 用户令去渗透授权功能）。带生成标记才删，
     // 防误删用户自置同名文件。
-    for legacy in [
+    let mut retire: Vec<&str> = vec![
         "oma-state.cmd",
         "oma-state-grok.cmd",
         "oma-state.sh",
         "oma-state.ps1",
         // entropy-01：hst-state 腿退役（herdr 的 herdr-agent-state hook 已
         // 覆盖会话状态同步）。taskmigrate-01：hst-goal 腿更名 hst-task。
+        // REQ-052：token 腿退役清扫只在 OFF 位(ON 位刚写回不删)。
         "hst-state.sh",
         "hst-state.ps1",
         "hst-state.cmd",
@@ -211,7 +258,16 @@ pub fn deploy_shims_with_exe(
         "hst-pentest.ps1",
         "hst-pentest.cmd",
         "hst-pentest-grok.cmd",
-    ] {
+    ];
+    if !token_guard {
+        retire.extend([
+            "hst-token.sh",
+            "hst-token.ps1",
+            "hst-token.cmd",
+            "hst-token-grok.cmd",
+        ]);
+    }
+    for legacy in retire {
         let p = dir.join(legacy);
         if p.exists() {
             let ours = std::fs::read_to_string(&p)
@@ -297,22 +353,22 @@ mod tests {
     }
 
     #[test]
-    fn deploy_shims_writes_eight_and_is_idempotent() {
+    fn deploy_shims_writes_four_and_is_idempotent() {
         // 两腿（token 加 goal，sh 加 ps1 加 cmd 加 grok 包装）= 八件
         //（entropy-01：state 腿退役）；幂等。
         let dir = scratch("eight");
         let (wrote, warns) = deploy_shims_with(&dir, "bash").unwrap();
         assert_eq!(
             wrote.len(),
-            8,
-            "eight thin shells (sh/ps1/cmd x2 + grok x2): {wrote:?}"
+            4,
+            "four thin shells (sh/ps1/cmd + grok; REQ-052 token 腿退钩): {wrote:?}"
         );
         // REQ-043：测试进程即开发构建位，告警恰在（回落装位烘焙）。
         assert!(
             warns.iter().any(|w| w.starts_with("shim exe fallback")),
             "dev-build warn present: {warns:?}"
         );
-        for stem in ["hst-token", "hst-task"] {
+        for stem in ["hst-task"] {
             for name in [".sh", ".ps1", ".cmd", "-grok.cmd"] {
                 let f = format!("{stem}{name}");
                 assert!(dir.join("hooks").join(&f).exists(), "missing {f}");
@@ -321,6 +377,31 @@ mod tests {
         // 第二趟幂等：零写。
         let (wrote2, _) = deploy_shims_with(&dir, "bash").unwrap();
         assert!(wrote2.is_empty(), "{wrote2:?}");
+        // REQ-052:OFF 位退役清扫 hst-token 四载体(带生成标记才删)。
+        for name in [
+            "hst-token.sh",
+            "hst-token.ps1",
+            "hst-token.cmd",
+            "hst-token-grok.cmd",
+        ] {
+            std::fs::write(dir.join("hooks").join(name), "# generated by hst init\n").unwrap();
+        }
+        let (_, warns) = deploy_shims_with(&dir, "bash").unwrap();
+        assert!(
+            !dir.join("hooks").join("hst-token.sh").exists(),
+            "token shim retired in off mode"
+        );
+        assert!(warns.iter().any(|w| w.contains("hst-token")), "{warns:?}");
+        // ON 位:token 四载体写回。
+        let (wrote3, _) = deploy_shims_with_exe(&dir, "bash", "/opt/hst", true).unwrap();
+        assert!(
+            dir.join("hooks").join("hst-token.sh").exists(),
+            "on mode writes token shim"
+        );
+        assert!(
+            dir.join("hooks").join("hst-task.sh").exists(),
+            "task shim stays"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 

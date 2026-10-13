@@ -678,55 +678,6 @@ fn codex_hooks_sides(v: Option<&Json>) -> (bool, bool) {
     (unix_side, win_side)
 }
 
-/// codex 各侧有效字段（Windows 看 commandWindows、Unix 看 command）的形态
-/// 分类（review 验收补：此前不分 shim / bare / absolute 一律 ok，死链也
-/// ok，D08「写了配置仍 ok」同族）。None = 该侧无 ours 条目；多条 ours 取
-/// 最差形态（shim 好、bare/absolute 次、shim-dead 最差）。
-fn codex_side_form(v: Option<&Json>, windows_side: bool) -> Option<&'static str> {
-    let events = v.and_then(|v| v.get("hooks")).and_then(|h| h.as_object())?;
-    let key = if windows_side {
-        "commandWindows"
-    } else {
-        "command"
-    };
-    let rank = |f: &str| match f {
-        "shim" => 0,
-        "bare" | "absolute" => 1,
-        _ => 2, // shim-dead
-    };
-    let mut form: Option<&'static str> = None;
-    for group in events.values().filter_map(|g| g.as_array()).flatten() {
-        let Some(hooks) = group.get("hooks").and_then(|h| h.as_array()) else {
-            continue;
-        };
-        for h in hooks {
-            let Some(c) = h.get(key).and_then(|c| c.as_str()) else {
-                continue;
-            };
-            if !crate::deploy::is_ours(c) {
-                continue;
-            }
-            let f = if is_ours_shim_command(c) {
-                if command_target(c).is_file() {
-                    "shim"
-                } else {
-                    "shim-dead"
-                }
-            } else if !c.contains('/') && !c.contains('\\') {
-                "bare"
-            } else {
-                "absolute"
-            };
-            form = Some(match form {
-                None => f,
-                Some(prev) if rank(prev) >= rank(f) => prev,
-                Some(_) => f,
-            });
-        }
-    }
-    form
-}
-
 /// D29 迁移告警：ours 注册仍带 oma 纪元形态（oma-state / .oma 路径）→
 /// warn 指引 `hst init` 完成数据根与注册改写（heal）。
 fn push_hooks_migrate(out: &mut Vec<Finding>, agent: &str, v: Option<&Json>, path: &Path) {
@@ -766,6 +717,42 @@ fn push_hooks_migrate(out: &mut Vec<Finding>, agent: &str, v: Option<&Json>, pat
 }
 
 fn push_hooks_form(out: &mut Vec<Finding>, agent: &str, form: &str, path: &Path) {
+    // REQ-052:token 腿退钩,唯 claude 期注册面(codex 与 grok 与 kimi 零
+    // hst 钩为常态 none=Ok;他家 ours 在场任何形态 = 存量待清,warn 引导
+    // 重跑 init 清出)。
+    if agent != "claude" {
+        // REQ-052:开关 ON 机(init --token-guard)注册在场为常态 Ok。
+        let opted_in = crate::install::hst_home()
+            .map(|oma| crate::deploy::token_guard_marked(&oma))
+            .unwrap_or(false);
+        match form {
+            "none" => push_status(
+                out,
+                agent,
+                "hooks.form",
+                Status::Ok,
+                path,
+                "token leg retired (REQ-052); zero hst hooks by design",
+            ),
+            _ if opted_in => push_status(
+                out,
+                agent,
+                "hooks.form",
+                Status::Ok,
+                path,
+                "token guard opted in (hst init --token-guard); registration live",
+            ),
+            _ => push_status(
+                out,
+                agent,
+                "hooks.form",
+                Status::Warn,
+                path,
+                "token leg retired (REQ-052); stale registration remains, rerun hst init",
+            ),
+        }
+        return;
+    }
     match form {
         "shim" => push_status(
             out,
@@ -1541,44 +1528,22 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
     let codex_json = codex_user_hooks.clone();
     let (codex_unix, codex_win) = codex_hooks_sides(codex_json.as_ref());
     if codex_unix || codex_win {
-        // 分侧辨形（review 验收补）：warn 判据只看宿主侧字段——非宿主侧在
-        // 单环境部署下恒为 M055 bare 兜底（init 修不掉，warn 即空转）；两
-        // 侧 shim-dead/absolute 都是真缺陷仍降 warn。
-        let host_windows = cfg!(windows);
-        let unix_form = codex_side_form(codex_json.as_ref(), false);
-        let win_form = codex_side_form(codex_json.as_ref(), true);
-        // 宿主侧必须 shim；非宿主侧 bare 是 M055 兜底设计态（不 warn），
-        // absolute / shim-dead 任何一侧都是真缺陷（warn）。
-        let side_ok = |f: &str, is_host: bool| {
-            if is_host {
-                f == "shim"
-            } else {
-                f != "shim-dead" && f != "absolute"
-            }
-        };
-        let mut sides = Vec::new();
-        let mut ok = true;
-        if codex_unix {
-            let f = unix_form.unwrap_or("absolute");
-            ok &= side_ok(f, !host_windows);
-            sides.push(format!("command(unix)={f}"));
-        }
-        if codex_win {
-            let f = win_form.unwrap_or("absolute");
-            ok &= side_ok(f, host_windows);
-            sides.push(format!("commandWindows(windows)={f}"));
-        }
+        // REQ-052:codex 零钩常态,ours 在场 = token 腿存量待清(开关 ON
+        // 机为常态 Ok;原分侧辨形随退钩退役)。
+        let opted_in = crate::install::hst_home()
+            .map(|oma| crate::deploy::token_guard_marked(&oma))
+            .unwrap_or(false);
         push_status(
             &mut findings,
             "codex",
             "hooks.form",
-            if ok { Status::Ok } else { Status::Warn },
+            if opted_in { Status::Ok } else { Status::Warn },
             &codex_user_hooks_path,
-            format!(
-                "per-OS fields ours: {} (shim by design, D27/D28; host side must be shim, \
-                 dead/absolute anywhere = rerun hst init)",
-                sides.join(", ")
-            ),
+            if opted_in {
+                "token guard opted in (hst init --token-guard); registration live"
+            } else {
+                "token leg retired (REQ-052); stale registration remains, rerun hst init"
+            },
         );
     } else {
         push_hooks_form(&mut findings, "codex", "none", &codex_user_hooks_path);
@@ -2543,71 +2508,6 @@ mod tests {
     }
 
     #[test]
-    fn codex_side_form_classifies_shim_bare_dead() {
-        // 期望来自注册形态语义（M059/M055）：shim 需脚本在位；bare 无路径
-        // 分隔符；shim-dead 指 oma-state 但文件缺失；absolute 其余带路径。
-        let dir = std::env::temp_dir().join(format!(
-            "oma-doctor-codex-form-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_millis()
-        ));
-        let alive = dir.join(".oma").join("hooks").join("hst-state.cmd");
-        std::fs::create_dir_all(alive.parent().unwrap()).unwrap();
-        std::fs::write(&alive, "@echo off\r\n").unwrap();
-        let fwd = alive.to_string_lossy().replace('\\', "/");
-        let shim_win = json!({"hooks": {"SessionStart": [{"hooks": [
-            {"command": "oma hook --agent codex", "commandWindows": format!("{fwd} codex")}
-        ]}]}});
-        assert_eq!(codex_side_form(Some(&shim_win), true), Some("shim"));
-        // M055 兜底：command 是 bare（设计态，非宿主侧不 warn 的判据基础）。
-        assert_eq!(codex_side_form(Some(&shim_win), false), Some("bare"));
-        let dead = json!({"hooks": {"SessionStart": [{"hooks": [
-            {"command": "\"/p/x/.oma/hooks/hst-state.sh\" codex"}
-        ]}]}});
-        assert_eq!(codex_side_form(Some(&dead), false), Some("shim-dead"));
-        let absolute = json!({"hooks": {"SessionStart": [{"hooks": [
-            {"commandWindows": "\"D:\\old\\oma.exe\" hook --agent codex"}
-        ]}]}});
-        assert_eq!(codex_side_form(Some(&absolute), true), Some("absolute"));
-        // 多条 ours 取最差：shim 加 dead 共存判 dead。
-        let mixed = json!({"hooks": {"SessionStart": [
-            {"hooks": [{"commandWindows": format!("{fwd} codex")}]},
-            {"hooks": [{"commandWindows": "D:/moved/.oma/hooks/hst-state.cmd codex"}]}
-        ]}});
-        assert_eq!(codex_side_form(Some(&mixed), true), Some("shim-dead"));
-        // 反馈件二（2026-09-28）：token 腿壳同判 shim（REQ-028 加 token 腿后
-        // 判据未同步，token 壳落 absolute，codex 侧「取最差」遂在双腿正常的
-        // 机器上常驻 hooks.form warn）。
-        let tok_alive = dir.join(".oma").join("hooks").join("hst-token.cmd");
-        std::fs::write(&tok_alive, "@echo off\r\n").unwrap();
-        let tok_fwd = tok_alive.to_string_lossy().replace('\\', "/");
-        let tok_dead_path = format!(
-            "\"{}\" codex",
-            dir.join(".oma")
-                .join("hooks")
-                .join("hst-token.sh")
-                .to_string_lossy()
-        );
-        let both_legs_alive = json!({"hooks": {"PreToolUse": [
-            {"hooks": [{"command": format!("{fwd} codex")}]},
-            {"hooks": [{"command": format!("{tok_fwd} codex")}]}
-        ]}});
-        assert_eq!(codex_side_form(Some(&both_legs_alive), false), Some("shim"));
-        let both_legs_dead = json!({"hooks": {"PreToolUse": [
-            {"hooks": [{"command": "\"/p/x/.oma/hooks/hst-state.sh\" codex"}]},
-            {"hooks": [{"command": tok_dead_path}]}
-        ]}});
-        assert_eq!(
-            codex_side_form(Some(&both_legs_dead), false),
-            Some("shim-dead")
-        );
-        assert_eq!(codex_side_form(None, true), None);
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
     #[test]
     fn codex_hooks_sides_read_per_os_fields() {
         let both = json!({"hooks": {"PreToolUse": [{"hooks": [
@@ -2715,9 +2615,17 @@ mod tests {
         let oma = temp_root("codex-user-trust-oma");
         fs::create_dir_all(&user).unwrap();
         fs::create_dir_all(&oma).unwrap();
+        // REQ-052:开关 ON 道播种(trust 逐键判据与开关无关,取 ON 道做
+        // oracle 播种)。
         let mut report = crate::deploy::DeployReport::default();
-        crate::deploy::deploy_user_hooks_with(&user, &oma, crate::deploy::host_side(), &mut report)
-            .unwrap();
+        crate::deploy::deploy_user_hooks_with(
+            &user,
+            &oma,
+            crate::deploy::host_side(),
+            true,
+            &mut report,
+        )
+        .unwrap();
         let root = temp_root("codex-user-trust-proj");
         fs::create_dir_all(&root).unwrap();
         std::env::set_var("HST_USER_HOME", &user);

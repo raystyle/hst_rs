@@ -94,6 +94,12 @@ enum Commands {
         /// 预写用户家目录信任库（claude/codex/kimi/grok）
         #[arg(long = "pre-trust")]
         pretrust: bool,
+        /// 显式开 token-guard 钩子（默认关；开则四家注册密钥拦截腿）
+        #[arg(long = "token-guard", conflicts_with = "no_token_guard")]
+        token_guard: bool,
+        /// 显式关 token-guard 钩子并清出存量注册（缺省 init 不动开关按现态幂等）
+        #[arg(long = "no-token-guard")]
+        no_token_guard: bool,
         /// 项目根；默认当前目录
         #[arg(long)]
         project: Option<PathBuf>,
@@ -580,6 +586,8 @@ fn run() -> Result<(), String> {
             pretrust,
             compact_pct,
             yes,
+            token_guard,
+            no_token_guard,
             project,
         } => cmd_init(
             yolo,
@@ -588,6 +596,8 @@ fn run() -> Result<(), String> {
             pretrust,
             compact_pct,
             yes,
+            token_guard,
+            no_token_guard,
             project,
         ),
         Commands::Doctor { project } => cmd_doctor(project),
@@ -1277,7 +1287,13 @@ fn cmd_hook_init(project: Option<PathBuf>) -> Result<(), String> {
     let user_home = hst::pathutil::user_home()?;
     let oma = hst::install::hst_home()?;
     let mut report = hst::deploy::DeployReport::default();
-    hst::deploy::deploy_user_hooks_with(&user_home, &oma, hst::deploy::host_side(), &mut report)?;
+    hst::deploy::deploy_user_hooks_with(
+        &user_home,
+        &oma,
+        hst::deploy::host_side(),
+        hst::deploy::token_guard_marked(&oma),
+        &mut report,
+    )?;
     for p in &report.wrote {
         println!("hook.init.wrote={p}");
     }
@@ -1294,6 +1310,10 @@ fn cmd_hook_init(project: Option<PathBuf>) -> Result<(), String> {
 /// token 腿分派：密钥拦截，exit 硬约束 {0, 2}（仅自判 block 出 2，内部
 /// 故障一律 0 fail-open）。
 fn cmd_hook_token(event: Option<String>, agent: Option<String>) -> Result<(), String> {
+    // REQ-052 逃生闸:显式关位直通(存量注册未清出的过渡机不拦工具调用)。
+    if std::env::var_os("HST_TOKEN_GUARD").is_some_and(|v| v == "off") {
+        return Ok(());
+    }
     match hook::run_token(event.as_deref(), agent.as_deref()) {
         Ok(guard) => {
             if let Some(g) = guard {
@@ -1342,10 +1362,21 @@ fn cmd_init(
     pretrust: bool,
     compact_pct: Option<String>,
     yes: bool,
+    token_guard: bool,
+    no_token_guard: bool,
     project: Option<PathBuf>,
 ) -> Result<(), String> {
     let root = project_root(project)?;
     std::fs::create_dir_all(&root).map_err(|e| format!("{}: {e}", root.display()))?;
+    // REQ-052 token-guard 开关:显式开/关落撤标记档,缺省不动按现态部署。
+    if token_guard || no_token_guard {
+        let oma = hst::install::hst_home()?;
+        hst::deploy::set_token_guard_mark(&oma, token_guard)?;
+        println!(
+            "init.token_guard={}",
+            if token_guard { "on" } else { "off" }
+        );
+    }
     // 压缩触发面（总台功能单 2026-09-23，ledger n6）：仅 compact 面的
     // scoped 旗标（同 --yolo 先例，与 yolo 族互斥由 clap 保证）。预览
     // （缺省，零写）加 --yes 落盘加回读自证；键面实证见 compact 模块文档。
