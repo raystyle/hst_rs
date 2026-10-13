@@ -1883,6 +1883,73 @@ fn statusline_render_native_marker_smoke() {
 }
 
 #[test]
+fn statusline_render_git_segment_appends_repo_tag() {
+    // 总台令(2026-10-13):git 段分支后一列显式仓库 tag 版本(git describe
+    // 最近可达);无 tag 仓库静默不显。
+    let tmp = std::env::temp_dir().join(format!("hst-render-tag-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp);
+    std::fs::create_dir_all(&tmp).unwrap();
+    let repo = tmp.join("repo");
+    std::fs::create_dir_all(&repo).unwrap();
+    for args in [
+        vec!["init", "-q"],
+        vec!["add", "-A"],
+        vec![
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-qm",
+            "x",
+        ],
+        vec!["tag", "v9.9.9"],
+    ] {
+        let mut cmd = std::process::Command::new("git");
+        cmd.arg("-C").arg(&repo).args(&args);
+        std::fs::write(repo.join("f"), "x").unwrap();
+        let st = cmd.output().unwrap();
+        assert!(
+            st.status.success(),
+            "{:?}",
+            String::from_utf8_lossy(&st.stderr)
+        );
+    }
+    let out = hst()
+        .env("HST_ROOT", &tmp)
+        .env("HST_USER_HOME", &tmp)
+        .env("NO_COLOR", "")
+        .env("HST_STATUSLINE_NO_ANSI", "")
+        .args(["statusline", "--render", "claude"])
+        .write_stdin(format!(
+            r#"{{"version":"2.1.296","workspace":{{"current_dir":"{}"}}}}"#,
+            repo.display()
+        ))
+        .output()
+        .unwrap();
+    let s = String::from_utf8_lossy(&out.stdout);
+    assert!(s.contains("v9.9.9"), "tag 在栏: {s}");
+    // 无 tag 场景(验收场 repo 无 tag)静默。
+    let plain = tmp.join("plain");
+    std::fs::create_dir_all(&plain).unwrap();
+    let out2 = hst()
+        .env("HST_ROOT", &tmp)
+        .env("HST_USER_HOME", &tmp)
+        .env("NO_COLOR", "")
+        .env("HST_STATUSLINE_NO_ANSI", "")
+        .args(["statusline", "--render", "claude"])
+        .write_stdin(format!(
+            r#"{{"version":"2.1.296","workspace":{{"current_dir":"{}"}}}}"#,
+            plain.display()
+        ))
+        .output()
+        .unwrap();
+    let s2 = String::from_utf8_lossy(&out2.stdout);
+    assert!(!s2.contains("·v"), "无 tag 不显: {s2}");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
 fn statusline_render_fleet_segment_reads_snapshot() {
     // REQ-051 fleet 段端到端:HST_ROOT 钉临时根落 fleet-snap.json,渲染
     // 纯读出 W/N 形(总台第九笔回执,在跑数异色);缺档即整行隐藏零噪声。

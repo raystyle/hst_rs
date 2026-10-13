@@ -683,10 +683,23 @@ fn seg_git(ctx: &Ctx) -> Option<String> {
     if branch.is_empty() && flags.is_empty() {
         return None;
     }
+    // 总台令(2026-10-13):分支后一列显式仓库 tag 版本(git describe 最近
+    // 可达 tag;无 tag 或 detached 缺省静默,零新增段)。
+    let tag = std::process::Command::new("git")
+        .arg("-C")
+        .arg(&ctx.dir)
+        .args(["describe", "--tags", "--abbrev=0"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_default();
     let branch_txt = if branch.is_empty() {
         String::new()
-    } else {
+    } else if tag.is_empty() {
         format!(" {branch}")
+    } else {
+        format!(" {branch} ·{tag}")
     };
     let flag_txt = if flags.is_empty() {
         String::new()
