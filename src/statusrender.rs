@@ -1805,21 +1805,28 @@ fn mcp_count(d: &Json, claude_json: Option<&Path>, mcp_json: Option<&Path>) -> u
 /// 只读不修，doctor check=goal 报 warn）。
 fn seg_goal(ctx: &Ctx) -> Option<String> {
     let rec = task_record(ctx)?;
-    let mut text = rec.text.replace(['\r', '\n'], " ").trim().to_string();
+    // 总台令(REQ-051 第十二笔):换行与连续空白并单空格(多行任务合一行
+    // 摘要),预算宽度感知(L4 独占行,窗宽减去图标与 R 轮次与 age 尾的开
+    // 销,原 16 字档太抠),截断收在词边界不劈词。
+    let mut text = rec
+        .text
+        .replace(['\r', '\n'], " ")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
     if text.is_empty() {
         return None;
     }
-    // REQ-051 退化表:task 文本满窗截 60 字,小于 100 列截 16 字,小于 60
-    // 列截 8 字(省略号尾)。
-    let cap = if ctx.width < 60 {
-        8
-    } else if ctx.width < 100 {
-        16
-    } else {
-        60
-    };
+    let cap = ctx.width.saturating_sub(18).clamp(8, 60);
     if text.chars().count() > cap {
-        let cut: String = text.chars().take(cap).collect();
+        let taken: String = text.chars().take(cap).collect();
+        let cut = match taken.char_indices().rev().find(|(_, c)| {
+            let b = *c as u32;
+            (b == 0x20) || (0x2000..=0x206F).contains(&b) || *c == ';'
+        }) {
+            Some((i, _)) if i > cap / 2 => taken[..i].to_string(),
+            _ => taken,
+        };
         text = format!("{cut}…");
     }
     // REQ-051 task 循环时间:距上轮活动(last_stop_at,无则 set_at)的
@@ -1863,7 +1870,7 @@ fn task_record(ctx: &Ctx) -> Option<crate::task::TaskRecord> {
         }
         root
     };
-    crate::task::task_file_for(ctx.home, Path::new(&root))
+    crate::task::task_file_for(ctx.home, Path::new(&root), &ctx.agent)
         .and_then(|p| crate::task::read_record(&p).ok().flatten())
 }
 
@@ -2748,6 +2755,7 @@ mod tests {
         crate::task::set_task(
             &home,
             std::path::Path::new("/home/ray/repos/hst_rs"),
+            "kimi",
             "eval 批",
         )
         .unwrap();
@@ -3200,7 +3208,7 @@ mod tests {
         ));
         std::fs::create_dir_all(&home).unwrap();
         let root = std::path::Path::new("/w/hst-proj");
-        crate::task::set_task(&home, root, "盯发布窗口").unwrap();
+        crate::task::set_task(&home, root, "claude", "盯发布窗口").unwrap();
         let cfg = StatuslineConfig {
             template: vec![("goal-ascii".to_string(), "{goal}|{count}".to_string())],
             ..Default::default()
@@ -3242,11 +3250,11 @@ mod tests {
         assert!(row.contains("盯发布窗口|1"), "{row}");
         // 超 60 字截断。
         let long = "长".repeat(72);
-        crate::task::set_task(&home, root, &long).unwrap();
+        crate::task::set_task(&home, root, "claude", &long).unwrap();
         let row = seg_goal(&mk_ctx!(&bare, "/w/hst-proj")).unwrap();
         assert!(row.contains(&format!("{}…", "长".repeat(60))), "{row}");
         // 清空隐行。
-        crate::task::clear_task(&home, root).unwrap();
+        crate::task::clear_task(&home, root, "claude").unwrap();
         assert!(seg_goal(&mk_ctx!(&bare, "/w/hst-proj")).is_none());
         let _ = std::fs::remove_dir_all(&home);
     }

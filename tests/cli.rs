@@ -1169,7 +1169,7 @@ fn goal_set_show_clear_roundtrip_own_store() {
     assert!(
         tmp.join("state")
             .join("task")
-            .join(format!("{slug}.json"))
+            .join(format!("{slug}--claude.json"))
             .exists(),
         "own store at state/goal/{slug}.json"
     );
@@ -1376,7 +1376,10 @@ fn goal_heal_scans_wakes_and_throttles_via_herdr() {
         .chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
         .collect();
-    let goal_file = tmp.join("state").join("task").join(format!("{slug}.json"));
+    let goal_file = tmp
+        .join("state")
+        .join("task")
+        .join(format!("{slug}--claude.json"));
     let aged = r#"{"text":"解完 eval 余题","set_at":1,"rounds":0,"last_stop_at":1,"last_heal_at":0,"heal_streak":0,"heal_rounds":0}"#;
     std::fs::write(&goal_file, aged).unwrap();
     // dry-run：would-wake、零 prompt、记录不动。
@@ -1649,7 +1652,10 @@ fn goal_yolo_heal_arm_and_sequence_via_fake_herdr() {
         .chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
         .collect();
-    let goal_file = tmp.join("state").join("task").join(format!("{slug}.json"));
+    let goal_file = tmp
+        .join("state")
+        .join("task")
+        .join(format!("{slug}--claude.json"));
     let mut rec: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&goal_file).unwrap()).unwrap();
     rec["blocked_streak"] = serde_json::json!(1);
@@ -3056,7 +3062,7 @@ fn goal_list_kv_json_jsonl_and_repair_rows() {
     let ga = tmp
         .join("state")
         .join("task")
-        .join(format!("{}.json", slug_of(&pa)));
+        .join(format!("{}--claude.json", slug_of(&pa)));
     std::fs::write(&ga, "broken{").unwrap();
     hst()
         .env("HST_ROOT", &tmp)
@@ -3347,7 +3353,7 @@ fn task_command_family_and_goal_alias_compat() {
     assert!(tmp
         .join("state")
         .join("task")
-        .join(format!("{slug}.json"))
+        .join(format!("{slug}--claude.json"))
         .is_file());
     assert!(!tmp.join("state").join("goal").exists(), "旧位不再写");
     // hook 腿别名:goal 静默走 task 同效(计数落同一档)。
@@ -3425,11 +3431,13 @@ fn task_store_migrates_from_legacy_goal_dir() {
         .stdout(contains("task.present=true"))
         .stdout(contains("task.text=旧档任务"))
         .stdout(contains("task.rounds=7"));
-    assert!(tmp
-        .join("state")
-        .join("task")
-        .join(format!("{slug}.json"))
-        .is_file());
+    assert!(
+        tmp.join("state")
+            .join("task")
+            .join(format!("{slug}.json"))
+            .is_file(),
+        "goal 纪元档名原样平移(legacy claude 兼容位)"
+    );
     assert!(!old_dir.exists(), "旧位整目录平移");
     let audit =
         std::fs::read_to_string(tmp.join("state").join("task").join(".task-audit")).unwrap();

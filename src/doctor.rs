@@ -955,7 +955,7 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
         } else {
             "stop goal-hook missing (rerun hst init)".to_string()
         };
-        match crate::task::show_task(&hst_home, &root) {
+        match crate::task::show_task(&hst_home, &root, "claude") {
             Ok(Some(rec)) => {
                 let mut text = rec.text.replace(['\r', '\n'], " ");
                 if text.chars().count() > 40 {
@@ -2332,7 +2332,7 @@ mod tests {
             ]}]}}"#,
         )
         .unwrap();
-        crate::task::set_task(&env.oma, &env.root, "盯发布窗口").unwrap();
+        crate::task::set_task(&env.oma, &env.root, "claude", "盯发布窗口").unwrap();
         let d = diagnose(&env.root).expect("diagnose");
         drop(env);
         assert_eq!(d.status("claude", "task"), Some(Status::Ok));
@@ -2383,7 +2383,7 @@ mod tests {
     fn goal_check_warn_on_corrupt_store() {
         let env = goal_env("glcor");
         fs::write(env.user.join(".claude").join("settings.json"), "{}").unwrap();
-        let p = crate::task::task_path(&env.oma, &env.root);
+        let p = crate::task::task_path(&env.oma, &env.root, "claude");
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(&p, "not-json").unwrap();
         let d = diagnose(&env.root).expect("diagnose");

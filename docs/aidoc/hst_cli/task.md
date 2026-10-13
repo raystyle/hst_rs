@@ -56,6 +56,7 @@ bak 晋升或判缺省（doctor 体检面保持只读纯读）；风暴耐久序
 
 ## Functions
 
+- `agent_from_key` — 键名拆 agent(无后缀 = legacy = claude)。
 - `blocked_fastpath` — blocked 带内快道（REQ-047 两维态的实时腿）：goal 腿挂上 Notification 与
 - `clear_task` — 清空本项目 goal（删文件；返回是否真删，无 goal 零改动合法）。`.bak`
 - `ensure_fleet_refresh` — hook 腿挂载的 fleet 刷新道（REQ-051 刷新骑现有循环其一）：任一事件
@@ -73,14 +74,17 @@ bak 晋升或判缺省（doctor 体检面保持只读纯读）；风暴耐久序
 - `reminder_json` — Stop 提醒 JSON（goal-02 输出面调优）：`hookSpecificOutput.additionalContext`
 - `run_heal` — 自愈扫描入口（`hst task heal`）：扫在册 task（`only` 给定则单项目），
 - `set_task` — 设置本项目 goal（覆盖旧 goal，rounds 归零重计；整档最后写胜语义，
+- `set_task_legacy` — 判据档落地(verify 面):legacy 键位直写——装机位旧版 hook(无 agent
 - `set_yolo_heal_armed` — yolo 治预授权写侧（`hst task yolo-heal on|off`）。返回是否真改动
 - `show_task` — 查看本项目 goal（无 goal 返回 None，查看面不受阻）。
 - `slug` — 项目键 slug（规则同 trace 与 projyolo marker：路径非字母数字一律 `-`）。
+- `slug_from_key` — 键名拆项目 slug(REQ-053:剥 `--<agent>` 尾;尾段非已知 agent 名原样,
 - `stop_hook` — Stop 腿入口（`hst hook goal`）：非 Stop 事件或本项目无 goal 返回
 - `sweeper_loop` — sweeper 有界主循环（`hst task heal --interval` 子进程体）：抢锁让位即
 - `task_dir` — goal 存储目录（`<hst 自管根>/state/goal/`；测试经 HST_ROOT 缝注入）。
 - `task_file_for` — 就近上溯解析（goal-01 根因 B 修）：hook payload 常只带 cwd 而 agent
 - `task_path` — 项目 goal 文件路径（`<dir>/<slug>.json`）。
+- `task_read_path` — 读侧路径解析(claude 兼容 legacy 位;cmd_task_show 直读面用)。
 - `wake_text` — 自愈唤醒文本 v2（REQ-047 自包含五件：task 文本加上轮收束态加即刻推进
 - `yolo_heal_armed` — yolo 治预授权读侧（REQ-047）：标记文件在场即 armed。
 

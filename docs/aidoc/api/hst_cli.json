@@ -828,6 +828,11 @@
       "docs": "yolo 治冷却窗（REQ-047）：两次治动作的最小间隔（成败同计，防锤）。"
     },
     {
+      "path": "hst_cli::task::agent_from_key",
+      "kind": "function",
+      "docs": "键名拆 agent(无后缀 = legacy = claude)。"
+    },
+    {
       "path": "hst_cli::task::blocked_fastpath",
       "kind": "function",
       "docs": "blocked 带内快道（REQ-047 两维态的实时腿）：goal 腿挂上 Notification 与\nPermissionRequest 后,payload 权限形（复用 hook 面 state_for_payload 判\nblocked）即对该项目 goal 报警留痕加 streak 递增,零 herdr 依赖零\nstdout（不扰权限决策面）。防抖窗内只计 streak 不重报。返回 Some(回执\n行) = 本事件实报,None = 不属 blocked 形或防抖让位。\n\n# Errors\n\n存储坏损时返回 `String`（调用方 fail-open）。"
@@ -913,6 +918,11 @@
       "docs": "设置本项目 goal（覆盖旧 goal，rounds 归零重计；整档最后写胜语义，\n真写落审计道）。\n\n# Errors\n\n文本 trim 后为空、存储坏损或 IO 失败时返回 [`TaskError`]。"
     },
     {
+      "path": "hst_cli::task::set_task_legacy",
+      "kind": "function",
+      "docs": "判据档落地(verify 面):legacy 键位直写——装机位旧版 hook(无 agent\n维)与新键 hook(claude 兼容读)都认,装机落差窗两态可验。"
+    },
+    {
       "path": "hst_cli::task::set_yolo_heal_armed",
       "kind": "function",
       "docs": " yolo 治预授权写侧（`hst task yolo-heal on|off`）。返回是否真改动\n（重复 on 或重复 off 零改动合法）。\n\n # Errors\n\n IO 失败时返回 `String`。"
@@ -926,6 +936,11 @@
       "path": "hst_cli::task::slug",
       "kind": "function",
       "docs": "项目键 slug（规则同 trace 与 projyolo marker：路径非字母数字一律 `-`）。"
+    },
+    {
+      "path": "hst_cli::task::slug_from_key",
+      "kind": "function",
+      "docs": "键名拆项目 slug(REQ-053:剥 `--<agent>` 尾;尾段非已知 agent 名原样,\n项目路径本含 `--agent` 形串的歧义按已知 agent 名收窄)。"
     },
     {
       "path": "hst_cli::task::stop_hook",
@@ -951,6 +966,11 @@
       "path": "hst_cli::task::task_path",
       "kind": "function",
       "docs": "项目 goal 文件路径（`<dir>/<slug>.json`）。"
+    },
+    {
+      "path": "hst_cli::task::task_read_path",
+      "kind": "function",
+      "docs": "读侧路径解析(claude 兼容 legacy 位;cmd_task_show 直读面用)。"
     },
     {
       "path": "hst_cli::task::wake_text",

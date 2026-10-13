@@ -187,12 +187,18 @@ enum TaskCmd {
     Set {
         /// task 文本（trim 后非空；Stop 提醒与状态栏 task 段显示源）
         text: String,
+        /// 归属 agent（按会话隔离；缺省 claude，各 agent 互不可见）
+        #[arg(long, default_value = "claude")]
+        agent: String,
         /// 项目根；默认当前目录（状态栏与 Stop 腿按 payload 项目根同规则键控，子目录调用须显式给）
         #[arg(long)]
         project: Option<PathBuf>,
     },
     /// 查看本项目 task（无 task 给 goal.present=false）；配 --json 出信封（机读面，插件聚合直接消费）
     Show {
+        /// 归属 agent（按会话隔离；缺省 claude）
+        #[arg(long, default_value = "claude")]
+        agent: String,
         /// 项目根；默认当前目录
         #[arg(long)]
         project: Option<PathBuf>,
@@ -201,6 +207,9 @@ enum TaskCmd {
     List,
     /// 清空本项目 task（Stop 提醒与状态栏段随撤；无 task 零改动退 0）
     Clear {
+        /// 归属 agent（按会话隔离；缺省 claude）
+        #[arg(long, default_value = "claude")]
+        agent: String,
         /// 项目根；默认当前目录
         #[arg(long)]
         project: Option<PathBuf>,
@@ -678,10 +687,14 @@ fn run() -> Result<(), String> {
         },
         Commands::Diagnose { cmd } => cmd_diagnose(cmd),
         Commands::Task { cmd } => match cmd {
-            TaskCmd::Set { text, project } => cmd_task_set(&text, project),
-            TaskCmd::Show { project } => cmd_task_show(project),
+            TaskCmd::Set {
+                text,
+                agent,
+                project,
+            } => cmd_task_set(&text, &agent, project),
+            TaskCmd::Show { agent, project } => cmd_task_show(&agent, project),
             TaskCmd::List => cmd_task_list(),
-            TaskCmd::Clear { project } => cmd_task_clear(project),
+            TaskCmd::Clear { agent, project } => cmd_task_clear(&agent, project),
             TaskCmd::Heal {
                 project,
                 dry_run,
@@ -1654,14 +1667,18 @@ fn agent_report_row(r: &agents::Report) -> Value {
 
 /// goal 自治面（REQ-045）：set/show/clear 读写自有存储
 /// `~/.hst/state/goal/<slug>.json`（项目键 slug 同 trace 与 projyolo）。
-fn cmd_task_set(text: &str, project: Option<PathBuf>) -> Result<(), String> {
+fn cmd_task_set(text: &str, agent: &str, project: Option<PathBuf>) -> Result<(), String> {
     let root = project_root(project)?;
     let home = hst::install::hst_home()?;
-    let r =
-        task::set_task(&home, &root, text).map_err(|e| format!("task error={}: {e}", e.code()))?;
+    let r = task::set_task(&home, &root, agent, text)
+        .map_err(|e| format!("task error={}: {e}", e.code()))?;
     println!("task.set text={}", r.text);
+    println!("task.set agent={agent}");
     println!("task.set project={}", root.display());
-    println!("task.set file={}", task::task_path(&home, &root).display());
+    println!(
+        "task.set file={}",
+        task::task_path(&home, &root, agent).display()
+    );
     println!(
         "task.hint=Stop 每轮提醒由 hst-task hook 腿承载（hst init 注册 claude Stop 事件）；达成后 hst task clear 收束"
     );
@@ -1671,11 +1688,11 @@ fn cmd_task_set(text: &str, project: Option<PathBuf>) -> Result<(), String> {
 /// REQ-047 两维态 show 面：blocked 维与 yolo 治新字段同源出。goalhard-01：
 /// json 出 fmtio 信封、jsonl 出裸实体（rev-codex G-4，家族先例同形），机读
 /// 聚合面；坏档经修复面出 `repaired` 注记行。
-fn cmd_task_show(project: Option<PathBuf>) -> Result<(), String> {
+fn cmd_task_show(agent: &str, project: Option<PathBuf>) -> Result<(), String> {
     let root = project_root(project)?;
     let home = hst::install::hst_home()?;
     let armed = task::yolo_heal_armed(&home);
-    let path = task::task_path(&home, &root);
+    let path = task::task_read_path(&home, &root, agent);
     let (found, repaired) = task::read_record_repairing(&home, &path)
         .map_err(|e| format!("task error={}: {e}", e.code()))?;
     match hst::fmtio::mode() {
@@ -1763,6 +1780,7 @@ fn cmd_task_list() -> Result<(), String> {
     let row_json = |r: &task::TaskListRow| -> Result<serde_json::Value, String> {
         Ok(serde_json::json!({
             "slug": r.slug,
+            "agent": r.agent,
             "file": r.file.display().to_string(),
             "present": r.rec.is_some(),
             "task": match r.rec.as_ref() {
@@ -1797,10 +1815,10 @@ fn cmd_task_list() -> Result<(), String> {
             for r in &rows {
                 match &r.rec {
                     Some(g) => println!(
-                        "task.list slug={} text={} rounds={} set_at={}",
-                        r.slug, g.text, g.rounds, g.set_at
+                        "task.list slug={} agent={} text={} rounds={} set_at={}",
+                        r.slug, r.agent, g.text, g.rounds, g.set_at
                     ),
-                    None => println!("task.list slug={} present=false", r.slug),
+                    None => println!("task.list slug={} agent={} present=false", r.slug, r.agent),
                 }
                 if let Some(note) = &r.repaired {
                     println!(
@@ -1817,11 +1835,11 @@ fn cmd_task_list() -> Result<(), String> {
     }
 }
 
-fn cmd_task_clear(project: Option<PathBuf>) -> Result<(), String> {
+fn cmd_task_clear(agent: &str, project: Option<PathBuf>) -> Result<(), String> {
     let root = project_root(project)?;
     let home = hst::install::hst_home()?;
-    let removed =
-        task::clear_task(&home, &root).map_err(|e| format!("task error={}: {e}", e.code()))?;
+    let removed = task::clear_task(&home, &root, agent)
+        .map_err(|e| format!("task error={}: {e}", e.code()))?;
     if removed {
         println!("task.clear present=true");
         println!("task.clear project={}", root.display());

@@ -9,6 +9,8 @@
 - **token-guard 默认退钩（总台令「默认关掉 hst-token-guard」）**：缺省 `hst init` 不再注册 token 腿（claude 只挂 task 四事件；codex、grok、kimi 零 hst 钩为常态），既有存量注册经新 init 一趟清出（sweep 与分侧外科摘键），shim `hst-token.*` 四载体出腿表入退役清扫；`hst hook token` CLI 保留为手动面。
 - **开关面（总台令「不能有个开关直接关掉这个 hook」）**：`hst init --token-guard` 显式开（标记档 `~/.hst/token-guard.on`，四家注册回归），`--no-token-guard` 显式关并清出，缺省 init 不动开关按现态幂等；运行时逃生闸 `HST_TOKEN_GUARD=off` 直通。
 - **判据随动**：doctor hooks.form（他家零钩 Ok、存量 Warn 引导重 init、开关 ON 机 Ok）；statusline no-hook 哨兵仅 claude（他家零钩常态不哨）；verify 部署道随开关。
+- **task 按 agent 会话隔离（REQ-053，总台 bug 报「同一工作台设 task 串台影响不同 agent」）**：存储键 `<项目 slug>--<agent>.json`，同项目各 agent 互不可见；legacy 无尾档 claude 兼容读加首写 rename 迁移；CLI `task set/show/clear --agent`（缺省 claude）；状态栏按渲染 agent 取键；verify 判据档落 legacy 键位（装机落差窗两态可验）。
+- **L4 task 摘要改宽度感知（总台令「省略显式得太多了」）**：换行与连续空白并单空格合一行，预算随窗宽（独占行整行可用，原 16 字档退役），截断收词边界不劈词。
 - **同车**：插件 hook 纯名（statusMessage 不上栏）；goal alias 与 hook goal 摘除顺延后续批（收窄令「只摘除 hst-token-guard 相关」，goal 族零触碰）。
 
 ### 里程碑 2026-10-13：v2.13.0 statusbar v2 四行终稿与舰队指标面 REQ-051

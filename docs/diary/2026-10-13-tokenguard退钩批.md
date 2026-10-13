@@ -19,3 +19,9 @@
 ## 次
 
 goal alias 与 hook goal 与 HST_GOAL_* 摘除移后续批(收窄令);2.14.0 发布链与滚版矩阵归总台同步单执行序。
+
+## 同车三件 总台连令
+
+- L4 task 摘要:宽度感知预算(独占行,原 16 字档太抠)加换行连续空白并单空格加词边界截断(总台令「省略显式得太多了也没考虑换行内容合并成一行」)。
+- task 按 agent 会话隔离(REQ-053):键 `<slug>--<agent>.json` 同项目互不可见,legacy 无尾档 claude 兼容读加首写迁移,CLI --agent 三态,状态栏按渲染 agent 取键。装位落差窗坑:shim 恒烘焙装位 exe,旧版 hook 不识新键,verify 判据档落 legacy 键位两态都认(活弹 rounds=2 复绿实证)。
+- 收窄令「只摘除 hst-token-guard 相关」:goal alias 与 hook goal 与 HST_GOAL_* 摘除全保移后续批(曾动手即回滚)。
