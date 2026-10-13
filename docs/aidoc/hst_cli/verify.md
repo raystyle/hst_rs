@@ -11,7 +11,7 @@
   `~/.codex/config.toml` 的 `[tui] status_line` 含内置项 ID。面未部署
   （无 `[tui] status_line`）或可选运行时缺位（pwsh 不在 PATH）= skip
   不计败、带 CTA（状态栏是可选面，doctor 另有 warn）；已部署但断链
-  （marker 缺、内置项缺 run-state 锚、脚本非零退出）仍 fail。
+  （marker 缺、内置项缺 codex-version 锚、脚本非零退出）仍 fail。
 - hook：临时目录起无头会话。entropy-01（2026-10-12 用户令）：hst-state
   腿退役（herdr 的 herdr-agent-state hook 已覆盖会话状态同步），运行时
   可观测腿只剩 claude 的 goal 面——claude 判据改押 task rounds（Stop

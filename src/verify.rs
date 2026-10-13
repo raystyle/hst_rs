@@ -8,7 +8,7 @@
 //!   `~/.codex/config.toml` 的 `[tui] status_line` 含内置项 ID。面未部署
 //!   （无 `[tui] status_line`）或可选运行时缺位（pwsh 不在 PATH）= skip
 //!   不计败、带 CTA（状态栏是可选面，doctor 另有 warn）；已部署但断链
-//!   （marker 缺、内置项缺 run-state 锚、脚本非零退出）仍 fail。
+//!   （marker 缺、内置项缺 codex-version 锚、脚本非零退出）仍 fail。
 //! - hook：临时目录起无头会话。entropy-01（2026-10-12 用户令）：hst-state
 //!   腿退役（herdr 的 herdr-agent-state hook 已覆盖会话状态同步），运行时
 //!   可观测腿只剩 claude 的 goal 面——claude 判据改押 task rounds（Stop
@@ -307,7 +307,7 @@ fn identity_segment_hit(rest: &str, before: &str) -> bool {
 }
 
 /// 无头验收的codex面（细则见模块文档与集成测试）。
-/// 部署归 `hst statusline` 面，init 不写）；已部署但缺 run-state 锚 = Fail。
+/// 部署归 `hst statusline` 面，init 不写）；已部署但缺 codex-version 锚 = Fail。
 fn codex_statusline_builtin() -> LayerVerdict {
     let config = match crate::pathutil::user_home() {
         Ok(h) => h.join(".codex").join("config.toml"),
@@ -365,7 +365,8 @@ fn codex_statusline_key_present(text: &str) -> bool {
 }
 
 /// 无头验收的纯函数面（细则见模块文档与集成测试）。
-/// run-state 锚（hst 部署的内置项清单恒含，M045 无外部命令面）。
+/// codex-version 锚(REQ-051 起默认集无 run-state,锚改首项 codex-version;
+/// hst 部署的内置项清单恒含,M045 无外部命令面)。
 pub fn codex_builtin_statusline_ok(text: &str) -> bool {
     let mut in_tui = false;
     let mut in_list = false;
@@ -382,7 +383,7 @@ pub fn codex_builtin_statusline_ok(text: &str) -> bool {
             in_list = true;
         }
         if in_list {
-            if t.contains("run-state") {
+            if t.contains("codex-version") {
                 return true;
             }
             if t.contains(']') {
@@ -670,6 +671,22 @@ mod tests {
     }
 
     #[test]
+    fn codex_statusline_anchor_is_codex_version_not_retired_run_state() {
+        // REQ-051 收尾:默认集摘 run-state 后 verify 锚随迁 codex-version;
+        // 孤 run-state 老集无 codex-version 判 fail 引导重部署。
+        let ok_form = "[tui]\nstatus_line = [\"codex-version\", \"current-dir\"]\n";
+        assert!(matches!(
+            codex_statusline_from_text(ok_form),
+            LayerVerdict::Builtin
+        ));
+        let stale = "[tui]\nstatus_line = [\"run-state\"]\n";
+        assert!(
+            !codex_builtin_statusline_ok(stale),
+            "孤 run-state 老集不认,引导重部署新集"
+        );
+    }
+
+    #[test]
     fn codex_statusline_deployed_but_broken_is_fail() {
         // 已部署（键在）但缺 run-state 锚：真断链，仍 fail。
         let deployed = "[tui]\nstatus_line = [\"custom-only\"]\n";
@@ -678,7 +695,7 @@ mod tests {
             codex_statusline_from_text(deployed),
             LayerVerdict::Fail { .. }
         ));
-        let ok_form = "[tui]\nstatus_line = [\"run-state\"]\n";
+        let ok_form = "[tui]\nstatus_line = [\"codex-version\"]\n";
         assert!(matches!(
             codex_statusline_from_text(ok_form),
             LayerVerdict::Builtin
@@ -755,12 +772,12 @@ mod tests {
     #[test]
     fn codex_builtin_accepts_multiline_and_singleline_arrays() {
         let multiline =
-            "model = \"gpt\"\n\n[tui]\nstatus_line = [\n  \"run-state\",\n  \"git-branch\"\n]\n";
+            "model = \"gpt\"\n\n[tui]\nstatus_line = [\n  \"codex-version\",\n  \"git-branch\"\n]\n";
         assert!(codex_builtin_statusline_ok(multiline));
-        let singleline = "[tui]\nstatus_line = [\"run-state\", \"current-dir\"]\n";
+        let singleline = "[tui]\nstatus_line = [\"codex-version\", \"current-dir\"]\n";
         assert!(codex_builtin_statusline_ok(singleline));
-        // 段外出现的 run-state 不算数。
-        let wrong_section = "[hooks]\nx = \"run-state\"\n[tui]\nother = 1\n";
+        // 段外出现的锚不算数。
+        let wrong_section = "[hooks]\nx = \"codex-version\"\n[tui]\nother = 1\n";
         assert!(!codex_builtin_statusline_ok(wrong_section));
         // status_line_use_colors 同前缀不触发。
         let colors_only = "[tui]\nstatus_line_use_colors = true\n";
