@@ -51,7 +51,7 @@ task 段(L3)增循环时间:`R<rounds> <age>`(age = 距上轮活动 last_stop_at
 120 列满窗(本机实数据:12 格 W1 I10 D1,task 在册 R3 距上轮 18m):
 
 ```text
-L1  ✳ claude-2.1.163   󰉋 /home/ray/repos/hst_rs   󰂠 lane/statusbar-v2   󰥔 07:51
+L1  ✳ claude-2.1.163   /home/ray/repos/hst_rs   lane/statusbar-v2   07:51
 L2  ✦ glm-4.6   ▰▰▰▱ 42% (84k/200k)   ⏱ 12m   ☰12 ⚡1 ⏻10
 L3  ⚉ hst-task|herdr-agent-state|evo-lint   ◉ eval 批 R3 · 18m
 ```
