@@ -18,18 +18,18 @@ trace: null
 
 现行五段行(项目行、agent 态行、hookstate 行、task 行、goalmode 行)收敛为三行;字段序与行归属:
 
-- **L1 身份与项目行**:`agent 类型加版本`(首位,用户令)接 shell 加 dir 加 git 加 package 尾巴加 clock。agent 版本取 payload version 归一(现行 seg_hst 的版本归一逻辑随迁),态色不动(仍按 state 上色整行)。
-- **L2 运行时行**:agent 态(agent:state)加 model 加 context 加 duration 加 **fleet 段**(舰队紧凑计数,新)。
+- **L1 身份与项目行**:`agent 类型加版本`(首位,用户令)接 dir 加 git 加 clock。dir 与 git 保留现显示形(总台令 2026-10-13 第二笔:bash 与运行时环境版本段默认退役;段 id 保留可显式写回 toml 自选)。agent 版本取 payload version 归一(现行 seg_hst 的版本归一逻辑随迁)。
+- **L2 运行时行**:model 加 context 加 duration 加 **fleet 段**(舰队紧凑计数,新)。agent 态显示(agent:state 文本与态色)整体退役(总台令 2026-10-13「不需要显示 claude:working」;承 REQ-049 F-3 裁定态源已枯,会话态归 herdr 域):seg_hst 拆解:版本归一逻辑迁 L1 身份段,态文本与 state_color 通道退场,行色恒中性。
 - **L3 hst 域行**:hookstate(英文 id 清单,零中文)加 task(文本加轮次加**循环时间**)。goalmode 退化为 L3 前缀旗(active 加 paused),在役才显,无 goalmode 零占位。
 
-**宽度与窄窗退化**(右起逐段弃,保底恒显 agent 加版本与 agent 态):
+**宽度与窄窗退化**(右起逐段弃,保底恒显 L1 身份段 agent 类型加版本与 dir):
 
 | 窗宽 | 退化动作 |
 | --- | --- |
-| 小于 100 列 | clock 弃;package 尾巴弃(留主 package);task 文本截 16 字省略 |
+| 小于 100 列 | clock 弃;task 文本截 16 字省略 |
 | 小于 80 列 | dir 取 basename;fleet 弃;hook 清单截首三个 |
 | 小于 60 列 | git 弃;model 弃;task 文本截 8 字;hook 清单只留首一个 |
-| 小于 40 列 | 只保 L1(agent 加版本加 dir basename)与 L2(agent 态) |
+| 小于 40 列 | 只保 L1(agent 加版本加 dir basename)与 L2 的 context |
 
 ### 全局指标快照道 渲染零网络零子进程小于50ms
 
@@ -51,16 +51,16 @@ task 段(L3)增循环时间:`R<rounds> <age>`(age = 距上轮活动 last_stop_at
 120 列满窗(本机实数据:12 格 W1 I10 D1,task 在册 R3 距上轮 18m):
 
 ```text
-L1  ✳ claude-2.1.163   󰉋 hst_rs   main   󰏗 v2.12.0   󰥔 07:51
-L2  ◑ claude:working   ✦ glm-4.6   ▰▰▰▱ 42% (84k/200k)   ⏱ 12m   ☰12 ⚡1 ⏻10
+L1  ✳ claude-2.1.163   󰉋 /home/ray/repos/hst_rs   󰂠 lane/statusbar-v2   󰥔 07:51
+L2  ✦ glm-4.6   ▰▰▰▱ 42% (84k/200k)   ⏱ 12m   ☰12 ⚡1 ⏻10
 L3  ⚉ hst-task|herdr-agent-state|evo-lint   ◉ eval 批 R3 · 18m
 ```
 
 80 列窄窗(退化后):
 
 ```text
-L1  ✳ claude-2.1.163   󰉋 hst_rs   main   󰏗 v2.12.0
-L2  ◑ claude:working   ▰▰▰▱ 42%   ⏱ 12m
+L1  ✳ claude-2.1.163   󰉋 /home/ray/repos/hst_rs   󰂠 lane/statusbar-v2
+L2  ▰▰▰▱ 42%   ⏱ 12m
 L3  ⚉ hst-task|herdr-agent-state|evo-lint   ◉ eval 批 R3…
 ```
 
@@ -68,7 +68,7 @@ L3  ⚉ hst-task|herdr-agent-state|evo-lint   ◉ eval 批 R3…
 
 ```text
 L1  ✳ claude-2.1.163  hst_rs
-L2  ◑ claude:working
+L2  ▰ 42%
 ```
 
 无 task 会话:L3 整行隐藏(现行为保持);无快照:fleet 段隐藏;快照 6 分钟: `☰12 ⚡1 ⏻10·6m`(灰);快照 31 分钟:fleet 段隐藏。
@@ -83,4 +83,4 @@ L2  ◑ claude:working
 
 ## 追记
 
-待总台快核:三行字段序与行归属、退化阈、fleet 计数形(图标/ascii 双形)、done 折入 idle 的口径、快照老化阈(5 分钟灰显 30 分钟隐藏)。核过转 implemented 批。
+总台快核回执两笔(2026-10-13):其一「不需要显示 claude:working」,agent 态段(agent:state 文本与态色)整体退役并入本稿,L2 起手改 model;其二「dir 加 git 保留现显示形,bash 与运行时环境版本段(python/rust/node/zig/go/cpp 加 package)默认退役」。待核余项:三行字段序与行归属、退化阈、fleet 计数形(图标/ascii 双形)、done 折入 idle 口径、快照老化阈(5 分钟灰显 30 分钟隐藏)。核过转 implemented 批。
