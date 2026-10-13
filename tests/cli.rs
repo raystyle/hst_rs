@@ -1134,9 +1134,9 @@ fn statusline_example_prints_customization_template() {
         // 与项目（agent 首位）、L2 运行时（fleet 殿后）、L3 hook、L4 task
         // （goalmode 退化前缀旗，第五行默认空）。
         .stdout(contains(
-            "segments = [\"agent\", \"dir\", \"git\", \"clock\"]",
+            "segments = [\"fleet\", \"agent\", \"dir\", \"git\", \"clock\"]",
         ))
-        .stdout(contains("\"context\", \"duration\", \"fleet\"]"))
+        .stdout(contains("\"model\", \"context\", \"duration\"]"))
         .stdout(contains("segments3 = [\"hookstate\"]"))
         .stdout(contains("segments4 = [\"goal\"]"))
         .stdout(contains("segments5 = []"))
