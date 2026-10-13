@@ -1634,12 +1634,15 @@ fn seg_fleet(ctx: &Ctx) -> Option<String> {
         return None; // 超龄整段隐藏
     }
     let working = v.get("working").and_then(|x| x.as_u64()).unwrap_or(0);
-    let (color, age_txt) = if age > 5 * 60 {
+    let stale = age > 5 * 60;
+    let (color, age_txt) = if stale {
         ("38;5;245", format!(" ·{}m", age / 60))
     } else {
         ("38;5;117", String::new())
     };
-    let w_txt = if working > 0 {
+    // r3 G-1 收裁:陈旧快照整段灰,在跑数不抢眼(快照虽旧在跑照实的
+    // 读法弃,视觉一致性优先)。
+    let w_txt = if working > 0 && !stale {
         ansi(&working.to_string(), "38;5;114")
     } else {
         working.to_string()
@@ -2665,6 +2668,10 @@ mod tests {
         let aged = seg_fleet(&mk_ctx!(&home)).unwrap();
         assert!(aged.contains("/9 ·6m"), "龄 6 分钟灰显带龄: {aged}");
         assert!(aged.contains("38;5;245"), "灰显色: {aged}");
+        assert!(
+            !aged.contains("38;5;114"),
+            "r3 G-1 收裁:陈旧快照整段灰,在跑数不抢眼: {aged}"
+        );
         // 31 分钟龄:整段隐藏。
         snap(&format!(
             r#"{{"ts":{},"total":9,"working":2,"idle":7,"blocked":0,"done":0,"hosts":[]}}"#,
