@@ -1134,9 +1134,9 @@ fn statusline_example_prints_customization_template() {
         // 与项目（agent 首位）、L2 运行时（fleet 殿后）、L3 hook、L4 task
         // （goalmode 退化前缀旗，第五行默认空）。
         .stdout(contains(
-            "segments = [\"fleet\", \"agent\", \"dir\", \"git\", \"clock\"]",
+            "segments = [\"fleet\", \"dir\", \"git\", \"clock\"]",
         ))
-        .stdout(contains("\"model\", \"context\", \"duration\"]"))
+        .stdout(contains("\"agent\", \"model\", \"context\", \"duration\"]"))
         .stdout(contains("segments3 = [\"hookstate\"]"))
         .stdout(contains("segments4 = [\"goal\"]"))
         .stdout(contains("segments5 = []"))
@@ -1883,8 +1883,8 @@ fn statusline_render_native_marker_smoke() {
     );
     assert_eq!(
         s.lines().count(),
-        1,
-        "REQ-051 four-row layout: scratch 密闭空 payload,L2 model/context/duration 全缺、L3 无注册、L4 无 task,余 L1 单行: {s}"
+        2,
+        "REQ-051 four-row layout: scratch 密闭空 payload,L2 只余 agent 段(第十笔迁 L2),L3 无注册、L4 无 task: {s}"
     );
 }
 

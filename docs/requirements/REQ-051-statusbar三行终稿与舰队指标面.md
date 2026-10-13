@@ -117,3 +117,5 @@ hst-rev r1 回执(2026-10-13,评审格 kimi w9:p3):F 一条 = fleet 测试断言
 第八笔微调(2026-10-13):fleet 段前置 L1 首位(总台令「应该放到 agent 前面」),L1 = fleet 加 agent 加 dir 加 git 加 clock,L2 收敛 model 加 context 加 duration;退化表 fleet 小于 80 列弃不变(窄窗让位保底段)。
 
 第九笔回执(2026-10-13):W/N 形恢复且在跑数异色(总台令「18 前面用不同颜色显示在线 3/18」:在跑数 38;5;114 绿色,零在跑回落基色,段基色与龄降级不变;!B 加 Dn 记号保持退役)。
+
+第十笔回执(2026-10-13):agent 段迁 L2 首位(总台令「放到第二行显示」):L1 = fleet 加 dir 加 git 加 clock,L2 = agent 加 model 加 context 加 duration;退化表与 40 列保底形不变(agent 仍在保底)。

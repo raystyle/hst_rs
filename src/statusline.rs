@@ -21,18 +21,17 @@ use crate::yolo::{read_toml, toml_write};
 /// cwd 会进来即花成「缁跨洘」形 GBK 误解码，D28 补钉）、stdin JSON 解析
 /// （claude code 供给 model 等；codex 无 stdin 数据时退化）、Seg 与 FmtTok、
 /// FmtDur 助手、`$parts` 收集器。
-/// 默认第一行「身份与项目」（REQ-051 四行结构，第八笔 fleet 前置）：fleet
-/// 在线计数（首位，总台令）/ agent 类型加版本 / dir / git 分支 / clock
-///（bash 与运行时环境版本段默认退役，段 id 保留可显式写回；退化表 fleet
-/// 小于 80 列弃不变，窄窗让位保底段）。D18 定制面 `segments` 键缺省回落
-/// 此序。
-pub(crate) const DEFAULT_SEGMENTS: &[&str] = &["fleet", "agent", "dir", "git", "clock"];
+/// 默认第一行「项目行」（REQ-051 四行结构，第十笔 agent 移 L2）：fleet
+/// 计数（首位，第八笔）/ dir / git 分支 / clock（bash 与运行时环境版本段
+/// 默认退役，段 id 保留可显式写回；退化表 fleet 小于 80 列弃不变，窄窗
+/// 让位保底段）。D18 定制面 `segments` 键缺省回落此序。
+pub(crate) const DEFAULT_SEGMENTS: &[&str] = &["fleet", "dir", "git", "clock"];
 
-/// 默认第二行「运行时」（REQ-051，第八笔 fleet 前置后不含 fleet）：模型 /
-/// context（四格条形加百分比加 token 绝对值，`▰▰▱▱ 42% (82k/195k)` 形）/
-/// 耗时。agent 态段随 REQ-049 F-3 与 REQ-051 退役。`segments2` 键缺省回
-/// 落此序。
-pub(crate) const DEFAULT_SEGMENTS2: &[&str] = &["model", "context", "duration"];
+/// 默认第二行「身份与运行时」（REQ-051，第十笔 agent 段迁入首位）：agent
+/// 类型加版本 / 模型 / context（四格条形加百分比加 token 绝对值，
+/// `▰▰▱▱ 42% (82k/195k)` 形）/ 耗时。agent 态文本随 REQ-049 F-3 退役。
+/// `segments2` 键缺省回落此序。
+pub(crate) const DEFAULT_SEGMENTS2: &[&str] = &["agent", "model", "context", "duration"];
 
 /// 默认第三行 = hookstate 专属行（REQ-026 起，用户令 2026-09-27 行序
 /// 裁定「应该在排在第3行」，自第五行前移）：hook 通道别名清单独占一行
@@ -523,12 +522,11 @@ pub const EXAMPLE_TOML: &str = r#"# ~/.hst/statusline.toml —— 状态栏用�
 # 键级缺省回落：没写的键用内嵌默认；坏文件硬错退出 1。
 
 # 段落清单（四行结构 REQ-051：L1 身份与项目、L2 运行时、L3 hook、L4 task）：
-# segments = L1 身份与项目行（fleet 在线计数 / agent 类型加版本 / 目录 /
-# git 分支 / 时钟；bash 与运行时环境版本段默认退役，段 id 保留可显式写
-# 回）、
-# segments2 = L2 运行时行（模型 / context 条形加百分比加 token 绝对值 /
-# 耗时；fleet 纯读 ~/.hst/state/fleet-snap.json 零子进程，第八笔起前置
-# L1 首位）、
+# segments = L1 项目行（fleet 计数 / 目录 / git 分支 / 时钟；bash 与运行
+# 时环境版本段默认退役，段 id 保留可显式写回）、
+# segments2 = L2 身份与运行时行（agent 类型加版本 / 模型 / context 条形
+# 加百分比加 token 绝对值 / 耗时；fleet 纯读 ~/.hst/state/fleet-snap.json
+# 零子进程，前置 L1 首位）、
 # segments3 = L3 hook 专属行（注册面 hook 功能别名清单，清单内部 `|` 细分，
 # 双缺整行隐藏）、
 # segments4 = L4 task 专属行（hst task 自治面：文本加 R 轮次加循环时间
@@ -541,13 +539,13 @@ pub const EXAMPLE_TOML: &str = r#"# ~/.hst/statusline.toml —— 状态栏用�
 # task 经 `hst task set "task 文本"` 设置、`hst task show` 查看、
 # `hst task clear` 清空（REQ-045 起 goal 正名 task，自治面）。
 # 例（隐藏时钟段、git 提到目录前）：
-#   segments = ["fleet", "agent", "dir", "git"]
-#   segments2 = ["model", "context", "duration"]
+#   segments = ["fleet", "dir", "git"]
+#   segments2 = ["agent", "model", "context", "duration"]
 #   segments3 = []
 # 退单行（kimi 运行时自动恒单行紧凑形；grok 1.0.50 起多行；显式退单行用）：
 #   single_line = true
-segments = ["fleet", "agent", "dir", "git", "clock"]
-segments2 = ["model", "context", "duration"]
+segments = ["fleet", "dir", "git", "clock"]
+segments2 = ["agent", "model", "context", "duration"]
 segments3 = ["hookstate"]
 segments4 = ["goal"]
 segments5 = []
