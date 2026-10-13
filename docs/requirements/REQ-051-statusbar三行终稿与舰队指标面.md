@@ -121,3 +121,5 @@ hst-rev r1 回执(2026-10-13,评审格 kimi w9:p3):F 一条 = fleet 测试断言
 第十笔回执(2026-10-13):agent 段迁 L2 首位(总台令「放到第二行显示」):L1 = fleet 加 dir 加 git 加 clock,L2 = agent 加 model 加 context 加 duration;退化表与 40 列保底形不变(agent 仍在保底)。
 
 r3 快核回执(2026-10-13,六至十笔五连微调差量 7 件 +95/-61 逐行核):零 F,CONFIRM 放行;重点三项实证 = 嵌套复位吞色窗为空(在跑数内层复位后零可显字符即重开段基色)加退化表与迁行交互正常(fleet 小于 80 弃规与行籍无关,39 列保底兜底不受迁行影响)加 NO_COLOR 双面无渗(单测 ENV_LOCK 双剥反例锁,集成子进程空串钉死双开关)。G-1 一条留裁已收:陈旧快照整段灰,在跑数不抢眼(测试反例锁)。
+
+第十一笔回执(2026-10-13):插件 hook 恒显纯插件名(总台令「evo-lint file-check 换成只显式 evo-lint」):statusMessage 一律不上栏,REQ-044 双拼形与 REQ-051 CJK 回落一并退役,plugin_display 函数随退役;无 statusMessage 的插件 hook 亦显纯名(原 stem 回落形退役)。

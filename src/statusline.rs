@@ -566,8 +566,8 @@ segments5 = []
 #   轮次、{age} = 距上轮循环时间 d/h/m 形）
 #   hookstate {icon}  {alias}（L3 hook 行；注册面全部 hook 的功能别名清单，
 #   英文 id 直用（hst-token 映射 hst-token-guard），未收录 hook 回落 stem
-#   本名，全局插件 hook 的 statusMessage 含中文时回落纯插件名（REQ-051
-#   hook 零中文），清单空回落泛称 hook；窄窗截首三个至首一个）
+#   本名，插件 hook 恒显纯插件名（statusMessage 不上栏，总台纯名令），
+#   清单空回落泛称 hook；窄窗截首三个至首一个）
 #   package 与六工具链段（python 加 rust 加 node 加 zig 加 go 加 cpp）{icon}{version}
 #   （ts 不是独立段 id：它是 node 段内部第二部件，[icons] 的 ts 键只管该部件字形，写进 segments 会响亮报错）
 #   clock {icon}{datetime}（D51：年月日加当前时间，分钟精度）

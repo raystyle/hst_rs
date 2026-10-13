@@ -1197,7 +1197,7 @@ fn hooked_aliases_at(home: &Path, agent: &str, project_root: &str) -> Vec<String
 /// 见 `plugin_enabled`；条目 user 作用域全收，project 作用域仅 projectPath
 /// 命中当前根者收；逐条读 installPath 下 `hooks/hooks.json`。显示形 =
 /// 插件名连字符加 statusMessage（hook 自带态文案，缺席回落干 stem；文案
-/// 自带插件名前缀时不双拼，见 `plugin_display`）记入覆写表。
+/// 总台纯名令起恒显纯插件名,statusMessage 不上栏）。
 /// installed_plugins.json 缺席加坏损零命中不炸。
 fn collect_plugin_hooks(
     home: &Path,
@@ -1238,43 +1238,15 @@ fn collect_plugin_hooks(
             let Ok(hv) = crate::yolo::read_json(&hj) else {
                 continue;
             };
-            walk_json_hooks(&hv, |c, m| {
+            // 总台令「只显式 evo-lint」:插件 hook 恒显纯插件名,statusMessage
+            // 文案不上栏(REQ-044 双拼形与 REQ-051 CJK 回落一并退役)。
+            walk_json_hooks(&hv, |c, _m| {
                 cmds.push(c.to_string());
                 if let Some(stem) = hook_stem(c) {
-                    let label = if m.is_empty() {
-                        stem.clone()
-                    } else {
-                        m.to_string()
-                    };
-                    display
-                        .entry(stem)
-                        .or_insert_with(|| plugin_display(short, &label));
+                    display.entry(stem).or_insert_with(|| short.to_string());
                 }
             });
         }
-    }
-}
-
-/// 插件段显示名：REQ-044 形 `{插件名}-{文案}`；文案自带插件名前缀时原样
-/// 用不双拼。statusMessage 在 Claude Code 原生显示面即全文文案，插件作者
-/// 常把插件名写进首段（evo-lint 0.8.0 的「evo-lint 后缀静检」实证），
-/// 无条件前缀会产「evo-lint-evo-lint 后缀静检」双拼。前缀边界认全等加
-/// 空格加连字符三形；无缝前缀（如 `plug` 对 `plugx`）不算命中照常拼。
-fn plugin_display(short: &str, label: &str) -> String {
-    // REQ-051 hook 零中文:标签含 CJK 回落纯插件名(不双拼);英文标签保持双拼。
-    if label
-        .chars()
-        .any(|c| (c as u32) >= 0x4E00 && (c as u32) <= 0x9FFF)
-    {
-        return short.to_string();
-    }
-    if label == short
-        || label.starts_with(&format!("{short} "))
-        || label.starts_with(&format!("{short}-"))
-    {
-        label.to_string()
-    } else {
-        format!("{short}-{label}")
     }
 }
 
@@ -2516,17 +2488,15 @@ mod tests {
             r#"{"hooks":{"Stop":[{"hooks":[{"command":"/x/.hst/hooks/hst-task.sh claude"}]}]},"enabledPlugins":{"plug-a@mk":true,"plug-b@mk":false,"plug-e@mk":true}}"#,
         )
         .unwrap();
-        // 无项目根：user 作用域 a 入列（statusMessage 含 CJK 回落纯插
-        // 件名,REQ-051 hook 零中文），e 同理回落，b 拒，c 缺省关，d 项目
-        // 作用域无根不收。
+        // 总台纯名令:插件 hook 恒显纯插件名(statusMessage 一律不上
+        // 栏);a 入列,b 拒,c 缺省关,d 项目作用域无根不收。
         assert_eq!(
             hooked_aliases_at(&tmp, "claude", "").join("|"),
             "hst-task|plug-a|plug-e"
         );
         // 项目根命中：d 入列（projectPath 同根；项目作用域插件由项目级
         // settings 落 enabled，项目档入链）；项目 local 把 b 覆写 true
-        //（local 大于项目大于用户级）——b 无 statusMessage 回落干 stem
-        // 形 plug-b-plain-guard。
+        //（local 大于项目大于用户级）——b 恒显纯插件名。
         std::fs::write(
             pdot.join("settings.json"),
             r#"{"enabledPlugins":{"plug-d@mk":true}}"#,
@@ -2539,7 +2509,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             hooked_aliases_at(&tmp, "claude", proj.to_str().unwrap()).join("|"),
-            "hst-task|plug-a|plug-b-plain-guard|plug-e|plug-d"
+            "hst-task|plug-a|plug-b|plug-e|plug-d"
         );
         // 坏损 installed_plugins.json 零命中不炸（回落 settings 面）。
         std::fs::write(
@@ -2791,36 +2761,6 @@ mod tests {
         assert!(line2.contains("R0·"), "task 紧凑形: {line2}");
         assert!(!line2.contains("eval 批"), "task 文本不上 kimi 行: {line2}");
         let _ = std::fs::remove_dir_all(&home);
-    }
-
-    #[test]
-    fn plugin_display_dedups_short_prefix_in_label() {
-        // 修复单 2026-10-12：statusMessage 自带插件名前缀（evo-lint 0.8.0
-        // 实证,插件作者按 Claude Code 原生显示习惯写全文案)不双拼;边界
-        // 三形全等加空格加连字符;无缝前缀不算命中。REQ-051 hook 零中文:
-        // CJK 标签回落纯插件名(前缀去重与否都不再显中文标签)。
-        assert_eq!(plugin_display("evo-lint", "后缀静检"), "evo-lint");
-        assert_eq!(
-            plugin_display("evo-lint", "evo-lint 后缀静检"),
-            "evo-lint",
-            "带前缀 CJK 标签同样回落纯名"
-        );
-        assert_eq!(plugin_display("evo-lint", "evo-lint"), "evo-lint");
-        assert_eq!(
-            plugin_display("evo-lint", "evo-lint suffix check"),
-            "evo-lint suffix check",
-            "英文标签空格边界原样用"
-        );
-        assert_eq!(
-            plugin_display("evo-lint", "evo-lint-suffix"),
-            "evo-lint-suffix",
-            "英文标签连字符边界原样用"
-        );
-        assert_eq!(
-            plugin_display("plug", "plugx guard"),
-            "plug-plugx guard",
-            "无缝前缀照常拼"
-        );
     }
 
     #[test]
