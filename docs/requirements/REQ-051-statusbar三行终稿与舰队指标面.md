@@ -111,3 +111,5 @@ L2  ▰ 42%
 hst-rev r1 回执(2026-10-13,评审格 kimi w9:p3):F 一条 = fleet 测试断言面押 ANSI 色码,NO_COLOR=1 环境必红(全仓首个押色码测试,ansi() 认 NO_COLOR 剥色),修为 ENV_LOCK 互斥加剥双开关加 HST_STATUSLINE_NO_ANSI=1 剥色反例锁,NO_COLOR=1 环境全测无管道直跑绿验收(免复审);G 四条 = G-1 example hookstate 注释缺收括(修)加 G-2 goal-ascii 缺 mode 占位(补 {mode} 两形同语)加 G-3 verify 直立形理论缝(模型 id 呈 claude-数字.数字 形的误报缝,现行 id 多段形不触,注记在案)加 G-4 CHANGELOG 未收 REQ-051(Unreleased 节里程碑行补,定版随发布链);CONFIRM 八项逐点实证(四行与退化表逐档、fleet 快照道真 agents view 独立复核 17 格计数手工一致、kimi 恒单行、context 三形、marker 直立形、CJK 回落与 codex 换序、goalmode 前缀旗、门禁复证)。F-1 清零即放行。
 
 第六笔回执(2026-10-13,已并 main 后微调):总台令「就显示有多少个 agent 在线可操作」:fleet 段显示形收敛为在线计数 `☰ N`(W/N 比与 !B 加 Dn 记号退役;快照计数面与龄降级保留)。L4 图标后视觉空格与 fleet 段语义答疑同批。
+
+第七笔微调(2026-10-13):fleet 图标汉堡形(U+2630)换绵羊形(U+1F411,herd 牧群意象;herdr 本体无固定绵羊字形,官网二进制核过)。图标走 [icons] 单源可覆写;状态栏字形规格豁免在册,md 文面以码位记。

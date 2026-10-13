@@ -117,7 +117,7 @@ const DEFAULT_ICONS: &[(&str, &str)] = &[
     ("shell", "\u{ea85} "),
     ("hst", "\u{f06a9}  "),
     ("agent", "\u{2733} "),
-    ("fleet", "\u{2630} "),
+    ("fleet", "\u{1f411} "),
     ("model", "\u{2726} "),
     ("context", "\u{f035b} "),
     ("tools", "\u{f0ad} "),

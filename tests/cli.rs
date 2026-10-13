@@ -1916,7 +1916,7 @@ fn statusline_render_fleet_segment_reads_snapshot() {
         .unwrap();
     assert!(out.status.success());
     let s = String::from_utf8_lossy(&out.stdout);
-    assert!(s.contains("\u{2630} 12"), "fleet 在线计数形: {s}");
+    assert!(s.contains("\u{1f411} 12"), "fleet 在线计数形: {s}");
     assert!(!s.contains("1/12"), "W/N 比退役: {s}");
     // 缺档:零噪声。
     let tmp2 = std::env::temp_dir().join(format!("hst-render-fleet2-{}", std::process::id()));
@@ -1931,7 +1931,7 @@ fn statusline_render_fleet_segment_reads_snapshot() {
         .output()
         .unwrap();
     let s2 = String::from_utf8_lossy(&out2.stdout);
-    assert!(!s2.contains("\u{2630}"), "缺档 fleet 不显: {s2}");
+    assert!(!s2.contains("\u{1f411}"), "缺档 fleet 不显: {s2}");
     let _ = std::fs::remove_dir_all(&tmp);
     let _ = std::fs::remove_dir_all(&tmp2);
 }

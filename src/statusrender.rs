@@ -2759,7 +2759,7 @@ mod tests {
         assert!(line.contains("lane/statusbar-v2"), "分支直读: {line}");
         assert!(line.contains("kimi-k2"), "模型: {line}");
         assert!(line.contains("42%"), "context pct: {line}");
-        assert!(!line.contains("☰"), "fleet 不上: {line}");
+        assert!(!line.contains("\u{1f411}"), "fleet 不上: {line}");
         assert!(!line.contains("󰥔"), "clock 不上: {line}");
         // task 在册:紧凑形 R0·(age)。
         crate::task::set_task(
