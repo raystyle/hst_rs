@@ -94,7 +94,7 @@ L2  ▰ 42%
 - [x] 四家承接落地(codex 内置换序,grok 摘旧约束加 context 三键直读,kimi 单行五必留禁子进程)
 - [x] hook 零中文(插件 CJK 标签回落)
 - [x] task 循环时间(R 加 age)
-- [ ] 测试与门禁全绿,评审过闸(全测与七门禁绿实跑;评审过闸追记回填)
+- [x] 测试与门禁全绿,评审过闸(hst-rev r1:F-1 修批免复审收,G-1 至 G-3 收养 G-4 随发布链;NO_COLOR=1 环境全测直跑绿验收)
 
 ## 追记
 
@@ -107,3 +107,5 @@ L2  ▰ 42%
 其五「task应该单独一行」= task 出 L3 独占 L4(结构改四行),goalmode 前缀旗随迁 L4。待核余项:退化阈、快照老化阈(5 分钟灰显 30 分钟隐藏)。核过转 implemented 批。
 
 实现批落盘(2026-10-13,lane/statusbar-v2):四行结构与默认序落地(DEFAULT_SEGMENTS 四行版加模板加图标,example 重写);退化表 env COLUMNS 检测(40 档双行保底加 dir basename 与 context 紧缩加 clock/fleet/git/model 逐档弃加 task 文本三档截加 hook 清单小于 60 留首一小于 80 截首三);kimi 恒单行专用道(五必留加 task 紧凑形 Rn·age 加 hook 首 id,分支直读 gitBranch 零子进程);fleet 快照道全链(FleetCounts 形加 parse_agents_view TEXT 表 token 化解析加 fleet_refresh 原子落档加 ensure_fleet_refresh 60 秒节流戳 detach 加 sweeper tick 顺带加 HST_FLEET_REFRESH=off 逃生闸,`hst task fleet-refresh` 子命令);context 三形(context_grok 三键严形缺任一隐藏加 context_kimi 比值族加 claude 形直读优先反推回落,四格条形窄窗紧缩);goalmode 前缀旗随迁 L4(mode 占位接线 goalmode_probe 在役才显);hook 清单 Vec 化内部 `|` 细分;plugin_display CJK 回落;verify marker 判据扩展(直立形 `agent[-version]` 段界收,旧冒号两形兼容,路径形与同前缀名拒);codex 内置项换序收 run-state 与 branch-changes;model_name 承 kimi 字符串 model 键。实测:本机 17 格 fleet-refresh 落档,120 列四行实弹渲染 0.01s(<50ms 判据),39/40/80/99 边界窗与 kimi 行逐窗验形。途中误写一笔:性能实测命令漏 HST_ROOT 覆写在役 task 档,当场恢复并在 .task-audit 记 restore 行。
+
+hst-rev r1 回执(2026-10-13,评审格 kimi w9:p3):F 一条 = fleet 测试断言面押 ANSI 色码,NO_COLOR=1 环境必红(全仓首个押色码测试,ansi() 认 NO_COLOR 剥色),修为 ENV_LOCK 互斥加剥双开关加 HST_STATUSLINE_NO_ANSI=1 剥色反例锁,NO_COLOR=1 环境全测无管道直跑绿验收(免复审);G 四条 = G-1 example hookstate 注释缺收括(修)加 G-2 goal-ascii 缺 mode 占位(补 {mode} 两形同语)加 G-3 verify 直立形理论缝(模型 id 呈 claude-数字.数字 形的误报缝,现行 id 多段形不触,注记在案)加 G-4 CHANGELOG 未收 REQ-051(Unreleased 节里程碑行补,定版随发布链);CONFIRM 八项逐点实证(四行与退化表逐档、fleet 快照道真 agents view 独立复核 17 格计数手工一致、kimi 恒单行、context 三形、marker 直立形、CJK 回落与 codex 换序、goalmode 前缀旗、门禁复证)。F-1 清零即放行。

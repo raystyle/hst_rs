@@ -277,7 +277,10 @@ fn marker_line_hit(agent: &str, line: &str) -> bool {
 /// 之前的行前缀。尾巴可为空（行尾收）、段界起头（空格 / `|` / ANSI 转义
 /// 前缀）或 `-<数字.数字>` 版本尾后接段界；前缀须以空格（图标后）、
 /// ANSI 复位或行首收。路径形 `/x/claude`（前邻 `/`）与同前缀名
-/// `claude-code`（`-` 后非版本形）不认。
+/// `claude-code`（`-` 后非版本形）不认。已知理论缝（评审 r1 G-3 注记）：
+/// 模型 id 若恰呈 `claude-<数字.数字>` 形（现行 Anthropic id 皆
+/// `claude-<名>-<版>` 多段形不触），L1 缺失时模型段可误过 marker,属可容
+/// 启发式缝。
 fn identity_segment_hit(rest: &str, before: &str) -> bool {
     let tail = match rest.strip_prefix('-') {
         Some(r) => {

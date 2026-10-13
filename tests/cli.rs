@@ -1142,7 +1142,7 @@ fn statusline_example_prints_customization_template() {
         .stdout(contains("segments5 = []"))
         .stdout(contains("agent {icon}{agent}"))
         .stdout(contains("fleet {icon}{fleet}"))
-        .stdout(contains("goal {icon}{mode}{goal} R{count}"))
+        .stdout(contains("goal {icon} {mode}{goal} R{count}"))
         .stdout(contains("goalmode {icon}  {text}"));
 }
 

@@ -80,9 +80,9 @@ const DEFAULT_TEMPLATES: &[(&str, &str)] = &[
     ("tokens", "{icon}{used}/{window}"),
     ("tokens-ascii", "{used}/{window}"),
     ("duration", "{icon}{duration}"),
-    ("goal", "{icon}{mode}{goal} R{count} · {age}"),
+    ("goal", "{icon} {mode}{goal} R{count} · {age}"),
     ("goalmode", "{icon}  {text}"),
-    ("goal-ascii", "{goal} R{count} · {age}"),
+    ("goal-ascii", "{mode}{goal} R{count} · {age}"),
     ("goalmode-ascii", "{text}"),
     ("hookstate", "{icon}  {alias}"),
     ("hookstate-ascii", "{alias}"),
@@ -558,13 +558,13 @@ segments5 = []
 #   条形，窄窗自动去括号对）
 #   tools {icon}{count} / mcp {icon}{count} / tokens {icon}{used}{window}
 #   duration {icon}{duration} / git {icon}{branch}{flags}
-#   goal {icon}{mode}{goal} R{count} · {age}（L4 task 行；{mode} = goalmode
+#   goal {icon} {mode}{goal} R{count} · {age}（L4 task 行；{mode} = goalmode
 #   前缀旗（active 加 paused，在役才显）、{goal} 截 60、{count} = Stop 腿
 #   轮次、{age} = 距上轮循环时间 d/h/m 形）
 #   hookstate {icon}  {alias}（L3 hook 行；注册面全部 hook 的功能别名清单，
 #   英文 id 直用（hst-token 映射 hst-token-guard），未收录 hook 回落 stem
 #   本名，全局插件 hook 的 statusMessage 含中文时回落纯插件名（REQ-051
-#   hook 零中文），清单空回落泛称 hook；窄窗截首三个至首一个
+#   hook 零中文），清单空回落泛称 hook；窄窗截首三个至首一个）
 #   package 与六工具链段（python 加 rust 加 node 加 zig 加 go 加 cpp）{icon}{version}
 #   （ts 不是独立段 id：它是 node 段内部第二部件，[icons] 的 ts 键只管该部件字形，写进 segments 会响亮报错）
 #   clock {icon}{datetime}（D51：年月日加当前时间，分钟精度）

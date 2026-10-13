@@ -2603,7 +2603,14 @@ mod tests {
     fn fleet_segment_reads_snapshot_with_age_degradation() {
         // REQ-051 fleet 段:纯读快照零子进程;平时 W/N 平时形,blocked 与
         // done 非零各自带记;5 分钟外灰显带龄,30 分钟外整段隐藏;total=0
-        // 与缺档隐藏。
+        // 与缺档隐藏。评审 r1 F-1:断言面押 ANSI 色码,须 ENV_LOCK 互斥加
+        // 剥双开关(NO_COLOR 与 HST_STATUSLINE_NO_ANSI 任一在场即剥色必红),
+        // 反例锁 HST_STATUSLINE_NO_ANSI=1 剥色形。
+        let _g = crate::pathutil::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        std::env::remove_var("NO_COLOR");
+        std::env::remove_var("HST_STATUSLINE_NO_ANSI");
         let home = std::env::temp_dir().join(format!("hst-sr-fleet-{}", std::process::id()));
         std::fs::create_dir_all(home.join("state")).unwrap();
         let cfg = StatuslineConfig {
@@ -2665,6 +2672,15 @@ mod tests {
         assert!(seg_fleet(&mk_ctx!(&home)).is_none());
         let _ = std::fs::remove_file(home.join("state").join("fleet-snap.json"));
         assert!(seg_fleet(&mk_ctx!(&home)).is_none());
+        // 评审 r1 F-1 反例:HST_STATUSLINE_NO_ANSI=1 剥色,色码断言面不现。
+        std::env::set_var("HST_STATUSLINE_NO_ANSI", "1");
+        snap(&format!(
+            r#"{{"ts":{},"total":12,"working":1,"idle":10,"blocked":0,"done":1,"hosts":[]}}"#,
+            now
+        ));
+        let stripped = seg_fleet(&mk_ctx!(&home)).unwrap();
+        assert_eq!(stripped, "1/12 D1", "剥色后裸文本: {stripped}");
+        std::env::remove_var("HST_STATUSLINE_NO_ANSI");
         let _ = std::fs::remove_dir_all(&home);
     }
 
