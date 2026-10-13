@@ -1891,7 +1891,7 @@ fn statusline_render_native_marker_smoke() {
 #[test]
 fn statusline_render_fleet_segment_reads_snapshot() {
     // REQ-051 fleet 段端到端:HST_ROOT 钉临时根落 fleet-snap.json,渲染
-    // 纯读出 W/N 形;缺档即整段隐藏零噪声。
+    // 纯读出在线计数形(总台第六笔回执 N 形);缺档即整段隐藏零噪声。
     let tmp = std::env::temp_dir().join(format!("hst-render-fleet-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&tmp);
     std::fs::create_dir_all(tmp.join("state")).unwrap();
@@ -1916,8 +1916,8 @@ fn statusline_render_fleet_segment_reads_snapshot() {
         .unwrap();
     assert!(out.status.success());
     let s = String::from_utf8_lossy(&out.stdout);
-    assert!(s.contains("1/12"), "fleet W/N 形: {s}");
-    assert!(s.contains("D1"), "done 独立记: {s}");
+    assert!(s.contains("\u{2630} 12"), "fleet 在线计数形: {s}");
+    assert!(!s.contains("1/12"), "W/N 比退役: {s}");
     // 缺档:零噪声。
     let tmp2 = std::env::temp_dir().join(format!("hst-render-fleet2-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&tmp2);
@@ -1931,7 +1931,7 @@ fn statusline_render_fleet_segment_reads_snapshot() {
         .output()
         .unwrap();
     let s2 = String::from_utf8_lossy(&out2.stdout);
-    assert!(!s2.contains("1/12"), "缺档 fleet 不显: {s2}");
+    assert!(!s2.contains("\u{2630}"), "缺档 fleet 不显: {s2}");
     let _ = std::fs::remove_dir_all(&tmp);
     let _ = std::fs::remove_dir_all(&tmp2);
 }

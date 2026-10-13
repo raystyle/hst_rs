@@ -31,3 +31,7 @@ REQ-051 实现批提交推 lane/statusbar-v2 开评审闸门;遗留:goal alias �
 ## 评审轮 hst-rev kimi 2026-10-13
 
 r1 回执:F 一条 G 四条 CONFIRM 八项(F 与 G 详见 REQ-051 追记;回执落盘 target/target-review-statusbarv2/receipt-req051-r1.md)。F-1 = fleet 测试断言面押 ANSI 色码,NO_COLOR=1 环境必红(全仓首个押色码测试,本机 agent shell 即设 NO_COLOR):修为 ENV_LOCK 互斥加剥双开关加 HST_STATUSLINE_NO_ANSI=1 剥色反例锁,验收面 NO_COLOR=1 全测无管道直跑绿(免复审)。G 收养:G-1 example 注释收括加 G-2 goal-ascii 补 mode 占位加 G-3 直立形理论缝注记(模型 id 恰呈 claude-数字.数字 形的启发式缝,现行 id 多段形不触)加 G-4 CHANGELOG Unreleased 节里程碑行。顺手:总台两令 = fleet 段语义答疑(☰ W/N 在跑比总数)加 L4 图标后视觉空格(goal 模板 {icon} 与 {mode} 间加一空格,装机位热换即时生效)。
+
+## 第六笔回执微调一笔
+
+总台令「就显示有多少个 agent 在线可操作」:fleet 段收敛为在线计数 `☰ 18`(W/N 比与 !B 加 Dn 记号退役;快照计数面与龄降级保留,机读消费不受影响)。同批答疑:☰ 后数字 = agents view 在册格位总数(四主机合计,working 加 idle 全算在线可操作)。单测与集成断言随形,门禁全绿,装机位热换实况即显。
