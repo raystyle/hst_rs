@@ -1915,7 +1915,7 @@ fn cmd_hook_task(event: Option<String>, agent: Option<String>) -> Result<(), Str
         Ok(h) => h,
         Err(e) => {
             if verbose {
-                eprintln!("hst hook goal: {e}");
+                eprintln!("hst hook task: {e}");
             }
             return Ok(());
         }
@@ -1935,7 +1935,7 @@ fn cmd_hook_task(event: Option<String>, agent: Option<String>) -> Result<(), Str
         Ok(None) => {}
         Err(e) => {
             if verbose {
-                eprintln!("hst hook goal: {e}");
+                eprintln!("hst hook task: {e}");
             }
         }
     }
@@ -1955,7 +1955,7 @@ fn cmd_hook_task(event: Option<String>, agent: Option<String>) -> Result<(), Str
         let user_home = hst::pathutil::user_home().unwrap_or_default();
         if let Err(e) = hst::task::heal_sweep(&home, &user_home) {
             if verbose {
-                eprintln!("hst hook goal heal: {e}");
+                eprintln!("hst hook task heal: {e}");
             }
         }
     }
@@ -1963,13 +1963,13 @@ fn cmd_hook_task(event: Option<String>, agent: Option<String>) -> Result<(), Str
         match hst::task::blocked_fastpath(&home, payload.as_ref(), event.as_deref()) {
             Ok(Some(line)) => {
                 if verbose {
-                    eprintln!("hst hook goal: {line}");
+                    eprintln!("hst hook task: {line}");
                 }
             }
             Ok(None) => {}
             Err(e) => {
                 if verbose {
-                    eprintln!("hst hook goal fastpath: {e}");
+                    eprintln!("hst hook task fastpath: {e}");
                 }
             }
         }

@@ -516,7 +516,7 @@ fn hook_hint(agent: &str) -> Option<String> {
     // 化；他家走 skip 前置分支，本函数不再服务他臂。
     let _ = agent;
     Some(
-        "确认 claude 用户级注册在位（hst hook init 部署，Stop 事件挂 hst-goal \
+        "确认 claude 用户级注册在位（hst hook init 部署，Stop 事件挂 hst-task \
             shim）且无头会话真实收束；判据只看 task rounds 递增（Stop 事件端到 \
             端），模型应答内容不影响判定"
             .into(),
