@@ -193,7 +193,7 @@ enum TaskCmd {
         #[arg(long)]
         project: Option<PathBuf>,
     },
-    /// 查看本项目 task（无 task 给 goal.present=false）；配 --json 出信封（机读面，插件聚合直接消费）
+    /// 查看本项目 task（无 task 给 task.present=false）；配 --json 出信封（机读面，插件聚合直接消费）
     Show {
         /// 归属 agent（按会话隔离；缺省 claude）
         #[arg(long, default_value = "claude")]
@@ -1158,7 +1158,9 @@ fn cmd_ledger_verify() -> Result<(), String> {
         }
         Some(false) => {
             println!("ledger.pair=mismatch kid={}", hst::ledger::key_id());
-            println!("ledger.pair.hint=本地私钥与内置公钥 JWK 不配对（写入会全体 401）；轮换密钥对后需同步换 CLI 内置常量并在册新 kid");
+            println!(
+                "ledger.pair.hint=本地私钥与内置公钥 JWK 不配对（写入会全体 401）；轮换密钥对后需同步换 CLI 内置常量并在册新 kid"
+            );
             Ok(())
         }
         None => {
@@ -1867,7 +1869,9 @@ fn cmd_task_heal(project: Option<PathBuf>, dry_run: bool, interval: bool) -> Res
         println!("task.heal slug={} action={} {}", r.slug, r.action, r.detail);
     }
     if rows.is_empty() {
-        println!("task.heal.hint=无在册 task（~/.hst/state/task/ 空,旧 state/goal 访问时自动平移）；先 hst task set");
+        println!(
+            "task.heal.hint=无在册 task（~/.hst/state/task/ 空,旧 state/goal 访问时自动平移）；先 hst task set"
+        );
     }
     Ok(())
 }
