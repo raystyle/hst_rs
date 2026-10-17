@@ -2,6 +2,8 @@ use std::fs;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+// 大小写混排组在 fmt edition 2021 与 2024 下排序互斥，skip 保双版绿。
+#[rustfmt::skip]
 use serde_json::{json, Value as Json};
 use sha2::{Digest, Sha256};
 use toml::Value as Toml;
@@ -93,10 +95,18 @@ fn unix_millis() -> u128 {
 /// 无法归因落写者故一律保留，彻底恢复 MCP 确认需手动清名单）；
 /// off = 全关（摘 hst 落键恢复各家默认确认，用户自设值保留）。
 /// 四家 partial 取值：claude `acceptEdits`（官方 permission-mode 取值）、
-/// codex `workspace-write` 加 `on-request`（官方 config 文档）、kimi `auto`
-/// （doctor 既有 ok 值）、grok `auto`（grok-build `permissions.rs`
-/// `parse_permission_mode_canonical` 值集 always-approve|auto|ask，未知串
-/// 回落 ask 安全向 [实证: 2026-09-13 上游源码加本机 --help 复核]）。
+/// codex `workspace-write` 加 `on-request`（官方 config 文档）、kimi `yolo`
+/// （2.2.0 语义 Ask When Needed：常规自动过、高危仍问，恰是半放行对位；
+/// v2.15.1 前 partial 曾落 `auto` 属装反残留）、grok `auto`（grok-build
+/// `permissions.rs` `parse_permission_mode_canonical` 值集
+/// always-approve|auto|ask，未知串回落 ask 安全向
+/// [实证: 2026-09-13 上游源码加本机 --help 复核]）。
+/// kimi full 取值 `auto`（2.2.0 语义 Never Ask 真全跳，危险命令守卫也不
+/// 拦；旧 kimi-cli 时代 `--yolo` 即全放行、2.2.0 起值语义对调，故 v2.15.1
+/// 前 full 落 `yolo` 实为 Ask When Needed，总台实测高危仍弹窗，本批翻正，
+/// 判据表见 S036）
+/// [实证: 2026-10-16 grok 研究单 share/lan-win/c58479c604 加 kimi-code
+/// 文档站与本机 kimi 2.2.0 --help 复核]。
 #[derive(Clone, Copy, PartialEq, Eq, Debug, clap::ValueEnum)]
 pub enum YoloLevel {
     /// 全 bypass：编辑与命令执行全放行（现行 --yolo 行为）
@@ -133,14 +143,18 @@ fn level_keys(level: YoloLevel) -> LevelKeys {
             claude_mode: "bypassPermissions",
             codex_sandbox: "danger-full-access",
             codex_approval: "never",
-            kimi_mode: "yolo",
+            // kimi 2.2.0：`auto` = Never Ask 真全跳；`yolo` 是 Ask When
+            // Needed（高危仍问），v2.15.1 前 full 曾误落 `yolo`（S036）。
+            kimi_mode: "auto",
             grok_mode: "always-approve",
         },
         YoloLevel::Partial => LevelKeys {
             claude_mode: "acceptEdits",
             codex_sandbox: "workspace-write",
             codex_approval: "on-request",
-            kimi_mode: "auto",
+            // 恰对位：`yolo` = Ask When Needed（常规自动跑、危险操作仍
+            // 问）正是半放行语义（S036）。
+            kimi_mode: "yolo",
             grok_mode: "auto",
         },
         YoloLevel::Off => unreachable!("off has no write keys"),
@@ -1153,6 +1167,8 @@ pub fn kimi_workspace_key(root: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    // 大小写混排组双版 fmt 排序互斥，skip 保双版绿（同上）。
+    #[rustfmt::skip]
     use crate::doctor::{diagnose, Status};
 
     /// Unique per-call suffix: same-millisecond parallel tests must not
@@ -1180,7 +1196,7 @@ mod tests {
         .unwrap();
         std::fs::write(
             home.join(".kimi-code").join("config.toml"),
-            "default_permission_mode = \"yolo\"\n",
+            "default_permission_mode = \"auto\"\n",
         )
         .unwrap();
         std::fs::write(
@@ -1196,6 +1212,16 @@ mod tests {
         assert!(user_yolo_active_with(&home, "kimi"));
         assert!(user_yolo_active_with(&home, "grok"));
         assert!(user_yolo_active_with(&home, "pi"), "未知 agent 保守不治");
+        // kimi 半放行值 yolo（Ask When Needed）不判 full 活性（S036 对调）。
+        std::fs::write(
+            home.join(".kimi-code").join("config.toml"),
+            "default_permission_mode = \"yolo\"\n",
+        )
+        .unwrap();
+        assert!(
+            !user_yolo_active_with(&home, "kimi"),
+            "kimi yolo 值是 partial 档非 full 活性"
+        );
         // claude 翻 full 后判活。
         std::fs::write(
             home.join(".claude").join("settings.json"),
@@ -1309,22 +1335,24 @@ mod tests {
         assert_eq!(before.status("codex", "yolo"), Some(Status::Block));
 
         let report = apply_user_yolo_with(&user).expect("apply");
-        assert!(report
-            .wrote
-            .iter()
-            .any(|p| p.ends_with("settings.json") && p.contains(".claude")));
-        assert!(report
-            .wrote
-            .iter()
-            .any(|p| p.ends_with("config.toml") && p.contains(".codex")));
-        assert!(report
-            .wrote
-            .iter()
-            .any(|p| p.ends_with("config.toml") && p.contains(".kimi-code")));
-        assert!(report
-            .wrote
-            .iter()
-            .any(|p| p.ends_with("config.toml") && p.contains(".grok")));
+        let wrote = |end: &str, dir: &str| {
+            report
+                .wrote
+                .iter()
+                .any(|p| p.ends_with(end) && p.contains(dir))
+        };
+        assert!(wrote("settings.json", ".claude"));
+        assert!(wrote("config.toml", ".codex"));
+        assert!(wrote("config.toml", ".kimi-code"));
+        assert!(wrote("config.toml", ".grok"));
+        // kimi full 落 Never Ask 值 auto（v2.15.1 前误落 yolo，S036 翻正）。
+        let ktoml = read_toml(&user.join(".kimi-code").join("config.toml")).unwrap();
+        assert_eq!(
+            ktoml
+                .get("default_permission_mode")
+                .and_then(|v| v.as_str()),
+            Some("auto")
+        );
 
         let shared = read_json(&user.join(".claude").join("settings.json")).unwrap();
         assert_eq!(
@@ -1444,11 +1472,11 @@ model = \"gpt\"
             Some("on-request")
         );
 
-        // kimi / grok：auto。
+        // kimi：yolo（Ask When Needed，高危仍问恰是半放行）；grok：auto。
         let kimi = read_toml(&user.join(".kimi-code").join("config.toml")).unwrap();
         assert_eq!(
             kimi.get("default_permission_mode").and_then(|v| v.as_str()),
-            Some("auto")
+            Some("yolo")
         );
         let grok = read_toml(&user.join(".grok").join("config.toml")).unwrap();
         assert_eq!(
@@ -1629,7 +1657,7 @@ model = \"gpt\"
         let kimi = read_toml(&root.join(".kimi-code").join("config.toml")).unwrap();
         assert_eq!(
             kimi.get("default_permission_mode").and_then(|v| v.as_str()),
-            Some("auto")
+            Some("yolo")
         );
 
         // off：ours 值（含 partial 值）摘除；codex 项目信任预种留给信任面。

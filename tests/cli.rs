@@ -796,7 +796,7 @@ fn init_project_yolo_writes_project_scope_only() {
     let codex = std::fs::read_to_string(proj.join(".codex").join("config.toml")).unwrap();
     assert!(codex.contains("approval_policy"), "project codex yolo keys");
     let kimi = std::fs::read_to_string(proj.join(".kimi-code").join("config.toml")).unwrap();
-    assert!(kimi.contains("yolo"), "project kimi yolo key");
+    assert!(kimi.contains("auto"), "project kimi full mode: {kimi}");
     assert!(
         !user.join(".claude").join("settings.json").exists(),
         "--project-yolo must not touch user level"
@@ -853,8 +853,7 @@ fn init_pretrust_canonical_parses_and_legacy_alias_is_removed() {
         .env("HST_ROOT", &tmp.join("fake-hst-home"))
         .assert()
         .failure()
-        .code(1); // REQ-032 F1：clap 用法错映射 1
-                  // help 面只露 canonical 拼写。
+        .code(1); // REQ-032 F1：clap 用法错映射 1；help 面只露 canonical 拼写
     hst()
         .args(["init", "--help"])
         .assert()
@@ -959,8 +958,7 @@ fn init_yolo_partial_and_off_level_markers() {
         .env("HST_ROOT", &hst_root)
         .assert()
         .failure()
-        .code(1); // REQ-032 F1：clap 用法错映射 1
-                  // partial：标记与四家分级落键。
+        .code(1); // REQ-032 F1：clap 用法错映射 1；partial 走分级落键
     hst()
         .args(["init", "--yolo=partial", "--project"])
         .arg(&proj)
@@ -989,7 +987,7 @@ fn init_yolo_partial_and_off_level_markers() {
         "codex partial approval: {codex}"
     );
     let kimi = std::fs::read_to_string(user.join(".kimi-code").join("config.toml")).unwrap();
-    assert!(kimi.contains("auto"), "kimi partial mode: {kimi}");
+    assert!(kimi.contains("yolo"), "kimi partial mode: {kimi}");
     let grok = std::fs::read_to_string(user.join(".grok").join("config.toml")).unwrap();
     assert!(grok.contains("auto"), "grok partial mode: {grok}");
     // off：retired 行加键摘除（kimi ours-only 文件删除）。
@@ -1628,11 +1626,8 @@ fn goal_yolo_heal_arm_and_sequence_via_fake_herdr() {
         .success()
         .stdout(contains("task.yolo_heal.armed=on"))
         .stdout(contains("task.yolo_heal.changed=true"));
-    assert!(tmp
-        .join("state")
-        .join("task")
-        .join(".yolo-heal-armed")
-        .is_file());
+    let armed = tmp.join("state").join("task").join(".yolo-heal-armed");
+    assert!(armed.is_file());
     // 重复 on 零改动。
     env()
         .args(["task", "yolo-heal", "on"])
@@ -1708,11 +1703,8 @@ fn goal_yolo_heal_arm_and_sequence_via_fake_herdr() {
         .assert()
         .success()
         .stdout(contains("task.yolo_heal.armed=off"));
-    assert!(!tmp
-        .join("state")
-        .join("task")
-        .join(".yolo-heal-armed")
-        .is_file());
+    let armed = tmp.join("state").join("task").join(".yolo-heal-armed");
+    assert!(!armed.is_file());
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -2980,9 +2972,8 @@ fn goal_show_json_envelope_and_filter_output() {
     assert_eq!(v["data"]["task"]["rounds"], serde_json::json!(0));
     assert_eq!(v["data"]["yolo_heal_armed"], serde_json::json!(false));
     assert!(v["data"]["slug"].as_str().is_some_and(|s| !s.is_empty()));
-    assert!(v["data"]["file"]
-        .as_str()
-        .is_some_and(|s| s.ends_with(".json")));
+    let file = v["data"]["file"].as_str();
+    assert!(file.is_some_and(|s| s.ends_with(".json")));
     // repaired 恒在键(rev-codex G-4:健康档 null 形,非缺键)。
     assert_eq!(v["data"]["repaired"], serde_json::Value::Null);
     // jsonl 裸实体(rev-codex G-4:家族先例同形,无信封层)。
@@ -3399,11 +3390,11 @@ fn task_command_family_and_goal_alias_retired() {
         .chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
         .collect();
-    assert!(tmp
+    let store = tmp
         .join("state")
         .join("task")
-        .join(format!("{slug}--claude.json"))
-        .is_file());
+        .join(format!("{slug}--claude.json"));
+    assert!(store.is_file());
     // goal 命令族与 hook goal 别名退役:usage 失败形。
     hst()
         .env("HST_ROOT", &tmp)

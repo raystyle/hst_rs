@@ -3,6 +3,8 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::Value as Json;
+// 大小写混排双版 fmt 排序互斥，skip 保双版绿。
+#[rustfmt::skip]
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 use toml::Value as Toml;
@@ -1097,9 +1099,7 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
         ),
         // codex F4：用户级文件在但解析失败时，yolo 行不再假报 missing 加
         // block（误导且误计 exit 1）；点名 unparseable 并指向 yolo.parse 行。
-        (None, None)
-            if matches!(json_file_state(&claude_user_yolo), JsonFileState::Bad) =>
-        {
+        (None, None) if matches!(json_file_state(&claude_user_yolo), JsonFileState::Bad) => {
             push_status(
                 &mut findings,
                 "claude",
@@ -1581,12 +1581,7 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
                 &cfg,
                 "status_line is command-argv; Codex only accepts built-in item IDs (S016); hst statusline",
             ),
-            CodexStatusline::Missing => push_statusline(
-                &mut findings,
-                "codex",
-                false,
-                &cfg,
-            ),
+            CodexStatusline::Missing => push_statusline(&mut findings, "codex", false, &cfg),
         }
     }
 
@@ -1605,7 +1600,10 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
         kimi_mode_at(&kimi_proj)
     };
     let kimi_user_mode = kimi_mode_at(&kimi_user);
-    let kimi_ok = |m: &str| matches!(m, "yolo" | "auto");
+    // ok 值集与分级对齐（kimi 2.2.0 值语义 S036）：full=`auto`（Never Ask
+    // 真全跳）加 partial=`yolo`（Ask When Needed 高危仍问），两值均绿（读
+    // 侧不分级；full 活性判归 user_yolo_active_with）。
+    let kimi_ok = |m: &str| matches!(m, "auto" | "yolo");
     match (&kimi_proj_mode, &kimi_user_mode) {
         (Some(p), Some(u)) if p != u => push_status(
             &mut findings,

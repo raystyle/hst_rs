@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### 里程碑 2026-10-17：v2.15.1 kimi 权限值语义对调配平 S036
+
+- **修单（总台 lan-win w19:p1）**：kimi 2.2.0 起值语义与旧 kimi-cli 对调（`yolo` = Ask When Needed、`auto` = Never Ask），v2.15.0 及以前 yolo 分级 kimi 档装反：full 误落 `yolo`（实为高危仍弹窗，总台实测复现，写读同 keys 互证假绿）、partial 误落 `auto`（比半放行更放）。翻正：full 落 `auto`（真全跳）、partial 落 `yolo`（Ask When Needed 恰是半放行对位）。
+- **随动面**：doctor kimi ok 值集本含两值读侧自动跟对；full 活性读侧（user_yolo_active_with）随 level_keys 同步翻为 `auto`；ours 值集两代并收，off/退役面无迁移，装机位重跑 init 即落新值；证据与研究档 S036 立件、S007 订正注记、分级注释与单测集成测随义翻正。
+
 ### 里程碑 2026-10-13：v2.15.0 goal 别名摘除与 Stop 收程修 REQ-054
 
 - **goal 别名族退役（REQ-050 一版兼容期满，原定 2.13 经两顺延至本版）**：`hst goal` 命令组别名、`hst hook goal` 静默别名、`HST_GOAL_HEAL`/`HST_GOAL_SWEEPER` 旧闸名全数摘除（`HST_TASK_*` 正名唯一）；状态栏段 id goal 映射与 state/goal 存量迁移道与 legacy 键兼容读不属别名族，保留。
