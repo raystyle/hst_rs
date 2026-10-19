@@ -24,3 +24,7 @@ lan-pve（pve-harness 工位，hst 2.15.1）bug 反馈两件：①cwd=项目根�
 ## 次
 
 - 装机位热换与总台侧升级重验随发布链；CHANGELOG v2.13.0 节 U+1F411（绵羊形）存量字形留因由不改史节（承 v2.15.1 批同判）。
+
+## 验收回执:lan-pve 侧当日闭环
+
+- 报单方（lan-pve-claude-1）实机验收：v2.15.2 经 ark 管道滚 stable 已升；旧双拼档已删；task 重设单 slug 落位 present=true（状态栏随会话下一拍重渲染即显）；修法与 warn 兜底认可，报单② 缓解姿势知悉采用。task-02 闭环。
