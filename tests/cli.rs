@@ -1218,6 +1218,86 @@ fn goal_set_show_clear_roundtrip_own_store() {
 }
 
 #[test]
+fn task_set_bare_project_name_resolves_ancestor_no_double_slug() {
+    // task-02（lan-pve 报单①）：项目根内 `--project <裸名>` 原先 join 出
+    // `<root>/<root 名>` 双拼幻键（状态栏与 Stop 腿按 payload 项目根键控
+    // 永不可见）。修法 = 裸名单名就近上溯：cwd 下同名先认（相对语义不
+    // 变）；不在场取首个 basename 同名祖先。断言用 canonicalize 形（macOS
+    // TMPDIR 符号链接下 getcwd 解析漂移，先例见 trace 测试注记）。
+    let tmp = std::env::temp_dir().join(format!(
+        "hst-cli-taskbare-{}-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis(),
+        NEXT_TEST_DIR.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    let repos = tmp.join("repos");
+    let proj = repos.join("pve-harness");
+    std::fs::create_dir_all(proj.join("sub")).unwrap();
+    let real = std::fs::canonicalize(&proj).unwrap();
+    let slug: String = real
+        .display()
+        .to_string()
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect();
+    let store = tmp
+        .join("state")
+        .join("task")
+        .join(format!("{slug}--claude.json"));
+    // 项目根内裸名：cwd 自身（单 slug 非双拼），task.set project= 打 resolved 根。
+    hst()
+        .env("HST_ROOT", &tmp)
+        .current_dir(&proj)
+        .args(["task", "set", "根内裸名设目标", "--project"])
+        .arg("pve-harness")
+        .assert()
+        .success()
+        .stdout(contains(&format!("task.set project={}", real.display())))
+        .stdout(contains("task.set file="));
+    assert!(store.exists(), "单 slug 落盘（非双拼幻键）: {store:?}");
+    // 状态栏读侧同键可中：cwd 缺省面（payload 根同规则）出 present=true。
+    hst()
+        .env("HST_ROOT", &tmp)
+        .current_dir(&proj)
+        .args(["task", "show"])
+        .assert()
+        .success()
+        .stdout(contains("task.present=true"))
+        .stdout(contains("task.text=根内裸名设目标"));
+    // 子目录内裸名：上溯命中项目根，同一键。
+    hst()
+        .env("HST_ROOT", &tmp)
+        .current_dir(proj.join("sub"))
+        .args(["task", "show", "--project"])
+        .arg("pve-harness")
+        .assert()
+        .success()
+        .stdout(contains("task.present=true"));
+    // 兄弟目录形（cwd=repos，cwd 下同名在场）：现行相对语义不变。
+    hst()
+        .env("HST_ROOT", &tmp)
+        .current_dir(&repos)
+        .args(["task", "show", "--project"])
+        .arg("pve-harness")
+        .assert()
+        .success()
+        .stdout(contains("task.present=true"));
+    // 幻根兜底：cwd 下与祖先链皆无同名，join 形不在盘出 warn 行（不拦写）。
+    hst()
+        .env("HST_ROOT", &tmp)
+        .current_dir(&proj)
+        .args(["task", "set", "幻根兜底", "--project"])
+        .arg("no-such-name")
+        .assert()
+        .success()
+        .stdout(contains("task.warn=project root"));
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
 fn goal_stop_hook_leg_reminds_on_natural_stop_only() {
     // REQ-045 Stop 腿 e2e：goal 在役时 stdin 喂 Stop payload，stdout 出
     // decision block 提醒 JSON（Claude Code Stop 契约）加 rounds 落盘；

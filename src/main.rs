@@ -100,13 +100,13 @@ enum Commands {
         /// 显式关 token-guard 钩子并清出存量注册（缺省 init 不动开关按现态幂等）
         #[arg(long = "no-token-guard")]
         no_token_guard: bool,
-        /// 项目根；默认当前目录
+        /// 项目根；默认当前目录（裸名单名就近上溯解析）
         #[arg(long)]
         project: Option<PathBuf>,
     },
     /// 只读体检（零网络）：yolo / 信任 / 二进制 / 登录态 / hook 形态 / 状态栏 / task
     Doctor {
-        /// 项目根；默认当前目录
+        /// 项目根；默认当前目录（裸名单名就近上溯解析）
         #[arg(long)]
         project: Option<PathBuf>,
     },
@@ -189,7 +189,7 @@ enum TaskCmd {
         /// 归属 agent（按会话隔离；缺省 claude，各 agent 互不可见）
         #[arg(long, default_value = "claude")]
         agent: String,
-        /// 项目根；默认当前目录（状态栏与 Stop 腿按 payload 项目根同规则键控，子目录调用须显式给）
+        /// 项目根；默认当前目录（裸名单名就近上溯解析；状态栏与 Stop 腿按 payload 项目根同规则键控，子目录调用须显式给）
         #[arg(long)]
         project: Option<PathBuf>,
     },
@@ -198,7 +198,7 @@ enum TaskCmd {
         /// 归属 agent（按会话隔离；缺省 claude）
         #[arg(long, default_value = "claude")]
         agent: String,
-        /// 项目根；默认当前目录
+        /// 项目根；默认当前目录（裸名单名就近上溯解析）
         #[arg(long)]
         project: Option<PathBuf>,
     },
@@ -209,7 +209,7 @@ enum TaskCmd {
         /// 归属 agent（按会话隔离；缺省 claude）
         #[arg(long, default_value = "claude")]
         agent: String,
-        /// 项目根；默认当前目录
+        /// 项目根；默认当前目录（裸名单名就近上溯解析）
         #[arg(long)]
         project: Option<PathBuf>,
     },
@@ -348,7 +348,7 @@ enum LedgerCmd {
 enum YoloCmd {
     /// 检测项目级 yolo 干扰键（claude 两层加 codex 加 kimi，只读零改动；写 ~/.hst/state/projyolo/ marker，命中时状态栏升格 proj-yolo!；清除走 hst init --clear-project-yolo。本命令只出 kv marker 行，不走 fmtio 三态）
     Check {
-        /// 项目根；默认当前目录
+        /// 项目根；默认当前目录（裸名单名就近上溯解析）
         #[arg(long)]
         project: Option<PathBuf>,
     },
@@ -392,7 +392,7 @@ enum TraceCmd {
         /// 条数上限（1-1000）；缺省全列
         #[arg(long)]
         limit: Option<usize>,
-        /// 项目根；默认当前目录
+        /// 项目根；默认当前目录（裸名单名就近上溯解析）
         #[arg(long)]
         project: Option<PathBuf>,
     },
@@ -410,7 +410,7 @@ enum TraceCmd {
         /// 翻页偏移（向更早翻页）
         #[arg(long, default_value_t = 0)]
         offset: usize,
-        /// 项目根；默认当前目录
+        /// 项目根；默认当前目录（裸名单名就近上溯解析）
         #[arg(long)]
         project: Option<PathBuf>,
     },
@@ -427,7 +427,7 @@ enum TraceCmd {
         /// 翻页偏移（向更早翻页）
         #[arg(long, default_value_t = 0)]
         offset: usize,
-        /// 项目根；默认当前目录
+        /// 项目根；默认当前目录（裸名单名就近上溯解析）
         #[arg(long)]
         project: Option<PathBuf>,
     },
@@ -445,7 +445,7 @@ enum TraceCmd {
         /// 翻页偏移（向更早翻页）
         #[arg(long, default_value_t = 0)]
         offset: usize,
-        /// 项目根；默认当前目录
+        /// 项目根；默认当前目录（裸名单名就近上溯解析）
         #[arg(long)]
         project: Option<PathBuf>,
     },
@@ -460,7 +460,7 @@ enum TraceCmd {
         /// 翻页偏移（向更早翻页）
         #[arg(long, default_value_t = 0)]
         offset: usize,
-        /// 项目根；默认当前目录
+        /// 项目根；默认当前目录（裸名单名就近上溯解析）
         #[arg(long)]
         project: Option<PathBuf>,
     },
@@ -474,7 +474,7 @@ enum TraceCmd {
         /// 翻页偏移（向更早翻页）
         #[arg(long, default_value_t = 0)]
         offset: usize,
-        /// 项目根；默认当前目录
+        /// 项目根；默认当前目录（裸名单名就近上溯解析）
         #[arg(long)]
         project: Option<PathBuf>,
     },
@@ -1360,10 +1360,26 @@ fn project_root(project: Option<PathBuf>) -> Result<PathBuf, String> {
         None => std::env::current_dir().map_err(|e| format!("cwd: {e}"))?,
     };
     // 相对路径必须在此展开为绝对（M031）：下游按收到路径原样落盘与注册，
-    // 相对路径经工作目录漂移会落错位置。
+    // 相对路径经工作目录漂移会落错位置。裸名单名（单 component）双解析
+    // （task-02，lan-pve 报单）：cwd 下同名先认（现行相对语义不变，monorepo
+    // 子目录同名不受扰）；不在场则自 cwd 逐级上溯取首个 basename 同名的
+    // 祖先——项目根或其子目录里 `--project <项目名>` 原先 join 出
+    // `<root>/<root 名>` 双拼幻键，状态栏与 Stop 腿按 payload 项目根键控
+    // 永不可见；上溯命中必在盘，幻根 warn 面（cmd_task_set）兜底。
     if raw.is_relative() {
         let cwd = std::env::current_dir().map_err(|e| format!("cwd: {e}"))?;
-        return Ok(cwd.join(raw));
+        let joined = cwd.join(&raw);
+        if raw.components().count() == 1 && !joined.exists() {
+            let name = raw.to_string_lossy();
+            let mut ancestor = cwd.as_path();
+            while let Some(file_name) = ancestor.file_name() {
+                if file_name == name.as_ref() {
+                    return Ok(ancestor.to_path_buf());
+                }
+                ancestor = ancestor.parent().unwrap_or(Path::new("/"));
+            }
+        }
+        return Ok(joined);
     }
     Ok(raw)
 }
@@ -1669,6 +1685,15 @@ fn agent_report_row(r: &agents::Report) -> Value {
 /// `~/.hst/state/goal/<slug>.json`（项目键 slug 同 trace 与 projyolo）。
 fn cmd_task_set(text: &str, agent: &str, project: Option<PathBuf>) -> Result<(), String> {
     let root = project_root(project)?;
+    // task-02 兜底（lan-pve 报单①）：幻根 warn 不拦写（脚本面不破），
+    // 但要点破可见性——状态栏与 Stop 腿按 payload 项目根键控，不在盘的
+    // 根永不可见（裸名单名已就近上溯解析，此处多接路径段拼错形）。
+    if !root.exists() {
+        println!(
+            "task.warn=project root {} 不在盘；状态栏与 Stop 腿按 payload 项目根键控，幻根 task 永不可见",
+            root.display()
+        );
+    }
     let home = hst::install::hst_home()?;
     let r = task::set_task(&home, &root, agent, text)
         .map_err(|e| format!("task error={}: {e}", e.code()))?;

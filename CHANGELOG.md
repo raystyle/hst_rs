@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### 里程碑 2026-10-19：v2.15.2 task 裸名 project 双拼幻键修 task-02
+
+- **修单（lan-pve pve-harness 工位报单①）**：项目根内 `hst task set --project <裸名>` 原按 M031 相对展开 join 出 `<root>/<root 名>` 双拼幻键（如 `-…-pve-harness-pve-harness--claude.json`），状态栏与 Stop 腿按 payload 项目根键控永不可见。修法 = `project_root` 裸名单名双解析：cwd 下同名先认（现行相对语义不变）；不在场自 cwd 逐级上溯取首个 basename 同名祖先（项目根与任意深度子目录内裸名皆命中真根）。
+- **幻根 warn 兜底与文档**：task set 落根不在盘时出 `task.warn=` 行（循 `init.warn=` 先例，不拦写）；`--project` 帮助串 12 处同步裸名解析语义；报单②（状态栏即时刷新）经查为各家 harness 渲染节奏（claude command 型 bar 由会话事件重跑最快 300ms，外部进程无触发通道），设计意图回复不修，详见当日 diary。
+
 ### 里程碑 2026-10-17：v2.15.1 kimi 权限值语义对调配平 S036
 
 - **修单（总台 lan-win w19:p1）**：kimi 2.2.0 起值语义与旧 kimi-cli 对调（`yolo` = Ask When Needed、`auto` = Never Ask），v2.15.0 及以前 yolo 分级 kimi 档装反：full 误落 `yolo`（实为高危仍弹窗，总台实测复现，写读同 keys 互证假绿）、partial 误落 `auto`（比半放行更放）。翻正：full 落 `auto`（真全跳）、partial 落 `yolo`（Ask When Needed 恰是半放行对位）。
