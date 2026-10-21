@@ -11,7 +11,7 @@ pub mod agents;
 pub mod archive;
 /// CPU 指令集能力与探针退出形态分类（S021/P0018）。
 pub mod caps;
-/// claude 压缩触发（auto-compact）配置读写面（总台功能单 2026-09-23，ledger n6）。
+/// claude 压缩触发（auto-compact）配置读写面（总台功能单 2026-09-23）。
 pub mod compact;
 /// `hst init` 部署层：hook 注册四家用户级、shim 落位、状态栏面与 ours 技能目录清扫（D53/ADR-0005）。
 pub mod deploy;
@@ -25,8 +25,6 @@ pub mod fmtio;
 pub mod hook;
 /// hst 根解析与共享下载件（self update 复用）。
 pub mod install;
-/// 统一 issue 入口客户端面（issues.ohmygh.com，REQ-057 对齐）。
-pub mod ledger;
 /// 的路径工具面（细则见模块文档与集成测试）。
 pub mod pathutil;
 /// 的密钥拦截闸面（细则见模块文档与集成测试）。
@@ -51,8 +49,8 @@ pub mod verify;
 pub mod yolo;
 
 /// 测试期进程全局 env（HST_ROOT 等）互斥锁：set_var/remove_var 是进程级
-/// 全局态，并行测试竞态会互踩（CI 实弹：ledger roundtrip 撞 hook 测试的
-/// HST_ROOT）。凡动这些 env 的测试先取本锁。
+/// 全局态，并行测试竞态会互踩（CI 实弹：env 缝测试互撞的 HST_ROOT）。
+/// 凡动这些 env 的测试先取本锁。
 #[cfg(test)]
 pub(crate) mod testenv {
     /// 测试期进程全局 env（HST_ROOT 等）互斥锁：set_var/remove_var 是进程

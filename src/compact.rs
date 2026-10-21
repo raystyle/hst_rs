@@ -1,5 +1,5 @@
-//! claude 压缩触发（auto-compact）配置面（总台功能单 2026-09-23，ledger
-//! issue n6）。配置面实证（本机 claude 2.1.270 二进制反混淆，2026-09-23）：
+//! claude 压缩触发（auto-compact）配置面（总台功能单 2026-09-23）。配置
+//! 面实证（本机 claude 2.1.270 二进制反混淆，2026-09-23）：
 //! 百分比阈值唯一面 = 环境变量 `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`
 //! （parseFloat，0 < 值 <= 100，百分数刻度，"70" 即 70%；二进制内名
 //! testPctOverride，官方文档无此键，未文档面，升级可能变）；窗口面 =

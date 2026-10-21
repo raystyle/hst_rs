@@ -31,3 +31,4 @@ issue.rs 单测三件（本地校验先行、平台与主机截断形、数字 i
 - [x] list keyset 翻页（#53，参照 browse 0167e8c）：--before <id> 游标透传（取该 id 之前更旧一页；带 before 响应含 has_more 权威翻页信号且饱和提示以它判定，非法值服务端 400 透传归因；不带 before 旧形回执不变）；饱和提示补 --before 翻页出口 `[实证: 2026-09-19 --limit 3 --before 51 取 tool=hst 名下 id<51 降序页加 has_more=true 加提示行 rc=0]`
 - [x] #53 收口裁定（评审 G4 加 G5）：list_issues 公开签名与回执类型升级（加 before 参加 IssueListPage）按 minor 记不升 major（库面无外部 crate 消费者，评审方全仓 Cargo.toml 检索在案；CLI 面行为属能力新增）；jsonl 消费口径 = 末行 id 作下一页 before 游标、短页即止（勿靠 stderr 判终止）
 - [x] 面切源（2026-09-20，REQ-018）：issue 命令族真源切 ledger.ohmygh.com（REQ-063）；本 REQ 的 list 契约（默认 100 加饱和提示加 count 语义加 keyset 翻页）由 ledger 客户端原样承继，旧 issues.ohmygh.com 客户端面退役（服务过渡保役）
+- [x] 退役（2026-10-21 总台令 ledger 全线淘汰）：`hst issue` 命令族随 ledger 面整体出仓（REQ-055），issue 反馈通道停役待总台新令；AGENTS 纪律行同步摘除

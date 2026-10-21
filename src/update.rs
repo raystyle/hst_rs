@@ -725,7 +725,7 @@ fn rollback_and_verify(exe: &Path, bak: &Path, bad_new: &Path) -> Result<(), Str
             exe.display()
         )),
         Err(e) => Err(format!(
-            "回滚受阻（{e}）：旧件在 {}，新件在 {}；下一步：手动复原 mv {} {} 后 hst issue new 反馈",
+            "回滚受阻（{e}）：旧件在 {}，新件在 {}；下一步：手动复原 mv {} {} 后向维护者反馈",
             bak.display(),
             bad_new.display(),
             bak.display(),
@@ -826,7 +826,7 @@ pub fn self_replace(
         rollback_and_verify(&cur, &bak, &staged).map_err(|r| format!("新件自证失败且{r}"))?;
         let _ = std::fs::remove_file(&bak);
         return Err(format!(
-            "新件自证失败（--version 未达期望 {}，已回滚并复核在位）；下一步：重试一次，仍失败 hst issue new 反馈",
+            "新件自证失败（--version 未达期望 {}，已回滚并复核在位）；下一步：重试一次，仍失败向维护者反馈",
             expect_version.unwrap_or("可运行")
         ));
     }
@@ -957,7 +957,7 @@ pub fn run(repo: &str, channel: Channel, git_mode: bool, force: bool) -> Result<
     let Some(anchor) = expected.as_deref() else {
         let _ = std::fs::remove_file(&tmp);
         return Err(format!(
-            "github asset 锚不可得（无 API digest 且 {}.sha256 边车缺失）拒装不回落；Release 缺边车属发布面缺陷，hst issue new 反馈",
+            "github asset 锚不可得（无 API digest 且 {}.sha256 边车缺失）拒装不回落；Release 缺边车属发布面缺陷，向维护者反馈",
             asset.name
         ));
     };

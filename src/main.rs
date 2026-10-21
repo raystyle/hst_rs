@@ -148,21 +148,6 @@ enum Commands {
         #[command(subcommand)]
         cmd: TraceCmd,
     },
-    /// issue 入口（账本 issue 流，真源 ledger.ohmygh.com；只增面）：开单、列表、详情（关单与状态推进归 omc 工作台）
-    Issue {
-        #[command(subcommand)]
-        cmd: IssueCmd,
-    },
-    /// 产物共享库面（ledger artifact 流：publish 加 attest（三验证型）加 list；promote/demote/supersede 归 omc 工作台；真源 ledger.ohmygh.com）
-    Artifact {
-        #[command(subcommand)]
-        cmd: ArtifactCmd,
-    },
-    /// 账本面（密钥管理）
-    Ledger {
-        #[command(subcommand)]
-        cmd: LedgerCmd,
-    },
     /// yolo 面：项目级干扰只读检测（写 marker 驱动状态栏 proj-yolo! 升格，零改动纯可见化）
     Yolo {
         #[command(subcommand)]
@@ -242,106 +227,6 @@ enum ArmState {
     On,
     /// 预授权撤：blocked 只报警留痕
     Off,
-}
-
-#[derive(Subcommand)]
-enum IssueCmd {
-    /// 开 issue（账本 issue 流；kind=bug BUG 错误任务或 improvement 改进优化任务，缺省 bug；真源 ledger.ohmygh.com，旧 issues.ohmygh.com 过渡保役）
-    New {
-        /// 标题（trim 后 1 至 200 字符）
-        title: String,
-        /// 任务性质（bug=BUG 错误任务；improvement=改进优化任务）
-        #[arg(long, default_value = "bug")]
-        kind: String,
-        /// 验收条件（关单 result 引 digest 即完成判据）
-        #[arg(long)]
-        acceptance: String,
-        /// 补充说明（随开单事件）
-        #[arg(long)]
-        body: Option<String>,
-    },
-    /// 列 issue（新到旧；count 为返回条数非在册总数，打满 limit 即 stderr 出截断提示）
-    List {
-        /// 条数（1 至 100，缺省 100）
-        #[arg(long)]
-        limit: Option<u32>,
-        /// 翻页游标：取该 issue 号之前更旧一页（末行号作下一页游标，has_more=false 即止）
-        #[arg(long)]
-        before: Option<String>,
-    },
-    /// 看单条 issue 详情（projection 加 timeline）
-    Show {
-        /// issue 号（数字）
-        n: u64,
-    },
-}
-
-#[derive(Subcommand)]
-enum ArtifactCmd {
-    /// 发布产物（共享库本体；digest=正文或记录哈希，库不收二进制实体）
-    Publish {
-        /// 名称（trim 后 1 至 200 字符）
-        name: String,
-        /// 产物性质（experience 加 lesson 加 research 加 prototype 加 binary 等十五种）
-        #[arg(long)]
-        kind: String,
-        /// 内容哈希（sha256:<64hex 小写>；一律正文或记录哈希为身份）
-        #[arg(long)]
-        digest: String,
-        /// 版本（tag 或版本号；实现记录类适用）
-        #[arg(long)]
-        version: Option<String>,
-        /// 开发记录区间（如 v2.5.0..v2.6.0；实现记录类适用）
-        #[arg(long = "git-range")]
-        git_range: Option<String>,
-        /// 依赖出处（可多次；回溯链即证据链）
-        #[arg(long = "dep")]
-        deps: Vec<String>,
-        /// 摘要
-        #[arg(long)]
-        summary: Option<String>,
-        /// 成败面（experience 类：success 或 failure）
-        #[arg(long)]
-        outcome: Option<String>,
-        /// 关联 git sha（入 artifacts 表）
-        #[arg(long = "git-sha")]
-        git_sha: Option<String>,
-        /// 说明（随 publish 事件 body）
-        #[arg(long)]
-        note: Option<String>,
-    },
-    /// 产物验证事件（只增面：attest_dev 加 attest_prod 加 verification_failed；promote/demote/supersede 与删改归 omc 工作台）
-    Attest {
-        /// artifact id
-        id: String,
-        /// 验证类型（attest_dev|attest_prod|verification_failed）
-        #[arg(long)]
-        r#type: String,
-        /// 附加注记（进事件 body）
-        #[arg(long)]
-        note: Option<String>,
-    },
-    /// 列产物（current 投影当前有效集；count 为返回条数）
-    List {
-        /// 只看当前有效集
-        #[arg(long)]
-        current: bool,
-        /// 按 env 过滤（dev 或 prod）
-        #[arg(long)]
-        env: Option<String>,
-    },
-}
-
-#[derive(Subcommand)]
-enum LedgerCmd {
-    /// 生成 Ed25519 密钥对（私钥写 ~/.hst/ledger/ed25519.key 0600，不打印不进 argv；公钥 JWK 与 kid 打印供总台在册）
-    Keygen {
-        /// 确认覆盖在位密档（销毁旧私钥不可恢复）
-        #[arg(long)]
-        force: bool,
-    },
-    /// 本地私钥与内置公钥的配对自检（不配对则写入全体 401 难归因；密档缺位报 absent）
-    Verify,
 }
 
 #[derive(Subcommand)]
@@ -675,11 +560,6 @@ fn run() -> Result<(), String> {
         },
         Commands::Completions { shell } => cmd_completions(shell),
         Commands::Trace { cmd } => cmd_trace(cmd),
-        Commands::Artifact { cmd } => cmd_artifact(cmd),
-        Commands::Ledger { cmd } => match cmd {
-            LedgerCmd::Keygen { force } => cmd_ledger_keygen(force),
-            LedgerCmd::Verify => cmd_ledger_verify(),
-        },
         Commands::Yolo { cmd } => match cmd {
             YoloCmd::Check { project } => cmd_yolo_check(project),
         },
@@ -701,7 +581,6 @@ fn run() -> Result<(), String> {
             TaskCmd::YoloHeal { state } => cmd_task_yoloheal(state),
             TaskCmd::FleetRefresh => cmd_task_fleet_refresh(),
         },
-        Commands::Issue { cmd } => cmd_issue(cmd),
     }
 }
 
@@ -723,7 +602,7 @@ fn render_llms(root: &clap::Command) -> String {
         table.push_str(&format!("| `{usage}` | {about} |\n"));
     }
     format!(
-        "# hst {ver}\n\n> HST（Hooks, Statusline, Trace）：agent 全平台部署配置与诊断 CLI（四家 hook 落盘、状态栏、只读对话 trace、可用性诊断、yolo 分级）。手册由活命令树渲染；契约以 clap 帮助与集成测试为准。\n\n> actl 适配面：独立直用完全不变；经 actl（ai-cloud 框架）调用时写级动词过其写闸（预览缺省，加 `--yes` 执行），`--json` 出 TOON 信封，非 compact 面 `--yes` 由 actl 消费剥离。\n\n## 读序\n\n常见任务直达：部署 `hst init`、体检 `hst doctor`、查文件谁改的 `hst trace file <文件>`。本手册机器形：`hst --llms --json`。契约权威：`hst --help` 与集成测试。\n\n## 子命令表\n\n| 命令 | 说明 |\n| --- | --- |\n{table}\n## 通用旗标\n\n| 旗标 | 说明 |\n| --- | --- |\n| `--format kv\\|json\\|jsonl` | 输出三态（kv 是缺省 marker 行，json 出信封，jsonl 逐行对象） |\n| `--json` | `--format json` 简写（信封形） |\n| `--filter-output <keys>` | json 信封 data 键路径过滤（仅出信封命令生效；点号嵌套、数组下标如 items[0,2]，响错不静默截断） |\n| `--llms` | 本手册；配 `--json` 出机器形态（REQ-060 族标准） |\n| `--help` / `--version` | 帮助与版本 |\n\n## 退出码\n\n| 码 | 义 |\n| --- | --- |\n| 0 | 成功（裸 hst 打印帮助亦退 0） |\n| 1 | 业务失败与启动期旗标校验错（doctor blocked、verify 失败、运行错误、--filter-output 配对与响错）加 clap 解析级用法错（REQ-032 F1：不占 2 通道） |\n| 2 | hook 面自判处置（secretguard 拦截） |\n\n## 输出契约\n\n结构化错误 stderr 单行 JSON；json 信封 meta 带 duration_ms。\n\n## 常用例\n\n```bash\nhst init                     # 全套部署（幂等）：yolo 键加 hook 加状态栏\nhst doctor                   # 零网络只读体检（block 才退 1）\nhst trace file src/main.rs   # 单文件谁改的、为什么\nhst --json --filter-output blocked doctor   # 信封只留 blocked 键\nhst --llms --json            # 机器形手册（agent 面）\nhst issue new \"发现缺陷\" --body \"复现步骤\"   # 一键反馈（issues.ohmygh.com）\n```\n",
+        "# hst {ver}\n\n> HST（Hooks, Statusline, Trace）：agent 全平台部署配置与诊断 CLI（四家 hook 落盘、状态栏、只读对话 trace、可用性诊断、yolo 分级）。手册由活命令树渲染；契约以 clap 帮助与集成测试为准。\n\n> actl 适配面：独立直用完全不变；经 actl（ai-cloud 框架）调用时写级动词过其写闸（预览缺省，加 `--yes` 执行），`--json` 出 TOON 信封，非 compact 面 `--yes` 由 actl 消费剥离。\n\n## 读序\n\n常见任务直达：部署 `hst init`、体检 `hst doctor`、查文件谁改的 `hst trace file <文件>`。本手册机器形：`hst --llms --json`。契约权威：`hst --help` 与集成测试。\n\n## 子命令表\n\n| 命令 | 说明 |\n| --- | --- |\n{table}\n## 通用旗标\n\n| 旗标 | 说明 |\n| --- | --- |\n| `--format kv\\|json\\|jsonl` | 输出三态（kv 是缺省 marker 行，json 出信封，jsonl 逐行对象） |\n| `--json` | `--format json` 简写（信封形） |\n| `--filter-output <keys>` | json 信封 data 键路径过滤（仅出信封命令生效；点号嵌套、数组下标如 items[0,2]，响错不静默截断） |\n| `--llms` | 本手册；配 `--json` 出机器形态（REQ-060 族标准） |\n| `--help` / `--version` | 帮助与版本 |\n\n## 退出码\n\n| 码 | 义 |\n| --- | --- |\n| 0 | 成功（裸 hst 打印帮助亦退 0） |\n| 1 | 业务失败与启动期旗标校验错（doctor blocked、verify 失败、运行错误、--filter-output 配对与响错）加 clap 解析级用法错（REQ-032 F1：不占 2 通道） |\n| 2 | hook 面自判处置（secretguard 拦截） |\n\n## 输出契约\n\n结构化错误 stderr 单行 JSON；json 信封 meta 带 duration_ms。\n\n## 常用例\n\n```bash\nhst init                     # 全套部署（幂等）：yolo 键加 hook 加状态栏\nhst doctor                   # 零网络只读体检（block 才退 1）\nhst trace file src/main.rs   # 单文件谁改的、为什么\nhst --json --filter-output blocked doctor   # 信封只留 blocked 键\nhst --llms --json            # 机器形手册（agent 面）\n```\n",
         ver = env!("CARGO_PKG_VERSION"),
         table = table,
     )
@@ -843,332 +722,6 @@ fn synopsis(cmd: &clap::Command, path: &str) -> String {
         s.push_str(&o);
     }
     s
-}
-
-/// `hst issue new|list|show`：账本 issue 流（REQ-063，真源
-/// ledger.ohmygh.com；只增面，close/status 推进归 omc 工作台）。kv 出
-/// marker 行，json 加 jsonl 走 fmtio 三态。
-fn cmd_issue(cmd: IssueCmd) -> Result<(), String> {
-    match cmd {
-        IssueCmd::New {
-            title,
-            kind,
-            acceptance,
-            body,
-        } => {
-            let title_trim = title.trim();
-            if title_trim.is_empty() || title_trim.chars().count() > 200 {
-                return Err(format!(
-                    "title 必填且至多 200 字符（trim 后），得 {}",
-                    title_trim.chars().count()
-                ));
-            }
-            if !hst::ledger::ISSUE_KINDS.contains(&kind.as_str()) {
-                return Err(format!("kind 仅 bug|improvement，得 {kind}"));
-            }
-            let n = hst::ledger::client()?
-                .issue_new(title_trim, &kind, &acceptance, body.as_deref())
-                .map_err(|e| e.to_string())?;
-            match hst::fmtio::mode() {
-                hst::fmtio::Format::Json => {
-                    let cwd = std::env::current_dir().unwrap_or_default();
-                    print_json(
-                        "issue-new",
-                        &cwd,
-                        Ok(serde_json::json!({ "filed": true, "n": n })),
-                    )?;
-                }
-                hst::fmtio::Format::Jsonl => {
-                    hst::fmtio::print_jsonl(&[serde_json::json!({ "filed": true, "n": n })]);
-                }
-                hst::fmtio::Format::Kv => {
-                    println!("ledger.issue.opened=n{n}");
-                }
-            }
-            Ok(())
-        }
-        IssueCmd::List { limit, before } => {
-            // 家族标准（#52/#53）：默认 100、打满即 stderr 截断提示、count
-            // 为返回条数；账本 has_more 由 more=1 恒在（权威信号）。
-            let eff = hst::ledger::clamp_issue_limit(limit.unwrap_or(100));
-            let before_n = match before.as_deref() {
-                Some(b) if !b.trim().is_empty() => Some(
-                    b.trim()
-                        .parse::<u64>()
-                        .map_err(|_| format!("before 须数字 issue 号，得 {b}"))?,
-                ),
-                _ => None,
-            };
-            let v = hst::ledger::client_readonly()?
-                .issue_list(eff, before_n)
-                .map_err(|e| e.to_string())?;
-            let rows = v["issues"].as_array().cloned().unwrap_or_default();
-            let saturated = v["has_more"]
-                .as_bool()
-                .unwrap_or_else(|| hst::ledger::issue_list_saturated(rows.len(), eff));
-            if saturated {
-                eprintln!("{}", hst::ledger::issue_list_truncation_hint(eff));
-            }
-            match hst::fmtio::mode() {
-                hst::fmtio::Format::Json => {
-                    let cwd = std::env::current_dir().unwrap_or_default();
-                    let mut payload = serde_json::json!({ "count": rows.len(), "issues": rows });
-                    if let Some(hm) = v["has_more"].as_bool() {
-                        payload["has_more"] = serde_json::json!(hm);
-                    }
-                    print_json("issue-list", &cwd, Ok(payload))?;
-                }
-                hst::fmtio::Format::Jsonl => hst::fmtio::print_jsonl(&rows),
-                hst::fmtio::Format::Kv => {
-                    println!("issue.list.count={}", rows.len());
-                    if let Some(hm) = v["has_more"].as_bool() {
-                        println!("issue.list.has_more={hm}");
-                    }
-                    for r in &rows {
-                        println!(
-                            "issue.row n={} kind={} status={} assignee={} has_result={} title={}",
-                            r["issue_n"],
-                            r["kind"].as_str().unwrap_or("-"),
-                            r["status"].as_str().unwrap_or("-"),
-                            r["assignee"].as_str().unwrap_or("-"),
-                            r["hasResult"],
-                            r["title"].as_str().unwrap_or("-"),
-                        );
-                    }
-                }
-            }
-            Ok(())
-        }
-        IssueCmd::Show { n } => {
-            let v = hst::ledger::client_readonly()?
-                .issue_show(n)
-                .map_err(|e| e.to_string())?;
-            match hst::fmtio::mode() {
-                hst::fmtio::Format::Json => {
-                    let cwd = std::env::current_dir().unwrap_or_default();
-                    print_json("issue-show", &cwd, Ok(v.clone()))?;
-                }
-                hst::fmtio::Format::Jsonl => {
-                    hst::fmtio::print_jsonl(&[v.clone()]);
-                }
-                hst::fmtio::Format::Kv => {
-                    for line in render_issue_show_kv(&v) {
-                        println!("{line}");
-                    }
-                }
-            }
-            Ok(())
-        }
-    }
-}
-
-/// issue 详情的 kv 行（projection 加时间线；title 与 acceptance 在
-/// timeline 的 issue_open payload 里，服务端 projection 只回状态面——评审
-/// F1）。payload 是嵌套 JSON 字符串，顺手解成对象入行。
-fn render_issue_show_kv(v: &serde_json::Value) -> Vec<String> {
-    let mut out = Vec::new();
-    let p = &v["projection"];
-    let open = v["timeline"]
-        .as_array()
-        .and_then(|tl| tl.iter().find(|ev| ev["type"] == "issue_open"))
-        .cloned()
-        .unwrap_or(serde_json::json!({}));
-    let payload: serde_json::Value = open["payload"]
-        .as_str()
-        .and_then(|s| serde_json::from_str(s).ok())
-        .unwrap_or(serde_json::json!({}));
-    out.push(format!("issue.n={}", v["issue"]));
-    out.push(format!(
-        "issue.title={}",
-        payload["title"].as_str().unwrap_or("-")
-    ));
-    out.push(format!(
-        "issue.kind={}",
-        payload["kind"].as_str().unwrap_or("-")
-    ));
-    out.push(format!(
-        "issue.status={}",
-        p["status"].as_str().unwrap_or("-")
-    ));
-    out.push(format!(
-        "issue.acceptance={}",
-        payload["acceptance"].as_str().unwrap_or("-")
-    ));
-    if let Some(a) = p["assignee"].as_str() {
-        out.push(format!("issue.assignee={a}"));
-    }
-    if let Some(tl) = v["timeline"].as_array() {
-        out.push(format!("issue.timeline.count={}", tl.len()));
-        for ev in tl {
-            out.push(format!(
-                "issue.event seq={} type={} at={}",
-                ev["seq"],
-                ev["type"].as_str().unwrap_or("-"),
-                ev["created_at"],
-            ));
-        }
-    }
-    out
-}
-
-/// `hst artifact publish|attest|list`：账本 artifact 流（REQ-063，只增面）。
-fn cmd_artifact(cmd: ArtifactCmd) -> Result<(), String> {
-    match cmd {
-        ArtifactCmd::Publish {
-            name,
-            kind,
-            digest,
-            version,
-            git_range,
-            deps,
-            summary,
-            outcome,
-            git_sha,
-            note,
-        } => {
-            let name_trim = name.trim();
-            if name_trim.is_empty() || name_trim.chars().count() > 200 {
-                return Err(format!(
-                    "name 必填且至多 200 字符（trim 后），得 {}",
-                    name_trim.chars().count()
-                ));
-            }
-            if !ledger_client::ARTIFACT_KINDS.contains(&kind.as_str()) {
-                return Err(format!(
-                    "kind 仅 {}，得 {kind}",
-                    ledger_client::ARTIFACT_KINDS.join("|")
-                ));
-            }
-            hst::ledger::validate_digest(&digest)?;
-            let id = hst::ledger::client()?
-                .artifact_publish_full(
-                    name_trim,
-                    &kind,
-                    &digest,
-                    version.as_deref(),
-                    git_range.as_deref(),
-                    &deps,
-                    note.as_deref(),
-                    summary.as_deref(),
-                    outcome.as_deref(),
-                    git_sha.as_deref(),
-                )
-                .map_err(|e| e.to_string())?;
-            match hst::fmtio::mode() {
-                hst::fmtio::Format::Json => {
-                    let cwd = std::env::current_dir().unwrap_or_default();
-                    print_json(
-                        "artifact-publish",
-                        &cwd,
-                        Ok(serde_json::json!({ "published": true, "artifact_id": id })),
-                    )?;
-                }
-                hst::fmtio::Format::Jsonl => {
-                    hst::fmtio::print_jsonl(&[
-                        serde_json::json!({ "published": true, "artifact_id": id }),
-                    ]);
-                }
-                hst::fmtio::Format::Kv => {
-                    println!("ledger.artifact.published={id}");
-                }
-            }
-            Ok(())
-        }
-        ArtifactCmd::Attest { id, r#type, note } => {
-            if !ledger_client::ATTEST_TYPES.contains(&r#type.as_str()) {
-                return Err(format!(
-                    "type 仅 {}（只增验证面；promote/demote/supersede 归 omc 工作台），得 {}",
-                    ledger_client::ATTEST_TYPES.join("|"),
-                    r#type
-                ));
-            }
-            let v = hst::ledger::client()?
-                .artifact_attest(&id, &r#type, serde_json::json!({}), note.as_deref())
-                .map_err(|e| e.to_string())?;
-            match hst::fmtio::mode() {
-                hst::fmtio::Format::Json => {
-                    let cwd = std::env::current_dir().unwrap_or_default();
-                    print_json("artifact-attest", &cwd, Ok(v.clone()))?;
-                }
-                hst::fmtio::Format::Jsonl => hst::fmtio::print_jsonl(&[v.clone()]),
-                hst::fmtio::Format::Kv => {
-                    println!("ledger.event.seq={}", v["event"]["seq"].clone());
-                    println!("ledger.event.type={}", v["event"]["type"].clone());
-                }
-            }
-            Ok(())
-        }
-        ArtifactCmd::List { current, env } => {
-            let v = hst::ledger::client_readonly()?
-                .artifact_list(current, env.as_deref())
-                .map_err(|e| e.to_string())?;
-            let rows = v["artifacts"].as_array().cloned().unwrap_or_default();
-            match hst::fmtio::mode() {
-                hst::fmtio::Format::Json => {
-                    let cwd = std::env::current_dir().unwrap_or_default();
-                    print_json(
-                        "artifact-list",
-                        &cwd,
-                        Ok(serde_json::json!({ "count": rows.len(), "artifacts": rows })),
-                    )?;
-                }
-                hst::fmtio::Format::Jsonl => hst::fmtio::print_jsonl(&rows),
-                hst::fmtio::Format::Kv => {
-                    println!("artifact.list.count={}", rows.len());
-                    for r in &rows {
-                        println!(
-                            "artifact.row id={} name={} kind={} current={} dev_verified={} prod_verified={}",
-                            r["artifact_id"],
-                            r["name"].as_str().unwrap_or("-"),
-                            r["kind"].as_str().unwrap_or("-"),
-                            r["current"],
-                            r["dev_verified"],
-                            r["prod_verified"],
-                        );
-                    }
-                }
-            }
-            Ok(())
-        }
-    }
-}
-
-/// `hst ledger keygen`：密钥对生成（私钥落密档，公钥 JWK 与 kid 打印）。
-fn cmd_ledger_keygen(force: bool) -> Result<(), String> {
-    let (kid, jwk, old_kid) = hst::ledger::keygen_write(force)?;
-    if let Some(old) = old_kid {
-        println!("ledger.keygen.old_kid={old}");
-    }
-    println!("ledger.keygen.kid={kid}");
-    println!("ledger.keygen.jwk={jwk}");
-    println!(
-        "ledger.keygen.private_key={}",
-        hst::ledger::private_key_path()?.display()
-    );
-    println!("ledger.keygen.hint=公钥 JWK 与 kid 供总台在册（在册后方可写入）");
-    Ok(())
-}
-
-/// `hst ledger verify`：本地私钥与内置公钥配对自检。
-fn cmd_ledger_verify() -> Result<(), String> {
-    match hst::ledger::pairing_ok()? {
-        Some(true) => {
-            println!("ledger.pair=ok kid={}", hst::ledger::key_id());
-            Ok(())
-        }
-        Some(false) => {
-            println!("ledger.pair=mismatch kid={}", hst::ledger::key_id());
-            println!(
-                "ledger.pair.hint=本地私钥与内置公钥 JWK 不配对（写入会全体 401）；轮换密钥对后需同步换 CLI 内置常量并在册新 kid"
-            );
-            Ok(())
-        }
-        None => {
-            println!("ledger.pair=absent kid={}", hst::ledger::key_id());
-            println!("ledger.pair.hint=私钥密档或 env 缺位；hst ledger keygen 生成");
-            Ok(())
-        }
-    }
 }
 
 /// `hst diagnose cache|agents`：活性诊断族（D21）。打真 API、烧最小 token。
@@ -1406,7 +959,7 @@ fn cmd_init(
             if token_guard { "on" } else { "off" }
         );
     }
-    // 压缩触发面（总台功能单 2026-09-23，ledger n6）：仅 compact 面的
+    // 压缩触发面（总台功能单 2026-09-23）：仅 compact 面的
     // scoped 旗标（同 --yolo 先例，与 yolo 族互斥由 clap 保证）。预览
     // （缺省，零写）加 --yes 落盘加回读自证；键面实证见 compact 模块文档。
     if let Some(spec) = compact_pct {

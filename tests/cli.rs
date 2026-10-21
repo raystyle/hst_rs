@@ -259,118 +259,6 @@ fn doctor_blocks_on_a_fresh_project_and_says_so() {
 }
 
 #[test]
-fn issue_new_invalid_title_fails_locally() {
-    // 本地拒绝不触网（秒红）：空标题走 ledger 客户端校验（title 必填且
-    // 至多 200）；缺 --acceptance 走 clap 用法错（退出 1，REQ-032 F1）。
-    hst()
-        .args(["issue", "new", "   ", "--acceptance", "x"])
-        .assert()
-        .failure()
-        .stderr(contains("至多 200"));
-    hst()
-        .args(["issue", "new", "t"])
-        .assert()
-        .failure()
-        .stderr(contains("--acceptance"));
-}
-
-#[test]
-fn ledger_artifact_publish_validates_locally() {
-    // REQ-018：本地校验秒红不触网（digest 形、kind 面、name 长度）。
-    hst()
-        .args([
-            "artifact",
-            "publish",
-            "x",
-            "--kind",
-            "experience",
-            "--digest",
-            "not-a-digest",
-        ])
-        .assert()
-        .failure()
-        .stderr(contains("sha256"));
-    hst()
-        .args([
-            "artifact",
-            "publish",
-            "x",
-            "--kind",
-            "nope",
-            "--digest",
-            &format!("sha256:{}", "a".repeat(64)),
-        ])
-        .assert()
-        .failure()
-        .stderr(contains("kind 仅"));
-}
-
-#[test]
-fn ledger_close_face_removed_and_attest_narrowed() {
-    // 总台修正令收口：close 面移除（usage 错退出 1（REQ-032 F1））；attest 只增三验
-    // 证型（promote 型本地拒并指 omc）。
-    hst()
-        .args([
-            "issue",
-            "close",
-            "1",
-            "--digest",
-            &format!("sha256:{}", "a".repeat(64)),
-        ])
-        .assert()
-        .failure()
-        .stderr(contains("unrecognized subcommand"));
-    hst()
-        .args(["artifact", "attest", "x", "--type", "promote"])
-        .assert()
-        .failure()
-        .stderr(contains("omc"));
-    let tmp = std::env::temp_dir().join(format!(
-        "hst-cli-novault-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_millis()
-    ));
-    hst()
-        .args(["artifact", "attest", "x", "--type", "attest_dev"])
-        .env("HST_ROOT", &tmp)
-        .assert()
-        .failure()
-        .stderr(contains("私钥密档不可读"));
-    let _ = std::fs::remove_dir_all(&tmp);
-}
-
-#[test]
-fn ledger_keygen_isolated_writes_vault() {
-    // HST_ROOT 钉临时根：keygen 写密档 0600，打印 kid 与 JWK，不泄 seed。
-    let tmp = std::env::temp_dir().join(format!(
-        "hst-cli-keygen-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_millis()
-    ));
-    let out = hst()
-        .args(["ledger", "keygen"])
-        .env("HST_ROOT", &tmp)
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-    let s = String::from_utf8_lossy(&out);
-    assert!(s.contains("ledger.keygen.kid="), "kid 行：{s}");
-    assert!(s.contains("ledger.keygen.jwk="), "JWK 行：{s}");
-    assert!(!s.contains("seed"), "私钥不打印：{s}");
-    let key = tmp.join("ledger").join("ed25519.key");
-    assert!(key.exists(), "密档在位");
-    let _ = std::fs::remove_dir_all(&tmp);
-}
-
-#[test]
 fn yolo_check_reports_hits_and_writes_marker() {
     // REQ-017：只读检测出 kv 行加 marker 落盘（HST_ROOT 钉临时根隔离真
     // 家）；命中文件字节原样（零改动主张）。
@@ -425,33 +313,6 @@ fn yolo_check_reports_hits_and_writes_marker() {
 }
 
 #[test]
-fn issue_list_help_documents_default_limit_and_count_semantics() {
-    // #52 同型修的命令面契约：默认 limit 100 与 count 语义（返回条数非
-    // 在册总数）入 help，防回退漂移（本地 help 面，不触网）。
-    let out = hst()
-        .args(["issue", "list", "--help"])
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-    let s = String::from_utf8_lossy(&out);
-    assert!(s.contains("缺省 100"), "默认值入 help：{s}");
-    assert!(s.contains("返回条数非在册总数"), "count 语义入 help：{s}");
-    assert!(s.contains("截断提示"), "饱和提示指引入 help：{s}");
-    assert!(s.contains("更旧一页"), "翻页游标语义入 help（#53）：{s}");
-    let group = hst()
-        .args(["issue", "--help"])
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-    let g = String::from_utf8_lossy(&group);
-    assert!(g.contains("ledger.ohmygh.com"), "真源注记入组 help：{g}");
-}
-
-#[test]
 fn llms_flag_prints_compact_manual() {
     // REQ-060 更正后：--llms 是族标准名，裸出 markdown 手册（名加版本加
     // 定位加子命令表加通用旗标加常用例，活命令树自适应，至多 120 行）。
@@ -490,7 +351,7 @@ fn llms_json_flag_prints_machine_form() {
         .iter()
         .filter_map(|c| c["name"].as_str())
         .collect();
-    assert!(names.contains(&"issue") && names.contains(&"init") && names.contains(&"trace"));
+    assert!(names.contains(&"yolo") && names.contains(&"init") && names.contains(&"trace"));
 }
 
 #[test]
@@ -1812,7 +1673,7 @@ fn loop_commands_retired() {
 
 #[test]
 fn init_compact_pct_preview_apply_off_and_doctor_check() {
-    // 总台功能单（ledger n6）：预览零写、--yes 落盘回读自证、同值幂等、
+    // 总台功能单 2026-09-23：预览零写、--yes 落盘回读自证、同值幂等、
     // off 摘键、doctor 的 claude compact 检查项回显、坏值与裸 --yes 拒收。
     let uniq = format!(
         "{}-{}",
@@ -3392,10 +3253,6 @@ fn help_faces_carry_no_archaeology_markers() {
         vec!["self", "--help"],
         vec!["completions", "--help"],
         vec!["trace", "--help"],
-        vec!["issue", "--help"],
-        vec!["issue", "new", "--help"],
-        vec!["artifact", "--help"],
-        vec!["ledger", "--help"],
         vec!["yolo", "--help"],
         vec!["diagnose", "--help"],
         vec!["task", "--help"],

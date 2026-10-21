@@ -899,7 +899,7 @@ pub fn diagnose(root: &Path) -> Result<Diagnosis, String> {
         detail: crate::caps::caps_line(&caps),
     });
 
-    // 压缩触发检测（总台功能单 2026-09-23，ledger n6）：claude 用户级
+    // 压缩触发检测（总台功能单 2026-09-23）：claude 用户级
     // settings 的 auto-compact 面（键面实证见 compact 模块文档）。信息型
     // 检查恒 ok（未配置走缺省口径也是健康态）；settings 坏损 warn。
     {
@@ -2279,7 +2279,7 @@ mod tests {
 
     /// 独占临时 user 家与 hst 根（HST_USER_HOME 加 HST_ROOT 双缝注入）。
     /// Drop 恒清 env（断言 panic 不清会把泄漏 env 毒化并行测试，mac CI
-    /// 实弹 2026-10-11：goal 断言红连带 ledger 加 secretguard 加 sentinel
+    /// 实弹 2026-10-11：goal 断言红连带 secretguard 加 sentinel
     /// 三家 env 缝测试翻红）；root 先 canonicalize 再用（macOS 的
     /// /var/... 经 diagnose 的 abs_display 会解到 /private/var/...，slug
     /// 键漂移，测试写与读必须同用解析后形）。

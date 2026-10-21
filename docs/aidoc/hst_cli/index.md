@@ -1,4 +1,4 @@
-# hst-cli 2.15.2
+# hst-cli 3.0.0
 
 hst-cli：HST（Hooks, Statusline, Trace）库面——四家 agent（claude、
 codex、grok、kimi）的部署配置与诊断内核。承载五功能：hook 状态落盘
@@ -12,14 +12,13 @@ docs/research 与 docs/adr；输出信封契约见 fmtio 模块文档。
 - [`agents`](agents.md): 四家 agent 探测（PATH、env、hst 自管根、默认目录四源）。
 - [`archive`](archive.md): 的通用归档工具面（细则见模块文档与集成测试）。
 - [`caps`](caps.md): CPU 指令集能力与探针退出形态分类（S021/P0018）。
-- [`compact`](compact.md): claude 压缩触发（auto-compact）配置读写面（总台功能单 2026-09-23，ledger n6）。
+- [`compact`](compact.md): claude 压缩触发（auto-compact）配置读写面（总台功能单 2026-09-23）。
 - [`deploy`](deploy.md): `hst init` 部署层：hook 注册四家用户级、shim 落位、状态栏面与 ours 技能目录清扫（D53/ADR-0005）。
 - [`diagnose`](diagnose.md): `hst diagnose` 活性诊断族：网关缓存命中矩阵与配置活性（D21）。
 - [`doctor`](doctor.md): `hst doctor` 只读体检：yolo、信任、二进制、登录态、hook 形态、状态栏与状态面。
 - [`fmtio`](fmtio.md): 全局输出三态（kv/json/jsonl）与结构化错误出口契约。
 - [`hook`](hook.md): `hst hook`：事件到四态映射、用户级 session 分键 state 落盘与密钥拦截分流（D28/S030）。
 - [`install`](install.md): hst 根解析与共享下载件（self update 复用）。
-- [`ledger`](ledger.md): 统一 issue 入口客户端面（issues.ohmygh.com，REQ-057 对齐）。
 - [`pathutil`](pathutil.md): 的路径工具面（细则见模块文档与集成测试）。
 - [`secretguard`](secretguard.md): 的密钥拦截闸面（细则见模块文档与集成测试）。
 - [`shim`](shim.md): shim 三形态自包含状态写入器：cmd/ps1/sh 加 grok 包装（D27/D28/D39）。

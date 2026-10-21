@@ -1,5 +1,5 @@
 <!-- hst_cli/index.md -->
-# hst-cli 2.15.2
+# hst-cli 3.0.0
 
 hst-cli：HST（Hooks, Statusline, Trace）库面——四家 agent（claude、
 codex、grok、kimi）的部署配置与诊断内核。承载五功能：hook 状态落盘
@@ -13,14 +13,13 @@ docs/research 与 docs/adr；输出信封契约见 fmtio 模块文档。
 - [`agents`](agents.md): 四家 agent 探测（PATH、env、hst 自管根、默认目录四源）。
 - [`archive`](archive.md): 的通用归档工具面（细则见模块文档与集成测试）。
 - [`caps`](caps.md): CPU 指令集能力与探针退出形态分类（S021/P0018）。
-- [`compact`](compact.md): claude 压缩触发（auto-compact）配置读写面（总台功能单 2026-09-23，ledger n6）。
+- [`compact`](compact.md): claude 压缩触发（auto-compact）配置读写面（总台功能单 2026-09-23）。
 - [`deploy`](deploy.md): `hst init` 部署层：hook 注册四家用户级、shim 落位、状态栏面与 ours 技能目录清扫（D53/ADR-0005）。
 - [`diagnose`](diagnose.md): `hst diagnose` 活性诊断族：网关缓存命中矩阵与配置活性（D21）。
 - [`doctor`](doctor.md): `hst doctor` 只读体检：yolo、信任、二进制、登录态、hook 形态、状态栏与状态面。
 - [`fmtio`](fmtio.md): 全局输出三态（kv/json/jsonl）与结构化错误出口契约。
 - [`hook`](hook.md): `hst hook`：事件到四态映射、用户级 session 分键 state 落盘与密钥拦截分流（D28/S030）。
 - [`install`](install.md): hst 根解析与共享下载件（self update 复用）。
-- [`ledger`](ledger.md): 统一 issue 入口客户端面（issues.ohmygh.com，REQ-057 对齐）。
 - [`pathutil`](pathutil.md): 的路径工具面（细则见模块文档与集成测试）。
 - [`secretguard`](secretguard.md): 的密钥拦截闸面（细则见模块文档与集成测试）。
 - [`shim`](shim.md): shim 三形态自包含状态写入器：cmd/ps1/sh 加 grok 包装（D27/D28/D39）。
@@ -98,9 +97,9 @@ cfg(unix) 分支待 P0012 Linux 实机编译验证）。
 <!-- hst_cli/compact.md -->
 # hst-cli::compact
 
-claude 压缩触发（auto-compact）配置读写面（总台功能单 2026-09-23，ledger n6）。
-claude 压缩触发（auto-compact）配置面（总台功能单 2026-09-23，ledger
-issue n6）。配置面实证（本机 claude 2.1.270 二进制反混淆，2026-09-23）：
+claude 压缩触发（auto-compact）配置读写面（总台功能单 2026-09-23）。
+claude 压缩触发（auto-compact）配置面（总台功能单 2026-09-23）。配置
+面实证（本机 claude 2.1.270 二进制反混淆，2026-09-23）：
 百分比阈值唯一面 = 环境变量 `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`
 （parseFloat，0 < 值 <= 100，百分数刻度，"70" 即 70%；二进制内名
 testPctOverride，官方文档无此键，未文档面，升级可能变）；窗口面 =
@@ -280,40 +279,6 @@ ome，D07 迁册）；本模块只留三件消费面共享的能力：hst 数据
 - `hst_home` — # Errors
 - `managed_binaries` — hst 自管安装的二进制清单（agents.rs 的 Probe 以 source=oma 消费）。
 - `managed_version` — hst 自管已装版本（manifest 的 version 字段；多个版本目录取最大）。
-
-
-<!-- hst_cli/ledger.md -->
-# hst-cli::ledger
-
-统一 issue 入口客户端面（issues.ohmygh.com，REQ-057 对齐）。
-hst ledger 面（REQ-063 Phase 3；总台修正令 2026-09-20 权限收口）：
-客户端实现统一走 `ledger-client` crate（ledger-rs，舰队唯一实现，
-签名道加只增面全在其中），本模块只剩仓身份加密档管理加本地快检
-加家族读序三件。**权限只增**：issue new/list/show 加 artifact
-publish/attest（attest_dev 加 attest_prod 加 verification_failed 三验
-证型）/list；close/delete 与 status 推进加 promote/demote/supersede 归
-omc 工作台（开发工作台经 herdr 委托执行）。私钥密档
-`~/.hst/ledger/ed25519.key`（hex 32 字节，0600）或 env
-`HST_LEDGER_PRIVATE_KEY`（hex），不进仓不进 argv。
-
-## Functions
-
-- `clamp_issue_limit` — issue list 的 limit 钳制（1 至 100，服务端上限；#52 家族标准）：钳制
-- `client` — 构造标准客户端（ledger-client crate）：env 优先次密档。
-- `client_readonly` — 只读客户端（GET 面免钥，评审 F2 加 F4）：crate `read_only` 构造
-- `issue_list_saturated` — issue list 饱和判定（#52 家族标准）：返回条数不少于钳制后 limit 即示
-- `issue_list_truncation_hint` — issue list 饱和提示行（#52/#53 家族标准）：返回条数打满钳制后 limit
-- `key_id` — kid = sha256hex(规范化 JWK)，与 ledger-client 派生约定一致；常量本身
-- `keygen_write` — 密钥对生成（一次性或轮换）：自采 32 字节 seed（getrandom）写私钥密档
-- `pairing_ok` — 本地私钥与内置公钥 JWK 的配对自检：密档/env 缺位回 None（无法判），
-- `private_key_path` — 私钥密档路径（`~/.hst/ledger/ed25519.key`，内容 = hex 32 字节 seed；
-- `validate_digest` — digest 本地快检（服务端 DIGEST_RE 同源，不触网秒红）：`sha256:<64hex
-
-## Constants
-
-- `ISSUE_KINDS` — issue kind 集（服务端 ISSUE_KINDS 同源，本地快检面）：bug（BUG 错误
-- `PUBKEY_JWK` — 本仓公钥 JWK（字母键序紧凑形；与总台在册 kid 对应）。配对自检用，
-- `REPO_ID` — 本仓账本身份（REQ-063：repo_id = 规范化 remote）。
 
 
 <!-- hst_cli/pathutil.md -->

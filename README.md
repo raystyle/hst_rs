@@ -47,9 +47,6 @@ ark install hst
 | --- | --- | --- |
 | `HST_MIRROR` | 自升级镜像基址 | 未设 = 镜像优先（`https://env.ohmygh.com`，失败回退 GitHub）；设值 = 基址覆盖；空串 = 镜像全关 |
 | `HST_GATEWAY_URL` / `HST_GATEWAY_KEY` | 活性诊断（diagnose）网关指向与凭据 | 未设（diagnose cache 才消费） |
-| `HST_ISSUES_API` | （已退役）旧 issue 入口基址 | 无消费方（面切 ledger，REQ-018） |
-| `HST_LEDGER_URL` | 账本基址覆盖 | `https://ledger.ohmygh.com` |
-| `HST_LEDGER_PRIVATE_KEY` | 账本签名私钥（hex 32 字节；缺省读 `~/.hst/ledger/ed25519.key`） | 未设走密档 |
 | `HST_AGENT_PATH` / `HST_<AGENT>_BIN` | agent 检测自定义路径 | PATH 与默认目录探测 |
 
 配置文件位：hst 自管数据根 `~/.hst/`（hooks shim、statusline 脚本、state、selfupdate 记录）；状态栏定制模板 `hst statusline --example` 打印（落 `~/.hst/statusline.toml`）；四家 agent 的 hook 注册与 yolo 键写各家用户级配置（`~/.claude/settings.json` 等），AGENTS/CLAUDE 说明落项目目录。
@@ -71,8 +68,6 @@ hst init --compact-pct 70 --yes      # claude 压缩触发阈值 70%（不加 --
 hst diagnose cache           # 网关缓存命中矩阵（打真 API 烧最小 token）
 hst --json --filter-output blocked doctor   # 信封只留 blocked 键（agent 面）
 ```
-
-issue 账本流（真源 ledger.ohmygh.com）：`hst issue new "<标题>" --kind bug --acceptance "<验收条件>"` 开单；`hst issue list` / `hst issue show <n>` 读面；关单与状态推进归 omc 工作台（herdr 委托 omc ledger issue status）。产物共享库：`hst artifact publish <名> --kind experience --digest <sha256:...> --note "<说明>"` 等（--summary 加 --outcome 加 --git-sha 三旗标随 crate v0.1.3 齐）。
 
 agent 手册面：`hst --llms`（紧凑 markdown 手册，随活命令树自适应）；`hst --llms --json`（机器形态）。完整选项与子命令不内联本页，以 `hst --help` 与 `hst --llms` 为准。
 

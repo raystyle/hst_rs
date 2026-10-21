@@ -22,7 +22,6 @@
 - 事实性断言标六态（定义见 docs/README 写作规范节）；实证滥用即未完成
 - 踩坑当场记 diary 当天笔（同型二犯升格 ADR 或 guides 工作流）
 - self update 与部署改动经 herdr 会话知会 ohmycloud（跨仓周知不发 issue）
-- 遇缺陷即 `hst issue new "<标题>" --body <细节>` 一键反馈（issues.ohmygh.com 统一入口，自动带版本加平台加主机，REQ-010/总台 REQ-057 契约）
 - 每次提交 diary 当天记钩子；一事一提交（feat/docs/fix/chore 前缀）
 - 版本载体唯一权威 Cargo.toml（semver 判据见 guides/环境事实）
 

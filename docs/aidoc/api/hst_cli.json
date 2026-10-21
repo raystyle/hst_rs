@@ -1,6 +1,6 @@
 {
   "crate": "hst-cli",
-  "version": "2.15.2",
+  "version": "3.0.0",
   "items": [
     {
       "path": "hst_cli::agents",
@@ -105,7 +105,7 @@
     {
       "path": "hst_cli::compact",
       "kind": "module",
-      "docs": "claude 压缩触发（auto-compact）配置读写面（总台功能单 2026-09-23，ledger n6）。\nclaude 压缩触发（auto-compact）配置面（总台功能单 2026-09-23，ledger\nissue n6）。配置面实证（本机 claude 2.1.270 二进制反混淆，2026-09-23）：\n百分比阈值唯一面 = 环境变量 `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`\n（parseFloat，0 < 值 <= 100，百分数刻度，\"70\" 即 70%；二进制内名\ntestPctOverride，官方文档无此键，未文档面，升级可能变）；窗口面 =\n环境变量 `CLAUDE_CODE_AUTO_COMPACT_WINDOW`（裸 token 数，界\n[100000, 1000000]，优先于 settings 顶层键 `autoCompactWindow`、\n/autocompact 命令与 --autocompact 旗标）；`autoCompactEnabled` 顶层\n键缺省 true。阈值算式：有效窗口 = 窗口 - min(模型输出上限, 20000)；\n阈值 = min(floor(有效窗口 × pct / 100), 有效窗口 - 13000)；无 pct 时\n阈值 = 有效窗口 - 13000（缺省）。`CLAUDE_CODE_AUTO_COMPACT_THRESHOLD`\n不存在；`autoCompactThreshold` 是计算态遥测字段非配置键。hst 写面 =\n`hst init --compact-pct <1-100|off> [--yes]`（预览不加 --yes），\n读面 = `hst doctor` 的 claude compact 检查项。"
+      "docs": "claude 压缩触发（auto-compact）配置读写面（总台功能单 2026-09-23）。\nclaude 压缩触发（auto-compact）配置面（总台功能单 2026-09-23）。配置\n面实证（本机 claude 2.1.270 二进制反混淆，2026-09-23）：\n百分比阈值唯一面 = 环境变量 `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`\n（parseFloat，0 < 值 <= 100，百分数刻度，\"70\" 即 70%；二进制内名\ntestPctOverride，官方文档无此键，未文档面，升级可能变）；窗口面 =\n环境变量 `CLAUDE_CODE_AUTO_COMPACT_WINDOW`（裸 token 数，界\n[100000, 1000000]，优先于 settings 顶层键 `autoCompactWindow`、\n/autocompact 命令与 --autocompact 旗标）；`autoCompactEnabled` 顶层\n键缺省 true。阈值算式：有效窗口 = 窗口 - min(模型输出上限, 20000)；\n阈值 = min(floor(有效窗口 × pct / 100), 有效窗口 - 13000)；无 pct 时\n阈值 = 有效窗口 - 13000（缺省）。`CLAUDE_CODE_AUTO_COMPACT_THRESHOLD`\n不存在；`autoCompactThreshold` 是计算态遥测字段非配置键。hst 写面 =\n`hst init --compact-pct <1-100|off> [--yes]`（预览不加 --yes），\n读面 = `hst doctor` 的 claude compact 检查项。"
     },
     {
       "path": "hst_cli::compact::CompactState",
@@ -411,76 +411,6 @@
       "path": "hst_cli::install::managed_version",
       "kind": "function",
       "docs": "hst 自管已装版本（manifest 的 version 字段；多个版本目录取最大）。"
-    },
-    {
-      "path": "hst_cli::ledger",
-      "kind": "module",
-      "docs": "统一 issue 入口客户端面（issues.ohmygh.com，REQ-057 对齐）。\nhst ledger 面（REQ-063 Phase 3；总台修正令 2026-09-20 权限收口）：\n客户端实现统一走 `ledger-client` crate（ledger-rs，舰队唯一实现，\n签名道加只增面全在其中），本模块只剩仓身份加密档管理加本地快检\n加家族读序三件。**权限只增**：issue new/list/show 加 artifact\npublish/attest（attest_dev 加 attest_prod 加 verification_failed 三验\n证型）/list；close/delete 与 status 推进加 promote/demote/supersede 归\nomc 工作台（开发工作台经 herdr 委托执行）。私钥密档\n`~/.hst/ledger/ed25519.key`（hex 32 字节，0600）或 env\n`HST_LEDGER_PRIVATE_KEY`（hex），不进仓不进 argv。"
-    },
-    {
-      "path": "hst_cli::ledger::ISSUE_KINDS",
-      "kind": "constant",
-      "docs": "issue kind 集（服务端 ISSUE_KINDS 同源，本地快检面）：bug（BUG 错误\n任务）与 improvement（改进优化任务），缺省 bug。"
-    },
-    {
-      "path": "hst_cli::ledger::PUBKEY_JWK",
-      "kind": "constant",
-      "docs": "本仓公钥 JWK（字母键序紧凑形；与总台在册 kid 对应）。配对自检用，\n协议实现在 ledger-client crate。"
-    },
-    {
-      "path": "hst_cli::ledger::REPO_ID",
-      "kind": "constant",
-      "docs": "本仓账本身份（REQ-063：repo_id = 规范化 remote）。"
-    },
-    {
-      "path": "hst_cli::ledger::clamp_issue_limit",
-      "kind": "function",
-      "docs": "issue list 的 limit 钳制（1 至 100，服务端上限；#52 家族标准）：钳制\n单源，命令面默认值与饱和提示判定共用。"
-    },
-    {
-      "path": "hst_cli::ledger::client",
-      "kind": "function",
-      "docs": "构造标准客户端（ledger-client crate）：env 优先次密档。\n# Errors\n\n失败返回 `String` 错误（密钥读取与解析类）。"
-    },
-    {
-      "path": "hst_cli::ledger::client_readonly",
-      "kind": "function",
-      "docs": "只读客户端（GET 面免钥，评审 F2 加 F4）：crate `read_only` 构造\n（v0.1.2 起）；密钥在位用真钥形（语义同，仅省一次生成），旧形密档\n先迁移，不可解析不拦读（stderr 提示写入会失败）。写入面守钥报\n`LedgerError::Key` 由 crate 承担。\n# Errors\n\n失败返回 `String` 错误（密钥在位但不可解析类）。"
-    },
-    {
-      "path": "hst_cli::ledger::issue_list_saturated",
-      "kind": "function",
-      "docs": "issue list 饱和判定（#52 家族标准）：返回条数不少于钳制后 limit 即示\n警；用 `>=` 不用 `==`，服务端若返回多于请求值，`==` 会静默漏报。"
-    },
-    {
-      "path": "hst_cli::ledger::issue_list_truncation_hint",
-      "kind": "function",
-      "docs": " issue list 饱和提示行（#52/#53 家族标准）：返回条数打满钳制后 limit\n（或翻页面 has_more 为真）时出此行到 stderr，指向 `--limit` 提高加\n `--before` 翻更旧一页与账本网页面；不饱和不出。"
-    },
-    {
-      "path": "hst_cli::ledger::key_id",
-      "kind": "function",
-      "docs": "kid = sha256hex(规范化 JWK)，与 ledger-client 派生约定一致；常量本身\n已是字母键序紧凑形，直接哈希（单一真相）。"
-    },
-    {
-      "path": "hst_cli::ledger::keygen_write",
-      "kind": "function",
-      "docs": "密钥对生成（一次性或轮换）：自采 32 字节 seed（getrandom）写私钥密档\n（hex，0600 原子落）再经 crate 回读公面，返回 (kid, JWK, 旧 kid)；\n私钥不打印不进 argv，公钥 JWK 供总台在册（在册后方可写入）。在位密\n档非 `--force` 即拒（防静默销毁，旧钥不可恢复）。\n# Errors\n\n失败返回 `String` 错误（路径与写入类）。"
-    },
-    {
-      "path": "hst_cli::ledger::pairing_ok",
-      "kind": "function",
-      "docs": "本地私钥与内置公钥 JWK 的配对自检：密档/env 缺位回 None（无法判），\n在位回配对与否——不配对则写入会全体 401 且难归因。\n# Errors\n\n失败返回 `String` 错误（密钥读取类）。"
-    },
-    {
-      "path": "hst_cli::ledger::private_key_path",
-      "kind": "function",
-      "docs": "私钥密档路径（`~/.hst/ledger/ed25519.key`，内容 = hex 32 字节 seed；\n0600 由 keygen 落）。"
-    },
-    {
-      "path": "hst_cli::ledger::validate_digest",
-      "kind": "function",
-      "docs": "digest 本地快检（服务端 DIGEST_RE 同源，不触网秒红）：`sha256:<64hex\n小写>`。\n# Errors\n\n形不符返回 `String` 错误。"
     },
     {
       "path": "hst_cli::pathutil",

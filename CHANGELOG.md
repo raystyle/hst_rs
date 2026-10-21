@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### 里程碑 2026-10-21：v3.0.0 ledger 全线退役批 REQ-055
+
+- **ledger 面整体出仓（总台令 2026-10-21 ledger 全线淘汰）**：`hst issue`（new/list/show）、`hst artifact`（publish/attest/list）、`hst ledger`（keygen/verify）三命令族与 `src/ledger.rs` 模块、`ledger-client` git 依赖全数摘除（`base64` 随 ledger 独占消费一并出仓）。实查确认命中为 ledger.ohmygh.com 服务面实功能（非文案注释），按令剔除；总台令指认的 statusrender.rs/selfupdate.rs 实为零命中（selfupdate.rs 不存在，实名 update.rs），回执已更正。
+- **随动面**：`--llms` 手册 issue 例句与子命令表随活命令树自适应收敛；README env 表三行（HST_ISSUES_API/HST_LEDGER_URL/HST_LEDGER_PRIVATE_KEY）与 issue 账本流段摘除；update.rs 三处错误提示去 `hst issue new` 指引；AGENTS.md 遇缺陷即 hst issue new 纪律行摘除（反馈通道停役待总台新令）；REQ-010/REQ-018 各追加退役节，REQ-055 立单承载本批；源码注释 ledger 考古引用清理。契约破裂按 semver 判据记 major（命令族与 pub 模块移除即公开契约破裂）。单测 244 降 239、集成 64 降 59，全绿。
+
 ### 里程碑 2026-10-19：v2.15.2 task 裸名 project 双拼幻键修 task-02
 
 - **修单（lan-pve pve-harness 工位报单①）**：项目根内 `hst task set --project <裸名>` 原按 M031 相对展开 join 出 `<root>/<root 名>` 双拼幻键（如 `-…-pve-harness-pve-harness--claude.json`），状态栏与 Stop 腿按 payload 项目根键控永不可见。修法 = `project_root` 裸名单名双解析：cwd 下同名先认（现行相对语义不变）；不在场自 cwd 逐级上溯取首个 basename 同名祖先（项目根与任意深度子目录内裸名皆命中真根）。

@@ -13,7 +13,7 @@
 | REQ-007 | implemented | should | 全平台SSH实测矩阵 | .tools/cross-test.sh |
 | REQ-008 | draft | should | 三扫描器缺省根统一仓根 | |
 | REQ-009 | implemented | must | 项目级yolo干扰一键清除 | clear_project_yolo_interference 单测加 cli 集成 init --clear-project-yolo |
-| REQ-010 | implemented | must | 统一issue入口集成 | hst issue new/list/show 实弹加 #52 同型修加 #53 keyset 翻页（原 issues.ohmygh.com 面已切 ledger，见 REQ-010 附注与 REQ-018） |
+| REQ-010 | implemented | must | 统一issue入口集成 | hst issue new/list/show 实弹加 #52 同型修加 #53 keyset 翻页（原 issues.ohmygh.com 面已切 ledger，见 REQ-010 附注与 REQ-018）；2026-10-21 退役：随 ledger 全线淘汰出仓（REQ-055） |
 | REQ-011 | draft | should | 输出协议可选件评估 | 待回填 |
 | REQ-012 | draft | should | 库面残破描述清算 | 待回填 |
 | REQ-013 | implemented | must | 自更新家族统一标准对齐 | update.rs 单测九件（八新加一存量改）加 cli 集成 update_version_output_parses 加实弹缺省镜像腿与降级收束 |
@@ -21,7 +21,7 @@
 | REQ-015 | implemented | should | hook注册形态迁移评估 | 探针插件无头双钩实发加 evo-adr 活例加不入册三证 |
 | REQ-016 | draft | must | claude注册迁移skills插件形 | 待实施后回填 |
 | REQ-017 | implemented | should | 项目级yolo干扰检测告警 | yolo.rs 检测单测加 cli 集成加 statusline 单测两件加实弹 |
-| REQ-018 | implemented | must | ledger账本集成 | ledger.rs 单测六件加 cli 集成三件加实弹三验 |
+| REQ-018 | implemented | must | ledger账本集成 | ledger.rs 单测六件加 cli 集成三件加实弹三验；2026-10-21 退役：随 ledger 全线淘汰出仓（REQ-055） |
 | REQ-019 | implemented | must | 状态栏loop与goal段加管理命令面 | loopmgmt 单测五件加 statusline 单测四件加门控扩加 cli 集成三件加实弹（loop 与 goal 回环加部署脚本直跑）；2026-10-11 演进：scheduled_tasks 关联形态退役，goal 搬家自治见 REQ-045 演进节 |
 | REQ-020 | implemented | should | doctor增loop与goal健康检查 | loopmgmt 单测三件加 doctor 单测三态三件；2026-10-11 退役：scheduled_tasks 读检出仓，替位 check=goal 见 REQ-045 |
 | REQ-021 | implemented | should | loopmgmt类型契约化试点 | loopmgmt 单测十一件（含评审回填五面）加 cli 集成五断言面（双缺加双给加 bad_every 加 corrupt 加 no_session 短码）；2026-10-11 退役：模块随 loop 面出仓，短码先例由 goal 承接 |
@@ -57,3 +57,4 @@
 | REQ-053 | implemented | must | task按agent会话隔离批 | 键 `<slug>--<agent>.json` 同项目互不可见;legacy claude 兼容读加首写迁移;CLI --agent 三态;verify 判据档落 legacy 两态可验;随 2.14.0 |
 | REQ-052 | implemented | must | tokenguard全面退钩批 | 默认退钩加开关面(init --token-guard 三态加 HST_TOKEN_GUARD=off)加判据随动;goal 族零触碰移后续批;2.14.0 承载 |
 | REQ-051 | implemented | must | statusbar三行终稿与舰队指标面 | 已并 main aa07014(hst-rev r1:F-1 免复审收 G 全收养,CONFIRM 八项;四行结构加退化表加fleet快照道加kimi单行加marker直立形;装机位先行换防) |
+| REQ-055 | implemented | must | ledger全线退役批 | ledger.rs 加 ledger-client 与 base64 依赖加 issue/artifact/ledger 三命令族出仓;单测 244 降 239 集成 64 降 59 绿;AGENTS issue 纪律行摘除;契约破裂记 major,3.0.0 承载(总台令 2026-10-21) |
